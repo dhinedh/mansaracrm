@@ -41,16 +41,14 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-tr from-slate-900 via-slate-850 to-rose-950 flex flex-col justify-center items-center px-4">
+    <div className="min-h-screen bg-gradient-to-tr from-[#1c0f0d] via-[#2a1714] to-[#1c0f0d] flex flex-col justify-center items-center px-4">
       <div className="max-w-md w-full bg-white/95 backdrop-blur-md p-8 rounded-3xl shadow-2xl border border-white/10 relative overflow-hidden">
         {/* Abstract shapes for premium aesthetics */}
         <div className="absolute top-0 right-0 w-32 h-32 bg-rose-500/10 rounded-full blur-2xl"></div>
         <div className="absolute -bottom-6 -left-6 w-32 h-32 bg-slate-500/10 rounded-full blur-2xl"></div>
         
         <div className="text-center mb-8 relative z-10">
-          <div className="w-14 h-14 bg-rose-600 text-white rounded-2xl flex items-center justify-center font-black text-2xl shadow-lg shadow-rose-600/20 mx-auto mb-4">
-            M
-          </div>
+          <img src="/logo.png" alt="Mansara Foods" className="h-16 w-auto mx-auto mb-4 object-contain" />
           <h2 className="text-2xl font-black text-slate-800 tracking-tight">Welcome Back</h2>
           <p className="text-slate-500 text-xs mt-1">Sign in to manage your distributor portal</p>
         </div>

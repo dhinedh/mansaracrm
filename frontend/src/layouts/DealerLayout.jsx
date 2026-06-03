@@ -66,9 +66,9 @@ export default function DealerLayout() {
       <aside className="hidden md:flex flex-col w-64 bg-white border-r border-slate-200">
         {/* Brand header */}
         <div className="h-16 flex items-center px-6 border-b border-slate-200 bg-white">
-          <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 rounded-lg bg-rose-600 flex items-center justify-center text-white font-bold text-lg shadow-md shadow-rose-200">M</div>
-            <span className="font-bold text-slate-800 text-lg tracking-wide uppercase">Mansara Partner</span>
+          <div className="flex items-center space-x-2.5">
+            <img src="/logo.png" alt="Mansara Foods" className="h-10 w-auto object-contain" />
+            <span className="font-bold text-slate-800 text-base tracking-wide uppercase">Mansara Partner</span>
           </div>
         </div>
 
@@ -183,9 +183,9 @@ export default function DealerLayout() {
             </button>
             
             <div className="p-6 border-b border-slate-100">
-              <div className="flex items-center space-x-2">
-                <div className="w-8 h-8 rounded-lg bg-rose-600 flex items-center justify-center text-white font-bold text-lg shadow-md shadow-rose-200">M</div>
-                <span className="font-bold text-slate-800 text-lg uppercase">Mansara Partner</span>
+              <div className="flex items-center space-x-2.5">
+                <img src="/logo.png" alt="Mansara Foods" className="h-10 w-auto object-contain" />
+                <span className="font-bold text-slate-800 text-base uppercase">Mansara Partner</span>
               </div>
             </div>
 

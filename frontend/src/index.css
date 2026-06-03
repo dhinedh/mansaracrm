@@ -4,7 +4,7 @@
 
 @layer base {
   body {
-    @apply bg-slate-50 text-slate-800 antialiased font-sans selection:bg-rose-100 selection:text-rose-900;
+    @apply bg-[#FAF8F5] text-[#36302E] antialiased font-sans selection:bg-rose-100 selection:text-rose-900;
   }
 }
 

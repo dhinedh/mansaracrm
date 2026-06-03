@@ -8,17 +8,30 @@ export default {
     extend: {
       colors: {
         primary: {
-          50: '#fdf2f2',
-          100: '#fde2e2',
-          200: '#fbcaca',
-          300: '#f7a4a4',
-          400: '#f07474',
-          500: '#e14d4d',
-          600: '#be123c', // Sleek Rose/Crimson accent color
-          700: '#b91c1c',
-          800: '#991b1b',
-          900: '#7f1d1d',
-          950: '#450a0a',
+          50: '#FAF8F5',
+          100: '#F5EFE6',
+          200: '#EBE3D5',
+          300: '#E5A894',
+          400: '#DC8163',
+          500: '#D25C37',
+          600: '#B84A26', // Brand Terracotta
+          700: '#9C3B1D',
+          800: '#812F16',
+          900: '#61220F',
+          950: '#36302E',
+        },
+        rose: {
+          50: '#FAF8F5',
+          100: '#F5EFE6',
+          200: '#EBE3D5',
+          300: '#E5A894',
+          400: '#DC8163',
+          500: '#D25C37',
+          600: '#B84A26', // Override rose palette to match Brand Terracotta
+          700: '#9C3B1D',
+          800: '#812F16',
+          900: '#61220F',
+          950: '#36302E',
         },
       },
       fontFamily: {

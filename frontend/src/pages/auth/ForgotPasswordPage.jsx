@@ -35,7 +35,7 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-tr from-slate-900 via-slate-850 to-rose-950 flex flex-col justify-center items-center px-4">
+    <div className="min-h-screen bg-gradient-to-tr from-[#1c0f0d] via-[#2a1714] to-[#1c0f0d] flex flex-col justify-center items-center px-4">
       <div className="max-w-md w-full bg-white/95 backdrop-blur-md p-8 rounded-3xl shadow-2xl border border-white/10 relative overflow-hidden">
         
         <button

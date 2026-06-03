@@ -1,6 +1,7 @@
 // src/pages/admin/ProductsPage.jsx
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
+import { BACKEND_URL } from '../../store/authStore';
 import { 
   Plus, 
   Search, 
@@ -216,7 +217,7 @@ export default function ProductsPage() {
               <div className="h-44 bg-slate-50 relative flex items-center justify-center border-b border-slate-100 overflow-hidden">
                 {product.imageUrl ? (
                   <img
-                    src={product.imageUrl.startsWith('http') || product.imageUrl.startsWith('data:') ? product.imageUrl : `http://${window.location.hostname}:5000${product.imageUrl.startsWith('/') ? '' : '/'}${product.imageUrl}`}
+                    src={product.imageUrl.startsWith('http') || product.imageUrl.startsWith('data:') ? product.imageUrl : `${BACKEND_URL}${product.imageUrl.startsWith('/') ? '' : '/'}${product.imageUrl}`}
                     alt={product.name}
                     className="object-cover h-full w-full group-hover:scale-105 transition-transform duration-300"
                   />

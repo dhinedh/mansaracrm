@@ -1,7 +1,20 @@
-// src/store/authStore.js
-const API_URL = import.meta.env.VITE_API_URL || `http://${window.location.hostname}:5000/api`;
 import { create } from 'zustand';
 import axios from 'axios';
+
+// Smart API URL determination:
+// 1. Use environment variable VITE_API_URL if configured
+// 2. If running locally, point to local backend port 5000
+// 3. If running in production (Vercel/live), point to the Render backend URL
+const getApiUrl = () => {
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL;
+  }
+  const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+  return isLocal ? `http://localhost:5000/api` : `https://mansaracrm.onrender.com/api`;
+};
+
+export const API_URL = getApiUrl();
+export const BACKEND_URL = API_URL.replace(/\/api$/, '');
 
 // Set default base URL for API requests
 axios.defaults.baseURL = API_URL;
