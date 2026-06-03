@@ -1,0 +1,1129 @@
+// src/config/database.js — Mongoose ODM with Prisma Compatibility Layer
+const mongoose = require('mongoose');
+
+// Determine database connection URL
+let dbUrl = process.env.DATABASE_URL || 'mongodb://localhost:27017/mansara_crm';
+// Strip replicaSet parameters in development to support standalone local MongoDB
+if (process.env.NODE_ENV === 'development') {
+  dbUrl = dbUrl.replace(/[?&]replicaSet=[^&]*/, '');
+}
+
+// Connect to MongoDB
+mongoose.connect(dbUrl)
+  .then(() => console.log('🔌 Connected to MongoDB via Mongoose'))
+  .catch(err => console.error('❌ MongoDB Connection Error:', err));
+
+const Schema = mongoose.Schema;
+
+// ─────────────────────────────────────────────
+// SCHEMA DEFINITIONS
+// ─────────────────────────────────────────────
+
+const UserSchema = new Schema({
+  email: { type: String, unique: true, required: true },
+  password: { type: String, required: true },
+  name: { type: String, required: true },
+  role: { type: String, enum: ['ADMIN', 'DEALER'], default: 'DEALER' },
+  isActive: { type: Boolean, default: true },
+  lastLogin: { type: Date },
+  passwordReset: { type: String },
+  resetExpiry: { type: Date }
+}, {
+  timestamps: true,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
+});
+
+UserSchema.virtual('dealer', {
+  ref: 'Dealer',
+  localField: '_id',
+  foreignField: 'userId',
+  justOne: true
+});
+
+UserSchema.virtual('notifications', {
+  ref: 'Notification',
+  localField: '_id',
+  foreignField: 'userId'
+});
+
+UserSchema.virtual('auditLogs', {
+  ref: 'AuditLog',
+  localField: '_id',
+  foreignField: 'userId'
+});
+
+// Dealer
+const DealerSchema = new Schema({
+  userId: { type: Schema.Types.ObjectId, ref: 'User', unique: true, required: true },
+  companyName: { type: String, required: true },
+  gstNumber: { type: String, unique: true, sparse: true },
+  address: { type: String, required: true },
+  city: { type: String },
+  state: { type: String },
+  pincode: { type: String },
+  zone: { type: String },
+  area: { type: String },
+  phone: { type: String, required: true },
+  dealerType: { type: String, enum: ['WHOLESALE', 'RETAIL', 'DISTRIBUTOR', 'SUPER_DISTRIBUTOR'], default: 'RETAIL' },
+  approvalStatus: { type: String, enum: ['PENDING', 'APPROVED', 'REJECTED'], default: 'PENDING' },
+  approvedAt: { type: Date },
+  approvedBy: { type: String },
+  creditLimit: { type: Number },
+  notes: { type: String }
+}, {
+  timestamps: true,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
+});
+
+DealerSchema.virtual('user', {
+  ref: 'User',
+  localField: 'userId',
+  foreignField: '_id',
+  justOne: true
+});
+
+DealerSchema.virtual('stores', {
+  ref: 'Store',
+  localField: '_id',
+  foreignField: 'dealerId'
+});
+
+DealerSchema.virtual('inventory', {
+  ref: 'DealerInventory',
+  localField: '_id',
+  foreignField: 'dealerId'
+});
+
+DealerSchema.virtual('stockTransfers', {
+  ref: 'StockTransfer',
+  localField: '_id',
+  foreignField: 'dealerId'
+});
+
+DealerSchema.virtual('invoices', {
+  ref: 'Invoice',
+  localField: '_id',
+  foreignField: 'dealerId'
+});
+
+DealerSchema.virtual('margins', {
+  ref: 'Margin',
+  localField: '_id',
+  foreignField: 'dealerId'
+});
+
+// Category
+const CategorySchema = new Schema({
+  name: { type: String, unique: true, required: true },
+  description: { type: String },
+  isActive: { type: Boolean, default: true }
+}, {
+  timestamps: true,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
+});
+
+CategorySchema.virtual('products', {
+  ref: 'Product',
+  localField: '_id',
+  foreignField: 'category'
+});
+
+// Product
+const ProductSchema = new Schema({
+  name: { type: String, required: true },
+  sku: { type: String, unique: true, sparse: true, index: true },
+  description: { type: String },
+  price: { type: Number, required: true },
+  originalPrice: { type: Number, alias: 'mrp' },
+  gstPercent: { type: Number, default: 18 },
+  hsnCode: { type: String, default: '1901' },
+  category: { type: Schema.Types.ObjectId, ref: 'Category', required: true, alias: 'categoryId' },
+  image: { type: String, alias: 'imageUrl' },
+  unit: { type: String, default: 'PCS' },
+  minOrderQty: { type: Number, default: 1 },
+  isActive: { type: Boolean, default: true },
+  stock: { type: Number, default: 0 },
+  minQuantity: { type: Number, default: 10 }
+}, {
+  timestamps: true,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
+});
+
+ProductSchema.virtual('companyStock').get(function () {
+  return {
+    id: this._id.toString(),
+    productId: this._id.toString(),
+    quantity: this.stock || 0,
+    minQuantity: this.minQuantity || 10
+  };
+});
+
+
+ProductSchema.virtual('dealerStocks', {
+  ref: 'DealerInventory',
+  localField: '_id',
+  foreignField: 'productId'
+});
+
+ProductSchema.virtual('transferItems', {
+  ref: 'StockTransferItem',
+  localField: '_id',
+  foreignField: 'productId'
+});
+
+ProductSchema.virtual('invoiceItems', {
+  ref: 'InvoiceItem',
+  localField: '_id',
+  foreignField: 'productId'
+});
+
+ProductSchema.virtual('margins', {
+  ref: 'Margin',
+  localField: '_id',
+  foreignField: 'productId'
+});
+
+ProductSchema.virtual('stockMovements', {
+  ref: 'StockMovement',
+  localField: '_id',
+  foreignField: 'productId'
+});
+
+// CompanyInventory
+const CompanyInventorySchema = new Schema({
+  productId: { type: Schema.Types.ObjectId, ref: 'Product', unique: true, required: true },
+  quantity: { type: Number, default: 0 },
+  minQuantity: { type: Number, default: 10 }
+}, {
+  timestamps: { createdAt: false, updatedAt: true },
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
+});
+
+CompanyInventorySchema.virtual('product', {
+  ref: 'Product',
+  localField: 'productId',
+  foreignField: '_id',
+  justOne: true
+});
+
+// DealerInventory
+const DealerInventorySchema = new Schema({
+  dealerId: { type: Schema.Types.ObjectId, ref: 'Dealer', required: true },
+  productId: { type: Schema.Types.ObjectId, ref: 'Product', required: true },
+  quantity: { type: Number, default: 0 }
+}, {
+  timestamps: { createdAt: false, updatedAt: true },
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
+});
+
+DealerInventorySchema.index({ dealerId: 1, productId: 1 }, { unique: true });
+
+DealerInventorySchema.virtual('dealer', {
+  ref: 'Dealer',
+  localField: 'dealerId',
+  foreignField: '_id',
+  justOne: true
+});
+
+DealerInventorySchema.virtual('product', {
+  ref: 'Product',
+  localField: 'productId',
+  foreignField: '_id',
+  justOne: true
+});
+
+// StockMovement
+const StockMovementSchema = new Schema({
+  productId: { type: Schema.Types.ObjectId, ref: 'Product', required: true },
+  type: { type: String, enum: ['IN', 'OUT', 'TRANSFER_OUT', 'TRANSFER_IN', 'ADJUSTMENT'], required: true },
+  quantity: { type: Number, required: true },
+  referenceId: { type: String },
+  notes: { type: String }
+}, {
+  timestamps: { createdAt: true, updatedAt: false },
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
+});
+
+StockMovementSchema.virtual('product', {
+  ref: 'Product',
+  localField: 'productId',
+  foreignField: '_id',
+  justOne: true
+});
+
+// StockTransfer
+const StockTransferSchema = new Schema({
+  transferNo: { type: String, unique: true, required: true },
+  dealerId: { type: Schema.Types.ObjectId, ref: 'Dealer', required: true },
+  status: { type: String, enum: ['PENDING', 'IN_TRANSIT', 'DELIVERED', 'CANCELLED'], default: 'PENDING' },
+  notes: { type: String },
+  shippedAt: { type: Date },
+  deliveredAt: { type: Date },
+  createdBy: { type: String, required: true }
+}, {
+  timestamps: true,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
+});
+
+StockTransferSchema.virtual('dealer', {
+  ref: 'Dealer',
+  localField: 'dealerId',
+  foreignField: '_id',
+  justOne: true
+});
+
+StockTransferSchema.virtual('items', {
+  ref: 'StockTransferItem',
+  localField: '_id',
+  foreignField: 'transferId'
+});
+
+// StockTransferItem
+const StockTransferItemSchema = new Schema({
+  transferId: { type: Schema.Types.ObjectId, ref: 'StockTransfer', required: true },
+  productId: { type: Schema.Types.ObjectId, ref: 'Product', required: true },
+  quantity: { type: Number, required: true },
+  unitPrice: { type: Number, required: true }
+}, {
+  timestamps: false,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
+});
+
+StockTransferItemSchema.virtual('transfer', {
+  ref: 'StockTransfer',
+  localField: 'transferId',
+  foreignField: '_id',
+  justOne: true
+});
+
+StockTransferItemSchema.virtual('product', {
+  ref: 'Product',
+  localField: 'productId',
+  foreignField: '_id',
+  justOne: true
+});
+
+// Store
+const StoreSchema = new Schema({
+  dealerId: { type: Schema.Types.ObjectId, ref: 'Dealer', required: true },
+  name: { type: String, required: true },
+  gstNumber: { type: String },
+  address: { type: String, required: true },
+  city: { type: String },
+  state: { type: String },
+  pincode: { type: String },
+  zone: { type: String },
+  phone: { type: String },
+  isActive: { type: Boolean, default: true }
+}, {
+  timestamps: true,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
+});
+
+StoreSchema.virtual('dealer', {
+  ref: 'Dealer',
+  localField: 'dealerId',
+  foreignField: '_id',
+  justOne: true
+});
+
+StoreSchema.virtual('invoices', {
+  ref: 'Invoice',
+  localField: '_id',
+  foreignField: 'storeId'
+});
+
+StoreSchema.virtual('margins', {
+  ref: 'Margin',
+  localField: '_id',
+  foreignField: 'storeId'
+});
+
+// Margin
+const MarginSchema = new Schema({
+  dealerId: { type: Schema.Types.ObjectId, ref: 'Dealer', required: true },
+  storeId: { type: Schema.Types.ObjectId, ref: 'Store' },
+  productId: { type: Schema.Types.ObjectId, ref: 'Product' },
+  categoryId: { type: String },
+  marginPercent: { type: Number, required: true },
+  isDefault: { type: Boolean, default: false }
+}, {
+  timestamps: true,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
+});
+
+MarginSchema.virtual('dealer', {
+  ref: 'Dealer',
+  localField: 'dealerId',
+  foreignField: '_id',
+  justOne: true
+});
+
+MarginSchema.virtual('store', {
+  ref: 'Store',
+  localField: 'storeId',
+  foreignField: '_id',
+  justOne: true
+});
+
+MarginSchema.virtual('product', {
+  ref: 'Product',
+  localField: 'productId',
+  foreignField: '_id',
+  justOne: true
+});
+
+// Invoice
+const InvoiceSchema = new Schema({
+  invoiceNo: { type: String, unique: true, required: true },
+  dealerId: { type: Schema.Types.ObjectId, ref: 'Dealer', required: true },
+  storeId: { type: Schema.Types.ObjectId, ref: 'Store', required: true },
+  subtotal: { type: Number, required: true },
+  totalDiscount: { type: Number, default: 0 },
+  totalGst: { type: Number, required: true },
+  totalAmount: { type: Number, required: true },
+  status: { type: String, enum: ['DRAFT', 'GENERATED', 'PAID', 'CANCELLED'], default: 'DRAFT' },
+  pdfUrl: { type: String },
+  notes: { type: String },
+  dueDate: { type: Date },
+  paidAt: { type: Date }
+}, {
+  timestamps: true,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
+});
+
+InvoiceSchema.virtual('dealer', {
+  ref: 'Dealer',
+  localField: 'dealerId',
+  foreignField: '_id',
+  justOne: true
+});
+
+InvoiceSchema.virtual('store', {
+  ref: 'Store',
+  localField: 'storeId',
+  foreignField: '_id',
+  justOne: true
+});
+
+InvoiceSchema.virtual('items', {
+  ref: 'InvoiceItem',
+  localField: '_id',
+  foreignField: 'invoiceId'
+});
+
+// InvoiceItem
+const InvoiceItemSchema = new Schema({
+  invoiceId: { type: Schema.Types.ObjectId, ref: 'Invoice', required: true },
+  productId: { type: Schema.Types.ObjectId, ref: 'Product', required: true },
+  quantity: { type: Number, required: true },
+  unitPrice: { type: Number, required: true },
+  marginPct: { type: Number, default: 0 },
+  sellingPrice: { type: Number, required: true },
+  gstPercent: { type: Number, required: true },
+  gstAmount: { type: Number, required: true },
+  lineTotal: { type: Number, required: true }
+}, {
+  timestamps: false,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
+});
+
+InvoiceItemSchema.virtual('invoice', {
+  ref: 'Invoice',
+  localField: 'invoiceId',
+  foreignField: '_id',
+  justOne: true
+});
+
+InvoiceItemSchema.virtual('product', {
+  ref: 'Product',
+  localField: 'productId',
+  foreignField: '_id',
+  justOne: true
+});
+
+// Notification
+const NotificationSchema = new Schema({
+  userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+  type: { type: String, enum: ['STOCK_TRANSFER', 'INVOICE_GENERATED', 'DELIVERY_UPDATE', 'ACCOUNT_UPDATE', 'SYSTEM'], required: true },
+  title: { type: String, required: true },
+  message: { type: String, required: true },
+  isRead: { type: Boolean, default: false },
+  metadata: { type: Schema.Types.Mixed }
+}, {
+  timestamps: { createdAt: true, updatedAt: false },
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
+});
+
+NotificationSchema.virtual('user', {
+  ref: 'User',
+  localField: 'userId',
+  foreignField: '_id',
+  justOne: true
+});
+
+// AuditLog
+const AuditLogSchema = new Schema({
+  userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+  action: { type: String, required: true },
+  entity: { type: String, required: true },
+  entityId: { type: String },
+  oldValues: { type: Schema.Types.Mixed },
+  newValues: { type: Schema.Types.Mixed },
+  ipAddress: { type: String }
+}, {
+  timestamps: { createdAt: true, updatedAt: false },
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
+});
+
+AuditLogSchema.virtual('user', {
+  ref: 'User',
+  localField: 'userId',
+  foreignField: '_id',
+  justOne: true
+});
+
+// InvoiceSequence
+const InvoiceSequenceSchema = new Schema({
+  _id: { type: String, required: true },
+  lastNumber: { type: Number, default: 0 },
+  prefix: { type: String, default: 'INV' }
+}, {
+  timestamps: { createdAt: false, updatedAt: true },
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
+});
+
+// Compile Models
+const User = mongoose.model('User', UserSchema, 'users');
+const Dealer = mongoose.model('Dealer', DealerSchema, 'dealers');
+const Category = mongoose.model('Category', CategorySchema, 'categories');
+const Product = mongoose.model('Product', ProductSchema, 'products');
+const CompanyInventory = mongoose.model('CompanyInventory', CompanyInventorySchema, 'company_inventory');
+const DealerInventory = mongoose.model('DealerInventory', DealerInventorySchema, 'dealer_inventory');
+const StockMovement = mongoose.model('StockMovement', StockMovementSchema, 'stock_movements');
+const StockTransfer = mongoose.model('StockTransfer', StockTransferSchema, 'stock_transfers');
+const StockTransferItem = mongoose.model('StockTransferItem', StockTransferItemSchema, 'stock_transfer_items');
+const Store = mongoose.model('Store', StoreSchema, 'stores');
+const Margin = mongoose.model('Margin', MarginSchema, 'margins');
+const Invoice = mongoose.model('Invoice', InvoiceSchema, 'invoices');
+const InvoiceItem = mongoose.model('InvoiceItem', InvoiceItemSchema, 'invoice_items');
+const Notification = mongoose.model('Notification', NotificationSchema, 'notifications');
+const AuditLog = mongoose.model('AuditLog', AuditLogSchema, 'audit_logs');
+const InvoiceSequence = mongoose.model('InvoiceSequence', InvoiceSequenceSchema, 'invoice_sequence');
+
+// ─────────────────────────────────────────────
+// PRISMA COMPATIBILITY WRAPPER LAYER
+// ─────────────────────────────────────────────
+
+function translateWhere(where) {
+  if (!where) return {};
+  const query = {};
+  for (let key in where) {
+    let val = where[key];
+    if (key === 'dealerId_productId') {
+      query['dealerId'] = val.dealerId;
+      query['productId'] = val.productId;
+    } else if (key === 'id') {
+      query['_id'] = val;
+    } else if (key === 'OR') {
+      query['$or'] = val.map(translateWhere);
+    } else if (key === 'AND') {
+      query['$and'] = val.map(translateWhere);
+    } else if (val && typeof val === 'object' && !Array.isArray(val) && !(val instanceof Date)) {
+      const subQuery = {};
+      for (let op in val) {
+        let opVal = val[op];
+        if (op === 'contains') {
+          subQuery['$regex'] = opVal;
+          if (val.mode === 'insensitive') {
+            subQuery['$options'] = 'i';
+          }
+        } else if (op === 'mode') {
+          // handled in contains
+        } else if (op === 'gt') {
+          subQuery['$gt'] = opVal;
+        } else if (op === 'gte') {
+          subQuery['$gte'] = opVal;
+        } else if (op === 'lt') {
+          subQuery['$lt'] = opVal;
+        } else if (op === 'lte') {
+          subQuery['$lte'] = opVal;
+        } else if (op === 'in') {
+          subQuery['$in'] = opVal;
+        } else if (op === 'not') {
+          subQuery['$ne'] = opVal;
+        } else if (op === 'notIn') {
+          subQuery['$nin'] = opVal;
+        } else {
+          subQuery[`$${op}`] = opVal;
+        }
+      }
+      query[key] = subQuery;
+    } else {
+      query[key] = val;
+    }
+  }
+  return query;
+}
+
+// Relation filter resolver for cross-collection queries in Prisma where clauses
+async function resolveRelationFilters(where, modelName) {
+  if (!where) return {};
+  const query = {};
+  for (let key in where) {
+    let val = where[key];
+    if (key === 'dealerId_productId') {
+      query['dealerId'] = val.dealerId;
+      query['productId'] = val.productId;
+    } else if (key === 'OR') {
+      const resolvedList = [];
+      for (const item of val) {
+        resolvedList.push(await resolveRelationFilters(item, modelName));
+      }
+      query['$or'] = resolvedList;
+    } else if (key === 'AND') {
+      const resolvedList = [];
+      for (const item of val) {
+        resolvedList.push(await resolveRelationFilters(item, modelName));
+      }
+      query['$and'] = resolvedList;
+    } else if (key === 'invoice' && modelName === 'InvoiceItem') {
+      const invoices = await mongoose.models.Invoice.find(await resolveRelationFilters(val, 'Invoice'), { _id: 1 });
+      query['invoiceId'] = { $in: invoices.map(i => i._id) };
+    } else if (key === 'user' && modelName === 'Dealer') {
+      const users = await mongoose.models.User.find(await resolveRelationFilters(val, 'User'), { _id: 1 });
+      query['userId'] = { $in: users.map(u => u._id) };
+    } else if (val && typeof val === 'object' && !Array.isArray(val) && !(val instanceof Date)) {
+      const subQuery = {};
+      for (let op in val) {
+        let opVal = val[op];
+        if (op === 'contains') {
+          subQuery['$regex'] = opVal;
+          if (val.mode === 'insensitive') {
+            subQuery['$options'] = 'i';
+          }
+        } else if (op === 'mode') {
+          // Handled in contains
+        } else if (op === 'gt') {
+          subQuery['$gt'] = opVal;
+        } else if (op === 'gte') {
+          subQuery['$gte'] = opVal;
+        } else if (op === 'lt') {
+          subQuery['$lt'] = opVal;
+        } else if (op === 'lte') {
+          subQuery['$lte'] = opVal;
+        } else if (op === 'in') {
+          subQuery['$in'] = opVal;
+        } else if (op === 'not') {
+          subQuery['$ne'] = opVal;
+        } else if (op === 'notIn') {
+          subQuery['$nin'] = opVal;
+        } else {
+          subQuery[`$${op}`] = opVal;
+        }
+      }
+      query[key] = subQuery;
+    } else {
+      if (key === 'id') {
+        query['_id'] = val;
+      } else if (key === 'categoryId' && modelName === 'Product') {
+        query['category'] = val;
+      } else {
+        query[key] = val;
+      }
+    }
+  }
+  return query;
+}
+
+function translateInclude(include) {
+  const populate = [];
+  for (let key in include) {
+    if (include[key]) {
+      if (key === 'companyStock') continue;
+      const opt = { path: key };
+      if (typeof include[key] === 'object') {
+        if (include[key].select) {
+          opt.select = Object.keys(include[key].select).map(k => k === 'id' ? '_id' : k).join(' ');
+        }
+        if (include[key].include) {
+          opt.populate = translateInclude(include[key].include);
+        }
+      }
+      populate.push(opt);
+    }
+  }
+  return populate;
+}
+
+function translateOrderBy(orderBy) {
+  if (!orderBy) return null;
+  const sort = {};
+  if (Array.isArray(orderBy)) {
+    orderBy.forEach(item => {
+      for (let k in item) {
+        sort[k] = item[k] === 'desc' ? -1 : 1;
+      }
+    });
+  } else {
+    for (let k in orderBy) {
+      sort[k] = orderBy[k] === 'desc' ? -1 : 1;
+    }
+  }
+  return sort;
+}
+
+function translateSelect(select) {
+  return Object.keys(select).map(k => k === 'id' ? '_id' : k).join(' ');
+}
+
+function translateCreateData(data) {
+  if (!data) return {};
+  const cleaned = {};
+  for (let key in data) {
+    let val = data[key];
+    if (key === 'id') {
+      cleaned['_id'] = val;
+    } else if (key === 'gstNumber' && (val === '' || val === null)) {
+      // omit empty/null gstNumber to prevent unique index duplicate errors
+    } else {
+      cleaned[key] = val;
+    }
+  }
+  return cleaned;
+}
+
+function translateUpdateData(data) {
+  if (!data) return {};
+  const cleaned = {};
+  for (let key in data) {
+    let val = data[key];
+    if (key === 'gstNumber' && (val === '' || val === null)) {
+      cleaned['$unset'] = cleaned['$unset'] || {};
+      cleaned['$unset']['gstNumber'] = "";
+    } else if (val && typeof val === 'object' && !Array.isArray(val) && !(val instanceof Date)) {
+      if (val.increment !== undefined) {
+        cleaned['$inc'] = cleaned['$inc'] || {};
+        cleaned['$inc'][key] = val.increment;
+      } else if (val.decrement !== undefined) {
+        cleaned['$inc'] = cleaned['$inc'] || {};
+        cleaned['$inc'][key] = -val.decrement;
+      } else {
+        cleaned[key] = val;
+      }
+    } else {
+      cleaned[key] = val;
+    }
+  }
+  return cleaned;
+}
+
+function formatResult(doc) {
+  if (!doc) return null;
+  if (Array.isArray(doc)) {
+    return doc.map(formatResult);
+  }
+  let obj = doc;
+  if (typeof doc.toObject === 'function') {
+    obj = doc.toObject({ virtuals: true, getters: true });
+  }
+  return cleanDoc(obj);
+}
+
+function cleanDoc(obj) {
+  if (!obj) return obj;
+  if (obj instanceof mongoose.Types.ObjectId || (obj.constructor && obj.constructor.name === 'ObjectId')) {
+    return obj.toString();
+  }
+  if (typeof obj !== 'object') return obj;
+  if (obj instanceof Date) return obj;
+  if (Array.isArray(obj)) return obj.map(cleanDoc);
+
+  const cleaned = {};
+  for (let key in obj) {
+    let val = obj[key];
+    if (key === '_id') {
+      cleaned['id'] = val.toString();
+    } else if (key === '__v') {
+      // skip
+    } else {
+      cleaned[key] = cleanDoc(val);
+    }
+  }
+  if (obj._id && !cleaned.id) {
+    cleaned.id = obj._id.toString();
+  }
+  return cleaned;
+}
+
+class PrismaCollectionWrapper {
+  constructor(modelName) {
+    this.modelName = modelName;
+  }
+
+  get model() {
+    return mongoose.model(this.modelName);
+  }
+
+  async findUnique(args) {
+    if (this.modelName === 'CompanyInventory') {
+      const prodId = args.where.productId || args.where.id;
+      const productModel = mongoose.model('Product');
+      let q = productModel.findById(prodId);
+      if (args.include && args.include.product) {
+        if (args.include.product.include) {
+          q = q.populate(translateInclude(args.include.product.include));
+        }
+      }
+      const prod = await q.exec();
+      if (!prod) return null;
+      return {
+        id: prod._id.toString(),
+        productId: prod._id.toString(),
+        quantity: prod.stock || 0,
+        minQuantity: prod.minQuantity || 10,
+        product: formatResult(prod)
+      };
+    }
+    const query = await resolveRelationFilters(args.where, this.modelName);
+    let q = this.model.findOne(query);
+    if (args.include) {
+      q = q.populate(translateInclude(args.include));
+    }
+    const doc = await q.exec();
+    return formatResult(doc);
+  }
+
+  async findFirst(args) {
+    if (this.modelName === 'CompanyInventory') {
+      const prodId = args.where.productId || args.where.id;
+      const productModel = mongoose.model('Product');
+      let q = productModel.findOne({ _id: prodId });
+      if (args.include && args.include.product) {
+        if (args.include.product.include) {
+          q = q.populate(translateInclude(args.include.product.include));
+        }
+      }
+      const prod = await q.exec();
+      if (!prod) return null;
+      return {
+        id: prod._id.toString(),
+        productId: prod._id.toString(),
+        quantity: prod.stock || 0,
+        minQuantity: prod.minQuantity || 10,
+        product: formatResult(prod)
+      };
+    }
+    const query = await resolveRelationFilters(args.where, this.modelName);
+    let q = this.model.findOne(query);
+    if (args.orderBy) {
+      q = q.sort(translateOrderBy(args.orderBy));
+    }
+    if (args.include) {
+      q = q.populate(translateInclude(args.include));
+    }
+    const doc = await q.exec();
+    return formatResult(doc);
+  }
+
+  async findMany(args = {}) {
+    if (this.modelName === 'CompanyInventory') {
+      const productModel = mongoose.model('Product');
+      let q = productModel.find({ isActive: true });
+      if (args.orderBy) {
+        q = q.sort({ name: 1 });
+      }
+      const products = await q.exec();
+      return products.map(prod => ({
+        id: prod._id.toString(),
+        productId: prod._id.toString(),
+        quantity: prod.stock || 0,
+        minQuantity: prod.minQuantity || 10,
+        product: formatResult(prod)
+      }));
+    }
+    const query = await resolveRelationFilters(args.where, this.modelName);
+    let q = this.model.find(query);
+    if (args.orderBy) {
+      q = q.sort(translateOrderBy(args.orderBy));
+    }
+    if (args.skip) {
+      q = q.skip(args.skip);
+    }
+    if (args.take) {
+      q = q.limit(args.take);
+    }
+    if (args.select) {
+      q = q.select(translateSelect(args.select));
+    }
+    if (args.include) {
+      q = q.populate(translateInclude(args.include));
+    }
+    const docs = await q.exec();
+    return formatResult(docs);
+  }
+
+  async create(args) {
+    if (this.modelName === 'CompanyInventory') {
+      const productModel = mongoose.model('Product');
+      const quantity = args.data.quantity || 0;
+      const minQuantity = args.data.minQuantity || 10;
+      const prod = await productModel.findByIdAndUpdate(
+        args.data.productId,
+        { $set: { stock: quantity, minQuantity } },
+        { new: true }
+      );
+      return {
+        id: prod._id.toString(),
+        productId: prod._id.toString(),
+        quantity: prod.stock || 0,
+        minQuantity: prod.minQuantity || 10,
+        product: formatResult(prod)
+      };
+    }
+    const data = translateCreateData(args.data);
+    const doc = await this.model.create(data);
+    let result = doc;
+    if (args.include) {
+      result = await this.model.findById(doc._id).populate(translateInclude(args.include));
+    }
+    return formatResult(result);
+  }
+
+  async update(args) {
+    if (this.modelName === 'CompanyInventory') {
+      const productModel = mongoose.model('Product');
+      const prodId = args.where.productId || args.where.id;
+      const data = translateUpdateData(args.data);
+      let updateQuery = {};
+      const setFields = {};
+      if (data.quantity !== undefined) {
+        setFields.stock = data.quantity;
+      }
+      if (data.minQuantity !== undefined) {
+        setFields.minQuantity = data.minQuantity;
+      }
+      if (data['$inc']) {
+        updateQuery = { $inc: { stock: data['$inc'].quantity } };
+      } else {
+        updateQuery = { $set: setFields };
+      }
+      const prod = await productModel.findByIdAndUpdate(prodId, updateQuery, { new: true });
+      return {
+        id: prod._id.toString(),
+        productId: prod._id.toString(),
+        quantity: prod.stock || 0,
+        minQuantity: prod.minQuantity || 10,
+        product: formatResult(prod)
+      };
+    }
+    const query = await resolveRelationFilters(args.where, this.modelName);
+    const data = translateUpdateData(args.data);
+
+    // Extract operator updates ($inc, $unset) vs standard updates ($set)
+    const updateQuery = {};
+    if (data['$inc']) {
+      updateQuery['$inc'] = data['$inc'];
+      delete data['$inc'];
+    }
+    if (data['$unset']) {
+      updateQuery['$unset'] = data['$unset'];
+      delete data['$unset'];
+    }
+    if (Object.keys(data).length > 0) {
+      updateQuery['$set'] = data;
+    }
+
+    const doc = await this.model.findOneAndUpdate(query, updateQuery, { new: true });
+    let result = doc;
+    if (args.include && doc) {
+      result = await this.model.findById(doc._id).populate(translateInclude(args.include));
+    }
+    return formatResult(result);
+  }
+
+  async delete(args) {
+    if (this.modelName === 'CompanyInventory') {
+      return null;
+    }
+    const query = await resolveRelationFilters(args.where, this.modelName);
+    const doc = await this.model.findOneAndDelete(query);
+    return formatResult(doc);
+  }
+
+  async deleteMany(args = {}) {
+    if (this.modelName === 'CompanyInventory') {
+      return { count: 0 };
+    }
+    const query = await resolveRelationFilters(args.where, this.modelName);
+    const res = await this.model.deleteMany(query);
+    return { count: res.deletedCount };
+  }
+
+  async updateMany(args) {
+    const query = await resolveRelationFilters(args.where, this.modelName);
+    const data = translateUpdateData(args.data);
+
+    const updateQuery = {};
+    if (data['$inc']) {
+      updateQuery['$inc'] = data['$inc'];
+      delete data['$inc'];
+    }
+    if (data['$unset']) {
+      updateQuery['$unset'] = data['$unset'];
+      delete data['$unset'];
+    }
+    if (Object.keys(data).length > 0) {
+      updateQuery['$set'] = data;
+    }
+
+    const res = await this.model.updateMany(query, updateQuery);
+    return { count: res.modifiedCount };
+  }
+
+  async upsert(args) {
+    const query = await resolveRelationFilters(args.where, this.modelName);
+    const existing = await this.model.findOne(query);
+    if (existing) {
+      const data = translateUpdateData(args.update);
+      const updateQuery = { '$set': data };
+      const doc = await this.model.findOneAndUpdate(query, updateQuery, { new: true });
+      return formatResult(doc);
+    } else {
+      const data = translateCreateData({ ...args.where, ...args.create });
+      const doc = await this.model.create(data);
+      return formatResult(doc);
+    }
+  }
+
+  async count(args = {}) {
+    const query = await resolveRelationFilters(args.where, this.modelName);
+    return await this.model.countDocuments(query);
+  }
+
+  async aggregate(args) {
+    const docs = await this.findMany({ where: args.where });
+    const result = { _sum: {}, _count: {} };
+    if (args._sum) {
+      for (let k in args._sum) {
+        result._sum[k] = docs.reduce((acc, doc) => acc + (parseFloat(doc[k]) || 0), 0);
+      }
+    }
+    if (args._count) {
+      for (let k in args._count) {
+        result._count[k] = docs.length;
+      }
+    }
+    return result;
+  }
+
+  async groupBy(args) {
+    const docs = await this.findMany({ where: args.where });
+    const groups = {};
+    docs.forEach(doc => {
+      const groupKey = args.by.map(k => doc[k]).join('|');
+      if (!groups[groupKey]) {
+        groups[groupKey] = { docs: [], keys: {} };
+        args.by.forEach(k => {
+          groups[groupKey].keys[k] = doc[k];
+        });
+      }
+      groups[groupKey].docs.push(doc);
+    });
+
+    let result = Object.values(groups).map(g => {
+      const res = { ...g.keys };
+      if (args._sum) {
+        res._sum = {};
+        for (let k in args._sum) {
+          res._sum[k] = g.docs.reduce((acc, d) => acc + (parseFloat(d[k]) || 0), 0);
+        }
+      }
+      return res;
+    });
+
+    if (args.orderBy) {
+      const sort = translateOrderBy(args.orderBy);
+      result.sort((a, b) => {
+        for (let k in sort) {
+          let valA, valB;
+          if (k.startsWith('_sum.')) {
+            const sumKey = k.split('.')[1];
+            valA = a._sum?.[sumKey] || 0;
+            valB = b._sum?.[sumKey] || 0;
+          } else {
+            valA = a[k];
+            valB = b[k];
+          }
+          if (valA < valB) return sort[k] * -1;
+          if (valA > valB) return sort[k] * 1;
+        }
+        return 0;
+      });
+    }
+
+    if (args.take) {
+      result = result.slice(0, args.take);
+    }
+    return result;
+  }
+}
+
+// ─────────────────────────────────────────────
+// EXPORT PRISMA DROP-IN CLIENT
+// ─────────────────────────────────────────────
+
+const prisma = {
+  user: new PrismaCollectionWrapper('User'),
+  dealer: new PrismaCollectionWrapper('Dealer'),
+  category: new PrismaCollectionWrapper('Category'),
+  product: new PrismaCollectionWrapper('Product'),
+  companyInventory: new PrismaCollectionWrapper('CompanyInventory'),
+  dealerInventory: new PrismaCollectionWrapper('DealerInventory'),
+  stockMovement: new PrismaCollectionWrapper('StockMovement'),
+  stockTransfer: new PrismaCollectionWrapper('StockTransfer'),
+  stockTransferItem: new PrismaCollectionWrapper('StockTransferItem'),
+  store: new PrismaCollectionWrapper('Store'),
+  margin: new PrismaCollectionWrapper('Margin'),
+  invoice: new PrismaCollectionWrapper('Invoice'),
+  invoiceItem: new PrismaCollectionWrapper('InvoiceItem'),
+  notification: new PrismaCollectionWrapper('Notification'),
+  auditLog: new PrismaCollectionWrapper('AuditLog'),
+  invoiceSequence: new PrismaCollectionWrapper('InvoiceSequence'),
+
+  $transaction: async (fn) => {
+    // Run transactions sequentially on standalone local MongoDB instances
+    const tx = prisma;
+    return await fn(tx);
+  },
+
+  $disconnect: async () => {
+    await mongoose.disconnect();
+  }
+};
+
+class PrismaClient {
+  constructor() {
+    return prisma;
+  }
+}
+
+prisma.PrismaClient = PrismaClient;
+
+module.exports = prisma;
