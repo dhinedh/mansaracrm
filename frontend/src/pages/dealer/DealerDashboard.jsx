@@ -1,12 +1,12 @@
 // src/pages/dealer/DealerDashboard.jsx
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
-import { 
-  DollarSign, 
-  Store, 
-  Bell, 
-  ShoppingCart, 
-  Truck, 
+import {
+  DollarSign,
+  Store,
+  Bell,
+  ShoppingCart,
+  Truck,
   AlertTriangle,
   Receipt,
   ArrowRight,
@@ -21,11 +21,11 @@ export default function DealerDashboard() {
   const [transfers, setTransfers] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Discrepancy modal states
-  const [showDiscrepancyModal, setShowDiscrepancyModal] = useState(false);
-  const [discrepancyTransfer, setDiscrepancyTransfer] = useState(null);
-  const [discrepancyItems, setDiscrepancyItems] = useState([]);
-  const [discrepancyLoading, setDiscrepancyLoading] = useState(false);
+  // Verification Checklist modal states
+  const [showVerifyModal, setShowVerifyModal] = useState(false);
+  const [verifyTransfer, setVerifyTransfer] = useState(null);
+  const [verifyItems, setVerifyItems] = useState([]);
+  const [verifyLoading, setVerifyLoading] = useState(false);
 
   useEffect(() => {
     fetchDashboardData();
@@ -45,36 +45,27 @@ export default function DealerDashboard() {
     }
   };
 
-  const handleConfirmReceipt = async (transferId) => {
-    try {
-      await axios.patch(`/inventory/transfers/${transferId}/status`, { status: 'DELIVERED' });
-      fetchDashboardData();
-    } catch (err) {
-      alert(err.response?.data?.message || 'Failed to confirm receipt');
-    }
-  };
-
-  const openDiscrepancyModal = (transfer) => {
-    setDiscrepancyTransfer(transfer);
+  const openVerifyModal = (transfer) => {
+    setVerifyTransfer(transfer);
     const initialItems = transfer.items.map(it => ({
       productId: it.productId.toString(),
       name: it.product?.name || 'Unknown',
       sku: it.product?.sku || 'N/A',
       shippedQty: it.quantity,
       unit: it.product?.unit || 'PCS',
-      hasDiscrepancy: false,
+      isVerified: true, // Checked (Verified) by default
       receivedQuantity: it.quantity,
       discrepancyComment: ''
     }));
-    setDiscrepancyItems(initialItems);
-    setShowDiscrepancyModal(true);
+    setVerifyItems(initialItems);
+    setShowVerifyModal(true);
   };
 
-  const handleDiscrepancyItemChange = (productId, field, value) => {
-    setDiscrepancyItems(prev => prev.map(item => {
+  const handleVerifyItemChange = (productId, field, value) => {
+    setVerifyItems(prev => prev.map(item => {
       if (item.productId === productId) {
         const updated = { ...item, [field]: value };
-        if (field === 'hasDiscrepancy' && !value) {
+        if (field === 'isVerified' && value) {
           updated.receivedQuantity = item.shippedQty;
           updated.discrepancyComment = '';
         }
@@ -84,35 +75,40 @@ export default function DealerDashboard() {
     }));
   };
 
-  const handleSubmitDiscrepancy = async (e) => {
+  const handleSubmitVerification = async (e) => {
     e.preventDefault();
-    if (!discrepancyTransfer) return;
+    if (!verifyTransfer) return;
 
-    const invalidItem = discrepancyItems.find(it => it.hasDiscrepancy && !it.discrepancyComment.trim());
+    const itemsWithIssues = verifyItems.filter(it => !it.isVerified || it.receivedQuantity < it.shippedQty);
+    const invalidItem = itemsWithIssues.find(it => it.receivedQuantity !== it.shippedQty && !it.discrepancyComment.trim());
+
     if (invalidItem) {
       alert(`Please add a comment explaining the issue for: ${invalidItem.name}`);
       return;
     }
 
-    setDiscrepancyLoading(true);
+    setVerifyLoading(true);
+    const hasAnyDiscrepancy = itemsWithIssues.length > 0;
+    const finalStatus = hasAnyDiscrepancy ? 'DISCREPANCY' : 'DELIVERED';
+
     try {
-      await axios.patch(`/inventory/transfers/${discrepancyTransfer.id}/status`, {
-        status: 'DISCREPANCY',
-        items: discrepancyItems.map(it => ({
+      await axios.patch(`/inventory/transfers/${verifyTransfer.id}/status`, {
+        status: finalStatus,
+        items: verifyItems.map(it => ({
           productId: it.productId,
           receivedQuantity: parseInt(it.receivedQuantity),
-          hasDiscrepancy: it.hasDiscrepancy,
+          hasDiscrepancy: !it.isVerified || it.receivedQuantity < it.shippedQty,
           discrepancyComment: it.discrepancyComment
         }))
       });
-      setShowDiscrepancyModal(false);
-      setDiscrepancyTransfer(null);
-      setDiscrepancyItems([]);
+      setShowVerifyModal(false);
+      setVerifyTransfer(null);
+      setVerifyItems([]);
       fetchDashboardData();
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to submit discrepancy report');
+      alert(err.response?.data?.message || 'Failed to submit shipment verification');
     } finally {
-      setDiscrepancyLoading(false);
+      setVerifyLoading(false);
     }
   };
 
@@ -242,30 +238,22 @@ export default function DealerDashboard() {
                         </p>
                       </div>
                       <div className="flex items-center space-x-2">
-                        <span className={`text-[9px] font-black px-2.5 py-1 rounded-full ${
-                          item.status === 'DELIVERED' ? 'bg-emerald-50 text-emerald-700' :
-                          item.status === 'DISCREPANCY' ? 'bg-amber-50 text-amber-700' :
-                          item.status === 'IN_TRANSIT' ? 'bg-indigo-50 text-indigo-700 animate-pulse' :
-                          item.status === 'CANCELLED' ? 'bg-rose-50 text-rose-700' : 'bg-slate-50 text-slate-700'
-                        }`}>
+                        <span className={`text-[9px] font-black px-2.5 py-1 rounded-full ${item.status === 'DELIVERED' ? 'bg-emerald-50 text-emerald-700' :
+                            item.status === 'DISCREPANCY' ? 'bg-amber-50 text-amber-700' :
+                              item.status === 'IN_TRANSIT' ? 'bg-indigo-50 text-indigo-700 animate-pulse' :
+                                item.status === 'CANCELLED' ? 'bg-rose-50 text-rose-700' : 'bg-slate-50 text-slate-700'
+                          }`}>
                           {item.status === 'DISCREPANCY' ? 'DISCREPANCY' : item.status}
                         </span>
-                        
+
                         {item.status === 'IN_TRANSIT' && (
-                          <div className="flex space-x-1.5">
-                            <button
-                              onClick={() => handleConfirmReceipt(item.id)}
-                              className="bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg shadow-sm transition-all cursor-pointer"
-                            >
-                              Approve Receipt
-                            </button>
-                            <button
-                              onClick={() => openDiscrepancyModal(item)}
-                              className="bg-amber-600 hover:bg-amber-700 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg shadow-sm transition-all cursor-pointer"
-                            >
-                              Raise Discrepancy
-                            </button>
-                          </div>
+                          <button
+                            onClick={() => openVerifyModal(item)}
+                            className="bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-bold px-4 py-2 rounded-xl shadow-lg shadow-rose-100 transition-all cursor-pointer flex items-center space-x-1.5"
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            <span>Verify & Approve Receipt</span>
+                          </button>
                         )}
                       </div>
                     </div>
@@ -341,109 +329,113 @@ export default function DealerDashboard() {
       </div>
     </div>
 
-      {/* Discrepancy Modal */}
-      {showDiscrepancyModal && discrepancyTransfer && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 overflow-y-auto">
-          <div className="bg-white max-w-2xl w-full rounded-2xl shadow-xl overflow-hidden animate-zoom-in my-8 flex flex-col max-h-[90vh]">
-            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-amber-50">
-              <div>
-                <span className="text-[10px] font-black text-amber-700 uppercase tracking-wider block">Logistics Discrepancy</span>
-                <h3 className="font-black text-slate-800 text-sm uppercase tracking-wide">Report Shipment Discrepancy: {discrepancyTransfer.transferNo}</h3>
-              </div>
-              <button 
-                onClick={() => { setShowDiscrepancyModal(false); setDiscrepancyTransfer(null); }} 
-                className="text-slate-400 hover:text-slate-600 font-bold p-1 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
+      {/* Verification Checklist Modal */ }
+  {
+    showVerifyModal && verifyTransfer && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 overflow-y-auto">
+        <div className="bg-white max-w-2xl w-full rounded-2xl shadow-xl overflow-hidden animate-zoom-in my-8 flex flex-col max-h-[90vh]">
+          <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-rose-50/80">
+            <div>
+              <span className="text-[10px] font-black text-rose-600 uppercase tracking-wider block">Shipment Verification</span>
+              <h3 className="font-black text-slate-800 text-sm uppercase tracking-wide">Verify & Approve Shipment: {verifyTransfer.transferNo}</h3>
+            </div>
+            <button
+              onClick={() => { setShowVerifyModal(false); setVerifyTransfer(null); }}
+              className="text-slate-400 hover:text-slate-600 font-bold p-1 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          <form onSubmit={handleSubmitVerification} className="flex-1 overflow-y-auto p-6 space-y-4 text-xs">
+            <div className="bg-indigo-50/50 border border-indigo-100/50 text-indigo-900 p-4 rounded-xl space-y-1">
+              <strong className="font-bold block text-indigo-950 flex items-center space-x-1">
+                <CheckCircle2 className="w-4 h-4 text-indigo-600 shrink-0" />
+                <span>Shipment Checklist Verification:</span>
+              </strong>
+              <p className="leading-relaxed text-slate-600">Please check off each item received. If any item has a quantity mismatch or damage, uncheck "Verified" and update the actual received quantity and add a comment. Only verified stock will be added to your inventory after approval.</p>
             </div>
 
-            <form onSubmit={handleSubmitDiscrepancy} className="flex-1 overflow-y-auto p-6 space-y-4 text-xs">
-              <div className="bg-amber-50/50 border border-amber-200/50 text-amber-800 p-4 rounded-xl space-y-1">
-                <strong className="font-bold block">⚠️ Important Stock Policy:</strong>
-                <p className="leading-relaxed">Your distributor inventory will be updated automatically ONLY by the actual quantities received. Any differences will be logged in system notifications for Admin review.</p>
-              </div>
-
-              <div className="space-y-4">
-                <span className="block text-[10px] font-black uppercase text-slate-400">Shipped Items List</span>
-                <div className="space-y-3">
-                  {discrepancyItems.map((item) => (
-                    <div key={item.productId} className={`p-4 border rounded-xl space-y-3 transition-colors ${
-                      item.hasDiscrepancy ? 'border-amber-300 bg-amber-50/10' : 'border-slate-150 bg-slate-50/20'
+            <div className="space-y-4">
+              <span className="block text-[10px] font-black uppercase text-slate-400">Items Checklist</span>
+              <div className="space-y-3">
+                {verifyItems.map((item) => (
+                  <div key={item.productId} className={`p-4 border rounded-xl space-y-3 transition-colors ${item.isVerified ? 'border-slate-150 bg-slate-50/20' : 'border-rose-300 bg-rose-50/10'
                     }`}>
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <p className="font-bold text-slate-800 text-xs">{item.name}</p>
-                          <span className="text-[9px] font-semibold text-slate-400 block">SKU: {item.sku} · Shipped: {item.shippedQty} {item.unit}</span>
-                        </div>
-                        
-                        <label className="flex items-center space-x-2 font-bold text-slate-700 cursor-pointer select-none">
-                          <input
-                            type="checkbox"
-                            checked={item.hasDiscrepancy}
-                            onChange={(e) => handleDiscrepancyItemChange(item.productId, 'hasDiscrepancy', e.target.checked)}
-                            className="rounded text-rose-600 border-slate-300 focus:ring-rose-500 w-4 h-4 cursor-pointer"
-                          />
-                          <span>Report Issue</span>
-                        </label>
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <p className="font-bold text-slate-800 text-xs">{item.name}</p>
+                        <span className="text-[9px] font-semibold text-slate-400 block">SKU: {item.sku} · Shipped: {item.shippedQty} {item.unit}</span>
                       </div>
 
-                      {item.hasDiscrepancy && (
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2 border-t border-dashed border-slate-200 animate-fade-in">
-                          <div>
-                            <label className="block text-slate-500 font-bold mb-1">Received Qty ({item.unit})</label>
-                            <input
-                              type="number"
-                              min="0"
-                              max={item.shippedQty}
-                              required
-                              value={item.receivedQuantity}
-                              onChange={(e) => handleDiscrepancyItemChange(item.productId, 'receivedQuantity', Math.min(item.shippedQty, Math.max(0, parseInt(e.target.value) || 0)))}
-                              className="w-full p-2 bg-white border border-slate-200 focus:border-rose-500 rounded-lg focus:outline-none"
-                            />
-                          </div>
-                          <div className="sm:col-span-2">
-                            <label className="block text-slate-500 font-bold mb-1">Issue Description / Comment *</label>
-                            <input
-                              type="text"
-                              required
-                              value={item.discrepancyComment}
-                              placeholder="e.g. 2 packets torn and spilled, or count was 8 instead of 10"
-                              onChange={(e) => handleDiscrepancyItemChange(item.productId, 'discrepancyComment', e.target.value)}
-                              className="w-full p-2 bg-white border border-slate-200 focus:border-rose-500 rounded-lg focus:outline-none"
-                            />
-                          </div>
-                        </div>
-                      )}
+                      <label className="flex items-center space-x-2 font-bold text-slate-700 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={item.isVerified}
+                          onChange={(e) => handleVerifyItemChange(item.productId, 'isVerified', e.target.checked)}
+                          className="rounded text-rose-600 border-slate-300 focus:ring-rose-500 w-4 h-4 cursor-pointer"
+                        />
+                        <span>Verified (No Issues)</span>
+                      </label>
                     </div>
-                  ))}
-                </div>
-              </div>
 
-              <div className="pt-4 flex space-x-3 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => { setShowDiscrepancyModal(false); setDiscrepancyTransfer(null); }}
-                  className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold py-2.5 rounded-xl text-center cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={discrepancyLoading}
-                  className="flex-1 bg-amber-600 hover:bg-amber-700 text-white font-bold py-2.5 rounded-xl shadow-lg transition-all text-center flex items-center justify-center space-x-2 cursor-pointer disabled:bg-slate-200"
-                >
-                  {discrepancyLoading ? (
-                    <span>Submitting Report...</span>
-                  ) : (
-                    <span>Submit Discrepancy Report</span>
-                  )}
-                </button>
+                    {!item.isVerified && (
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2 border-t border-dashed border-rose-200 animate-fade-in">
+                        <div>
+                          <label className="block text-slate-500 font-bold mb-1">Received Qty ({item.unit})</label>
+                          <input
+                            type="number"
+                            min="0"
+                            max={item.shippedQty}
+                            required
+                            value={item.receivedQuantity}
+                            onChange={(e) => handleVerifyItemChange(item.productId, 'receivedQuantity', Math.min(item.shippedQty, Math.max(0, parseInt(e.target.value) || 0)))}
+                            className="w-full p-2 bg-white border border-slate-200 focus:border-rose-500 rounded-lg focus:outline-none"
+                          />
+                        </div>
+                        <div className="sm:col-span-2">
+                          <label className="block text-slate-500 font-bold mb-1">Explain Issue / Comment *</label>
+                          <input
+                            type="text"
+                            required={item.receivedQuantity !== item.shippedQty}
+                            value={item.discrepancyComment}
+                            placeholder="e.g. 2 packets damaged, or 3 packets missing"
+                            onChange={(e) => handleVerifyItemChange(item.productId, 'discrepancyComment', e.target.value)}
+                            className="w-full p-2 bg-white border border-slate-200 focus:border-rose-500 rounded-lg focus:outline-none"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
-            </form>
-          </div>
+            </div>
+
+            <div className="pt-4 flex space-x-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => { setShowVerifyModal(false); setVerifyTransfer(null); }}
+                className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold py-2.5 rounded-xl text-center cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={verifyLoading}
+                className="flex-1 bg-rose-600 hover:bg-rose-700 text-white font-bold py-2.5 rounded-xl shadow-lg shadow-rose-200 transition-all text-center flex items-center justify-center space-x-2 cursor-pointer disabled:bg-slate-200"
+              >
+                {verifyLoading ? (
+                  <span>Approving Receipt...</span>
+                ) : (
+                  <span>Approve Receipt & Update Stock</span>
+                )}
+              </button>
+            </div>
+          </form>
         </div>
-      )}
-    </div>
+      </div>
+    )
+  }
+    </div >
   );
 }
