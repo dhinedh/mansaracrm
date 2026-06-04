@@ -327,11 +327,9 @@ export default function DealerDashboard() {
           </button>
         </div>
       </div>
-    </div>
 
-      {/* Verification Checklist Modal */ }
-  {
-    showVerifyModal && verifyTransfer && (
+      {/* Verification Checklist Modal */}
+      {showVerifyModal && verifyTransfer && (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 overflow-y-auto">
         <div className="bg-white max-w-2xl w-full rounded-2xl shadow-xl overflow-hidden animate-zoom-in my-8 flex flex-col max-h-[90vh]">
           <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-rose-50/80">
@@ -434,8 +432,7 @@ export default function DealerDashboard() {
           </form>
         </div>
       </div>
-    )
-  }
-    </div >
+      )}
+    </div>
   );
 }
