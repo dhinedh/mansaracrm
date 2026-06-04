@@ -36,6 +36,7 @@ exports.registerDealer = async (req, res, next) => {
       area, 
       phone, 
       dealerType,
+      dealerCategory,
       initialDeposit,
       categories  // array of category IDs
     } = req.body;
@@ -86,6 +87,7 @@ exports.registerDealer = async (req, res, next) => {
           area,
           phone,
           dealerType: dealerType || 'RETAIL',
+          dealerCategory: dealerCategory || 'STARTER',
           initialDeposit: initialDeposit ? parseFloat(initialDeposit) : 0,
           categories: categories || [],
           approvalStatus: 'PENDING' // Starts as PENDING

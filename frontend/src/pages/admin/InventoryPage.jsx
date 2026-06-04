@@ -249,48 +249,50 @@ export default function InventoryPage() {
       {/* Stocks Tab */}
       {activeTab === 'stocks' && (
         <div className="bg-white border border-slate-150 rounded-2xl shadow-sm overflow-hidden">
-          <table className="w-full text-xs text-left border-collapse">
-            <thead>
-              <tr className="bg-slate-50 border-b border-slate-100 text-slate-500 font-bold uppercase tracking-wider">
-                <th className="p-4">SKU / Product</th>
-                <th className="p-4">Category</th>
-                <th className="p-4 text-center">Available Stock</th>
-                <th className="p-4 text-center">Min Threshold Alert</th>
-                <th className="p-4 text-right">Price</th>
-                <th className="p-4 text-center">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {stocks.map((item) => (
-                <tr key={item.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50">
-                  <td className="p-4">
-                    <div>
-                      <span className="font-black text-rose-600 block text-[10px]">SKU: {item.product.sku}</span>
-                      <span className="font-bold text-slate-800 text-xs">{item.product.name}</span>
-                    </div>
-                  </td>
-                  <td className="p-4 text-slate-500 font-medium">{item.product.category?.name}</td>
-                  <td className="p-4 text-center">
-                    <span className={`font-black px-2.5 py-1 rounded-full text-[10px] ${item.quantity <= item.minQuantity ? 'bg-rose-50 text-rose-700' : 'bg-slate-100 text-slate-700'
-                      }`}>
-                      {item.quantity} {item.product.unit}
-                    </span>
-                  </td>
-                  <td className="p-4 text-center text-slate-400 font-bold">{item.minQuantity} {item.product.unit}</td>
-                  <td className="p-4 text-right font-bold text-slate-800">₹{parseFloat(item.product.price).toFixed(2)}</td>
-                  <td className="p-4 text-center">
-                    <button
-                      onClick={() => openEditStockModal(item)}
-                      className="inline-flex items-center space-x-1 bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200 px-3 py-1.5 rounded-xl text-[10px] font-bold"
-                    >
-                      <Edit3 className="w-3.5 h-3.5" />
-                      <span>Edit</span>
-                    </button>
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs text-left border-collapse min-w-[700px] sm:min-w-0">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-100 text-slate-500 font-bold uppercase tracking-wider">
+                  <th className="p-4">SKU / Product</th>
+                  <th className="p-4">Category</th>
+                  <th className="p-4 text-center">Available Stock</th>
+                  <th className="p-4 text-center">Min Threshold Alert</th>
+                  <th className="p-4 text-right">Price</th>
+                  <th className="p-4 text-center">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {stocks.map((item) => (
+                  <tr key={item.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50">
+                    <td className="p-4">
+                      <div>
+                        <span className="font-black text-rose-600 block text-[10px]">SKU: {item.product.sku}</span>
+                        <span className="font-bold text-slate-800 text-xs">{item.product.name}</span>
+                      </div>
+                    </td>
+                    <td className="p-4 text-slate-500 font-medium">{item.product.category?.name}</td>
+                    <td className="p-4 text-center">
+                      <span className={`font-black px-2.5 py-1 rounded-full text-[10px] ${item.quantity <= item.minQuantity ? 'bg-rose-50 text-rose-700' : 'bg-slate-100 text-slate-700'
+                        }`}>
+                        {item.quantity} {item.product.unit}
+                      </span>
+                    </td>
+                    <td className="p-4 text-center text-slate-400 font-bold">{item.minQuantity} {item.product.unit}</td>
+                    <td className="p-4 text-right font-bold text-slate-800">₹{parseFloat(item.product.price).toFixed(2)}</td>
+                    <td className="p-4 text-center">
+                      <button
+                        onClick={() => openEditStockModal(item)}
+                        className="inline-flex items-center space-x-1 bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200 px-3 py-1.5 rounded-xl text-[10px] font-bold"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                        <span>Edit</span>
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 

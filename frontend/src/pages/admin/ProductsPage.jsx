@@ -48,7 +48,15 @@ export default function ProductsPage() {
       const res = await axios.get('/products', {
         params: { search, categoryId: categoryFilter }
       });
-      setProducts(res.data.data);
+      // Sort: in-stock items first, then out-of-stock
+      const sorted = [...res.data.data].sort((a, b) => {
+        const qtyA = a.companyStock?.quantity || 0;
+        const qtyB = b.companyStock?.quantity || 0;
+        if (qtyA > 0 && qtyB <= 0) return -1;
+        if (qtyA <= 0 && qtyB > 0) return 1;
+        return 0;
+      });
+      setProducts(sorted);
     } catch (err) {
       console.error(err);
     } finally {
@@ -210,11 +218,11 @@ export default function ProductsPage() {
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-rose-600"></div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
           {products.map((product) => (
             <div key={product.id} className="bg-white border border-slate-150 rounded-2xl shadow-sm overflow-hidden flex flex-col group hover:shadow-md transition-shadow">
               {/* Product Image */}
-              <div className="h-44 bg-slate-50 relative flex items-center justify-center border-b border-slate-100 overflow-hidden">
+              <div className="h-32 sm:h-44 bg-slate-50 relative flex items-center justify-center border-b border-slate-100 overflow-hidden">
                 {product.imageUrl ? (
                   <img
                     src={product.imageUrl.startsWith('http') || product.imageUrl.startsWith('data:') ? product.imageUrl : `${BACKEND_URL}${product.imageUrl.startsWith('/') ? '' : '/'}${product.imageUrl}`}
@@ -234,7 +242,7 @@ export default function ProductsPage() {
               </div>
 
               {/* Product details */}
-              <div className="p-5 flex-1 flex flex-col justify-between space-y-3">
+              <div className="p-3 sm:p-5 flex-1 flex flex-col justify-between space-y-3">
                 <div className="space-y-1">
                   <span className="block text-[9px] font-black text-rose-600 tracking-wider">SKU: {product.sku}</span>
                   <h3 className="font-bold text-slate-800 text-xs truncate">{product.name}</h3>

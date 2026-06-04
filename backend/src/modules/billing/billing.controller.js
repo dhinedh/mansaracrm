@@ -20,19 +20,46 @@ exports.createInvoice = async (req, res, next) => {
       return res.status(403).json({ success: false, message: 'Only dealers can generate invoices' });
     }
 
-    const { storeId, items, notes } = req.body; // items: [{ productId, quantity, marginPct }]
+    const { storeId, storeName, items, notes, isGstEnabled = true } = req.body; // items: [{ productId, quantity, marginPct }]
     const dealerId = req.user.dealer.id;
 
     if (!items || items.length === 0) {
       return res.status(400).json({ success: false, message: 'Invoice must contain at least one product' });
     }
 
-    // 1. Verify store exists and belongs to dealer
-    const store = await prisma.store.findFirst({
-      where: { id: storeId, dealerId, isActive: true }
-    });
+    // 1. Verify store exists and belongs to dealer, or find/create it dynamically by name
+    let store;
+    if (storeId) {
+      store = await prisma.store.findFirst({
+        where: { id: storeId, dealerId, isActive: true }
+      });
+    } else if (storeName) {
+      const trimmedName = storeName.trim();
+      if (!trimmedName) {
+        return res.status(400).json({ success: false, message: 'Store name cannot be empty' });
+      }
+
+      // Find store by name case-insensitively in JS
+      const dealerStores = await prisma.store.findMany({
+        where: { dealerId, isActive: true }
+      });
+      store = dealerStores.find(s => s.name.trim().toLowerCase() === trimmedName.toLowerCase());
+
+      if (!store) {
+        // Create new store on the fly
+        store = await prisma.store.create({
+          data: {
+            name: trimmedName,
+            dealerId,
+            address: 'Added dynamically during invoice creation',
+            isActive: true
+          }
+        });
+      }
+    }
+
     if (!store) {
-      return res.status(404).json({ success: false, message: 'Store not found or unauthorized' });
+      return res.status(404).json({ success: false, message: 'Target Store/Outlet not selected or created' });
     }
 
     // 2. Load dealer inventory & products to verify stock
@@ -70,7 +97,7 @@ exports.createInvoice = async (req, res, next) => {
           where: {
             dealerId,
             OR: [
-              { storeId },
+              { storeId: store.id },
               { productId: item.productId },
               { categoryId: product.categoryId }
             ]
@@ -86,7 +113,7 @@ exports.createInvoice = async (req, res, next) => {
       const gstPct = parseFloat(product.gstPercent);
       
       const lineSubtotal = sellingPrice * item.quantity;
-      const lineGst = lineSubtotal * (gstPct / 100);
+      const lineGst = isGstEnabled ? (lineSubtotal * (gstPct / 100)) : 0;
       const lineTotal = lineSubtotal + lineGst;
 
       calculatedSubtotal += lineSubtotal;
@@ -98,8 +125,8 @@ exports.createInvoice = async (req, res, next) => {
         unitPrice: basePrice,
         marginPct,
         sellingPrice,
-        gstPercent: gstPct,
-        gstAmount: lineGst,
+        gstPercent: isGstEnabled ? gstPct : 0,
+        gstAmount: isGstEnabled ? lineGst : 0,
         lineTotal
       });
     }
@@ -122,9 +149,12 @@ exports.createInvoice = async (req, res, next) => {
         data: {
           invoiceNo,
           dealerId,
-          storeId,
+          storeId: store.id,
           subtotal: calculatedSubtotal,
           totalGst: calculatedGstTotal,
+          cgst: isGstEnabled ? (calculatedGstTotal / 2) : 0,
+          sgst: isGstEnabled ? (calculatedGstTotal / 2) : 0,
+          isGstEnabled: !!isGstEnabled,
           totalAmount: calculatedGrandTotal,
           status: 'GENERATED',
           notes,

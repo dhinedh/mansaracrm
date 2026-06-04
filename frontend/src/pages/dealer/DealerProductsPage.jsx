@@ -31,7 +31,6 @@ export default function DealerProductsPage() {
     try {
       // 1. Get products list
       const prodRes = await axios.get('/products', { params: { search } });
-      setProducts(prodRes.data.data);
 
       // 2. Get dealer stock
       const invRes = await axios.get('/inventory/dealer');
@@ -41,9 +40,19 @@ export default function DealerProductsPage() {
       });
       setDealerInventory(invMap);
 
+      // 3. Sort: items dealer has in stock appear first
+      const sorted = [...prodRes.data.data].sort((a, b) => {
+        const qtyA = invMap[a.id] || 0;
+        const qtyB = invMap[b.id] || 0;
+        if (qtyA > 0 && qtyB <= 0) return -1;
+        if (qtyA <= 0 && qtyB > 0) return 1;
+        return 0;
+      });
+      setProducts(sorted);
+
       // Setup initial quantities for picker
       const initialQtys = {};
-      prodRes.data.data.forEach(p => {
+      sorted.forEach(p => {
         initialQtys[p.id] = 1;
       });
       setQuantities(initialQtys);

@@ -17,6 +17,11 @@ export default function CartPage() {
   const navigate = useNavigate();
   const [stores, setStores] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isGstEnabled, setIsGstEnabled] = useState(true);
+  const [storeSearch, setStoreSearch] = useState('');
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [filteredSuggestions, setFilteredSuggestions] = useState([]);
+
   const { 
     items, 
     storeId, 
@@ -37,9 +42,11 @@ export default function CartPage() {
   const fetchStores = async () => {
     try {
       const res = await axios.get('/stores');
-      setStores(res.data.data);
-      if (res.data.data.length > 0 && !storeId) {
-        setStoreId(res.data.data[0].id); // select first store as default
+      const storeData = res.data.data || [];
+      setStores(storeData);
+      if (storeData.length > 0 && !storeId) {
+        setStoreId(storeData[0].id);
+        setStoreSearch(storeData[0].name);
       }
     } catch (err) {
       console.error(err);
@@ -48,14 +55,44 @@ export default function CartPage() {
     }
   };
 
+  const handleStoreSearchChange = (val) => {
+    setStoreSearch(val);
+    if (val.trim().length >= 2) {
+      const matched = stores.filter(s => s.name.toLowerCase().includes(val.toLowerCase()));
+      setFilteredSuggestions(matched);
+      setShowSuggestions(true);
+    } else {
+      setFilteredSuggestions([]);
+      setShowSuggestions(false);
+    }
+    const exactMatch = stores.find(s => s.name.toLowerCase() === val.trim().toLowerCase());
+    if (exactMatch) {
+      setStoreId(exactMatch.id);
+    } else {
+      setStoreId(null);
+    }
+  };
+
+  const handleSuggestionClick = (store) => {
+    setStoreSearch(store.name);
+    setStoreId(store.id);
+    setShowSuggestions(false);
+  };
+
   const handleGenerateInvoice = async (e) => {
     e.preventDefault();
-    if (!storeId || items.length === 0) return;
+    if (items.length === 0) return;
+    if (!storeId && !storeSearch.trim()) {
+      alert('Please select or enter a target store/outlet.');
+      return;
+    }
 
     try {
       const res = await axios.post('/billing', {
         storeId,
+        storeName: storeId ? undefined : storeSearch.trim(),
         notes,
+        isGstEnabled,
         items: items.map(item => ({
           productId: item.productId,
           quantity: item.quantity,
@@ -101,21 +138,48 @@ export default function CartPage() {
           <button onClick={clearCart} className="text-[10px] font-bold text-rose-600 bg-rose-50 hover:bg-rose-100/50 px-3 py-1.5 rounded-lg cursor-pointer">Clear All</button>
         </div>
 
-        {/* Store selector */}
-        <div className="space-y-2">
+        {/* Store selector (Text input search & dynamically register) */}
+        <div className="space-y-2 relative z-20">
           <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">Select Target Store / Outlet *</label>
           <div className="relative">
             <Store className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
-            <select
-              value={storeId}
-              onChange={(e) => setStoreId(e.target.value)}
-              className="w-full pl-11 pr-4 py-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 rounded-xl focus:outline-none cursor-pointer font-bold text-slate-700 text-xs"
-            >
-              {stores.map(s => (
-                <option key={s.id} value={s.id}>{s.name} (GST: {s.gstNumber || 'N/A'})</option>
-              ))}
-            </select>
+            <input
+              type="text"
+              value={storeSearch}
+              onChange={(e) => handleStoreSearchChange(e.target.value)}
+              onFocus={() => {
+                if (storeSearch.trim().length >= 2) {
+                  const matched = stores.filter(s => s.name.toLowerCase().includes(storeSearch.toLowerCase()));
+                  setFilteredSuggestions(matched);
+                  setShowSuggestions(true);
+                }
+              }}
+              onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+              placeholder="Type customer shop or store name..."
+              className="w-full pl-11 pr-4 py-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none font-bold text-slate-700 text-xs transition-all"
+            />
           </div>
+          
+          {showSuggestions && filteredSuggestions.length > 0 && (
+            <div className="absolute top-[68px] left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-xl z-30 max-h-48 overflow-y-auto divide-y divide-slate-100">
+              {filteredSuggestions.map(s => (
+                <div
+                  key={s.id}
+                  onClick={() => handleSuggestionClick(s)}
+                  className="p-3 hover:bg-rose-50/50 cursor-pointer text-xs flex justify-between items-center transition-colors"
+                >
+                  <strong className="text-slate-800 font-bold">{s.name}</strong>
+                  <span className="text-[10px] text-slate-400 font-medium">{s.phone || s.city || 'Existing outlet'}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          
+          {storeSearch.trim().length >= 2 && !storeId && (
+            <p className="text-[10px] text-indigo-600 font-bold animate-pulse mt-1">
+              ✨ Store "{storeSearch}" not found. It will be registered as a new outlet when you generate the invoice.
+            </p>
+          )}
         </div>
 
         {/* Items Listing */}
@@ -211,19 +275,50 @@ export default function CartPage() {
             <span>Subtotal (Selling Price):</span>
             <strong className="text-slate-800">₹{subtotal.toFixed(2)}</strong>
           </div>
-          <div className="flex justify-between items-center">
-            <span>Calculated GST (CGST+SGST):</span>
-            <strong className="text-slate-800">₹{gstTotal.toFixed(2)}</strong>
+          
+          <div className="flex items-center justify-between border-t border-dashed border-slate-100 pt-3 pb-1">
+            <label className="flex items-center space-x-2 font-bold text-slate-700 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={isGstEnabled}
+                onChange={(e) => setIsGstEnabled(e.target.checked)}
+                className="rounded text-rose-600 border-slate-300 focus:ring-rose-500 w-4 h-4 cursor-pointer"
+              />
+              <span>Enable GST Tax Billing</span>
+            </label>
           </div>
+
+          {isGstEnabled ? (
+            <>
+              <div className="flex justify-between items-center text-[10px] text-slate-400 pl-4 border-l-2 border-rose-100">
+                <span>CGST (50% of GST):</span>
+                <strong className="text-slate-600">₹{(gstTotal / 2).toFixed(2)}</strong>
+              </div>
+              <div className="flex justify-between items-center text-[10px] text-slate-400 pl-4 border-l-2 border-rose-100">
+                <span>SGST (50% of GST):</span>
+                <strong className="text-slate-600">₹{(gstTotal / 2).toFixed(2)}</strong>
+              </div>
+              <div className="flex justify-between items-center text-[11px] font-bold text-slate-700 pl-4 border-l-2 border-rose-200">
+                <span>Total GST:</span>
+                <strong className="text-slate-800">₹{gstTotal.toFixed(2)}</strong>
+              </div>
+            </>
+          ) : (
+            <div className="flex justify-between items-center text-[11px] text-slate-400 pl-4 border-l-2 border-slate-200">
+              <span>GST Tax:</span>
+              <span className="font-bold text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded text-[9px] uppercase font-black">Disabled</span>
+            </div>
+          )}
+
           <div className="flex justify-between items-center text-sm font-black border-t border-slate-100 pt-3 text-slate-800">
             <span>Final Invoice Value:</span>
-            <span className="text-rose-600 text-base">₹{grandTotal.toFixed(2)}</span>
+            <span className="text-rose-600 text-base">₹{(isGstEnabled ? grandTotal : subtotal).toFixed(2)}</span>
           </div>
         </div>
 
         <button
           onClick={handleGenerateInvoice}
-          disabled={!storeId || items.length === 0}
+          disabled={(!storeId && !storeSearch.trim()) || items.length === 0}
           className="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold py-3 rounded-xl shadow-lg transition-all text-xs flex items-center justify-center space-x-2 disabled:bg-slate-200 disabled:shadow-none cursor-pointer"
         >
           <Receipt className="w-4 h-4" />

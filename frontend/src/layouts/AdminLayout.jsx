@@ -187,9 +187,14 @@ export default function AdminLayout() {
                     }`}
                   >
                     <div className="flex items-center space-x-3">
-                      <Icon className="w-5 h-5 text-slate-400" />
+                      <Icon className={`w-5 h-5 ${isActive ? 'text-rose-600' : 'text-slate-400'}`} />
                       <span>{item.name}</span>
                     </div>
+                    {item.badge > 0 && (
+                      <span className="bg-rose-600 text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold">
+                        {item.badge}
+                      </span>
+                    )}
                   </Link>
                 );
               })}

@@ -238,10 +238,24 @@ const buildInvoiceHtml = (company, invoice) => {
             <td>Subtotal:</td>
             <td style="text-align: right;">₹${parseFloat(invoice.subtotal).toFixed(2)}</td>
           </tr>
-          <tr>
-            <td>GST Amount:</td>
-            <td style="text-align: right;">₹${parseFloat(invoice.totalGst).toFixed(2)}</td>
-          </tr>
+          ${invoice.isGstEnabled !== false 
+            ? `
+              <tr>
+                <td>CGST:</td>
+                <td style="text-align: right;">₹${((invoice.cgst !== undefined ? parseFloat(invoice.cgst) : (parseFloat(invoice.totalGst) / 2)) || 0).toFixed(2)}</td>
+              </tr>
+              <tr>
+                <td>SGST:</td>
+                <td style="text-align: right;">₹${((invoice.sgst !== undefined ? parseFloat(invoice.sgst) : (parseFloat(invoice.totalGst) / 2)) || 0).toFixed(2)}</td>
+              </tr>
+            `
+            : `
+              <tr>
+                <td>GST (Disabled):</td>
+                <td style="text-align: right;">₹0.00</td>
+              </tr>
+            `
+          }
           <tr class="grand-total">
             <td>Grand Total:</td>
             <td style="text-align: right;">₹${parseFloat(invoice.totalAmount).toFixed(2)}</td>

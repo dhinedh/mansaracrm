@@ -83,59 +83,61 @@ export default function InvoicesHistoryPage() {
         </div>
       ) : (
         <div className="bg-white border border-slate-150 rounded-2xl shadow-sm overflow-hidden">
-          <table className="w-full text-xs text-left border-collapse">
-            <thead>
-              <tr className="bg-slate-50 border-b border-slate-100 text-slate-500 font-bold uppercase tracking-wider">
-                <th className="p-4">Invoice No / Date</th>
-                <th className="p-4">Retail Outlet Store</th>
-                <th className="p-4 text-right">Subtotal</th>
-                <th className="p-4 text-right">GST Total</th>
-                <th className="p-4 text-right">Invoice Amount</th>
-                <th className="p-4 text-center">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {invoices.map((inv) => (
-                <tr key={inv.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50">
-                  <td className="p-4">
-                    <div>
-                      <span className="font-black text-slate-800 text-xs">{inv.invoiceNo}</span>
-                      <span className="block text-[9px] text-slate-400 font-medium">
-                        {new Date(inv.createdAt).toLocaleDateString('en-IN', {
-                          day: '2-digit', month: 'short', year: 'numeric'
-                        })}
-                      </span>
-                    </div>
-                  </td>
-                  <td className="p-4">
-                    <div className="flex items-center space-x-2">
-                      <Store className="w-3.5 h-3.5 text-rose-600 shrink-0" />
-                      <span className="font-bold text-slate-700">{inv.store?.name}</span>
-                    </div>
-                  </td>
-                  <td className="p-4 text-right font-medium text-slate-600">₹{parseFloat(inv.subtotal).toFixed(2)}</td>
-                  <td className="p-4 text-right font-medium text-slate-600">₹{parseFloat(inv.totalGst).toFixed(2)}</td>
-                  <td className="p-4 text-right font-black text-rose-600">₹{parseFloat(inv.totalAmount).toFixed(2)}</td>
-                  <td className="p-4">
-                    <div className="flex items-center justify-center space-x-2">
-                      <button
-                        onClick={() => openDetails(inv)}
-                        className="p-1.5 hover:bg-slate-50 border border-slate-200 rounded-lg text-slate-600 hover:text-slate-800 flex items-center space-x-1"
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => handleDownloadPdf(inv.id, inv.invoiceNo)}
-                        className="p-1.5 hover:bg-rose-50 border border-rose-100 rounded-lg text-rose-600 flex items-center space-x-1"
-                      >
-                        <Download className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs text-left border-collapse min-w-[700px] sm:min-w-0">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-100 text-slate-500 font-bold uppercase tracking-wider">
+                  <th className="p-4">Invoice No / Date</th>
+                  <th className="p-4">Retail Outlet Store</th>
+                  <th className="p-4 text-right">Subtotal</th>
+                  <th className="p-4 text-right">GST Total</th>
+                  <th className="p-4 text-right">Invoice Amount</th>
+                  <th className="p-4 text-center">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {invoices.map((inv) => (
+                  <tr key={inv.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50">
+                    <td className="p-4">
+                      <div>
+                        <span className="font-black text-slate-800 text-xs">{inv.invoiceNo}</span>
+                        <span className="block text-[9px] text-slate-400 font-medium">
+                          {new Date(inv.createdAt).toLocaleDateString('en-IN', {
+                            day: '2-digit', month: 'short', year: 'numeric'
+                          })}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="p-4">
+                      <div className="flex items-center space-x-2">
+                        <Store className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                        <span className="font-bold text-slate-700">{inv.store?.name}</span>
+                      </div>
+                    </td>
+                    <td className="p-4 text-right font-medium text-slate-600">₹{parseFloat(inv.subtotal).toFixed(2)}</td>
+                    <td className="p-4 text-right font-medium text-slate-600">₹{parseFloat(inv.totalGst).toFixed(2)}</td>
+                    <td className="p-4 text-right font-black text-rose-600">₹{parseFloat(inv.totalAmount).toFixed(2)}</td>
+                    <td className="p-4">
+                      <div className="flex items-center justify-center space-x-2">
+                        <button
+                          onClick={() => openDetails(inv)}
+                          className="p-1.5 hover:bg-slate-50 border border-slate-200 rounded-lg text-slate-600 hover:text-slate-800 flex items-center space-x-1 cursor-pointer"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleDownloadPdf(inv.id, inv.invoiceNo)}
+                          className="p-1.5 hover:bg-rose-50 border border-rose-100 rounded-lg text-rose-600 flex items-center space-x-1 cursor-pointer"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
@@ -211,9 +213,23 @@ export default function InvoicesHistoryPage() {
                   <span className="font-bold text-slate-700">₹{parseFloat(selectedInvoice.subtotal).toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between items-center w-48 text-[11px] text-slate-500">
-                  <span>GST (CGST+SGST):</span>
-                  <span className="font-bold text-slate-700">₹{parseFloat(selectedInvoice.totalGst).toFixed(2)}</span>
-                </div>
+                  {selectedInvoice.isGstEnabled !== false ? (
+                  <>
+                    <div className="flex justify-between items-center w-48 text-[11px] text-slate-500">
+                      <span>CGST:</span>
+                      <span className="font-bold text-slate-700">₹{(selectedInvoice.cgst !== undefined ? parseFloat(selectedInvoice.cgst) : (parseFloat(selectedInvoice.totalGst) / 2)).toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between items-center w-48 text-[11px] text-slate-500">
+                      <span>SGST:</span>
+                      <span className="font-bold text-slate-700">₹{(selectedInvoice.sgst !== undefined ? parseFloat(selectedInvoice.sgst) : (parseFloat(selectedInvoice.totalGst) / 2)).toFixed(2)}</span>
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex justify-between items-center w-48 text-[11px] text-slate-500">
+                    <span>GST:</span>
+                    <span className="font-bold text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded text-[9px] uppercase font-black">Disabled</span>
+                  </div>
+                )}
                 <div className="flex justify-between items-center w-48 text-xs font-black text-slate-800 border-t border-slate-100 pt-2">
                   <span>Grand Total:</span>
                   <span className="text-rose-600">₹{parseFloat(selectedInvoice.totalAmount).toFixed(2)}</span>

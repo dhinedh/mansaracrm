@@ -82,6 +82,7 @@ export default function DealersPage() {
   const [area, setArea] = useState('');
   const [phone, setPhone] = useState('');
   const [dealerType, setDealerType] = useState('RETAIL');
+  const [dealerCategory, setDealerCategory] = useState('STARTER');
   const [initialDeposit, setInitialDeposit] = useState('');
   const [selectedCategories, setSelectedCategories] = useState([]);
   const [categoryList, setCategoryList] = useState([]);
@@ -138,7 +139,7 @@ export default function DealersPage() {
       await axios.post('/auth/register-dealer', {
         email, password, name, companyName, gstNumber, address, city, state, pincode,
         zones,     // send zones array
-        area, phone, dealerType,
+        area, phone, dealerType, dealerCategory,
         initialDeposit: initialDeposit ? parseFloat(initialDeposit) : 0,
         categories: selectedCategories
       });
@@ -179,7 +180,7 @@ export default function DealersPage() {
   const resetForm = () => {
     setEmail(''); setPassword(''); setName(''); setCompanyName(''); setGstNumber('');
     setAddress(''); setCity(''); setState(''); setPincode(''); setZones([]); setZoneInput(''); setArea('');
-    setPhone(''); setDealerType('RETAIL'); setInitialDeposit(''); setSelectedCategories([]);
+    setPhone(''); setDealerType('RETAIL'); setDealerCategory('STARTER'); setInitialDeposit(''); setSelectedCategories([]);
     setFormError(''); setFormSuccess(false); setSubmitting(false);
     setPincodeSuggestions([]);
   };
@@ -288,6 +289,16 @@ export default function DealersPage() {
                     <span className="truncate max-w-[180px]">{dealer.companyName}</span>
                   </h3>
                   <p className="text-[10px] text-slate-400 font-medium">Type: {dealer.dealerType}</p>
+                  {dealer.dealerCategory && (
+                    <span className={`inline-block mt-1 text-[9px] font-black px-2 py-0.5 rounded-full ${
+                      dealer.dealerCategory === 'SUPER' ? 'bg-purple-100 text-purple-700' :
+                      dealer.dealerCategory === 'PREMIUM' ? 'bg-amber-100 text-amber-700' :
+                      dealer.dealerCategory === 'GROWTH' ? 'bg-blue-100 text-blue-700' :
+                      'bg-slate-100 text-slate-600'
+                    }`}>
+                      ⭐ {dealer.dealerCategory}
+                    </span>
+                  )}
                 </div>
                 
                 {/* Status Badges */}
@@ -463,6 +474,28 @@ export default function DealersPage() {
                     <option value="DISTRIBUTOR">Distributor</option>
                     <option value="SUPER_DISTRIBUTOR">Super Distributor</option>
                   </select>
+                </div>
+                <div>
+                  <label className="block text-slate-500 font-bold mb-1">Dealer Tier / Category *</label>
+                  <div className="grid grid-cols-2 gap-2 mt-1">
+                    {['STARTER', 'GROWTH', 'PREMIUM', 'SUPER'].map(tier => (
+                      <button
+                        key={tier}
+                        type="button"
+                        onClick={() => setDealerCategory(tier)}
+                        className={`py-2 rounded-xl text-[11px] font-black border transition-all ${
+                          dealerCategory === tier
+                            ? tier === 'SUPER' ? 'bg-purple-600 text-white border-purple-600 shadow-sm'
+                              : tier === 'PREMIUM' ? 'bg-amber-500 text-white border-amber-500 shadow-sm'
+                              : tier === 'GROWTH' ? 'bg-blue-500 text-white border-blue-500 shadow-sm'
+                              : 'bg-slate-600 text-white border-slate-600 shadow-sm'
+                            : 'bg-white text-slate-500 border-slate-200 hover:border-rose-300'
+                        }`}
+                      >
+                        {tier === 'SUPER' ? '⭐ SUPER' : tier === 'PREMIUM' ? '🥇 PREMIUM' : tier === 'GROWTH' ? '📈 GROWTH' : '🌱 STARTER'}
+                      </button>
+                    ))}
+                  </div>
                 </div>
                 <div>
                   <label className="block text-slate-500 font-bold mb-1 flex items-center space-x-1">
@@ -765,6 +798,20 @@ export default function DealersPage() {
                           <div className="grid grid-cols-3 gap-y-3">
                             <span className="text-slate-400 font-medium">GST Identification</span>
                             <span className="col-span-2 text-slate-800 font-semibold">{dealerDetail.gstNumber || 'N/A'}</span>
+
+                            <span className="text-slate-400 font-medium">Dealer Tier</span>
+                            <span className="col-span-2">
+                              {dealerDetail.dealerCategory ? (
+                                <span className={`text-[10px] font-black px-2.5 py-1 rounded-lg ${
+                                  dealerDetail.dealerCategory === 'SUPER' ? 'bg-purple-100 text-purple-700 border border-purple-200' :
+                                  dealerDetail.dealerCategory === 'PREMIUM' ? 'bg-amber-100 text-amber-700 border border-amber-200' :
+                                  dealerDetail.dealerCategory === 'GROWTH' ? 'bg-blue-100 text-blue-700 border border-blue-200' :
+                                  'bg-slate-100 text-slate-600 border border-slate-200'
+                                }`}>
+                                  {dealerDetail.dealerCategory === 'SUPER' ? '⭐ SUPER' : dealerDetail.dealerCategory === 'PREMIUM' ? '🥇 PREMIUM' : dealerDetail.dealerCategory === 'GROWTH' ? '📈 GROWTH' : '🌱 STARTER'}
+                                </span>
+                              ) : <span className="text-slate-500 font-semibold">Not assigned</span>}
+                            </span>
 
                             <span className="text-slate-400 font-medium">Initial Deposit</span>
                             <span className="col-span-2 text-slate-800 font-semibold">
