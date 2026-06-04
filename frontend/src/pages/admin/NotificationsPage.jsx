@@ -1,19 +1,23 @@
 // src/pages/admin/NotificationsPage.jsx
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
-import { 
-  Bell, 
-  CheckCheck, 
+import {
+  Bell,
+  CheckCheck,
   Trash2, 
   Info, 
   TrendingUp, 
   Package, 
   ShieldAlert 
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { useAuthStore } from '../../store/authStore';
 
 export default function NotificationsPage() {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
+  const { user } = useAuthStore();
 
   useEffect(() => {
     fetchNotifications();
@@ -57,6 +61,57 @@ export default function NotificationsPage() {
     }
   };
 
+  const handleNotificationClick = async (n) => {
+    // 1. Mark as read first if not read
+    if (!n.isRead) {
+      try {
+        await axios.patch(`/notifications/${n.id}/read`);
+        // update local list instantly for better UX
+        setNotifications(prev => prev.map(notif => notif.id === n.id ? { ...notif, isRead: true } : notif));
+      } catch (err) {
+        console.error(err);
+      }
+    }
+    
+    // 2. Navigate based on type and user role
+    const role = user?.role;
+    const transferId = n.metadata?.transferId;
+    const invoiceId = n.metadata?.invoiceId;
+    const dealerId = n.metadata?.dealerId;
+    
+    if (role === 'ADMIN') {
+      switch (n.type) {
+        case 'STOCK_TRANSFER':
+        case 'DELIVERY_UPDATE':
+          navigate('/admin/inventory', { state: { activeTab: 'history', transferId } });
+          break;
+        case 'INVOICE_GENERATED':
+          navigate('/admin/dashboard', { state: { invoiceId } });
+          break;
+        case 'ACCOUNT_UPDATE':
+          navigate('/admin/dealers', { state: { dealerId } });
+          break;
+        default:
+          navigate('/admin/dashboard');
+      }
+    } else if (role === 'DEALER') {
+      switch (n.type) {
+        case 'STOCK_TRANSFER':
+        case 'DELIVERY_UPDATE':
+          navigate('/dealer/transfers', { state: { transferId } });
+          break;
+        case 'INVOICE_GENERATED':
+          navigate('/dealer/invoices', { state: { invoiceId } });
+          break;
+        case 'ACCOUNT_UPDATE':
+          navigate('/dealer/dashboard');
+          break;
+        default:
+          navigate('/dealer/dashboard');
+      }
+    }
+  };
+
   const getIcon = (type) => {
     switch (type) {
       case 'STOCK_TRANSFER': return <Package className="w-4 h-4 text-emerald-600" />;
@@ -76,7 +131,7 @@ export default function NotificationsPage() {
         {notifications.filter(n => !n.isRead).length > 0 && (
           <button
             onClick={handleMarkAllRead}
-            className="inline-flex items-center space-x-1.5 text-xs font-bold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100/50 px-3.5 py-2 rounded-xl transition-all"
+            className="inline-flex items-center space-x-1.5 text-xs font-bold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100/50 px-3.5 py-2 rounded-xl transition-all cursor-pointer"
           >
             <CheckCheck className="w-4 h-4" />
             <span>Mark all read</span>
@@ -100,7 +155,8 @@ export default function NotificationsPage() {
             notifications.map((n) => (
               <div
                 key={n.id}
-                className={`bg-white border p-5 rounded-2xl shadow-sm flex items-start justify-between gap-4 transition-all ${
+                onClick={() => handleNotificationClick(n)}
+                className={`bg-white border p-5 rounded-2xl shadow-sm flex items-start justify-between gap-4 transition-all cursor-pointer hover:border-rose-200 hover:shadow-md ${
                   n.isRead ? 'border-slate-150 opacity-75' : 'border-rose-100 bg-rose-50/10'
                 }`}
               >
@@ -127,15 +183,15 @@ export default function NotificationsPage() {
                 <div className="flex items-center space-x-2">
                   {!n.isRead && (
                     <button
-                      onClick={() => handleMarkRead(n.id)}
-                      className="text-rose-600 hover:bg-rose-50 text-[10px] font-bold px-2 py-1 rounded"
+                      onClick={(e) => { e.stopPropagation(); handleMarkRead(n.id); }}
+                      className="text-rose-600 hover:bg-rose-50 text-[10px] font-bold px-2 py-1 rounded cursor-pointer"
                     >
                       Mark Read
                     </button>
                   )}
                   <button
-                    onClick={() => handleDelete(n.id)}
-                    className="text-slate-400 hover:text-rose-600 p-1.5 hover:bg-slate-50 rounded-lg transition-colors"
+                    onClick={(e) => { e.stopPropagation(); handleDelete(n.id); }}
+                    className="text-slate-400 hover:text-rose-600 p-1.5 hover:bg-slate-50 rounded-lg transition-colors cursor-pointer"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>

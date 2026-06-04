@@ -1,5 +1,6 @@
 // src/pages/dealer/InvoicesHistoryPage.jsx
 import React, { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import axios from 'axios';
 import { 
   Receipt, 
@@ -13,6 +14,7 @@ import {
 } from 'lucide-react';
 
 export default function InvoicesHistoryPage() {
+  const location = useLocation();
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
@@ -25,7 +27,17 @@ export default function InvoicesHistoryPage() {
   const fetchInvoices = async () => {
     try {
       const res = await axios.get('/billing');
-      setInvoices(res.data.data);
+      const invoiceData = res.data.data;
+      setInvoices(invoiceData);
+      
+      // Auto-open if redirected with an invoiceId in state
+      if (location.state?.invoiceId) {
+        const found = invoiceData.find(inv => inv.id === location.state.invoiceId);
+        if (found) {
+          setSelectedInvoice(found);
+          setShowDetailModal(true);
+        }
+      }
     } catch (err) {
       console.error(err);
     } finally {

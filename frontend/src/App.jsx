@@ -26,6 +26,7 @@ import DealerProductsPage from './pages/dealer/DealerProductsPage';
 import CartPage from './pages/dealer/CartPage';
 import InvoicesHistoryPage from './pages/dealer/InvoicesHistoryPage';
 import DealerAnalyticsPage from './pages/dealer/DealerAnalyticsPage';
+import WarehouseTransfersPage from './pages/dealer/WarehouseTransfersPage';
 
 // Simple Route Protection wrapper
 const ProtectedRoute = ({ children, allowedRole }) => {
@@ -91,6 +92,7 @@ export default function App() {
           <Route path="products" element={<DealerProductsPage />} />
           <Route path="cart" element={<CartPage />} />
           <Route path="invoices" element={<InvoicesHistoryPage />} />
+          <Route path="transfers" element={<WarehouseTransfersPage />} />
           <Route path="analytics" element={<DealerAnalyticsPage />} />
           <Route path="notifications" element={<NotificationsPage />} />
         </Route>

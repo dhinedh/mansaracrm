@@ -14,7 +14,8 @@ import {
   Menu, 
   X,
   User,
-  ShoppingCart
+  ShoppingCart,
+  Truck
 } from 'lucide-react';
 import axios from 'axios';
 
@@ -52,6 +53,7 @@ export default function DealerLayout() {
 
   const menuItems = [
     { name: 'Dashboard', path: '/dealer/dashboard', icon: LayoutDashboard },
+    { name: 'Warehouse Shipments', path: '/dealer/transfers', icon: Truck },
     { name: 'My Shops', path: '/dealer/stores', icon: Store },
     { name: 'Browse Products', path: '/dealer/products', icon: ShoppingBag },
     { name: 'Cart / Bill Builder', path: '/dealer/cart', icon: ShoppingCart, badge: items.length },
@@ -113,6 +115,11 @@ export default function DealerLayout() {
             <div className="flex-1 min-w-0">
               <p className="text-xs font-bold text-slate-800 truncate">{user?.name || 'Loading Partner...'}</p>
               <p className="text-[10px] text-slate-500 truncate">{user?.dealer?.companyName || 'Mansara Foods'}</p>
+              {user?.dealer?.initialDeposit !== undefined && user?.dealer?.initialDeposit !== null && (
+                <p className="text-[9px] text-rose-600 font-black mt-0.5">
+                  Deposit: ₹{Number(user.dealer.initialDeposit).toLocaleString('en-IN')}
+                </p>
+              )}
             </div>
           </div>
           <button
@@ -221,6 +228,11 @@ export default function DealerLayout() {
                 <div>
                   <p className="text-sm font-bold text-slate-800 truncate">{user?.name}</p>
                   <p className="text-xs text-slate-500 truncate">{user?.dealer?.companyName}</p>
+                  {user?.dealer?.initialDeposit !== undefined && user?.dealer?.initialDeposit !== null && (
+                    <p className="text-[10px] text-rose-600 font-black mt-0.5">
+                      Deposit: ₹{Number(user.dealer.initialDeposit).toLocaleString('en-IN')}
+                    </p>
+                  )}
                 </div>
               </div>
               <button

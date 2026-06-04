@@ -1,5 +1,6 @@
 // src/pages/admin/InventoryPage.jsx
 import React, { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import axios from 'axios';
 import {
   Truck,
@@ -17,7 +18,9 @@ import {
 } from 'lucide-react';
 
 export default function InventoryPage() {
+  const location = useLocation();
   const [activeTab, setActiveTab] = useState('stocks'); // 'stocks', 'transfer', 'history'
+  const [highlightedId, setHighlightedId] = useState(null);
   const [stocks, setStocks] = useState([]);
   const [dealers, setDealers] = useState([]);
   const [transfers, setTransfers] = useState([]);
@@ -42,6 +45,21 @@ export default function InventoryPage() {
     fetchDealers();
     fetchTransfers();
   }, []);
+
+  useEffect(() => {
+    if (location.state?.activeTab) {
+      setActiveTab(location.state.activeTab);
+    }
+    if (location.state?.transferId) {
+      setHighlightedId(location.state.transferId);
+      setTimeout(() => {
+        const element = document.getElementById(`transfer-${location.state.transferId}`);
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 300);
+    }
+  }, [location.state]);
 
   const fetchStocks = async () => {
     try {
@@ -410,7 +428,15 @@ export default function InventoryPage() {
       {activeTab === 'history' && (
         <div className="space-y-6">
           {transfers.map((item) => (
-            <div key={item.id} className="bg-white border border-slate-150 p-6 rounded-2xl shadow-sm space-y-4">
+            <div 
+              key={item.id} 
+              id={`transfer-${item.id}`}
+              className={`p-6 rounded-2xl shadow-sm space-y-4 transition-all duration-300 border ${
+                item.id === highlightedId
+                  ? 'border-rose-500 bg-rose-50/10 shadow-md ring-2 ring-rose-500/20'
+                  : 'bg-white border-slate-150'
+              }`}
+            >
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3 border-b border-slate-100">
                 <div className="space-y-1">
                   <div className="flex items-center space-x-2">

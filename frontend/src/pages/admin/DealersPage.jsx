@@ -1,5 +1,6 @@
 // src/pages/admin/DealersPage.jsx
 import React, { useEffect, useState, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 import axios from 'axios';
 import { 
   Plus, 
@@ -28,6 +29,7 @@ import {
 } from 'lucide-react';
 
 export default function DealersPage() {
+  const location = useLocation();
   const [dealers, setDealers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -88,6 +90,12 @@ export default function DealersPage() {
   useEffect(() => {
     fetchDealers();
   }, [search, statusFilter]);
+
+  useEffect(() => {
+    if (location.state?.dealerId) {
+      fetchDealerDetail(location.state.dealerId);
+    }
+  }, [location.state]);
 
   const fetchCategories = async () => {
     try {
