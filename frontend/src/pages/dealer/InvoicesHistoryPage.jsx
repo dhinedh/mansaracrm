@@ -212,8 +212,7 @@ export default function InvoicesHistoryPage() {
                   <span>Subtotal:</span>
                   <span className="font-bold text-slate-700">₹{parseFloat(selectedInvoice.subtotal).toFixed(2)}</span>
                 </div>
-                <div className="flex justify-between items-center w-48 text-[11px] text-slate-500">
-                  {selectedInvoice.isGstEnabled !== false ? (
+                {selectedInvoice.isGstEnabled !== false ? (
                   <>
                     <div className="flex justify-between items-center w-48 text-[11px] text-slate-500">
                       <span>CGST:</span>
