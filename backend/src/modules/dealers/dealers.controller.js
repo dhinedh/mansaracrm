@@ -33,7 +33,8 @@ exports.getAllDealers = async (req, res, next) => {
             isActive: true,
             lastLogin: true
           }
-        }
+        },
+        categoryDetails: true
       },
       orderBy: { createdAt: 'desc' }
     });
@@ -68,7 +69,8 @@ exports.getDealerById = async (req, res, next) => {
           include: {
             product: true
           }
-        }
+        },
+        categoryDetails: true
       }
     });
 
@@ -96,11 +98,14 @@ exports.updateDealer = async (req, res, next) => {
       city,
       state,
       pincode,
-      zone,
+      zones,
+      zone,  // legacy single string support
       area,
       phone,
       dealerType,
       creditLimit,
+      initialDeposit,
+      categories,
       notes
     } = req.body;
 
@@ -132,11 +137,13 @@ exports.updateDealer = async (req, res, next) => {
           city: city !== undefined ? city : existingDealer.city,
           state: state !== undefined ? state : existingDealer.state,
           pincode: pincode !== undefined ? pincode : existingDealer.pincode,
-          zone: zone !== undefined ? zone : existingDealer.zone,
+          zones: zones !== undefined ? zones : (zone !== undefined ? (zone ? [zone] : []) : existingDealer.zones),
           area: area !== undefined ? area : existingDealer.area,
           phone: phone || existingDealer.phone,
           dealerType: dealerType || existingDealer.dealerType,
           creditLimit: creditLimit !== undefined ? creditLimit : existingDealer.creditLimit,
+          initialDeposit: initialDeposit !== undefined ? parseFloat(initialDeposit) : existingDealer.initialDeposit,
+          categories: categories !== undefined ? categories : existingDealer.categories,
           notes: notes !== undefined ? notes : existingDealer.notes
         },
         include: {
@@ -313,6 +320,51 @@ exports.changeDealerPassword = async (req, res, next) => {
     res.json({
       success: true,
       message: `Password updated successfully for ${dealer.companyName}`
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.lookupPincode = async (req, res, next) => {
+  try {
+    const { pincode } = req.params;
+    if (!/^\d{6}$/.test(pincode)) {
+      return res.status(400).json({ success: false, message: 'Invalid Indian Pincode. Must be 6 digits.' });
+    }
+
+    const axios = require('axios');
+    const response = await axios.get(`https://api.postalpincode.in/pincode/${pincode}`);
+    const data = response.data[0];
+
+    if (data.Status !== 'Success' || !data.PostOffice || data.PostOffice.length === 0) {
+      return res.json({ success: false, message: 'Pincode not found' });
+    }
+
+    const first = data.PostOffice[0];
+    const district = first.District;
+    const state = first.State;
+
+    const CHENNAI_ZONES = [
+      'Thiruvottiyur', 'Manali', 'Madhavaram', 'Tondiarpet', 'Royapuram',
+      'Thiru-Vi-Ka Nagar', 'Ambattur', 'Anna Nagar', 'Teynampet', 'Kodambakkam',
+      'Valasaravakkam', 'Alandur', 'Adyar', 'Perungudi', 'Sholinganallur'
+    ];
+
+    let suggestedZones = [];
+    if (district.toLowerCase() === 'chennai') {
+      suggestedZones = CHENNAI_ZONES;
+    } else {
+      suggestedZones = [district];
+    }
+
+    res.json({
+      success: true,
+      data: {
+        district,
+        state,
+        suggestedZones
+      }
     });
   } catch (error) {
     next(error);

@@ -204,13 +204,13 @@ exports.createStockTransfer = async (req, res, next) => {
         });
       }
 
-      // 3. Create Notification for Dealer
+      // 3. Create Notification for Dealer (stock NOT yet allocated at PENDING stage)
       await tx.notification.create({
         data: {
           userId: dealer.userId,
           type: 'STOCK_TRANSFER',
-          title: 'New Stock Transfer Created',
-          message: `A new stock transfer ${transferNo} is prepared for you and is pending shipment.`,
+          title: 'Stock Transfer Initiated',
+          message: `Stock transfer ${transferNo} has been prepared for you. Your inventory will be updated once the shipment is delivered and confirmed. Current status: Pending Shipment.`,
           metadata: { transferId: stockTx.id }
         }
       });
@@ -232,7 +232,7 @@ exports.createStockTransfer = async (req, res, next) => {
 exports.updateTransferStatus = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { status } = req.body; // status: IN_TRANSIT, DELIVERED, CANCELLED
+    const { status, items } = req.body; // status: IN_TRANSIT, DELIVERED, CANCELLED, DISCREPANCY
 
     const transfer = await prisma.stockTransfer.findUnique({
       where: { id },
@@ -252,17 +252,20 @@ exports.updateTransferStatus = async (req, res, next) => {
 
     // Role safety validation
     if (req.user.role === 'DEALER') {
-      // Dealer can only confirm delivery
+      // Dealer can only confirm delivery or raise discrepancy
       if (transfer.dealerId !== req.user.dealer.id) {
         return res.status(403).json({ success: false, message: 'Unauthorized' });
       }
-      if (status !== 'DELIVERED') {
-        return res.status(400).json({ success: false, message: 'Dealers can only mark transfers as DELIVERED' });
+      if (status !== 'DELIVERED' && status !== 'DISCREPANCY') {
+        return res.status(400).json({ success: false, message: 'Dealers can only mark transfers as DELIVERED or DISCREPANCY' });
       }
     }
 
     if (transfer.status === 'DELIVERED') {
       return res.status(400).json({ success: false, message: 'Transfer already delivered' });
+    }
+    if (transfer.status === 'DISCREPANCY') {
+      return res.status(400).json({ success: false, message: 'Transfer already completed with discrepancy' });
     }
     if (transfer.status === 'CANCELLED') {
       return res.status(400).json({ success: false, message: 'Transfer already cancelled' });
@@ -273,65 +276,105 @@ exports.updateTransferStatus = async (req, res, next) => {
 
       if (status === 'IN_TRANSIT') {
         updateData.shippedAt = new Date();
-      } else if (status === 'DELIVERED') {
+      } else if (status === 'DELIVERED' || status === 'DISCREPANCY') {
         updateData.deliveredAt = new Date();
 
         // Perform stock movement logic
         for (const item of transfer.items) {
-          // A. Decrement Company Stock
-          const compStock = await tx.companyInventory.findUnique({ where: { productId: item.productId } });
-          if (!compStock || compStock.quantity < item.quantity) {
-            throw new Error(`Insufficient company stock to complete delivery for product SKU: ${item.product.sku}`);
-          }
-          await tx.companyInventory.update({
-            where: { productId: item.productId },
-            data: { quantity: compStock.quantity - item.quantity }
-          });
+          let receivedQty = item.quantity;
+          let hasDiscrepancy = false;
+          let discrepancyComment = '';
 
-          await tx.stockMovement.create({
-            data: {
-              productId: item.productId,
-              type: 'TRANSFER_OUT',
-              quantity: item.quantity,
-              referenceId: transfer.id,
-              notes: `Stock Transfer Out to dealer: ${transfer.dealer.companyName}`
-            }
-          });
-
-          // B. Increment Dealer Stock
-          const dealerStock = await tx.dealerInventory.findUnique({
-            where: {
-              dealerId_productId: {
-                dealerId: transfer.dealerId,
-                productId: item.productId
+          if (status === 'DISCREPANCY' && items && Array.isArray(items)) {
+            const reqItem = items.find(it => it.productId === item.productId.toString());
+            if (reqItem && reqItem.hasDiscrepancy) {
+              receivedQty = parseInt(reqItem.receivedQuantity);
+              if (isNaN(receivedQty) || receivedQty < 0) {
+                receivedQty = 0;
               }
+              hasDiscrepancy = true;
+              discrepancyComment = reqItem.discrepancyComment || 'Unspecified issue';
+            }
+          }
+
+          // Update StockTransferItem with received values
+          await tx.stockTransferItem.update({
+            where: { id: item.id },
+            data: {
+              receivedQuantity: receivedQty,
+              hasDiscrepancy,
+              discrepancyComment
             }
           });
 
-          if (dealerStock) {
-            await tx.dealerInventory.update({
-              where: { id: dealerStock.id },
-              data: { quantity: dealerStock.quantity + item.quantity }
+          // Only perform stock updates if receivedQuantity > 0
+          if (receivedQty > 0) {
+            // A. Decrement Company Stock
+            const compStock = await tx.companyInventory.findUnique({ where: { productId: item.productId } });
+            if (!compStock || compStock.quantity < receivedQty) {
+              throw new Error(`Insufficient company stock to complete delivery for product SKU: ${item.product.sku}. Requested: ${receivedQty}, Available: ${compStock ? compStock.quantity : 0}`);
+            }
+            await tx.companyInventory.update({
+              where: { productId: item.productId },
+              data: { quantity: compStock.quantity - receivedQty }
+            });
+
+            await tx.stockMovement.create({
+              data: {
+                productId: item.productId,
+                type: 'TRANSFER_OUT',
+                quantity: receivedQty,
+                referenceId: transfer.id,
+                notes: `Stock Transfer Out to dealer: ${transfer.dealer.companyName}${hasDiscrepancy ? ` (Discrepancy: shipped ${item.quantity}, received ${receivedQty})` : ''}`
+              }
+            });
+
+            // B. Increment Dealer Stock
+            const dealerStock = await tx.dealerInventory.findUnique({
+              where: {
+                dealerId_productId: {
+                  dealerId: transfer.dealerId,
+                  productId: item.productId
+                }
+              }
+            });
+
+            if (dealerStock) {
+              await tx.dealerInventory.update({
+                where: { id: dealerStock.id },
+                data: { quantity: dealerStock.quantity + receivedQty }
+              });
+            } else {
+              await tx.dealerInventory.create({
+                data: {
+                  dealerId: transfer.dealerId,
+                  productId: item.productId,
+                  quantity: receivedQty
+                }
+              });
+            }
+
+            await tx.stockMovement.create({
+              data: {
+                productId: item.productId,
+                type: 'TRANSFER_IN',
+                quantity: receivedQty,
+                referenceId: transfer.id,
+                notes: `Stock Transfer In to dealer: ${transfer.dealer.companyName}${hasDiscrepancy ? ` (Discrepancy: shipped ${item.quantity}, received ${receivedQty})` : ''}`
+              }
             });
           } else {
-            await tx.dealerInventory.create({
+            // If receivedQty is 0, we still create a movement log with 0 to track the discrepancy
+            await tx.stockMovement.create({
               data: {
-                dealerId: transfer.dealerId,
                 productId: item.productId,
-                quantity: item.quantity
+                type: 'TRANSFER_IN',
+                quantity: 0,
+                referenceId: transfer.id,
+                notes: `Stock Transfer Shortage (0 received of ${item.quantity}): ${discrepancyComment}`
               }
             });
           }
-
-          await tx.stockMovement.create({
-            data: {
-              productId: item.productId,
-              type: 'TRANSFER_IN',
-              quantity: item.quantity,
-              referenceId: transfer.id,
-              notes: `Stock Transfer In to dealer: ${transfer.dealer.companyName}`
-            }
-          });
         }
       }
 
@@ -340,27 +383,37 @@ exports.updateTransferStatus = async (req, res, next) => {
         data: updateData
       });
 
-      // Send status update notification
+      // Send status update notification to dealer
       await tx.notification.create({
         data: {
           userId: transfer.dealer.userId,
           type: 'STOCK_TRANSFER',
-          title: `Stock Transfer ${status.replace('_', ' ')}`,
-          message: `Your stock transfer ${transfer.transferNo} is now ${status.toLowerCase()}.`,
+          title: status === 'DELIVERED'
+            ? '✅ Stock Delivered & Inventory Updated'
+            : status === 'DISCREPANCY'
+              ? '⚠️ Stock Received with Discrepancy'
+              : `Stock Transfer ${status.replace('_', ' ')}`,
+          message: status === 'DELIVERED'
+            ? `Your stock transfer ${transfer.transferNo} has been delivered. Your inventory has been updated with the new stock quantities.`
+            : status === 'DISCREPANCY'
+              ? `Your stock transfer ${transfer.transferNo} was received with reported discrepancies. Your inventory has been updated with the actually received quantities.`
+              : `Your stock transfer ${transfer.transferNo} is now ${status.toLowerCase().replace('_', ' ')}.`,
           metadata: { transferId: transfer.id, status }
         }
       });
 
-      // Notify admin when dealer delivers
-      if (req.user.role === 'DEALER' && status === 'DELIVERED') {
+      // Notify admin when dealer delivers or raises discrepancy
+      if (req.user.role === 'DEALER' && (status === 'DELIVERED' || status === 'DISCREPANCY')) {
         const admins = await tx.user.findMany({ where: { role: 'ADMIN' } });
         for (const admin of admins) {
           await tx.notification.create({
             data: {
               userId: admin.id,
               type: 'STOCK_TRANSFER',
-              title: 'Dealer Confirmed Stock Delivery',
-              message: `Dealer ${transfer.dealer.companyName} confirmed receipt of transfer ${transfer.transferNo}.`,
+              title: status === 'DELIVERED' ? 'Dealer Confirmed Stock Delivery' : '⚠️ Dealer Raised Stock Discrepancy',
+              message: status === 'DELIVERED'
+                ? `Dealer ${transfer.dealer.companyName} confirmed receipt of transfer ${transfer.transferNo}.`
+                : `Dealer ${transfer.dealer.companyName} reported a discrepancy on transfer ${transfer.transferNo}.`,
               metadata: { transferId: transfer.id }
             }
           });

@@ -42,7 +42,12 @@ router.post('/transfers', requireRole('ADMIN'), validate([
 ]), inventoryController.createStockTransfer);
 
 router.patch('/transfers/:id/status', validate([
-  body('status').isIn(['IN_TRANSIT', 'DELIVERED', 'CANCELLED']).withMessage('Invalid status')
+  body('status').isIn(['IN_TRANSIT', 'DELIVERED', 'CANCELLED', 'DISCREPANCY']).withMessage('Invalid status'),
+  body('items').optional().isArray().withMessage('Items must be an array'),
+  body('items.*.productId').optional().notEmpty().withMessage('Product ID is required'),
+  body('items.*.receivedQuantity').optional().isInt({ gte: 0 }).withMessage('Received quantity must be a non-negative integer'),
+  body('items.*.hasDiscrepancy').optional().isBoolean().withMessage('hasDiscrepancy must be a boolean'),
+  body('items.*.discrepancyComment').optional().isString().withMessage('discrepancyComment must be a string')
 ]), inventoryController.updateTransferStatus);
 
 module.exports = router;

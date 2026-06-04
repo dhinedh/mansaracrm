@@ -1,5 +1,5 @@
 // src/pages/admin/DealersPage.jsx
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import axios from 'axios';
 import { 
   Plus, 
@@ -21,7 +21,10 @@ import {
   User,
   KeyRound,
   Eye,
-  EyeOff
+  EyeOff,
+  Tag,
+  X,
+  IndianRupee
 } from 'lucide-react';
 
 export default function DealersPage() {
@@ -72,14 +75,33 @@ export default function DealersPage() {
   const [city, setCity] = useState('');
   const [state, setState] = useState('');
   const [pincode, setPincode] = useState('');
-  const [zone, setZone] = useState('');
+  const [zones, setZones] = useState([]);         // multi-zone array
+  const [zoneInput, setZoneInput] = useState(''); // zone tag input buffer
   const [area, setArea] = useState('');
   const [phone, setPhone] = useState('');
   const [dealerType, setDealerType] = useState('RETAIL');
+  const [initialDeposit, setInitialDeposit] = useState('');
+  const [selectedCategories, setSelectedCategories] = useState([]);
+  const [categoryList, setCategoryList] = useState([]);
+  const [pincodeSuggestions, setPincodeSuggestions] = useState([]);
 
   useEffect(() => {
     fetchDealers();
   }, [search, statusFilter]);
+
+  const fetchCategories = async () => {
+    try {
+      const res = await axios.get('/products/categories');
+      setCategoryList(res.data.data || []);
+    } catch (err) {
+      console.error('Failed to fetch categories', err);
+    }
+  };
+
+  const openAddModal = () => {
+    fetchCategories();
+    setShowAddModal(true);
+  };
 
   const fetchDealers = async () => {
     try {
@@ -106,7 +128,11 @@ export default function DealersPage() {
 
     try {
       await axios.post('/auth/register-dealer', {
-        email, password, name, companyName, gstNumber, address, city, state, pincode, zone, area, phone, dealerType
+        email, password, name, companyName, gstNumber, address, city, state, pincode,
+        zones,     // send zones array
+        area, phone, dealerType,
+        initialDeposit: initialDeposit ? parseFloat(initialDeposit) : 0,
+        categories: selectedCategories
       });
       
       setFormSuccess(true);
@@ -144,9 +170,49 @@ export default function DealersPage() {
 
   const resetForm = () => {
     setEmail(''); setPassword(''); setName(''); setCompanyName(''); setGstNumber('');
-    setAddress(''); setCity(''); setState(''); setPincode(''); setZone(''); setArea('');
-    setPhone(''); setDealerType('RETAIL');
+    setAddress(''); setCity(''); setState(''); setPincode(''); setZones([]); setZoneInput(''); setArea('');
+    setPhone(''); setDealerType('RETAIL'); setInitialDeposit(''); setSelectedCategories([]);
     setFormError(''); setFormSuccess(false); setSubmitting(false);
+    setPincodeSuggestions([]);
+  };
+
+  const handlePincodeChange = async (val) => {
+    setPincode(val);
+    if (val.length === 6) {
+      try {
+        const res = await axios.get(`/dealers/pincode-lookup/${val}`);
+        if (res.data.success) {
+          const { district, state: st, suggestedZones } = res.data.data;
+          setCity(district || '');
+          setState(st || '');
+          setPincodeSuggestions(suggestedZones || []);
+        } else {
+          setPincodeSuggestions([]);
+        }
+      } catch (err) {
+        console.error('Failed pincode lookup', err);
+        setPincodeSuggestions([]);
+      }
+    } else {
+      setPincodeSuggestions([]);
+    }
+  };
+
+  // Zone tag helpers
+  const addZone = (val) => {
+    const trimmed = val.trim();
+    if (trimmed && !zones.includes(trimmed)) {
+      setZones(prev => [...prev, trimmed]);
+    }
+    setZoneInput('');
+  };
+
+  const removeZone = (z) => setZones(prev => prev.filter(x => x !== z));
+
+  const toggleCategory = (id) => {
+    setSelectedCategories(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    );
   };
 
   return (
@@ -157,7 +223,7 @@ export default function DealersPage() {
           <p className="text-slate-500 text-xs">Manage verification pipeline, add details, and toggle dealer status.</p>
         </div>
         <button
-          onClick={() => setShowAddModal(true)}
+          onClick={openAddModal}
           className="inline-flex items-center space-x-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-lg shadow-rose-200 transition-all self-start sm:self-auto"
         >
           <Plus className="w-4 h-4" />
@@ -391,9 +457,98 @@ export default function DealersPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-slate-500 font-bold mb-1">Zone / Region</label>
-                  <input type="text" value={zone} onChange={e => setZone(e.target.value)} placeholder="e.g. West, North" className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none" />
+                  <label className="block text-slate-500 font-bold mb-1 flex items-center space-x-1">
+                    <IndianRupee className="w-3 h-3" />
+                    <span>Initial Deposit (₹)</span>
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={initialDeposit}
+                    onChange={e => setInitialDeposit(e.target.value)}
+                    placeholder="e.g. 5000"
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none"
+                  />
                 </div>
+              </div>
+
+              {/* Zones Tag Builder */}
+              <div>
+                <label className="block text-slate-500 font-bold mb-2">Zones / Territories (add multiple)</label>
+                <div className="border border-slate-200 rounded-xl bg-slate-50 p-2.5 min-h-[42px] flex flex-wrap gap-1.5 items-center focus-within:border-rose-500 focus-within:bg-white transition-all">
+                  {zones.map(z => (
+                    <span key={z} className="inline-flex items-center space-x-1 bg-rose-100 text-rose-700 font-bold text-[10px] px-2.5 py-1 rounded-lg">
+                      <span>{z}</span>
+                      <button type="button" onClick={() => removeZone(z)} className="text-rose-500 hover:text-rose-700 ml-0.5">
+                        <X className="w-2.5 h-2.5" />
+                      </button>
+                    </span>
+                  ))}
+                  <input
+                    type="text"
+                    value={zoneInput}
+                    onChange={e => setZoneInput(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addZone(zoneInput); }
+                    }}
+                    onBlur={() => { if (zoneInput.trim()) addZone(zoneInput); }}
+                    placeholder={zones.length === 0 ? 'Type zone name, press Enter or comma to add...' : 'Add another zone...'}
+                    className="flex-1 min-w-[140px] bg-transparent text-xs focus:outline-none text-slate-700 placeholder-slate-400"
+                  />
+                </div>
+                <p className="text-[10px] text-slate-400 mt-1">e.g. North, South, East · Press Enter or comma to add each zone</p>
+              </div>
+
+              {pincodeSuggestions.length > 0 && (
+                <div className="bg-rose-50/20 border border-rose-100/50 p-3.5 rounded-xl space-y-2">
+                  <span className="block text-[10px] font-black uppercase text-rose-600 tracking-wider">Quick Add Suggested Zones:</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {pincodeSuggestions.map(sz => {
+                      const isAdded = zones.includes(sz);
+                      return (
+                        <button
+                          key={sz}
+                          type="button"
+                          disabled={isAdded}
+                          onClick={() => addZone(sz)}
+                          className={`text-[10px] font-bold px-2.5 py-1 rounded-lg border transition-all ${
+                            isAdded
+                              ? 'bg-slate-200 text-slate-400 border-slate-200 cursor-not-allowed'
+                              : 'bg-white text-rose-600 border-slate-200 hover:border-rose-300 hover:bg-rose-50/50 cursor-pointer'
+                          }`}
+                        >
+                          + {sz}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Category Multi-select */}
+              <div>
+                <label className="block text-slate-500 font-bold mb-2">Dealer Categories (select applicable)</label>
+                {categoryList.length === 0 ? (
+                  <p className="text-slate-400 text-[11px] italic">No categories found. Create categories in the Products section first.</p>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {categoryList.map(cat => (
+                      <button
+                        key={cat.id}
+                        type="button"
+                        onClick={() => toggleCategory(cat.id)}
+                        className={`text-[11px] font-bold px-3 py-1.5 rounded-lg border transition-all ${
+                          selectedCategories.includes(cat.id)
+                            ? 'bg-rose-600 text-white border-rose-600 shadow-sm'
+                            : 'bg-white text-slate-600 border-slate-200 hover:border-rose-400 hover:text-rose-600'
+                        }`}
+                      >
+                        {selectedCategories.includes(cat.id) && '✓ '}{cat.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div>
@@ -412,7 +567,7 @@ export default function DealersPage() {
                 </div>
                 <div>
                   <label className="block text-slate-500 font-bold mb-1">Pincode</label>
-                  <input type="text" value={pincode} onChange={e => setPincode(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none" />
+                  <input type="text" value={pincode} onChange={e => handlePincodeChange(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none" />
                 </div>
               </div>
 
@@ -577,6 +732,19 @@ export default function DealersPage() {
                             
                             <span className="text-slate-400 font-medium">Area / Landmark</span>
                             <span className="col-span-2 text-slate-800 font-semibold">{dealerDetail.area || 'N/A'}</span>
+
+                            <span className="text-slate-400 font-medium">Zones</span>
+                            <span className="col-span-2">
+                              {dealerDetail.zones && dealerDetail.zones.length > 0 ? (
+                                <div className="flex flex-wrap gap-1.5">
+                                  {dealerDetail.zones.map(z => (
+                                    <span key={z} className="text-[10px] font-bold px-2.5 py-1 bg-rose-50 text-rose-700 rounded-lg border border-rose-100">{z}</span>
+                                  ))}
+                                </div>
+                              ) : (
+                                <span className="text-slate-500 font-semibold">No zones assigned</span>
+                              )}
+                            </span>
                           </div>
                         </div>
 
@@ -590,11 +758,31 @@ export default function DealersPage() {
                             <span className="text-slate-400 font-medium">GST Identification</span>
                             <span className="col-span-2 text-slate-800 font-semibold">{dealerDetail.gstNumber || 'N/A'}</span>
 
+                            <span className="text-slate-400 font-medium">Initial Deposit</span>
+                            <span className="col-span-2 text-slate-800 font-semibold">
+                              {dealerDetail.initialDeposit !== undefined && dealerDetail.initialDeposit !== null
+                                ? `₹${Number(dealerDetail.initialDeposit).toLocaleString('en-IN')}`
+                                : '₹0'}
+                            </span>
+
                             <span className="text-slate-400 font-medium">Credit Limit</span>
                             <span className="col-span-2 text-slate-800 font-semibold">
                               {dealerDetail.creditLimit !== undefined && dealerDetail.creditLimit !== null
                                 ? `₹${Number(dealerDetail.creditLimit).toLocaleString('en-IN')}` 
                                 : 'No Credit Limit Set'}
+                            </span>
+
+                            <span className="text-slate-400 font-medium">Categories</span>
+                            <span className="col-span-2">
+                              {dealerDetail.categoryDetails && dealerDetail.categoryDetails.length > 0 ? (
+                                <div className="flex flex-wrap gap-1.5">
+                                  {dealerDetail.categoryDetails.map(cat => (
+                                    <span key={cat.id} className="text-[10px] font-bold px-2.5 py-1 bg-indigo-50 text-indigo-700 rounded-lg border border-indigo-100">{cat.name}</span>
+                                  ))}
+                                </div>
+                              ) : (
+                                <span className="text-slate-500 font-semibold">No categories assigned</span>
+                              )}
                             </span>
                           </div>
                         </div>

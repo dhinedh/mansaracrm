@@ -2,15 +2,16 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useCartStore } from '../../store/cartStore';
+import { BACKEND_URL } from '../../store/authStore';
 import { 
   Search, 
   ShoppingCart, 
   Plus, 
   Minus, 
-  Tag, 
   AlertCircle,
   Check,
-  ShoppingBag
+  ShoppingBag,
+  ArrowRight
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -19,7 +20,7 @@ export default function DealerProductsPage() {
   const [dealerInventory, setDealerInventory] = useState({}); // { productId: qty }
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const { addToCart, items, updateQuantity } = useCartStore();
+  const { addToCart, items } = useCartStore();
   const [quantities, setQuantities] = useState({}); // local input states for quantity picker { productId: number }
 
   useEffect(() => {
@@ -81,8 +82,12 @@ export default function DealerProductsPage() {
     alert(`Added ${qty} ${product.unit} of ${product.name} to billing cart!`);
   };
 
+  // Get reactive cart totals for the sticky bottom bar
+  const cartItems = useCartStore(state => state.items);
+  const { grandTotal } = useCartStore.getState().getTotals();
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 relative min-h-[80vh]">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h2 className="text-xl font-black text-slate-800 tracking-tight">Stock Inventory Catalog</h2>
@@ -116,84 +121,141 @@ export default function DealerProductsPage() {
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-rose-600"></div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-6">
+        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-6 pb-24 sm:pb-0">
           {products.map((product) => {
             const availableStock = dealerInventory[product.id] || 0;
             const chosenQty = quantities[product.id] || 1;
             const inCart = items.some(item => item.productId === product.id);
+            const imageUrl = product.imageUrl ? `${BACKEND_URL}${product.imageUrl}` : null;
 
             return (
-              <div key={product.id} className="bg-white border border-slate-150 rounded-2xl shadow-sm overflow-hidden flex flex-col justify-between hover:shadow-md transition-shadow">
+              <div key={product.id} className="bg-white border border-slate-150 rounded-2xl shadow-sm overflow-hidden flex flex-col justify-between hover:shadow-md transition-shadow group relative">
                 
+                {/* Product Image Thumbnail */}
+                <div className="aspect-square w-full bg-slate-50 flex items-center justify-center overflow-hidden border-b border-slate-100 relative">
+                  {imageUrl ? (
+                    <img 
+                      src={imageUrl} 
+                      alt={product.name} 
+                      className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-300"
+                      onError={(e) => {
+                        e.target.onerror = null;
+                        e.target.style.display = 'none';
+                        e.target.parentNode.innerHTML = `<div class="text-slate-300"><svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path></svg></div>`;
+                      }}
+                    />
+                  ) : (
+                    <div className="text-slate-350">
+                      <ShoppingBag className="w-8 h-8 stroke-[1.5]" />
+                    </div>
+                  )}
+                </div>
+
                 {/* Product Detail Header */}
-                <div className="p-5 space-y-4">
+                <div className="p-3 sm:p-5 space-y-3 sm:space-y-4">
                   <div className="space-y-1">
                     <span className="text-[9px] font-black text-rose-600 tracking-wider">SKU: {product.sku}</span>
-                    <h3 className="font-bold text-slate-800 text-xs truncate">{product.name}</h3>
+                    <h3 className="font-bold text-slate-800 text-xs truncate" title={product.name}>{product.name}</h3>
                     <span className="inline-block bg-slate-50 border border-slate-100 text-[8px] font-black uppercase px-2 py-0.5 rounded-md text-slate-500">
                       {product.category?.name}
                     </span>
                   </div>
 
-                  <div className="space-y-2 text-xs border-t border-slate-100 pt-3">
+                  <div className="space-y-1.5 text-xs border-t border-slate-100 pt-2 sm:pt-3">
                     <div className="flex justify-between items-center">
-                      <span className="text-slate-500">Dist. Price:</span>
-                      <strong className="text-slate-800">₹{parseFloat(product.price).toFixed(2)}</strong>
+                      <span className="text-slate-500 text-[10px] sm:text-xs">Dist. Price:</span>
+                      <strong className="text-slate-800 text-[11px] sm:text-xs">₹{parseFloat(product.price).toFixed(2)}</strong>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-slate-500">GST:</span>
-                      <span className="font-semibold text-slate-600">{product.gstPercent}% GST</span>
+                      <span className="text-slate-500 text-[10px] sm:text-xs">GST:</span>
+                      <span className="font-semibold text-slate-600 text-[10px] sm:text-xs">{product.gstPercent}%</span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-slate-500 font-bold">My Stock:</span>
-                      <span className={`font-black px-2 py-0.5 rounded-lg text-[10px] ${
+                      <span className="text-slate-500 font-bold text-[10px] sm:text-xs">Stock:</span>
+                      <span className={`font-black px-2 py-0.5 rounded-lg text-[9px] sm:text-[10px] ${
                         availableStock <= 10 ? 'bg-amber-50 text-amber-700 animate-pulse' : 'bg-emerald-50 text-emerald-700'
                       }`}>
-                        {availableStock} {product.unit} available
+                        {availableStock} {product.unit}
                       </span>
                     </div>
                   </div>
                 </div>
 
                 {/* Qty and Purchase footer */}
-                <div className="p-5 border-t border-slate-100 bg-slate-50/50 space-y-3">
+                <div className="p-3 sm:p-5 border-t border-slate-100 bg-slate-50/50 space-y-2.5">
                   {availableStock > 0 ? (
-                    <>
+                    <div className="flex flex-col gap-2">
                       {/* Qty Plus/Minus Picker */}
-                      <div className="flex items-center justify-between bg-white border border-slate-200 rounded-xl p-1.5">
+                      <div className="flex items-center justify-between bg-white border border-slate-200 rounded-xl p-1">
                         <button
                           onClick={() => handleQtyChange(product.id, -1)}
                           className="p-1 hover:bg-slate-50 rounded-lg text-slate-500"
                         >
-                          <Minus className="w-3.5 h-3.5" />
+                          <Minus className="w-3 h-3" />
                         </button>
                         <span className="text-xs font-black text-slate-800">{chosenQty}</span>
                         <button
                           onClick={() => handleQtyChange(product.id, 1)}
                           className="p-1 hover:bg-slate-50 rounded-lg text-slate-500"
                         >
-                          <Plus className="w-3.5 h-3.5" />
+                          <Plus className="w-3 h-3" />
                         </button>
                       </div>
 
                       <button
                         onClick={() => handleAddToCart(product)}
-                        className="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold py-2.5 rounded-xl text-[10px] uppercase shadow-lg shadow-rose-200 transition-all flex items-center justify-center space-x-2"
+                        className={`w-full text-white font-bold py-2 rounded-xl text-[10px] uppercase transition-all flex items-center justify-center space-x-1.5 ${
+                          inCart 
+                            ? 'bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-100' 
+                            : 'bg-rose-600 hover:bg-rose-700 shadow-lg shadow-rose-100'
+                        }`}
                       >
-                        <ShoppingCart className="w-3.5 h-3.5" />
-                        <span>Add to Bill</span>
+                        {inCart ? (
+                          <>
+                            <Check className="w-3.5 h-3.5" />
+                            <span>In Bill</span>
+                          </>
+                        ) : (
+                          <>
+                            <ShoppingCart className="w-3.5 h-3.5" />
+                            <span>Add to Bill</span>
+                          </>
+                        )}
                       </button>
-                    </>
+                    </div>
                   ) : (
-                    <div className="bg-rose-50/50 border border-rose-100/50 text-rose-700 p-3 rounded-xl text-[10px] font-bold text-center flex items-center justify-center space-x-2">
-                      <AlertCircle className="w-4 h-4 shrink-0" />
-                      <span>Request stock from Admin</span>
+                    <div className="bg-rose-50/50 border border-rose-100/50 text-rose-700 p-2.5 rounded-xl text-[9px] font-bold text-center flex items-center justify-center space-x-1">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                      <span>Ask Admin for stock</span>
                     </div>
                   )}
                 </div>
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Sticky Bottom Checkout Bar for Mobile */}
+      {cartItems.length > 0 && (
+        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-150 p-4 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] z-40 sm:hidden">
+          <div className="flex items-center justify-between gap-4">
+            <div className="space-y-0.5">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Current Cart</span>
+              <div className="text-xs text-slate-800 font-extrabold flex items-center space-x-1.5">
+                <span>Build Bill ({cartItems.length} {cartItems.length === 1 ? 'item' : 'items'})</span>
+                <span className="text-slate-300">•</span>
+                <span className="text-rose-600 font-black">₹{grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              </div>
+            </div>
+            <Link
+              to="/dealer/cart"
+              className="bg-rose-600 hover:bg-rose-700 text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center space-x-2 shadow-lg shadow-rose-100 transition-all cursor-pointer shrink-0"
+            >
+              <span>Proceed to Bill</span>
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+          </div>
         </div>
       )}
     </div>

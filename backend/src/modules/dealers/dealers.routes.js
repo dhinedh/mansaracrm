@@ -11,6 +11,7 @@ router.use(verifyToken);
 
 // Admin-only actions
 router.get('/', requireRole('ADMIN'), dealersController.getAllDealers);
+router.get('/pincode-lookup/:pincode', dealersController.lookupPincode);
 router.get('/:id', requireRole('ADMIN', 'DEALER'), dealersController.getDealerById); // Dealers can view their own details (handled appropriately on front/back)
 router.put('/:id', requireRole('ADMIN'), validate([
   body('name').optional().notEmpty().withMessage('Name cannot be empty'),

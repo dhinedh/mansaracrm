@@ -62,7 +62,7 @@ const DealerSchema = new Schema({
   city: { type: String },
   state: { type: String },
   pincode: { type: String },
-  zone: { type: String },
+  zones: [{ type: String }],
   area: { type: String },
   phone: { type: String, required: true },
   dealerType: { type: String, enum: ['WHOLESALE', 'RETAIL', 'DISTRIBUTOR', 'SUPER_DISTRIBUTOR'], default: 'RETAIL' },
@@ -70,6 +70,8 @@ const DealerSchema = new Schema({
   approvedAt: { type: Date },
   approvedBy: { type: String },
   creditLimit: { type: Number },
+  initialDeposit: { type: Number, default: 0 },
+  categories: [{ type: Schema.Types.ObjectId, ref: 'Category' }],
   notes: { type: String }
 }, {
   timestamps: true,
@@ -77,11 +79,22 @@ const DealerSchema = new Schema({
   toObject: { virtuals: true }
 });
 
+// Backward-compatible getter — returns the first zone string
+DealerSchema.virtual('zone').get(function () {
+  return this.zones && this.zones.length > 0 ? this.zones[0] : null;
+});
+
 DealerSchema.virtual('user', {
   ref: 'User',
   localField: 'userId',
   foreignField: '_id',
   justOne: true
+});
+
+DealerSchema.virtual('categoryDetails', {
+  ref: 'Category',
+  localField: 'categories',
+  foreignField: '_id'
 });
 
 DealerSchema.virtual('stores', {
@@ -138,7 +151,7 @@ const ProductSchema = new Schema({
   description: { type: String },
   price: { type: Number, required: true },
   originalPrice: { type: Number, alias: 'mrp' },
-  gstPercent: { type: Number, default: 18 },
+  gstPercent: { type: Number, default: 5 },
   hsnCode: { type: String, default: '1901' },
   category: { type: Schema.Types.ObjectId, ref: 'Category', required: true, alias: 'categoryId' },
   image: { type: String, alias: 'imageUrl' },
@@ -262,7 +275,7 @@ StockMovementSchema.virtual('product', {
 const StockTransferSchema = new Schema({
   transferNo: { type: String, unique: true, required: true },
   dealerId: { type: Schema.Types.ObjectId, ref: 'Dealer', required: true },
-  status: { type: String, enum: ['PENDING', 'IN_TRANSIT', 'DELIVERED', 'CANCELLED'], default: 'PENDING' },
+  status: { type: String, enum: ['PENDING', 'IN_TRANSIT', 'DELIVERED', 'CANCELLED', 'DISCREPANCY'], default: 'PENDING' },
   notes: { type: String },
   shippedAt: { type: Date },
   deliveredAt: { type: Date },
@@ -291,7 +304,10 @@ const StockTransferItemSchema = new Schema({
   transferId: { type: Schema.Types.ObjectId, ref: 'StockTransfer', required: true },
   productId: { type: Schema.Types.ObjectId, ref: 'Product', required: true },
   quantity: { type: Number, required: true },
-  unitPrice: { type: Number, required: true }
+  unitPrice: { type: Number, required: true },
+  receivedQuantity: { type: Number },
+  hasDiscrepancy: { type: Boolean, default: false },
+  discrepancyComment: { type: String, default: '' }
 }, {
   timestamps: false,
   toJSON: { virtuals: true },

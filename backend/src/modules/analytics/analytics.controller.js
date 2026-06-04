@@ -25,18 +25,34 @@ exports.getAdminAnalytics = async (req, res, next) => {
     });
 
     const zoneSales = {};
+    const zonePlayers = {}; // { zoneName: [{ companyName, totalAmount }] }
     const areaSales = {};
     invoices.forEach(inv => {
-      const zone = inv.dealer.zone || 'Unknown';
+      const dealerZones = (inv.dealer.zones && inv.dealer.zones.length > 0)
+        ? inv.dealer.zones
+        : (inv.dealer.zone ? [inv.dealer.zone] : ['Unknown']);
       const area = inv.dealer.area || 'Unknown';
       const amt = parseFloat(inv.totalAmount);
 
-      zoneSales[zone] = (zoneSales[zone] || 0) + amt;
+      dealerZones.forEach(zone => {
+        zoneSales[zone] = (zoneSales[zone] || 0) + amt;
+        if (!zonePlayers[zone]) zonePlayers[zone] = {};
+        const co = inv.dealer.companyName || 'Unknown';
+        zonePlayers[zone][co] = (zonePlayers[zone][co] || 0) + amt;
+      });
+
       areaSales[area] = (areaSales[area] || 0) + amt;
     });
 
-    const zoneData = Object.keys(zoneSales).map(name => ({ name, value: zoneSales[name] }));
+    // Build zone-wise dealer count + players list
+    const zoneData = Object.keys(zoneSales).map(name => ({
+      name,
+      value: zoneSales[name],
+      dealerCount: Object.keys(zonePlayers[name] || {}).length,
+      players: Object.entries(zonePlayers[name] || {}).map(([co, rev]) => ({ companyName: co, revenue: rev }))
+    }));
     const areaData = Object.keys(areaSales).map(name => ({ name, value: areaSales[name] }));
+
 
     // 3. Dealer performance (Top dealers by revenue)
     const dealerPerformanceRaw = await prisma.invoice.groupBy({

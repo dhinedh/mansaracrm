@@ -12,7 +12,8 @@ import {
   ChevronRight,
   TrendingUp,
   AlertTriangle,
-  Edit3
+  Edit3,
+  CheckCircle2
 } from 'lucide-react';
 
 export default function InventoryPage() {
@@ -414,10 +415,13 @@ export default function InventoryPage() {
                 <div className="space-y-1">
                   <div className="flex items-center space-x-2">
                     <span className="font-black text-slate-800 text-xs">{item.transferNo}</span>
-                    <span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${item.status === 'DELIVERED' ? 'bg-emerald-50 text-emerald-700' :
-                      item.status === 'IN_TRANSIT' ? 'bg-indigo-50 text-indigo-700' :
-                        item.status === 'CANCELLED' ? 'bg-rose-50 text-rose-700' : 'bg-amber-50 text-amber-700'
-                      }`}>
+                    <span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${
+                      item.status === 'DELIVERED' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' :
+                      item.status === 'IN_TRANSIT' ? 'bg-indigo-50 text-indigo-700 border border-indigo-100' :
+                      item.status === 'DISCREPANCY' ? 'bg-amber-50 text-amber-800 border border-amber-200 animate-pulse' :
+                      item.status === 'CANCELLED' ? 'bg-rose-50 text-rose-700 border border-rose-100' :
+                      'bg-slate-100 text-slate-700 border border-slate-200'
+                    }`}>
                       {item.status}
                     </span>
                   </div>
@@ -426,20 +430,29 @@ export default function InventoryPage() {
 
                 <div className="flex space-x-2">
                   {item.status === 'PENDING' && (
-                    <button
-                      onClick={() => handleStatusChange(item.id, 'IN_TRANSIT')}
-                      className="inline-flex items-center space-x-1 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg"
-                    >
-                      <Truck className="w-3.5 h-3.5" />
-                      <span>Ship Stock</span>
-                    </button>
+                    <>
+                      <button
+                        onClick={() => handleStatusChange(item.id, 'IN_TRANSIT')}
+                        className="inline-flex items-center space-x-1 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg"
+                      >
+                        <Truck className="w-3.5 h-3.5" />
+                        <span>Ship Stock</span>
+                      </button>
+                      <button
+                        onClick={() => handleStatusChange(item.id, 'CANCELLED')}
+                        className="inline-flex items-center space-x-1 bg-rose-50 hover:bg-rose-100 text-rose-700 text-[10px] font-bold px-3 py-1.5 rounded-lg border border-rose-100"
+                      >
+                        <span>Cancel</span>
+                      </button>
+                    </>
                   )}
-                  {item.status === 'PENDING' && (
+                  {item.status === 'IN_TRANSIT' && (
                     <button
-                      onClick={() => handleStatusChange(item.id, 'CANCELLED')}
-                      className="inline-flex items-center space-x-1 bg-rose-50 hover:bg-rose-100 text-rose-700 text-[10px] font-bold px-3 py-1.5 rounded-lg border border-rose-100"
+                      onClick={() => handleStatusChange(item.id, 'DELIVERED')}
+                      className="inline-flex items-center space-x-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg"
                     >
-                      <span>Cancel</span>
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>Mark Delivered</span>
                     </button>
                   )}
                 </div>
@@ -450,12 +463,23 @@ export default function InventoryPage() {
                 <span className="block text-[9px] font-black uppercase text-slate-400">Products Dispatched</span>
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                   {item.items?.map((it) => (
-                    <div key={it.id} className="bg-slate-50 border border-slate-100 p-3 rounded-xl flex items-center justify-between text-xs">
-                      <div>
-                        <p className="font-bold text-slate-700">{it.product?.name}</p>
-                        <p className="text-[9px] font-black text-rose-600">SKU: {it.product?.sku}</p>
+                    <div key={it.id} className={`border p-3 rounded-xl flex flex-col justify-between text-xs transition-colors ${
+                      it.hasDiscrepancy ? 'bg-amber-50/50 border-amber-200 text-amber-900' : 'bg-slate-50 border-slate-100'
+                    }`}>
+                      <div className="flex items-center justify-between w-full">
+                        <div>
+                          <p className="font-bold text-slate-700">{it.product?.name}</p>
+                          <p className="text-[9px] font-black text-rose-600">SKU: {it.product?.sku}</p>
+                        </div>
+                        <span className="font-black text-slate-800">{it.quantity} {it.product?.unit}</span>
                       </div>
-                      <span className="font-black text-slate-800">{it.quantity} {it.product?.unit}</span>
+                      {it.hasDiscrepancy && (
+                        <div className="mt-2 pt-2 border-t border-dashed border-amber-200 text-amber-800 text-[10px] space-y-0.5">
+                          <p className="font-bold">⚠️ Discrepancy Reported:</p>
+                          <p>Received: <strong>{it.receivedQuantity} {it.product?.unit}</strong> (Shortage: {it.quantity - it.receivedQuantity} {it.product?.unit})</p>
+                          {it.discrepancyComment && <p className="italic">Comment: "{it.discrepancyComment}"</p>}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

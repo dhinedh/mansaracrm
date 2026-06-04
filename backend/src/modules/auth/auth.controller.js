@@ -31,10 +31,13 @@ exports.registerDealer = async (req, res, next) => {
       city, 
       state, 
       pincode, 
-      zone, 
+      zones,      // array of zone strings
+      zone,       // legacy single string support
       area, 
       phone, 
-      dealerType 
+      dealerType,
+      initialDeposit,
+      categories  // array of category IDs
     } = req.body;
 
     // Check if user already exists
@@ -79,10 +82,12 @@ exports.registerDealer = async (req, res, next) => {
           city,
           state,
           pincode,
-          zone,
+          zones: zones && zones.length > 0 ? zones : (zone ? [zone] : []),
           area,
           phone,
           dealerType: dealerType || 'RETAIL',
+          initialDeposit: initialDeposit ? parseFloat(initialDeposit) : 0,
+          categories: categories || [],
           approvalStatus: 'PENDING' // Starts as PENDING
         }
       });
