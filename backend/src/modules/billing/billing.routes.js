@@ -14,7 +14,18 @@ router.get('/:id', billingController.getInvoiceById);
 router.get('/:id/pdf', billingController.downloadPdf);
 
 router.post('/', requireRole('DEALER'), validate([
-  body('storeId').notEmpty().withMessage('Store ID is required'),
+  body('storeId').custom((value, { req }) => {
+    if (!value) {
+      if (!req.body.storeName || !req.body.storeName.trim()) {
+        throw new Error('Either Store ID or Store Name is required');
+      }
+      return true;
+    }
+    if (!/^[0-9a-fA-F]{24}$/.test(value)) {
+      throw new Error('Invalid Store ID format');
+    }
+    return true;
+  }),
   body('items').isArray({ min: 1 }).withMessage('Items list must be a non-empty array'),
   body('items.*.productId').notEmpty().withMessage('Product ID is required for each item'),
   body('items.*.quantity').isInt({ gt: 0 }).withMessage('Quantity must be positive integer')

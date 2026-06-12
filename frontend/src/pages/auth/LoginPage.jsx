@@ -3,15 +3,16 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import { useCartStore } from '../../store/cartStore';
-import { Lock, Mail, Loader2, ArrowRight } from 'lucide-react';
+import { Lock, Mail, Loader2, ArrowRight, Eye, EyeOff } from 'lucide-react';
 
 export default function LoginPage() {
   const navigate = useNavigate();
-  const { login, isAuthenticated, token, user, loading, error, clearError } = useAuthStore();
+  const { login, isAuthenticated, user, loading, error, clearError } = useAuthStore();
   const { clearCart } = useCartStore();
   
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
     clearError();
@@ -93,13 +94,20 @@ export default function LoginPage() {
             <div className="relative">
               <Lock className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
               <input
-                type="password"
+                type={showPassword ? 'text' : 'password'}
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full pl-11 pr-4 py-3 text-sm bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none transition-all duration-200"
+                className="w-full pl-11 pr-10 py-3 text-sm bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none transition-all duration-200"
               />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none cursor-pointer"
+              >
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
             </div>
           </div>
 
