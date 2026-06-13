@@ -1022,7 +1022,18 @@ class PrismaCollectionWrapper {
     const existing = await this.model.findOne(query);
     if (existing) {
       const data = translateUpdateData(args.update);
-      const updateQuery = { '$set': data };
+      const updateQuery = {};
+      if (data['$inc']) {
+        updateQuery['$inc'] = data['$inc'];
+        delete data['$inc'];
+      }
+      if (data['$unset']) {
+        updateQuery['$unset'] = data['$unset'];
+        delete data['$unset'];
+      }
+      if (Object.keys(data).length > 0) {
+        updateQuery['$set'] = data;
+      }
       const doc = await this.model.findOneAndUpdate(query, updateQuery, { new: true });
       return formatResult(doc);
     } else {
