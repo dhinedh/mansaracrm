@@ -337,6 +337,11 @@ exports.updateTransferStatus = async (req, res, next) => {
 
       if (status === 'IN_TRANSIT') {
         updateData.shippedAt = new Date();
+      } else if (status === 'CANCELLED' && transfer.invoiceId) {
+        await tx.invoice.update({
+          where: { id: transfer.invoiceId },
+          data: { status: 'CANCELLED' }
+        });
       } else if (status === 'DELIVERED' || status === 'DISCREPANCY') {
         updateData.deliveredAt = new Date();
 

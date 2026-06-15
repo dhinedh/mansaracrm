@@ -452,12 +452,25 @@ exports.downloadPdf = async (req, res, next) => {
     const company = getCompanyDetails();
     const html = buildInvoiceHtml(company, invoice);
 
-    const pdfBuffer = await generateInvoicePdf(html);
-
-    res.contentType('application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="Invoice_${invoice.invoiceNo}.pdf"`);
-    res.send(pdfBuffer);
+    try {
+      const pdfBuffer = await generateInvoicePdf(html);
+      res.contentType('application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="Invoice_${invoice.invoiceNo}.pdf"`);
+      res.send(pdfBuffer);
+    } catch (pdfErr) {
+      // Puppeteer unavailable or crashed — serve printable HTML page as fallback
+      console.warn(`PDF generation failed for ${invoice.invoiceNo}, falling back to HTML:`, pdfErr.message);
+      // Inject auto-print script into HTML
+      const printableHtml = html.replace(
+        '</body>',
+        '<script>window.onload=function(){window.print();}</script></body>'
+      );
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.setHeader('Content-Disposition', `inline; filename="Invoice_${invoice.invoiceNo}.html"`);
+      res.send(printableHtml);
+    }
   } catch (error) {
     next(error);
   }
 };
+

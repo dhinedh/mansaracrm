@@ -966,11 +966,26 @@ export default function AdminDashboard() {
                     <div className="space-y-1">
                       <span className="block text-[9px] font-black uppercase text-slate-400 tracking-wider">Invoice Status</span>
                       <div className="flex items-center space-x-2 flex-wrap">
-                        <span className={`inline-flex text-[10px] font-black px-2.5 py-0.5 rounded-full border uppercase ${
-                          selectedInvoice.status === 'CLOSED' ? 'text-emerald-700 bg-emerald-50 border-emerald-100' :
-                          selectedInvoice.status === 'OPEN' ? 'text-blue-700 bg-blue-50 border-blue-100' :
-                          'text-slate-700 bg-slate-50 border-slate-100'
-                        }`}>
+                        <span 
+                          onClick={async () => {
+                            if (selectedInvoice.status === 'OPEN' && window.confirm('Close invoice?')) {
+                              try {
+                                await axios.patch(`/billing/${selectedInvoice.id}/close`);
+                                alert('Invoice closed successfully.');
+                                fetchInvoiceDetail(selectedInvoice.id);
+                                fetchDashboardData();
+                              } catch (err) {
+                                alert(err.response?.data?.message || 'Failed to close');
+                              }
+                            }
+                          }}
+                          className={`inline-flex text-[10px] font-black px-2.5 py-0.5 rounded-full border uppercase transition-all ${
+                            selectedInvoice.status === 'CLOSED' ? 'text-emerald-700 bg-emerald-50 border-emerald-100' :
+                            selectedInvoice.status === 'OPEN' ? 'text-blue-700 bg-blue-50 border-blue-100 hover:bg-blue-100 hover:text-blue-800 cursor-pointer' :
+                            'text-slate-700 bg-slate-50 border-slate-100'
+                          }`}
+                          title={selectedInvoice.status === 'OPEN' ? "Click to Close Invoice" : undefined}
+                        >
                           {selectedInvoice.status}
                         </span>
                         {selectedInvoice.isCredit && (

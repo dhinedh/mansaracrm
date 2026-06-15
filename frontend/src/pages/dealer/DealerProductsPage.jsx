@@ -28,13 +28,13 @@ export default function DealerProductsPage() {
   // PO Request Modal states
   const [showPoModal, setShowPoModal] = useState(false);
   const [selectedPoProduct, setSelectedPoProduct] = useState(null);
-  const [poQty, setPoQty] = useState(10);
+  const [poQty, setPoQty] = useState('');
   const [poNotes, setPoNotes] = useState('');
   const [submittingPo, setSubmittingPo] = useState(false);
 
   const openPoModal = (product) => {
     setSelectedPoProduct(product);
-    setPoQty(product.minOrderQty || 10);
+    setPoQty(String(product.minOrderQty || 10));
     setPoNotes('');
     setShowPoModal(true);
   };
@@ -42,13 +42,18 @@ export default function DealerProductsPage() {
   const handleSubmittingPo = async (e) => {
     e.preventDefault();
     if (!selectedPoProduct) return;
+    const parsedQty = parseInt(poQty);
+    if (!parsedQty || parsedQty < 1) {
+      alert('Please enter a valid quantity of 1 or more.');
+      return;
+    }
     setSubmittingPo(true);
     try {
       await axios.post('/requests', {
         items: [
           {
             productId: selectedPoProduct.id,
-            quantity: parseInt(poQty) || 10
+            quantity: parsedQty
           }
         ],
         notes: poNotes || `Purchase request for out of stock item: ${selectedPoProduct.name}`
@@ -398,7 +403,7 @@ export default function DealerProductsPage() {
                   required
                   min="1"
                   value={poQty}
-                  onChange={(e) => setPoQty(Math.max(1, parseInt(e.target.value) || 1))}
+                  onChange={(e) => setPoQty(e.target.value)}
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none font-bold text-xs"
                 />
                 <span className="text-[10px] text-slate-400 mt-1 block">Minimum Order Qty is {selectedPoProduct.minOrderQty || 1} {selectedPoProduct.unit}</span>

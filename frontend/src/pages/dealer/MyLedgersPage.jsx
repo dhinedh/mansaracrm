@@ -426,16 +426,25 @@ export default function MyLedgersPage() {
       const response = await axios.get(`/billing/${invoice.id}/pdf`, {
         responseType: 'blob'
       });
-      
-      const file = new Blob([response.data], { type: 'application/pdf' });
-      const fileURL = URL.createObjectURL(file);
-      
-      const link = document.createElement('a');
-      link.href = fileURL;
-      link.setAttribute('download', `Invoice_${invoice.invoiceNo}.pdf`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+
+      const contentType = response.headers['content-type'] || '';
+
+      if (contentType.includes('text/html')) {
+        // Backend fell back to HTML (Puppeteer unavailable) — open in new tab for printing
+        const htmlBlob = new Blob([response.data], { type: 'text/html' });
+        const htmlUrl = URL.createObjectURL(htmlBlob);
+        window.open(htmlUrl, '_blank');
+      } else {
+        // True PDF binary
+        const file = new Blob([response.data], { type: 'application/pdf' });
+        const fileURL = URL.createObjectURL(file);
+        const link = document.createElement('a');
+        link.href = fileURL;
+        link.setAttribute('download', `Invoice_${invoice.invoiceNo}.pdf`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
     } catch (err) {
       console.warn('PDF download failed, falling back to browser print:', err);
       triggerClientSidePrint(invoice);
@@ -651,10 +660,14 @@ export default function MyLedgersPage() {
                           </div>
                         </td>
                         <td className="p-4 text-center">
-                          <span className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase ${
-                            inv.status === 'CLOSED' ? 'bg-emerald-50 text-emerald-700' :
-                            inv.status === 'OPEN' ? 'bg-blue-50 text-blue-700' : 'bg-slate-50 text-slate-700'
-                          }`}>
+                          <span 
+                            onClick={() => inv.status === 'OPEN' && handleCloseInvoice(inv.id)}
+                            className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase transition-all ${
+                              inv.status === 'CLOSED' ? 'bg-emerald-50 text-emerald-700' :
+                              inv.status === 'OPEN' ? 'bg-blue-50 text-blue-700 hover:bg-blue-100 hover:text-blue-800 cursor-pointer' : 'bg-slate-50 text-slate-700'
+                            }`}
+                            title={inv.status === 'OPEN' ? "Click to Close Invoice & Deduct Stock" : undefined}
+                          >
                             {inv.status}
                           </span>
                         </td>
@@ -845,10 +858,14 @@ export default function MyLedgersPage() {
                   </p>
                   <p className="flex items-center space-x-1.5 text-slate-600">
                     <FileText className="w-3.5 h-3.5" />
-                    <span>Status: <strong className={`uppercase ${
-                      selectedInvoice.status === 'CLOSED' ? 'text-emerald-600' :
-                      selectedInvoice.status === 'OPEN' ? 'text-blue-600' : 'text-slate-600'
-                    }`}>{selectedInvoice.status}</strong></span>
+                    <span>Status: <strong 
+                      onClick={() => selectedInvoice.status === 'OPEN' && handleCloseInvoice(selectedInvoice.id)}
+                      className={`uppercase transition-all ${
+                        selectedInvoice.status === 'CLOSED' ? 'text-emerald-600' :
+                        selectedInvoice.status === 'OPEN' ? 'text-blue-600 hover:underline cursor-pointer' : 'text-slate-600'
+                      }`}
+                      title={selectedInvoice.status === 'OPEN' ? "Click to Close Invoice & Deduct Stock" : undefined}
+                    >{selectedInvoice.status}</strong></span>
                   </p>
                   {selectedInvoice.isCredit && (
                     <div className="mt-2 p-2 bg-indigo-50 border border-indigo-100 rounded-lg text-indigo-750 font-bold space-y-1">

@@ -75,7 +75,15 @@ const DealerSchema = new Schema({
   categories: [{ type: Schema.Types.ObjectId, ref: 'Category' }],
   notes: { type: String },
   logoBase64: { type: String },
-  logoUrl: { type: String }
+  logoUrl: { type: String },
+  bankDetails: {
+    bankName: { type: String },
+    accountNo: { type: String },
+    ifscCode: { type: String },
+    branch: { type: String },
+    accountType: { type: String, default: 'Current' }
+  },
+  invoiceTerms: { type: String, default: '' }
 }, {
   timestamps: true,
   toJSON: { virtuals: true },

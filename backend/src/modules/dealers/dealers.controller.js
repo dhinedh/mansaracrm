@@ -378,7 +378,7 @@ exports.updateSelfProfile = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Dealer profile not found' });
     }
 
-    const { name, companyName, phone, address, city, state, pincode, logoBase64 } = req.body;
+    const { name, companyName, phone, address, city, state, pincode, logoBase64, bankDetails, invoiceTerms } = req.body;
 
     const updatedDealer = await prisma.$transaction(async (tx) => {
       if (name) {
@@ -388,17 +388,27 @@ exports.updateSelfProfile = async (req, res, next) => {
         });
       }
 
+      const updateData = {
+        companyName: companyName || undefined,
+        phone: phone || undefined,
+        address: address || undefined,
+        city: city !== undefined ? city : undefined,
+        state: state !== undefined ? state : undefined,
+        pincode: pincode !== undefined ? pincode : undefined,
+        logoBase64: logoBase64 !== undefined ? logoBase64 : undefined
+      };
+
+      if (bankDetails !== undefined) {
+        updateData.bankDetails = bankDetails;
+      }
+
+      if (invoiceTerms !== undefined) {
+        updateData.invoiceTerms = invoiceTerms;
+      }
+
       return await tx.dealer.update({
         where: { id: dealerId },
-        data: {
-          companyName: companyName || undefined,
-          phone: phone || undefined,
-          address: address || undefined,
-          city: city !== undefined ? city : undefined,
-          state: state !== undefined ? state : undefined,
-          pincode: pincode !== undefined ? pincode : undefined,
-          logoBase64: logoBase64 !== undefined ? logoBase64 : undefined
-        },
+        data: updateData,
         include: {
           user: {
             select: { id: true, email: true, name: true, isActive: true }

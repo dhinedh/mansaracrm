@@ -21,26 +21,37 @@ const buildInvoiceHtml = (company, invoice) => {
   }
 
   const itemsRows = invoice.items.map((item, idx) => {
-    const qty = parseInt(item.quantity);
-    const unitPrice = parseFloat(item.unitPrice);
-    const margin = parseFloat(item.marginPct);
-    const sellingPrice = parseFloat(item.sellingPrice);
-    const gstPct = parseFloat(item.gstPercent);
-    const lineTotal = parseFloat(item.lineTotal);
+    const qty = parseInt(item.quantity) || 0;
+    const unitPrice = parseFloat(item.unitPrice) || 0;
+    const margin = parseFloat(item.marginPct) || 0;
+    // Compute sellingPrice safely (may be missing from DB record)
+    const sellingPrice = !isNaN(parseFloat(item.sellingPrice))
+      ? parseFloat(item.sellingPrice)
+      : unitPrice * (1 + margin / 100);
+    const gstPct = !isNaN(parseFloat(item.gstPercent))
+      ? parseFloat(item.gstPercent)
+      : (!isNaN(parseFloat(item.product?.gstPercent)) ? parseFloat(item.product?.gstPercent) : 5);
+    const lineTotal = parseFloat(item.lineTotal) || (sellingPrice * qty);
+
+    // Safe product field access
+    const productName = item.product?.name || item.productName || 'Product';
+    const productSku  = item.product?.sku  || item.sku  || 'N/A';
+    const productHsn  = item.product?.hsnCode || 'N/A';
+    const productUnit = item.product?.unit || 'PCS';
 
     return `
       <tr>
         <td style="text-align: center; color: #61220F;">${idx + 1}</td>
         <td>
-          <div style="font-weight: 600; color: #36302E;">${item.product.name}</div>
-          <div style="font-size: 10px; color: #812F16; font-weight: 500;">SKU: ${item.product.sku} | HSN: ${item.product.hsnCode || 'N/A'}</div>
+          <div style="font-weight: 600; color: #36302E;">${productName}</div>
+          <div style="font-size: 10px; color: #812F16; font-weight: 500;">SKU: ${productSku} | HSN: ${productHsn}</div>
         </td>
-        <td style="text-align: center; font-weight: 600;">${qty} ${item.product.unit || 'PCS'}</td>
-        <td style="text-align: right;">₹${unitPrice.toFixed(2)}</td>
+        <td style="text-align: center; font-weight: 600;">${qty} ${productUnit}</td>
+        <td style="text-align: right;">&#8377;${unitPrice.toFixed(2)}</td>
         <td style="text-align: center; color: #B84A26; font-weight: 600;">${margin}%</td>
-        <td style="text-align: right; font-weight: 600;">₹${sellingPrice.toFixed(2)}</td>
+        <td style="text-align: right; font-weight: 600;">&#8377;${sellingPrice.toFixed(2)}</td>
         <td style="text-align: center; color: #812F16;">${gstPct}%</td>
-        <td style="text-align: right; font-weight: 700; color: #61220F;">₹${lineTotal.toFixed(2)}</td>
+        <td style="text-align: right; font-weight: 700; color: #61220F;">&#8377;${lineTotal.toFixed(2)}</td>
       </tr>
     `;
   }).join('');
@@ -410,12 +421,41 @@ const buildInvoiceHtml = (company, invoice) => {
           </tr>
         </table>
 
-        <!-- Terms and Conditions -->
-        <div class="terms-section">
-          <strong>Terms & Conditions:</strong><br>
-          1. Goods once sold will not be taken back.<br>
-          2. Interest at 18% p.a. will be charged for delayed payments after due date.
-        </div>
+        <!-- Bank & Terms Section -->
+        <table style="width: 100%; border-collapse: collapse; margin-top: 24px;">
+          <tr>
+            <!-- Bank Details (left) -->
+            <td style="width: 55%; vertical-align: top; padding-right: 16px;">
+              ${(() => {
+                const bd = invoice.dealer?.bankDetails;
+                if (bd && (bd.bankName || bd.accountNo || bd.ifscCode)) {
+                  return `
+                    <div style="background:#FAF8F5;border:1px solid #EBE3D5;border-radius:8px;padding:12px 16px;">
+                      <div style="font-size:10px;font-weight:800;text-transform:uppercase;color:#B84A26;letter-spacing:0.8px;border-bottom:1px dashed #E5A894;padding-bottom:4px;margin-bottom:8px;">Bank Details for Payment</div>
+                      <table style="width:100%;font-size:11px;color:#36302E;line-height:1.7;">
+                        ${bd.bankName ? `<tr><td style="width:40%;color:#61220F;font-weight:600;">Bank Name:</td><td>${bd.bankName}</td></tr>` : ''}
+                        ${bd.accountNo ? `<tr><td style="color:#61220F;font-weight:600;">Account No:</td><td style="font-weight:700;">${bd.accountNo}</td></tr>` : ''}
+                        ${bd.ifscCode ? `<tr><td style="color:#61220F;font-weight:600;">IFSC Code:</td><td style="font-weight:700;">${bd.ifscCode}</td></tr>` : ''}
+                        ${bd.branch ? `<tr><td style="color:#61220F;font-weight:600;">Branch:</td><td>${bd.branch}</td></tr>` : ''}
+                        ${bd.accountType ? `<tr><td style="color:#61220F;font-weight:600;">Acc. Type:</td><td>${bd.accountType}</td></tr>` : ''}
+                      </table>
+                    </div>`;
+                }
+                return '';
+              })()}
+            </td>
+            <!-- Terms (right) -->
+            <td style="width: 45%; vertical-align: top;">
+              <div style="font-size:10px;color:#61220F;background-color:#FAF8F5;border-left:3px solid #B84A26;padding:10px 15px;border-radius:4px;line-height:1.6;">
+                <strong>Terms &amp; Conditions:</strong><br>
+                ${invoice.dealer?.invoiceTerms
+                  ? invoice.dealer.invoiceTerms.replace(/\n/g, '<br>')
+                  : `1. Goods once sold will not be taken back.<br>2. Interest at 18% p.a. will be charged for delayed payments after due date.`
+                }
+              </div>
+            </td>
+          </tr>
+        </table>
 
         <!-- Signatures -->
         <div class="signature-section">
