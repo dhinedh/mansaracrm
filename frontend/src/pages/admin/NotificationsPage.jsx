@@ -85,7 +85,7 @@ export default function NotificationsPage() {
       switch (n.type) {
         case 'STOCK_TRANSFER':
         case 'DELIVERY_UPDATE':
-          navigate('/admin/inventory', { state: { activeTab: 'history', transferId } });
+          navigate('/admin/transfers', { state: { activeTab: 'history', transferId } });
           break;
         case 'INVOICE_GENERATED':
           navigate('/admin/dashboard', { state: { invoiceId } });

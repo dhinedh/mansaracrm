@@ -72,7 +72,7 @@ exports.getAdminAnalytics = async (req, res, next) => {
     const zoneSales = {};
     const zonePlayers = {}; 
     const areaSales = {};
-    const channelSales = { B2B: 0, WEBSITE: 0, E_COMMERCE: 0 };
+    const channelSales = { B2B: 0, RETAIL: 0, WEBSITE: 0, E_COMMERCE: 0 };
 
     invoices.forEach(inv => {
       const dealerZones = (inv.dealer.zones && inv.dealer.zones.length > 0)
@@ -80,7 +80,11 @@ exports.getAdminAnalytics = async (req, res, next) => {
         : (inv.dealer.zone ? [inv.dealer.zone] : ['Unknown']);
       const area = inv.dealer.area || 'Unknown';
       const amt = parseFloat(inv.totalAmount);
-      const chan = inv.channel || 'B2B';
+      // Determine effective channel:
+      // B2B = warehouse-to-dealer transfer invoice
+      // RETAIL = dealer-to-store billing (no B2B channel but has storeId or channel=null)
+      let chan = inv.channel || 'B2B';
+      if (chan === 'B2B' && inv.storeId) chan = 'RETAIL'; // dealer billing to a store is retail
 
       dealerZones.forEach(zone => {
         zoneSales[zone] = (zoneSales[zone] || 0) + amt;
