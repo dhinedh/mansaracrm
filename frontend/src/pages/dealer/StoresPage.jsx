@@ -33,6 +33,31 @@ export default function StoresPage() {
   const [pincode, setPincode] = useState('');
   const [zone, setZone] = useState('');
   const [phone, setPhone] = useState('');
+  const [pincodeSuggestions, setPincodeSuggestions] = useState([]);
+
+  const handlePincodeChange = async (val) => {
+    setPincode(val);
+    if (val.length === 6) {
+      try {
+        const res = await axios.get(`/dealers/pincode-lookup/${val}`);
+        if (res.data.success) {
+          const { district, state: st, suggestedZones } = res.data.data;
+          setCity(district || '');
+          setState(st || '');
+          if (suggestedZones && suggestedZones.length > 0) {
+            setZone(suggestedZones[0]);
+            setPincodeSuggestions(suggestedZones);
+          } else {
+            setPincodeSuggestions([]);
+          }
+        }
+      } catch (err) {
+        console.error('Failed pincode lookup', err);
+      }
+    } else {
+      setPincodeSuggestions([]);
+    }
+  };
 
   useEffect(() => {
     fetchStores();
@@ -104,13 +129,17 @@ export default function StoresPage() {
     setPincode(s.pincode || '');
     setZone(s.zone || '');
     setPhone(s.phone || '');
+    setPincodeSuggestions(s.zone ? [s.zone] : []);
     setShowEditModal(true);
   };
 
   const resetForm = () => {
     setName(''); setGstNumber(''); setAddress(''); setCity(''); setState('');
     setPincode(''); setZone(''); setPhone(''); setCurrentStore(null);
+    setPincodeSuggestions([]);
   };
+
+  const availableZones = [...new Set([...dealerZones, ...pincodeSuggestions])];
 
   return (
     <div className="space-y-6">
@@ -222,19 +251,32 @@ export default function StoresPage() {
                 </div>
                 <div>
                   <label className="block text-slate-500 font-bold mb-1">Store Zone / Area (optional)</label>
-                  {dealerZones.length > 0 ? (
-                    <select
+                  {availableZones.length > 0 ? (
+                    <div className="space-y-1">
+                      <select
+                        value={zone}
+                        onChange={e => setZone(e.target.value)}
+                        className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none font-bold text-slate-700 text-xs"
+                      >
+                        <option value="">-- Select Zone --</option>
+                        {availableZones.map(z => (
+                          <option key={z} value={z}>{z}</option>
+                        ))}
+                      </select>
+                      {pincodeSuggestions.length > 0 && (
+                        <p className="text-[9px] text-rose-600 font-bold mt-1">
+                          ✓ Suggested zones loaded from pincode lookup
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <input
+                      type="text"
                       value={zone}
                       onChange={e => setZone(e.target.value)}
-                      className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none font-bold text-slate-700 text-xs"
-                    >
-                      <option value="">-- Select Zone --</option>
-                      {dealerZones.map(z => (
-                        <option key={z} value={z}>{z}</option>
-                      ))}
-                    </select>
-                  ) : (
-                    <input type="text" value={zone} onChange={e => setZone(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none" />
+                      placeholder="Enter zone manually"
+                      className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none"
+                    />
                   )}
                 </div>
               </div>
@@ -246,16 +288,16 @@ export default function StoresPage() {
 
               <div className="grid grid-cols-3 gap-4">
                 <div>
+                  <label className="block text-slate-500 font-bold mb-1">Pincode *</label>
+                  <input type="text" required maxLength={6} placeholder="6-digit PIN" value={pincode} onChange={e => handlePincodeChange(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none" />
+                </div>
+                <div>
                   <label className="block text-slate-500 font-bold mb-1">City</label>
                   <input type="text" value={city} onChange={e => setCity(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none" />
                 </div>
                 <div>
                   <label className="block text-slate-500 font-bold mb-1">State</label>
                   <input type="text" value={state} onChange={e => setState(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none" />
-                </div>
-                <div>
-                  <label className="block text-slate-500 font-bold mb-1">Pincode</label>
-                  <input type="text" value={pincode} onChange={e => setPincode(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none" />
                 </div>
               </div>
 
@@ -294,19 +336,32 @@ export default function StoresPage() {
                 </div>
                 <div>
                   <label className="block text-slate-500 font-bold mb-1">Store Zone / Area (optional)</label>
-                  {dealerZones.length > 0 ? (
-                    <select
+                  {availableZones.length > 0 ? (
+                    <div className="space-y-1">
+                      <select
+                        value={zone}
+                        onChange={e => setZone(e.target.value)}
+                        className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none font-bold text-slate-700 text-xs"
+                      >
+                        <option value="">-- Select Zone --</option>
+                        {availableZones.map(z => (
+                          <option key={z} value={z}>{z}</option>
+                        ))}
+                      </select>
+                      {pincodeSuggestions.length > 0 && (
+                        <p className="text-[9px] text-rose-600 font-bold mt-1">
+                          ✓ Suggested zones loaded from pincode lookup
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <input
+                      type="text"
                       value={zone}
                       onChange={e => setZone(e.target.value)}
-                      className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none font-bold text-slate-700 text-xs"
-                    >
-                      <option value="">-- Select Zone --</option>
-                      {dealerZones.map(z => (
-                        <option key={z} value={z}>{z}</option>
-                      ))}
-                    </select>
-                  ) : (
-                    <input type="text" value={zone} onChange={e => setZone(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none" />
+                      placeholder="Enter zone manually"
+                      className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none"
+                    />
                   )}
                 </div>
               </div>
@@ -318,16 +373,16 @@ export default function StoresPage() {
 
               <div className="grid grid-cols-3 gap-4">
                 <div>
+                  <label className="block text-slate-500 font-bold mb-1">Pincode *</label>
+                  <input type="text" required maxLength={6} placeholder="6-digit PIN" value={pincode} onChange={e => handlePincodeChange(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none" />
+                </div>
+                <div>
                   <label className="block text-slate-500 font-bold mb-1">City</label>
                   <input type="text" value={city} onChange={e => setCity(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none" />
                 </div>
                 <div>
                   <label className="block text-slate-500 font-bold mb-1">State</label>
                   <input type="text" value={state} onChange={e => setState(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none" />
-                </div>
-                <div>
-                  <label className="block text-slate-500 font-bold mb-1">Pincode</label>
-                  <input type="text" value={pincode} onChange={e => setPincode(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none" />
                 </div>
               </div>
 

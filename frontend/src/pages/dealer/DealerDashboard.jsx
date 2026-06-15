@@ -14,6 +14,20 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 
+const MOCK_FAST_MOVERS = [
+  { productId: 'mock-fast-1', name: 'Urad Health Mix – Classic', sku: 'MF-URAD-CLA-100', quantitySold: 120 },
+  { productId: 'mock-fast-2', name: 'Ragi Choco Malt', sku: 'MF-RAGI-CHO-250', quantitySold: 85 },
+  { productId: 'mock-fast-3', name: 'Health Mix – Black Rice Delight', sku: 'MF-BLAC-DEL-100', quantitySold: 64 },
+  { productId: 'mock-fast-4', name: 'Nutriminix – Multi Grain Health Mix', sku: 'MF-NUTR-MGM-250', quantitySold: 42 }
+];
+
+const MOCK_SLOW_MOVERS = [
+  { productId: 'mock-slow-1', name: 'Idly Podi – Millet Fusion', sku: 'MF-IDLY-MIL-100', quantitySold: 8 },
+  { productId: 'mock-slow-2', name: 'Coriander Rice Podi Mix', sku: 'MF-RICE-COR-100', quantitySold: 5 },
+  { productId: 'mock-slow-3', name: 'Moringa Rice Podi Mix', sku: 'MF-RICE-MOR-100', quantitySold: 3 },
+  { productId: 'mock-slow-4', name: 'Pirandai Rice Podi Mix', sku: 'MF-RICE-PIR-100', quantitySold: 2 }
+];
+
 export default function DealerDashboard() {
   const navigate = useNavigate();
   const { user } = useAuthStore();
@@ -60,6 +74,13 @@ export default function DealerDashboard() {
     { name: 'Active Outlets', value: data?.storeSales?.length || 0, desc: 'Registered retail shops', icon: Store, color: 'text-teal-600 bg-teal-50' },
     { name: 'Low Stock SKU Alerts', value: data?.lowStockAlerts?.length || 0, desc: 'Items with quantity <= 10', icon: AlertTriangle, color: data?.lowStockAlerts?.length > 0 ? 'text-amber-600 bg-amber-50 animate-pulse' : 'text-slate-400 bg-slate-50' }
   ];
+
+  const fastMovers = data?.fastMovers && data.fastMovers.length > 0 ? data.fastMovers : MOCK_FAST_MOVERS;
+  const slowMovers = data?.slowMovers && data.slowMovers.length > 0 ? data.slowMovers : MOCK_SLOW_MOVERS;
+  const isMocked = !(data?.fastMovers && data.fastMovers.length > 0) && !(data?.slowMovers && data.slowMovers.length > 0);
+
+  const maxFast = Math.max(...fastMovers.map(p => p.quantitySold || 0), 1);
+  const maxSlow = Math.max(...slowMovers.map(p => p.quantitySold || 0), 1);
 
   return (
     <div className="space-y-8">
@@ -225,47 +246,120 @@ export default function DealerDashboard() {
 
       {/* Product Movers Section */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        <div className="bg-white border border-slate-150 p-6 rounded-2xl shadow-sm">
-          <h3 className="text-sm font-bold text-slate-800 mb-4 uppercase tracking-wider flex items-center space-x-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-            <span>My Fast Moving Products</span>
-          </h3>
-          <div className="divide-y divide-slate-100 text-xs">
-            {data?.fastMovers?.length > 0 ? data.fastMovers.map((prod) => (
-              <div key={prod.productId} className="py-3 flex justify-between items-center">
-                <div>
-                  <p className="font-bold text-slate-800 text-xs">{prod.name}</p>
-                  <p className="text-[9px] text-slate-400 font-mono">SKU: {prod.sku}</p>
-                </div>
-                <span className="text-xs bg-emerald-50 text-emerald-700 font-black px-2.5 py-1 rounded-lg">
-                  {prod.quantitySold} units sold
+        {isMocked && (
+          <div className="col-span-1 md:col-span-2 bg-gradient-to-r from-indigo-50 to-rose-50/40 border border-indigo-100/80 p-4 rounded-2xl flex items-start sm:items-center gap-3.5 shadow-sm">
+            <AlertCircle className="w-5 h-5 text-indigo-600 shrink-0 mt-0.5 sm:mt-0" />
+            <div className="text-xs text-indigo-900 font-medium">
+              <span className="font-bold text-indigo-950">Analytics Baseline:</span> Showing simulated product trends. Once you record retail invoices for your outlets, live B2C sales analytics will populate here.
+            </div>
+          </div>
+        )}
+
+        {/* Fast Moving Products */}
+        <div className="bg-white border border-slate-150 p-6 rounded-2xl shadow-sm flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-sm font-extrabold text-slate-800 uppercase tracking-wider flex items-center space-x-2.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-sm shadow-emerald-500/50"></span>
+                <span>Fast Moving Products</span>
+              </h3>
+              {isMocked && (
+                <span className="text-[9px] font-bold text-indigo-600 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-full">
+                  Baseline
                 </span>
-              </div>
-            )) : (
-              <p className="text-slate-400 py-3 text-center italic">No customer bills recorded</p>
-            )}
+              )}
+            </div>
+            
+            <div className="space-y-5">
+              {fastMovers.map((prod, idx) => {
+                const percentage = Math.round((prod.quantitySold / maxFast) * 100);
+                return (
+                  <div key={prod.productId} className="group flex flex-col space-y-1.5 p-1 rounded-lg hover:bg-slate-50/50 transition-colors duration-150">
+                    <div className="flex justify-between items-start">
+                      <div className="space-y-0.5">
+                        <div className="flex items-center space-x-2">
+                          <span className="text-[10px] font-black text-slate-400">#{idx + 1}</span>
+                          <p className="font-bold text-slate-800 text-xs tracking-tight group-hover:text-slate-900 transition-colors">{prod.name}</p>
+                        </div>
+                        <p className="text-[9px] text-slate-400 font-mono pl-5">SKU: {prod.sku}</p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <span className="text-[10px] bg-emerald-50 text-emerald-700 font-extrabold px-2.5 py-1 rounded-lg border border-emerald-100/50 inline-block shadow-sm">
+                          {prod.quantitySold} units
+                        </span>
+                      </div>
+                    </div>
+                    
+                    {/* Progress Bar Container */}
+                    <div className="pl-5 pr-1 flex items-center space-x-3">
+                      <div className="flex-1 bg-slate-100 rounded-full h-2 overflow-hidden shadow-inner">
+                        <div 
+                          className="bg-gradient-to-r from-emerald-500 to-teal-500 h-full rounded-full transition-all duration-700 ease-out" 
+                          style={{ width: `${percentage}%` }}
+                        />
+                      </div>
+                      <span className="text-[9px] font-bold text-slate-500 w-7 text-right shrink-0">
+                        {percentage}%
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
 
-        <div className="bg-white border border-slate-150 p-6 rounded-2xl shadow-sm">
-          <h3 className="text-sm font-bold text-slate-800 mb-4 uppercase tracking-wider flex items-center space-x-2">
-            <span className="w-2 h-2 rounded-full bg-rose-500"></span>
-            <span>My Slow Moving Products</span>
-          </h3>
-          <div className="divide-y divide-slate-100 text-xs">
-            {data?.slowMovers?.length > 0 ? data.slowMovers.map((prod) => (
-              <div key={prod.productId} className="py-3 flex justify-between items-center">
-                <div>
-                  <p className="font-bold text-slate-800 text-xs">{prod.name}</p>
-                  <p className="text-[9px] text-slate-400 font-mono">SKU: {prod.sku}</p>
-                </div>
-                <span className="text-xs bg-rose-50 text-rose-700 font-black px-2.5 py-1 rounded-lg">
-                  {prod.quantitySold} units sold
+        {/* Slow Moving Products */}
+        <div className="bg-white border border-slate-150 p-6 rounded-2xl shadow-sm flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-sm font-extrabold text-slate-800 uppercase tracking-wider flex items-center space-x-2.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-rose-500 shadow-sm shadow-rose-500/50"></span>
+                <span>Slow Moving Products</span>
+              </h3>
+              {isMocked && (
+                <span className="text-[9px] font-bold text-indigo-600 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-full">
+                  Baseline
                 </span>
-              </div>
-            )) : (
-              <p className="text-slate-400 py-3 text-center italic">No customer bills recorded</p>
-            )}
+              )}
+            </div>
+            
+            <div className="space-y-5">
+              {slowMovers.map((prod, idx) => {
+                const percentage = Math.round((prod.quantitySold / maxSlow) * 100);
+                return (
+                  <div key={prod.productId} className="group flex flex-col space-y-1.5 p-1 rounded-lg hover:bg-slate-50/50 transition-colors duration-150">
+                    <div className="flex justify-between items-start">
+                      <div className="space-y-0.5">
+                        <div className="flex items-center space-x-2">
+                          <span className="text-[10px] font-black text-slate-400">#{idx + 1}</span>
+                          <p className="font-bold text-slate-800 text-xs tracking-tight group-hover:text-slate-900 transition-colors">{prod.name}</p>
+                        </div>
+                        <p className="text-[9px] text-slate-400 font-mono pl-5">SKU: {prod.sku}</p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <span className="text-[10px] bg-rose-50 text-rose-700 font-extrabold px-2.5 py-1 rounded-lg border border-rose-100/50 inline-block shadow-sm">
+                          {prod.quantitySold} units
+                        </span>
+                      </div>
+                    </div>
+                    
+                    {/* Progress Bar Container */}
+                    <div className="pl-5 pr-1 flex items-center space-x-3">
+                      <div className="flex-1 bg-slate-100 rounded-full h-2 overflow-hidden shadow-inner">
+                        <div 
+                          className="bg-gradient-to-r from-rose-400 to-orange-400 h-full rounded-full transition-all duration-700 ease-out" 
+                          style={{ width: `${percentage}%` }}
+                        />
+                      </div>
+                      <span className="text-[9px] font-bold text-slate-500 w-7 text-right shrink-0">
+                        {percentage}%
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
       </div>

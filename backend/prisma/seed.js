@@ -46,20 +46,20 @@ async function main() {
 
   // Create products matching Mansara Foods e-commerce setup
   const productsList = [
-    { name: "Urad Health Mix – Classic", category: "Urad Porridge Mix", price: 75, mrp: 95, unit: "100g", sku: "MF-URAD-CLA-100", hsnCode: "1901", image: "/products/urad-classic-front.jpg" },
-    { name: "Urad Health Mix – Salt n Pepper", category: "Urad Porridge Mix", price: 75, mrp: 95, unit: "100g", sku: "MF-URAD-SNP-100", hsnCode: "1901", image: "/products/urad-salt-pepper-front.jpg" },
-    { name: "Urad Health Mix – Millet Magic", category: "Urad Porridge Mix", price: 75, mrp: 95, unit: "100g", sku: "MF-URAD-MIL-100", hsnCode: "1901", image: "/products/urad-millet-magic-front.jpg" },
-    { name: "Urad Health Mix – Premium", category: "Urad Porridge Mix", price: 75, mrp: 95, unit: "100g", sku: "MF-URAD-PRE-100", hsnCode: "1901", image: "/products/urad-premium-front.jpg" },
-    { name: "Health Mix – Black Rice Delight", category: "Black Rice mix", price: 75, mrp: 95, unit: "100g", sku: "MF-BLAC-DEL-100", hsnCode: "1901", image: "/products/black-rice-delight-front.jpg" },
-    { name: "Ragi Choco Malt", category: "Health drink mix", price: 250, mrp: 295, unit: "250g", sku: "MF-RAGI-CHO-250", hsnCode: "1901", image: "/products/RagiChocoMalt.PNG" },
-    { name: "Nutriminix – Multi Grain Health Mix", category: "Health drink mix", price: 200, mrp: 245, unit: "250g", sku: "MF-NUTR-MGM-250", hsnCode: "1901", image: "/products/NutriMix.PNG" },
-    { name: "Idly Podi – Traditional", category: "Idly Podi", price: 75, mrp: 95, unit: "100g", sku: "MF-IDLY-TRA-100", hsnCode: "2103", image: "/products/TraditionalIdlyPodi.PNG" },
-    { name: "Idly Podi – Millet Fusion", category: "Idly Podi", price: 75, mrp: 95, unit: "100g", sku: "MF-IDLY-MIL-100", hsnCode: "2103", image: "/products/MilletFusionIdlyPodi.PNG" },
-    { name: "Rice Podi Mix", category: "Rice Mixes", price: 75, mrp: 95, unit: "100g", sku: "MF-RICE-POD-100", hsnCode: "2103", image: "/products/HomeStyleParuppu.PNG" },
-    { name: "Curry Leaves Rice Podi Mix", category: "Rice Mixes", price: 75, mrp: 95, unit: "100g", sku: "MF-RICE-CUR-100", hsnCode: "2103", image: "/products/KaruveppillaiSpecial.PNG" },
-    { name: "Coriander Rice Podi Mix", category: "Rice Mixes", price: 75, mrp: 95, unit: "100g", sku: "MF-RICE-COR-100", hsnCode: "2103", image: "/products/KothamalliAroma.PNG" },
-    { name: "Moringa Rice Podi Mix", category: "Rice Mixes", price: 75, mrp: 95, unit: "100g", sku: "MF-RICE-MOR-100", hsnCode: "2103", image: "/products/MurungaiVital.PNG" },
-    { name: "Pirandai Rice Podi Mix", category: "Rice Mixes", price: 75, mrp: 95, unit: "100g", sku: "MF-RICE-PIR-100", hsnCode: "2103", image: "/products/PirandaiPower.PNG" }
+    { name: "Urad Health Mix – Classic", category: "Urad Porridge Mix", price: 55, mrp: 55, unit: "100g", sku: "MF-URAD-CLA-100", hsnCode: "1901", image: "/products/urad-classic-front.jpg" },
+    { name: "Urad Health Mix – Salt n Pepper", category: "Urad Porridge Mix", price: 55, mrp: 55, unit: "100g", sku: "MF-URAD-SNP-100", hsnCode: "1901", image: "/products/urad-salt-pepper-front.jpg" },
+    { name: "Urad Health Mix – Millet Magic", category: "Urad Porridge Mix", price: 60, mrp: 60, unit: "100g", sku: "MF-URAD-MIL-100", hsnCode: "1901", image: "/products/urad-millet-magic-front.jpg" },
+    { name: "Urad Health Mix – Premium", category: "Urad Porridge Mix", price: 65, mrp: 65, unit: "100g", sku: "MF-URAD-PRE-100", hsnCode: "1901", image: "/products/urad-premium-front.jpg" },
+    { name: "Health Mix – Black Rice Delight", category: "Black Rice mix", price: 70, mrp: 70, unit: "100g", sku: "MF-BLAC-DEL-100", hsnCode: "1901", image: "/products/black-rice-delight-front.jpg" },
+    { name: "Ragi Choco Malt", category: "Health drink mix", price: 250, mrp: 250, unit: "250g", sku: "MF-RAGI-CHO-250", hsnCode: "1901", image: "/products/RagiChocoMalt.PNG" },
+    { name: "Nutriminix – Multi Grain Health Mix", category: "Health drink mix", price: 200, mrp: 200, unit: "250g", sku: "MF-NUTR-MGM-250", hsnCode: "1901", image: "/products/NutriMix.PNG" },
+    { name: "Idly Podi – Traditional", category: "Idly Podi", price: 75, mrp: 75, unit: "100g", sku: "MF-IDLY-TRA-100", hsnCode: "2103", image: "/products/TraditionalIdlyPodi.PNG" },
+    { name: "Idly Podi – Millet Fusion", category: "Idly Podi", price: 75, mrp: 75, unit: "100g", sku: "MF-IDLY-MIL-100", hsnCode: "2103", image: "/products/MilletFusionIdlyPodi.PNG" },
+    { name: "Rice Podi Mix", category: "Rice Mixes", price: 85, mrp: 85, unit: "100g", sku: "MF-RICE-POD-100", hsnCode: "2103", image: "/products/HomeStyleParuppu.PNG" },
+    { name: "Curry Leaves Rice Podi Mix", category: "Rice Mixes", price: 85, mrp: 85, unit: "100g", sku: "MF-RICE-CUR-100", hsnCode: "2103", image: "/products/KaruveppillaiSpecial.PNG" },
+    { name: "Coriander Rice Podi Mix", category: "Rice Mixes", price: 75, mrp: 85, unit: "100g", sku: "MF-RICE-COR-100", hsnCode: "2103", image: "/products/KothamalliAroma.PNG" },
+    { name: "Moringa Rice Podi Mix", category: "Rice Mixes", price: 85, mrp: 85, unit: "100g", sku: "MF-RICE-MOR-100", hsnCode: "2103", image: "/products/MurungaiVital.PNG" },
+    { name: "Pirandai Rice Podi Mix", category: "Rice Mixes", price: 85, mrp: 85, unit: "100g", sku: "MF-RICE-PIR-100", hsnCode: "2103", image: "/products/PirandaiPower.PNG" }
   ];
 
   for (const prod of productsList) {
@@ -78,7 +78,11 @@ async function main() {
 
     const savedProd = await prisma.product.upsert({
       where: { sku: prod.sku },
-      update: { image: prod.image },
+      update: { 
+        price: prod.price,
+        mrp: prod.mrp,
+        image: prod.image 
+      },
       create: productData,
     });
 
@@ -161,8 +165,10 @@ async function main() {
 
   // Seed sample Complaints/Tickets
   console.log('🌱 Seeding sample complaint tickets...');
-  await prisma.complaintTicket.create({
-    data: {
+  await prisma.complaintTicket.upsert({
+    where: { ticketNo: 'TKT-1001' },
+    update: {},
+    create: {
       ticketNo: 'TKT-1001',
       userId: dealerUser.id,
       subject: 'Delayed Delivery of Millet Fusion Mix Order',
@@ -174,8 +180,10 @@ async function main() {
     }
   });
 
-  await prisma.complaintTicket.create({
-    data: {
+  await prisma.complaintTicket.upsert({
+    where: { ticketNo: 'TKT-1002' },
+    update: {},
+    create: {
       ticketNo: 'TKT-1002',
       userId: dealerUser.id,
       subject: 'Urad Classic Margin Applied Incorrectly',

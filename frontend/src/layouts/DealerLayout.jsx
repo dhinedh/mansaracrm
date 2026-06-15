@@ -56,7 +56,7 @@ export default function DealerLayout() {
 
   const menuItems = [
     { name: 'Dashboard', path: '/dealer/dashboard', icon: LayoutDashboard },
-    { name: 'My Ledgers', path: '/dealer/ledgers', icon: Receipt },
+    { name: 'Ledger', path: '/dealer/ledgers', icon: Receipt },
     { name: 'Order Requests', path: '/dealer/requests', icon: FileText },
     { name: 'Returns Log', path: '/dealer/returns', icon: RotateCcw },
     { name: 'Complaints tickets', path: '/dealer/services', icon: HelpCircle },

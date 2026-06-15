@@ -555,7 +555,7 @@ export default function MyLedgersPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h2 className="text-xl font-black text-slate-800 tracking-tight">Ledgers & Shipments</h2>
+          <h2 className="text-xl font-black text-slate-800 tracking-tight">Ledger</h2>
           <p className="text-slate-500 text-xs">Verify past tax invoices generated, check store breakdowns, and track stock transfers from the warehouse.</p>
         </div>
       </div>
@@ -567,22 +567,22 @@ export default function MyLedgersPage() {
           className={`py-3 px-6 text-xs font-black tracking-wider uppercase border-b-2 transition-all flex items-center space-x-2 cursor-pointer ${
             activeTab === 'invoices'
               ? 'border-rose-600 text-rose-700 font-extrabold'
-              : 'border-transparent text-slate-550 hover:text-slate-800'
+              : 'border-transparent text-slate-555 hover:text-slate-800'
           }`}
         >
           <Receipt className="w-4 h-4" />
-          <span>Retail Store Invoices</span>
+          <span>Invoice</span>
         </button>
         <button
           onClick={() => setActiveTab('transfers')}
           className={`py-3 px-6 text-xs font-black tracking-wider uppercase border-b-2 transition-all flex items-center space-x-2 cursor-pointer ${
             activeTab === 'transfers'
               ? 'border-rose-600 text-rose-700 font-extrabold'
-              : 'border-transparent text-slate-550 hover:text-slate-800'
+              : 'border-transparent text-slate-555 hover:text-slate-800'
           }`}
         >
           <Truck className="w-4 h-4" />
-          <span>Warehouse Shipments</span>
+          <span>Warehouse Shipment</span>
         </button>
       </div>
 
