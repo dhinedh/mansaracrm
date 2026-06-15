@@ -16,6 +16,8 @@ import { useAuthStore } from '../../store/authStore';
 export default function NotificationsPage() {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('ALL');
+  const [showUnreadOnly, setShowUnreadOnly] = useState(false);
   const navigate = useNavigate();
   const { user } = useAuthStore();
 
@@ -121,6 +123,16 @@ export default function NotificationsPage() {
     }
   };
 
+  const filteredNotifications = notifications.filter(n => {
+    if (showUnreadOnly && n.isRead) return false;
+    if (activeTab === 'ALL') return true;
+    if (activeTab === 'BILLING') return n.type === 'INVOICE_GENERATED';
+    if (activeTab === 'STOCK') return n.type === 'STOCK_TRANSFER' || n.type === 'DELIVERY_UPDATE';
+    if (activeTab === 'ACCOUNT') return n.type === 'ACCOUNT_UPDATE';
+    if (activeTab === 'SYSTEM') return n.type === 'SYSTEM';
+    return true;
+  });
+
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
       <div className="flex items-center justify-between">
@@ -139,25 +151,62 @@ export default function NotificationsPage() {
         )}
       </div>
 
+      {/* Category Filter Tabs */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-200 pb-2">
+        <div className="flex flex-wrap gap-2">
+          {[
+            { id: 'ALL', label: 'All Alerts' },
+            { id: 'BILLING', label: 'Billing / Invoices' },
+            { id: 'STOCK', label: 'Stock & Dispatches' },
+            { id: 'ACCOUNT', label: 'Account Profile' },
+            { id: 'SYSTEM', label: 'System Alerts' }
+          ].map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`px-4 py-2 text-xs font-black tracking-wider uppercase border-b-2 transition-all cursor-pointer ${
+                activeTab === tab.id
+                  ? 'border-rose-600 text-rose-700 font-extrabold'
+                  : 'border-transparent text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        <label className="flex items-center space-x-2 text-xs font-bold text-slate-600 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={showUnreadOnly}
+            onChange={(e) => setShowUnreadOnly(e.target.checked)}
+            className="rounded text-rose-600 border-slate-300 focus:ring-rose-500 w-4 h-4 cursor-pointer"
+          />
+          <span>Show Unread Only</span>
+        </label>
+      </div>
+
       {loading ? (
         <div className="flex items-center justify-center h-48">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-rose-600"></div>
         </div>
       ) : (
         <div className="space-y-4">
-          {notifications.length === 0 ? (
+          {filteredNotifications.length === 0 ? (
             <div className="bg-white border border-slate-150 p-12 text-center rounded-2xl">
               <Bell className="w-10 h-10 text-slate-300 mx-auto mb-4 stroke-1" />
               <p className="text-slate-500 text-xs font-bold">You are all caught up!</p>
-              <p className="text-[10px] text-slate-400 mt-1">No new alerts to display.</p>
+              <p className="text-[10px] text-slate-400 mt-1">No alerts found under this category.</p>
             </div>
           ) : (
-            notifications.map((n) => (
+            filteredNotifications.map((n) => (
               <div
                 key={n.id}
                 onClick={() => handleNotificationClick(n)}
                 className={`bg-white border p-5 rounded-2xl shadow-sm flex items-start justify-between gap-4 transition-all cursor-pointer hover:border-rose-200 hover:shadow-md ${
-                  n.isRead ? 'border-slate-150 opacity-75' : 'border-rose-100 bg-rose-50/10'
+                  n.isRead 
+                    ? 'border-slate-150 opacity-75' 
+                    : 'border-rose-200 border-l-4 border-l-rose-600 bg-rose-50/10 shadow-md'
                 }`}
               >
                 <div className="flex items-start space-x-3.5">
@@ -168,7 +217,7 @@ export default function NotificationsPage() {
                     <h4 className="font-bold text-slate-800 text-xs flex items-center space-x-2">
                       <span>{n.title}</span>
                       {!n.isRead && (
-                        <span className="w-1.5 h-1.5 rounded-full bg-rose-600"></span>
+                        <span className="text-[9px] bg-rose-600 text-white font-black px-1.5 py-0.5 rounded-full uppercase tracking-wider scale-90">Unread</span>
                       )}
                     </h4>
                     <p className="text-xs text-slate-500 leading-relaxed">{n.message}</p>

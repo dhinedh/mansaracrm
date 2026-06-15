@@ -111,7 +111,7 @@ export default function InvoicesHistoryPage() {
                     <td className="p-4">
                       <div className="flex items-center space-x-2">
                         <Store className="w-3.5 h-3.5 text-rose-600 shrink-0" />
-                        <span className="font-bold text-slate-700">{inv.store?.name}</span>
+                        <span className="font-bold text-slate-700">{inv.store?.name || 'B2B Warehouse Direct'}</span>
                       </div>
                     </td>
                     <td className="p-4 text-right font-medium text-slate-600">₹{parseFloat(inv.subtotal).toFixed(2)}</td>
@@ -158,9 +158,19 @@ export default function InvoicesHistoryPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 bg-slate-50 p-4 border border-slate-100 rounded-xl">
                 <div className="space-y-1.5">
                   <span className="block text-[9px] font-black uppercase text-slate-400 tracking-wider">Outlet Details</span>
-                  <p className="font-bold text-slate-800 text-xs">{selectedInvoice.store?.name}</p>
-                  <p className="text-slate-500">{selectedInvoice.store?.address}</p>
-                  <p className="text-slate-500">GST: <strong className="text-slate-700">{selectedInvoice.store?.gstNumber || 'N/A'}</strong></p>
+                  {selectedInvoice.store ? (
+                    <>
+                      <p className="font-bold text-slate-800 text-xs">{selectedInvoice.store.name}</p>
+                      <p className="text-slate-500">{selectedInvoice.store.address}</p>
+                      <p className="text-slate-500">GST: <strong className="text-slate-700">{selectedInvoice.store.gstNumber || 'N/A'}</strong></p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="font-bold text-slate-800 text-xs text-rose-600 font-black">B2B Warehouse Direct</p>
+                      <p className="text-slate-500">{selectedInvoice.dealer?.address}</p>
+                      <p className="text-slate-500">GSTIN: <strong className="text-slate-700">{selectedInvoice.dealer?.gstNumber || 'N/A'}</strong></p>
+                    </>
+                  )}
                 </div>
                 <div className="space-y-1.5">
                   <span className="block text-[9px] font-black uppercase text-slate-400 tracking-wider">Invoice Info</span>

@@ -191,6 +191,96 @@ export default function AdminAnalyticsPage() {
         </div>
       </div>
 
+      {/* Channel Sales & CRM Funnel */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Channel Sales Distribution Pie Chart */}
+        <div className="bg-white border border-slate-150 p-6 rounded-2xl shadow-sm space-y-4 lg:col-span-1">
+          <h3 className="text-xs font-bold text-slate-800 flex items-center space-x-2 uppercase tracking-wider">
+            <TrendingUp className="w-4 h-4 text-rose-600" />
+            <span>Channel Sales Distribution</span>
+          </h3>
+          <div className="h-64 flex items-center justify-center relative">
+            {data?.channelSales?.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={data.channelSales}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={80}
+                    paddingAngle={3}
+                    dataKey="value"
+                  >
+                    {data.channelSales.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[(index + 2) % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(value) => `₹${value.toLocaleString()}`} />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="text-xs text-slate-400">No data available</div>
+            )}
+          </div>
+          {/* Legend */}
+          <div className="flex flex-wrap gap-2.5 justify-center text-[10px] font-bold text-slate-600 pt-2">
+            {data?.channelSales?.map((entry, index) => (
+              <div key={entry.name} className="flex items-center space-x-1.5">
+                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: COLORS[(index + 2) % COLORS.length] }}></span>
+                <span>{entry.name} (₹{entry.value.toLocaleString()})</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* CRM Leads and activity Funnel */}
+        <div className="bg-white border border-slate-150 p-6 rounded-2xl shadow-sm space-y-4 lg:col-span-2">
+          <h3 className="text-xs font-bold text-slate-800 flex items-center space-x-2 uppercase tracking-wider">
+            <TrendingUp className="w-4 h-4 text-rose-600" />
+            <span>CRM Conversion Funnel & Lead efficiency</span>
+          </h3>
+          {data?.crmStats ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-2 h-64 overflow-y-auto">
+              <div className="space-y-4">
+                <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 flex justify-between items-center">
+                  <div>
+                    <span className="block text-[9px] font-black uppercase text-slate-400">Total Leads Registered</span>
+                    <strong className="text-lg font-black text-slate-800">{data.crmStats.totalLeads} Leads</strong>
+                  </div>
+                </div>
+                <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 flex justify-between items-center">
+                  <div>
+                    <span className="block text-[9px] font-black uppercase text-slate-400">Leads Converted</span>
+                    <strong className="text-lg font-black text-emerald-600">{data.crmStats.convertedLeads} Converted</strong>
+                  </div>
+                  <span className="text-[10px] font-black text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">
+                    {data.crmStats.leadConversionRate.toFixed(1)}% Rate
+                  </span>
+                </div>
+              </div>
+              
+              <div className="space-y-4">
+                <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 flex justify-between items-center">
+                  <div>
+                    <span className="block text-[9px] font-black uppercase text-slate-400">Logged Visits</span>
+                    <strong className="text-lg font-black text-indigo-600">{data.crmStats.totalVisits} Visits</strong>
+                  </div>
+                </div>
+                <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 flex justify-between items-center">
+                  <div>
+                    <span className="block text-[9px] font-black uppercase text-slate-400">Distributed Samples</span>
+                    <strong className="text-lg font-black text-orange-600">{data.crmStats.totalSamples} Samples</strong>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center justify-center h-full text-xs text-slate-400">No CRM statistics available</div>
+          )}
+        </div>
+      </div>
+
       {/* Leaderboard Grid */}
       <div className="bg-white border border-slate-150 rounded-2xl shadow-sm p-6 space-y-4">
         <h3 className="text-xs font-bold text-slate-800 flex items-center space-x-2 uppercase tracking-wider">

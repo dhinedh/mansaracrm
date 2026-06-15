@@ -21,6 +21,10 @@ const marginsRoutes = require('./modules/margins/margins.routes');
 const billingRoutes = require('./modules/billing/billing.routes');
 const analyticsRoutes = require('./modules/analytics/analytics.routes');
 const notificationsRoutes = require('./modules/notifications/notifications.routes');
+const returnsRoutes = require('./modules/returns/returns.routes');
+const requestsRoutes = require('./modules/requests/requests.routes');
+const ticketsRoutes = require('./modules/tickets/tickets.routes');
+const crmRoutes = require('./modules/crm/crm.routes');
 
 const app = express();
 
@@ -91,6 +95,10 @@ app.use('/api/margins', marginsRoutes);
 app.use('/api/billing', billingRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/notifications', notificationsRoutes);
+app.use('/api/returns', returnsRoutes);
+app.use('/api/requests', requestsRoutes);
+app.use('/api/tickets', ticketsRoutes);
+app.use('/api/crm', crmRoutes);
 
 // Base Health Check
 app.get('/api/health', (req, res) => {

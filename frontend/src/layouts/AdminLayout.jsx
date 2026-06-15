@@ -12,7 +12,12 @@ import {
   LogOut, 
   Menu, 
   X,
-  User
+  User,
+  Truck,
+  FileText,
+  RotateCcw,
+  TrendingUp,
+  HelpCircle
 } from 'lucide-react';
 import axios from 'axios';
 
@@ -51,7 +56,13 @@ export default function AdminLayout() {
     { name: 'Dashboard', path: '/admin/dashboard', icon: LayoutDashboard },
     { name: 'Dealers', path: '/admin/dealers', icon: Users },
     { name: 'Products', path: '/admin/products', icon: ShoppingBag },
-    { name: 'Inventory & Transfers', path: '/admin/inventory', icon: Warehouse },
+    { name: 'Warehouse Stock', path: '/admin/inventory', icon: Warehouse },
+    { name: 'Stock Dispatches', path: '/admin/transfers', icon: Truck },
+    { name: 'Order Requests', path: '/admin/requests', icon: FileText },
+    { name: 'Returns Log', path: '/admin/returns', icon: RotateCcw },
+    { name: 'Services / Tickets', path: '/admin/services', icon: HelpCircle },
+    { name: 'CRM Reports', path: '/admin/reports', icon: BarChart3 },
+    { name: 'Production Forecasting', path: '/admin/forecasting', icon: TrendingUp },
     { name: 'Analytics', path: '/admin/analytics', icon: BarChart3 },
     { name: 'Notifications', path: '/admin/notifications', icon: Bell, badge: unreadNotifications },
   ];

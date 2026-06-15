@@ -20,7 +20,7 @@ exports.createInvoice = async (req, res, next) => {
       return res.status(403).json({ success: false, message: 'Only dealers can generate invoices' });
     }
 
-    const { storeId, storeName, items, notes, isGstEnabled = true } = req.body; // items: [{ productId, quantity, marginPct }]
+    const { storeId, storeName, items, notes, isGstEnabled = true, shippingCharges = 0 } = req.body; // items: [{ productId, quantity, marginPct }]
     const dealerId = req.user.dealer.id;
 
     if (!items || items.length === 0) {
@@ -62,7 +62,7 @@ exports.createInvoice = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Target Store/Outlet not selected or created' });
     }
 
-    // 2. Load dealer inventory & products to verify stock
+    // 2. Load dealer inventory & products to verify products exist
     const invoiceItemsDetails = [];
     let calculatedSubtotal = 0;
     let calculatedGstTotal = 0;
@@ -73,20 +73,6 @@ exports.createInvoice = async (req, res, next) => {
       });
       if (!product || !product.isActive) {
         return res.status(404).json({ success: false, message: `Product not found: ${item.productId}` });
-      }
-
-      // Check dealer stock
-      const dealerStock = await prisma.dealerInventory.findUnique({
-        where: {
-          dealerId_productId: { dealerId, productId: item.productId }
-        }
-      });
-
-      if (!dealerStock || dealerStock.quantity < item.quantity) {
-        return res.status(400).json({
-          success: false,
-          message: `Insufficient stock for product ${product.name}. Available: ${dealerStock ? dealerStock.quantity : 0}`
-        });
       }
 
       // Determine margin percentage
@@ -131,7 +117,7 @@ exports.createInvoice = async (req, res, next) => {
       });
     }
 
-    const calculatedGrandTotal = calculatedSubtotal + calculatedGstTotal;
+    const calculatedGrandTotal = calculatedSubtotal + calculatedGstTotal + parseFloat(shippingCharges || 0);
 
     // 3. Execute invoice generation in single secure Transaction
     const invoice = await prisma.$transaction(async (tx) => {
@@ -144,7 +130,7 @@ exports.createInvoice = async (req, res, next) => {
 
       const invoiceNo = `${seq.prefix}-${String(seq.lastNumber).padStart(5, '0')}`;
 
-      // B. Create Invoice
+      // B. Create Invoice as OPEN
       const inv = await tx.invoice.create({
         data: {
           invoiceNo,
@@ -156,7 +142,8 @@ exports.createInvoice = async (req, res, next) => {
           sgst: isGstEnabled ? (calculatedGstTotal / 2) : 0,
           isGstEnabled: !!isGstEnabled,
           totalAmount: calculatedGrandTotal,
-          status: 'GENERATED',
+          shippingCharges: parseFloat(shippingCharges || 0),
+          status: 'OPEN',
           notes,
           items: {
             create: invoiceItemsDetails
@@ -171,11 +158,85 @@ exports.createInvoice = async (req, res, next) => {
         }
       });
 
-      // C. Decrement Dealer Stock & Record Movement
-      for (const item of invoiceItemsDetails) {
+      // D. Send Notification to Admin & Dealer
+      await tx.notification.create({
+        data: {
+          userId: req.user.id,
+          type: 'INVOICE_GENERATED',
+          title: 'Invoice Created (Open)',
+          message: `Invoice ${invoiceNo} created as OPEN for ${store.name}. Total amount: ₹${calculatedGrandTotal.toFixed(2)}`,
+          metadata: { invoiceId: inv.id }
+        }
+      });
+
+      return inv;
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Invoice created successfully as OPEN',
+      data: invoice
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.closeInvoice = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const dealerId = req.user.dealer?.id;
+
+    if (!dealerId && req.user.role !== 'ADMIN') {
+      return res.status(403).json({ success: false, message: 'Unauthorized' });
+    }
+
+    const invoice = await prisma.invoice.findUnique({
+      where: { id },
+      include: {
+        items: {
+          include: { product: true }
+        },
+        store: true,
+        dealer: true
+      }
+    });
+
+    if (!invoice) {
+      return res.status(404).json({ success: false, message: 'Invoice not found' });
+    }
+
+    // Verify ownership
+    if (req.user.role === 'DEALER' && invoice.dealerId !== dealerId) {
+      return res.status(403).json({ success: false, message: 'Unauthorized' });
+    }
+
+    if (invoice.status !== 'OPEN') {
+      return res.status(400).json({ success: false, message: `Invoice is already ${invoice.status}` });
+    }
+
+    // Verify stock levels for all items first
+    for (const item of invoice.items) {
+      const dealerStock = await prisma.dealerInventory.findUnique({
+        where: {
+          dealerId_productId: { dealerId: invoice.dealerId, productId: item.productId }
+        }
+      });
+
+      if (!dealerStock || dealerStock.quantity < item.quantity) {
+        return res.status(400).json({
+          success: false,
+          message: `Insufficient stock for product ${item.product.name}. Available: ${dealerStock ? dealerStock.quantity : 0}`
+        });
+      }
+    }
+
+    // Process stock deduction in a transaction
+    const updatedInvoice = await prisma.$transaction(async (tx) => {
+      for (const item of invoice.items) {
         const dealerStock = await tx.dealerInventory.findUnique({
           where: {
-            dealerId_productId: { dealerId, productId: item.productId }
+            dealerId_productId: { dealerId: invoice.dealerId, productId: item.productId }
           }
         });
 
@@ -189,35 +250,106 @@ exports.createInvoice = async (req, res, next) => {
             productId: item.productId,
             type: 'OUT',
             quantity: item.quantity,
-            referenceId: inv.id,
-            notes: `Billed to store: ${store.name} in Invoice ${invoiceNo}`
+            referenceId: invoice.id,
+            notes: `Billed to store: ${invoice.store ? invoice.store.name : 'Store'} in Invoice ${invoice.invoiceNo}`
           }
         });
       }
 
-      // D. Send Notification to Admin & Dealer
+      const inv = await tx.invoice.update({
+        where: { id },
+        data: { status: 'CLOSED' },
+        include: {
+          items: {
+            include: { product: true }
+          },
+          dealer: {
+            include: { user: true }
+          },
+          store: true
+        }
+      });
+
       await tx.notification.create({
         data: {
           userId: req.user.id,
           type: 'INVOICE_GENERATED',
-          title: 'Invoice Generated',
-          message: `Invoice ${invoiceNo} generated for ${store.name}. Total amount: ₹${calculatedGrandTotal.toFixed(2)}`,
-          metadata: { invoiceId: inv.id }
+          title: 'Invoice Closed',
+          message: `Invoice ${invoice.invoiceNo} has been CLOSED and stock deducted.`,
+          metadata: { invoiceId: invoice.id }
         }
       });
 
       return inv;
     });
 
-    res.status(201).json({
+    res.json({
       success: true,
-      message: 'Invoice created successfully',
-      data: invoice
+      message: 'Invoice closed and stock updated successfully',
+      data: updatedInvoice
     });
   } catch (error) {
     next(error);
   }
 };
+
+exports.deleteInvoice = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const dealerId = req.user.dealer?.id;
+
+    if (!dealerId && req.user.role !== 'ADMIN') {
+      return res.status(403).json({ success: false, message: 'Unauthorized' });
+    }
+
+    const invoice = await prisma.invoice.findUnique({
+      where: { id }
+    });
+
+    if (!invoice) {
+      return res.status(404).json({ success: false, message: 'Invoice not found' });
+    }
+
+    // Verify ownership
+    if (req.user.role === 'DEALER' && invoice.dealerId !== dealerId) {
+      return res.status(403).json({ success: false, message: 'Unauthorized' });
+    }
+
+    if (invoice.status !== 'OPEN') {
+      return res.status(400).json({ success: false, message: 'Only OPEN invoices can be deleted' });
+    }
+
+    await prisma.$transaction(async (tx) => {
+      // Delete invoice items
+      await tx.invoiceItem.deleteMany({
+        where: { invoiceId: id }
+      });
+
+      // Delete invoice
+      await tx.invoice.delete({
+        where: { id }
+      });
+
+      await tx.auditLog.create({
+        data: {
+          userId: req.user.id,
+          action: 'DELETE_INVOICE',
+          entity: 'Invoice',
+          entityId: id,
+          newValues: { invoiceNo: invoice.invoiceNo }
+        }
+      });
+    });
+
+    res.json({
+      success: true,
+      message: 'Invoice deleted successfully'
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 
 exports.getInvoices = async (req, res, next) => {
   try {
@@ -236,7 +368,9 @@ exports.getInvoices = async (req, res, next) => {
       where,
       include: {
         store: true,
-        dealer: true,
+        dealer: {
+          include: { user: true }
+        },
         items: {
           include: { product: true }
         }
@@ -258,7 +392,9 @@ exports.getInvoiceById = async (req, res, next) => {
       where: { id },
       include: {
         store: true,
-        dealer: true,
+        dealer: {
+          include: { user: true }
+        },
         items: {
           include: { product: true }
         }
@@ -288,7 +424,9 @@ exports.downloadPdf = async (req, res, next) => {
       where: { id },
       include: {
         store: true,
-        dealer: true,
+        dealer: {
+          include: { user: true }
+        },
         items: {
           include: { product: true }
         }

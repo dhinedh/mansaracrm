@@ -15,7 +15,10 @@ import {
   X,
   User,
   ShoppingCart,
-  Truck
+  Truck,
+  FileText,
+  RotateCcw,
+  HelpCircle
 } from 'lucide-react';
 import axios from 'axios';
 
@@ -53,12 +56,15 @@ export default function DealerLayout() {
 
   const menuItems = [
     { name: 'Dashboard', path: '/dealer/dashboard', icon: LayoutDashboard },
-    { name: 'Warehouse Shipments', path: '/dealer/transfers', icon: Truck },
+    { name: 'My Ledgers', path: '/dealer/ledgers', icon: Receipt },
+    { name: 'Order Requests', path: '/dealer/requests', icon: FileText },
+    { name: 'Returns Log', path: '/dealer/returns', icon: RotateCcw },
+    { name: 'Services / Tickets', path: '/dealer/services', icon: HelpCircle },
     { name: 'My Shops', path: '/dealer/stores', icon: Store },
     { name: 'Browse Products', path: '/dealer/products', icon: ShoppingBag },
     { name: 'Cart / Bill Builder', path: '/dealer/cart', icon: ShoppingCart, badge: items.length },
-    { name: 'Invoices History', path: '/dealer/invoices', icon: Receipt },
     { name: 'My Analytics', path: '/dealer/analytics', icon: BarChart3 },
+    { name: 'Billing Profile', path: '/dealer/profile', icon: User },
     { name: 'Notifications', path: '/dealer/notifications', icon: Bell, badge: unreadNotifications },
   ];
 

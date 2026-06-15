@@ -73,7 +73,9 @@ const DealerSchema = new Schema({
   creditLimit: { type: Number },
   initialDeposit: { type: Number, default: 0 },
   categories: [{ type: Schema.Types.ObjectId, ref: 'Category' }],
-  notes: { type: String }
+  notes: { type: String },
+  logoBase64: { type: String },
+  logoUrl: { type: String }
 }, {
   timestamps: true,
   toJSON: { virtuals: true },
@@ -276,6 +278,7 @@ StockMovementSchema.virtual('product', {
 const StockTransferSchema = new Schema({
   transferNo: { type: String, unique: true, required: true },
   dealerId: { type: Schema.Types.ObjectId, ref: 'Dealer', required: true },
+  invoiceId: { type: Schema.Types.ObjectId, ref: 'Invoice' },
   status: { type: String, enum: ['PENDING', 'IN_TRANSIT', 'DELIVERED', 'CANCELLED', 'DISCREPANCY'], default: 'PENDING' },
   notes: { type: String },
   shippedAt: { type: Date },
@@ -306,6 +309,7 @@ const StockTransferItemSchema = new Schema({
   productId: { type: Schema.Types.ObjectId, ref: 'Product', required: true },
   quantity: { type: Number, required: true },
   unitPrice: { type: Number, required: true },
+  marginPct: { type: Number, default: 0 },
   receivedQuantity: { type: Number },
   hasDiscrepancy: { type: Boolean, default: false },
   discrepancyComment: { type: String, default: '' }
@@ -405,7 +409,8 @@ MarginSchema.virtual('product', {
 const InvoiceSchema = new Schema({
   invoiceNo: { type: String, unique: true, required: true },
   dealerId: { type: Schema.Types.ObjectId, ref: 'Dealer', required: true },
-  storeId: { type: Schema.Types.ObjectId, ref: 'Store', required: true },
+  storeId: { type: Schema.Types.ObjectId, ref: 'Store' },
+  channel: { type: String, enum: ['B2B', 'WEBSITE', 'E_COMMERCE'], default: 'B2B' },
   subtotal: { type: Number, required: true },
   totalDiscount: { type: Number, default: 0 },
   totalGst: { type: Number, required: true },
@@ -413,7 +418,8 @@ const InvoiceSchema = new Schema({
   sgst: { type: Number, default: 0 },
   isGstEnabled: { type: Boolean, default: true },
   totalAmount: { type: Number, required: true },
-  status: { type: String, enum: ['DRAFT', 'GENERATED', 'PAID', 'CANCELLED'], default: 'DRAFT' },
+  shippingCharges: { type: Number, default: 0 },
+  status: { type: String, enum: ['DRAFT', 'GENERATED', 'PAID', 'CANCELLED', 'OPEN', 'CLOSED'], default: 'OPEN' },
   pdfUrl: { type: String },
   notes: { type: String },
   dueDate: { type: Date },
@@ -529,6 +535,106 @@ const InvoiceSequenceSchema = new Schema({
   toObject: { virtuals: true }
 });
 
+// Lead
+const LeadSchema = new Schema({
+  name: { type: String, required: true },
+  companyName: { type: String, required: true },
+  phone: { type: String, required: true },
+  email: { type: String, required: true },
+  status: { type: String, enum: ['PENDING', 'CONVERTED', 'LOST'], default: 'PENDING' },
+  notes: { type: String }
+}, {
+  timestamps: true,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
+});
+
+// Visit
+const VisitSchema = new Schema({
+  leadId: { type: Schema.Types.ObjectId, ref: 'Lead' },
+  dealerId: { type: Schema.Types.ObjectId, ref: 'Dealer' },
+  visitorName: { type: String, required: true },
+  purpose: { type: String, required: true },
+  outcome: { type: String, required: true },
+  date: { type: Date, default: Date.now }
+}, {
+  timestamps: true,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
+});
+
+// Sample
+const SampleSchema = new Schema({
+  leadId: { type: Schema.Types.ObjectId, ref: 'Lead' },
+  dealerId: { type: Schema.Types.ObjectId, ref: 'Dealer' },
+  products: [{
+    productId: { type: Schema.Types.ObjectId, ref: 'Product', required: true },
+    quantity: { type: Number, required: true }
+  }],
+  status: { type: String, enum: ['PENDING', 'CONVERTED', 'REJECTED'], default: 'PENDING' }
+}, {
+  timestamps: true,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
+});
+
+// Return
+const ReturnSchema = new Schema({
+  returnNo: { type: String, unique: true, required: true },
+  dealerId: { type: Schema.Types.ObjectId, ref: 'Dealer', required: true },
+  invoiceId: { type: Schema.Types.ObjectId, ref: 'Invoice' },
+  transferId: { type: Schema.Types.ObjectId, ref: 'StockTransfer' },
+  type: { type: String, enum: ['DEALER_TO_WAREHOUSE', 'STORE_TO_DEALER'], required: true },
+  items: [{
+    productId: { type: Schema.Types.ObjectId, ref: 'Product', required: true },
+    quantity: { type: Number, required: true },
+    reason: { type: String, default: 'Defective/Return' }
+  }],
+  status: { type: String, enum: ['PENDING', 'APPROVED', 'REJECTED'], default: 'PENDING' },
+  notes: { type: String }
+}, {
+  timestamps: true,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
+});
+
+// StockRequest (Dealer Order Requests)
+const StockRequestSchema = new Schema({
+  requestNo: { type: String, unique: true, required: true },
+  dealerId: { type: Schema.Types.ObjectId, ref: 'Dealer', required: true },
+  items: [{
+    productId: { type: Schema.Types.ObjectId, ref: 'Product', required: true },
+    quantity: { type: Number, required: true }
+  }],
+  status: { type: String, enum: ['PENDING', 'DISPATCHED', 'CANCELLED'], default: 'PENDING' },
+  notes: { type: String }
+}, {
+  timestamps: true,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
+});
+
+// ComplaintTicket
+const ComplaintTicketSchema = new Schema({
+  ticketNo: { type: String, unique: true, required: true },
+  userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+  subject: { type: String, required: true },
+  category: { type: String, enum: ['DELIVERY', 'BILLING', 'QUALITY', 'OTHER'], default: 'OTHER' },
+  priority: { type: String, enum: ['LOW', 'MEDIUM', 'HIGH'], default: 'MEDIUM' },
+  status: { type: String, enum: ['OPEN', 'IN_PROGRESS', 'RESOLVED'], default: 'OPEN' },
+  description: { type: String, required: true },
+  replies: [{
+    userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+    userName: { type: String, required: true },
+    message: { type: String, required: true },
+    createdAt: { type: Date, default: Date.now }
+  }]
+}, {
+  timestamps: true,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
+});
+
 // Compile Models
 const User = mongoose.model('User', UserSchema, 'users');
 const Dealer = mongoose.model('Dealer', DealerSchema, 'dealers');
@@ -546,6 +652,12 @@ const InvoiceItem = mongoose.model('InvoiceItem', InvoiceItemSchema, 'invoice_it
 const Notification = mongoose.model('Notification', NotificationSchema, 'notifications');
 const AuditLog = mongoose.model('AuditLog', AuditLogSchema, 'audit_logs');
 const InvoiceSequence = mongoose.model('InvoiceSequence', InvoiceSequenceSchema, 'invoice_sequence');
+const Lead = mongoose.model('Lead', LeadSchema, 'leads');
+const Visit = mongoose.model('Visit', VisitSchema, 'visits');
+const Sample = mongoose.model('Sample', SampleSchema, 'samples');
+const Return = mongoose.model('Return', ReturnSchema, 'returns');
+const StockRequest = mongoose.model('StockRequest', StockRequestSchema, 'stock_requests');
+const ComplaintTicket = mongoose.model('ComplaintTicket', ComplaintTicketSchema, 'complaint_tickets');
 
 // ─────────────────────────────────────────────
 // PRISMA COMPATIBILITY WRAPPER LAYER
@@ -1137,6 +1249,12 @@ const prisma = {
   notification: new PrismaCollectionWrapper('Notification'),
   auditLog: new PrismaCollectionWrapper('AuditLog'),
   invoiceSequence: new PrismaCollectionWrapper('InvoiceSequence'),
+  lead: new PrismaCollectionWrapper('Lead'),
+  visit: new PrismaCollectionWrapper('Visit'),
+  sample: new PrismaCollectionWrapper('Sample'),
+  return: new PrismaCollectionWrapper('Return'),
+  stockRequest: new PrismaCollectionWrapper('StockRequest'),
+  complaintTicket: new PrismaCollectionWrapper('ComplaintTicket'),
 
   $transaction: async (fn) => {
     // Run transactions sequentially on standalone local MongoDB instances

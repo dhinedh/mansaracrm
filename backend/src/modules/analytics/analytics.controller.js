@@ -3,7 +3,53 @@ const prisma = require('../../config/database');
 
 exports.getAdminAnalytics = async (req, res, next) => {
   try {
-    // 1. Total revenue stats
+    // 1. Core time boundaries
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+
+    const endOfToday = new Date();
+    endOfToday.setHours(23, 59, 59, 999);
+
+    // 2. Daily metrics
+    // Today's sales (all invoices generated today)
+    const todayInvoices = await prisma.invoice.findMany({
+      where: {
+        createdAt: { gte: startOfToday, lte: endOfToday },
+        status: { in: ['GENERATED', 'PAID', 'OPEN', 'CLOSED'] }
+      }
+    });
+    const todaySales = todayInvoices.reduce((acc, inv) => acc + parseFloat(inv.totalAmount || 0), 0);
+
+    // Today's collections received (invoices marked PAID today)
+    const todayPaidInvoices = await prisma.invoice.findMany({
+      where: {
+        paidAt: { gte: startOfToday, lte: endOfToday },
+        status: 'PAID'
+      }
+    });
+    const collectionsReceived = todayPaidInvoices.reduce((acc, inv) => acc + parseFloat(inv.totalAmount || 0), 0);
+
+    // Today's orders received (count of dealer stock requests today + invoices today)
+    const todayRequestsCount = await prisma.stockRequest.count({
+      where: {
+        createdAt: { gte: startOfToday, lte: endOfToday }
+      }
+    });
+    const ordersReceived = todayInvoices.length + todayRequestsCount;
+
+    // Dispatch pending count
+    const dispatchPending = await prisma.stockTransfer.count({
+      where: { status: 'PENDING' }
+    });
+
+    // 3. Financial metrics
+    // Outstanding amount (unpaid invoices)
+    const outstandingInvoices = await prisma.invoice.findMany({
+      where: { status: { in: ['GENERATED', 'OPEN'] } }
+    });
+    const outstandingAmount = outstandingInvoices.reduce((acc, inv) => acc + parseFloat(inv.totalAmount || 0), 0);
+
+    // Total sales stats
     const totalSales = await prisma.invoice.aggregate({
       _sum: {
         totalAmount: true,
@@ -11,28 +57,30 @@ exports.getAdminAnalytics = async (req, res, next) => {
         totalGst: true
       },
       where: {
-        status: 'GENERATED'
+        status: { in: ['GENERATED', 'PAID', 'CLOSED', 'OPEN'] }
       }
     });
+    const revenue = parseFloat(totalSales._sum.totalAmount || 0);
+    const profitEstimate = revenue * 0.15; // 15% estimated profit margin
 
-    // 2. Zone-wise/Area-wise sales distribution
-    // Group invoices by dealer state/zone
+    // 4. Zone-wise/Area-wise sales distribution
     const invoices = await prisma.invoice.findMany({
-      where: { status: 'GENERATED' },
-      include: {
-        dealer: true
-      }
+      where: { status: { in: ['GENERATED', 'PAID', 'CLOSED', 'OPEN'] } },
+      include: { dealer: true }
     });
 
     const zoneSales = {};
-    const zonePlayers = {}; // { zoneName: [{ companyName, totalAmount }] }
+    const zonePlayers = {}; 
     const areaSales = {};
+    const channelSales = { B2B: 0, WEBSITE: 0, E_COMMERCE: 0 };
+
     invoices.forEach(inv => {
       const dealerZones = (inv.dealer.zones && inv.dealer.zones.length > 0)
         ? inv.dealer.zones
         : (inv.dealer.zone ? [inv.dealer.zone] : ['Unknown']);
       const area = inv.dealer.area || 'Unknown';
       const amt = parseFloat(inv.totalAmount);
+      const chan = inv.channel || 'B2B';
 
       dealerZones.forEach(zone => {
         zoneSales[zone] = (zoneSales[zone] || 0) + amt;
@@ -42,9 +90,9 @@ exports.getAdminAnalytics = async (req, res, next) => {
       });
 
       areaSales[area] = (areaSales[area] || 0) + amt;
+      channelSales[chan] = (channelSales[chan] || 0) + amt;
     });
 
-    // Build zone-wise dealer count + players list
     const zoneData = Object.keys(zoneSales).map(name => ({
       name,
       value: zoneSales[name],
@@ -52,46 +100,41 @@ exports.getAdminAnalytics = async (req, res, next) => {
       players: Object.entries(zonePlayers[name] || {}).map(([co, rev]) => ({ companyName: co, revenue: rev }))
     }));
     const areaData = Object.keys(areaSales).map(name => ({ name, value: areaSales[name] }));
+    const channelData = Object.keys(channelSales).map(name => ({ name, value: channelSales[name] }));
 
-
-    // 3. Dealer performance (Top dealers by revenue)
+    // 5. Performance Rankings (Distributor vs Retailer)
     const dealerPerformanceRaw = await prisma.invoice.groupBy({
       by: ['dealerId'],
-      _sum: {
-        totalAmount: true
-      },
-      where: { status: 'GENERATED' },
-      orderBy: {
-        _sum: {
-          totalAmount: 'desc'
-        }
-      },
-      take: 10
+      _sum: { totalAmount: true },
+      where: { status: { in: ['GENERATED', 'PAID', 'CLOSED', 'OPEN'] } },
+      orderBy: { _sum: { totalAmount: 'desc' } }
     });
 
     const dealerPerformance = [];
+    const distributorPerformance = [];
+
     for (const item of dealerPerformanceRaw) {
       const dealer = await prisma.dealer.findUnique({ where: { id: item.dealerId } });
       if (dealer) {
-        dealerPerformance.push({
+        const perfData = {
           dealerId: item.dealerId,
           companyName: dealer.companyName,
+          dealerType: dealer.dealerType,
           totalAmount: parseFloat(item._sum.totalAmount)
-        });
+        };
+        if (['DISTRIBUTOR', 'SUPER_DISTRIBUTOR'].includes(dealer.dealerType)) {
+          distributorPerformance.push(perfData);
+        } else {
+          dealerPerformance.push(perfData);
+        }
       }
     }
 
-    // 4. Product movement (fast/slow movers based on quantity in stock transfer items)
+    // 6. Fast & Slow Movers (Warehouse Transfers log)
     const productTransfers = await prisma.stockTransferItem.groupBy({
       by: ['productId'],
-      _sum: {
-        quantity: true
-      },
-      orderBy: {
-        _sum: {
-          quantity: 'desc'
-        }
-      }
+      _sum: { quantity: true },
+      orderBy: { _sum: { quantity: 'desc' } }
     });
 
     const productMovement = [];
@@ -107,34 +150,77 @@ exports.getAdminAnalytics = async (req, res, next) => {
       }
     }
 
-    // 5. Total count KPIs
+    // If no transfers yet, fallback to all active products with 0
+    if (productMovement.length === 0) {
+      const allProds = await prisma.product.findMany({ where: { isActive: true }, take: 10 });
+      allProds.forEach(p => {
+        productMovement.push({
+          productId: p.id,
+          name: p.name,
+          sku: p.sku,
+          quantityTransferred: 0
+        });
+      });
+    }
+
+    const fastMovers = productMovement.slice(0, 5);
+    const slowMovers = [...productMovement].reverse().slice(0, 5);
+
+    // 7. Core Counts
     const totalDealers = await prisma.dealer.count();
     const activeDealers = await prisma.user.count({ where: { role: 'DEALER', isActive: true } });
     const totalProducts = await prisma.product.count({ where: { isActive: true } });
     const totalInvoices = await prisma.invoice.count();
 
+    // 8. Lead and Visit metrics (for CRM Reports conversion)
+    const totalLeads = await prisma.lead.count();
+    const convertedLeads = await prisma.lead.count({ where: { status: 'CONVERTED' } });
+    const leadConversionRate = totalLeads > 0 ? (convertedLeads / totalLeads) * 100 : 0;
+    const totalVisits = await prisma.visit.count();
+    const totalSamples = await prisma.sample.count();
+
     res.json({
       success: true,
       data: {
         kpis: {
-          totalRevenue: parseFloat(totalSales._sum.totalAmount || 0),
+          totalRevenue: revenue,
           totalSubtotal: parseFloat(totalSales._sum.subtotal || 0),
           totalGst: parseFloat(totalSales._sum.totalGst || 0),
           totalDealers,
           activeDealers,
           totalProducts,
-          totalInvoices
+          totalInvoices,
+          // Daily Stats
+          todaySales,
+          ordersReceived,
+          dispatchPending,
+          collectionsReceived,
+          // Financial Stats
+          outstandingAmount,
+          revenue,
+          profitEstimate
         },
         zoneSales: zoneData,
         areaSales: areaData,
-        dealerPerformance,
-        productMovement
+        channelSales: channelData,
+        dealerPerformance: dealerPerformance.slice(0, 10),
+        distributorPerformance: distributorPerformance.slice(0, 10),
+        fastMovers,
+        slowMovers,
+        crmStats: {
+          totalLeads,
+          convertedLeads,
+          leadConversionRate,
+          totalVisits,
+          totalSamples
+        }
       }
     });
   } catch (error) {
     next(error);
   }
 };
+
 
 exports.getDealerAnalytics = async (req, res, next) => {
   try {
@@ -150,7 +236,7 @@ exports.getDealerAnalytics = async (req, res, next) => {
       },
       where: {
         dealerId,
-        status: 'GENERATED'
+        status: { in: ['GENERATED', 'PAID', 'CLOSED', 'OPEN'] }
       }
     });
 
@@ -164,7 +250,7 @@ exports.getDealerAnalytics = async (req, res, next) => {
       where: {
         invoice: {
           dealerId,
-          status: 'GENERATED'
+          status: { in: ['GENERATED', 'PAID', 'CLOSED', 'OPEN'] }
         }
       },
       orderBy: {
@@ -205,7 +291,7 @@ exports.getDealerAnalytics = async (req, res, next) => {
       },
       where: {
         dealerId,
-        status: 'GENERATED'
+        status: { in: ['GENERATED', 'PAID', 'CLOSED', 'OPEN'] }
       },
       orderBy: {
         _sum: {

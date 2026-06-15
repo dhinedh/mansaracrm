@@ -52,6 +52,105 @@ export default function DealersPage() {
   const [pwLoading, setPwLoading] = useState(false);
   const [pwMessage, setPwMessage] = useState({ text: '', type: '' });
 
+  // Edit Profile States
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editCompanyName, setEditCompanyName] = useState('');
+  const [editGstNumber, setEditGstNumber] = useState('');
+  const [editAddress, setEditAddress] = useState('');
+  const [editCity, setEditCity] = useState('');
+  const [editState, setEditState] = useState('');
+  const [editPincode, setEditPincode] = useState('');
+  const [editZones, setEditZones] = useState([]);
+  const [editZoneInput, setEditZoneInput] = useState('');
+  const [editArea, setEditArea] = useState('');
+  const [editPhone, setEditPhone] = useState('');
+  const [editDealerType, setEditDealerType] = useState('RETAIL');
+  const [editDealerCategory, setEditDealerCategory] = useState('STARTER');
+  const [editCreditLimit, setEditCreditLimit] = useState('');
+  const [editInitialDeposit, setEditInitialDeposit] = useState('');
+  const [editCategories, setEditCategories] = useState([]);
+  const [editNotes, setEditNotes] = useState('');
+  const [editLoading, setEditLoading] = useState(false);
+  const [editError, setEditError] = useState('');
+
+  const startEditing = () => {
+    setEditName(dealerDetail.user?.name || '');
+    setEditCompanyName(dealerDetail.companyName || '');
+    setEditGstNumber(dealerDetail.gstNumber || '');
+    setEditAddress(dealerDetail.address || '');
+    setEditCity(dealerDetail.city || '');
+    setEditState(dealerDetail.state || '');
+    setEditPincode(dealerDetail.pincode || '');
+    setEditZones(dealerDetail.zones || []);
+    setEditZoneInput('');
+    setEditArea(dealerDetail.area || '');
+    setEditPhone(dealerDetail.phone || '');
+    setEditDealerType(dealerDetail.dealerType || 'RETAIL');
+    setEditDealerCategory(dealerDetail.dealerCategory || 'STARTER');
+    setEditCreditLimit(dealerDetail.creditLimit || '');
+    setEditInitialDeposit(dealerDetail.initialDeposit || '');
+    setEditCategories(dealerDetail.categories || []);
+    setEditNotes(dealerDetail.notes || '');
+    setEditError('');
+    setIsEditingProfile(true);
+    fetchCategories();
+  };
+
+  const handleUpdateDealer = async (e) => {
+    e.preventDefault();
+    setEditLoading(true);
+    setEditError('');
+    try {
+      const res = await axios.put(`/dealers/${dealerDetail.id}`, {
+        name: editName,
+        companyName: editCompanyName,
+        gstNumber: editGstNumber,
+        address: editAddress,
+        city: editCity,
+        state: editState,
+        pincode: editPincode,
+        zones: editZones,
+        area: editArea,
+        phone: editPhone,
+        dealerType: editDealerType,
+        dealerCategory: editDealerCategory,
+        creditLimit: editCreditLimit ? parseFloat(editCreditLimit) : null,
+        initialDeposit: editInitialDeposit ? parseFloat(editInitialDeposit) : 0,
+        categories: editCategories,
+        notes: editNotes
+      });
+      if (res.data.success) {
+        setDealerDetail(res.data.data);
+        setIsEditingProfile(false);
+        fetchDealers(); // refresh main directory list
+      } else {
+        setEditError(res.data.message || 'Failed to update dealer');
+      }
+    } catch (err) {
+      console.error(err);
+      setEditError(err.response?.data?.message || 'Failed to update dealer details');
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
+  const addEditZone = (val) => {
+    const trimmed = val.trim();
+    if (trimmed && !editZones.includes(trimmed)) {
+      setEditZones(prev => [...prev, trimmed]);
+    }
+    setEditZoneInput('');
+  };
+
+  const removeEditZone = (z) => setEditZones(prev => prev.filter(x => x !== z));
+
+  const toggleEditCategory = (id) => {
+    setEditCategories(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    );
+  };
+
   const fetchDealerDetail = async (id) => {
     setDetailLoading(true);
     setSelectedDealerId(id);
@@ -670,7 +769,15 @@ export default function DealersPage() {
                 )}
               </div>
               <button 
-                onClick={() => { setShowDetailModal(false); setDealerDetail(null); setPwNew(''); setPwConfirm(''); setPwMessage({ text: '', type: '' }); }}
+                onClick={() => { 
+                  setShowDetailModal(false); 
+                  setDealerDetail(null); 
+                  setPwNew(''); 
+                  setPwConfirm(''); 
+                  setPwMessage({ text: '', type: '' }); 
+                  setIsEditingProfile(false);
+                  setEditError('');
+                }}
                 className="text-slate-400 hover:text-slate-600 p-1.5 hover:bg-slate-100 rounded-lg transition-colors"
               >
                 <XCircle className="w-5 h-5" />
@@ -727,272 +834,432 @@ export default function DealersPage() {
                   {/* Tab 1: Profile Info */}
                   {activeTab === 'profile' && (
                     <div className="space-y-6 text-xs animate-fade-in">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        
-                        {/* Box 1: Owner & Contact details */}
-                        <div className="bg-slate-50 border border-slate-200/60 rounded-xl p-5 space-y-4">
+                      {isEditingProfile ? (
+                        <form onSubmit={handleUpdateDealer} className="space-y-4 bg-slate-50 border border-slate-200/60 rounded-xl p-5">
                           <h4 className="font-black text-slate-800 text-xs flex items-center space-x-2 border-b border-slate-200/60 pb-2">
-                            <User className="w-4 h-4 text-rose-600" />
-                            <span>PRIMARY CONTACT DETAILS</span>
+                            <Building2 className="w-4 h-4 text-rose-600" />
+                            <span>EDIT DEALER PROFILE DETAILS</span>
                           </h4>
-                          <div className="grid grid-cols-3 gap-y-3">
-                            <span className="text-slate-400 font-medium">Full Name</span>
-                            <span className="col-span-2 text-slate-800 font-semibold">{dealerDetail.user?.name || 'N/A'}</span>
 
-                            <span className="text-slate-400 font-medium">Email Address</span>
-                            <span className="col-span-2 text-slate-800 font-semibold truncate">{dealerDetail.user?.email || 'N/A'}</span>
-
-                            <span className="text-slate-400 font-medium">Phone Number</span>
-                            <span className="col-span-2 text-slate-800 font-semibold">{dealerDetail.phone || 'N/A'}</span>
-                            
-                            <span className="text-slate-400 font-medium">Last Login</span>
-                            <span className="col-span-2 text-slate-800 font-semibold">
-                              {dealerDetail.user?.lastLogin ? new Date(dealerDetail.user.lastLogin).toLocaleString() : 'Never logged in'}
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Box 2: Billing & Location details */}
-                        <div className="bg-slate-50 border border-slate-200/60 rounded-xl p-5 space-y-4">
-                          <h4 className="font-black text-slate-800 text-xs flex items-center space-x-2 border-b border-slate-200/60 pb-2">
-                            <MapPin className="w-4 h-4 text-rose-600" />
-                            <span>OFFICE / BILLING ADDRESS</span>
-                          </h4>
-                          <div className="grid grid-cols-3 gap-y-3">
-                            <span className="text-slate-400 font-medium">Street Address</span>
-                            <span className="col-span-2 text-slate-800 font-semibold">{dealerDetail.address || 'N/A'}</span>
-
-                            <span className="text-slate-400 font-medium">City / Town</span>
-                            <span className="col-span-2 text-slate-800 font-semibold">{dealerDetail.city || 'N/A'}</span>
-
-                            <span className="text-slate-400 font-medium">State / Region</span>
-                            <span className="col-span-2 text-slate-800 font-semibold">{dealerDetail.state || 'N/A'}</span>
-
-                            <span className="text-slate-400 font-medium">Pincode</span>
-                            <span className="col-span-2 text-slate-800 font-semibold">{dealerDetail.pincode || 'N/A'}</span>
-                            
-                            <span className="text-slate-400 font-medium">Area / Landmark</span>
-                            <span className="col-span-2 text-slate-800 font-semibold">{dealerDetail.area || 'N/A'}</span>
-
-                            <span className="text-slate-400 font-medium">Zones</span>
-                            <span className="col-span-2">
-                              {dealerDetail.zones && dealerDetail.zones.length > 0 ? (
-                                <div className="flex flex-wrap gap-1.5">
-                                  {dealerDetail.zones.map(z => (
-                                    <span key={z} className="text-[10px] font-bold px-2.5 py-1 bg-rose-50 text-rose-700 rounded-lg border border-rose-100">{z}</span>
-                                  ))}
-                                </div>
-                              ) : (
-                                <span className="text-slate-500 font-semibold">No zones assigned</span>
-                              )}
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Box 3: Financial Details */}
-                        <div className="bg-slate-50 border border-slate-200/60 rounded-xl p-5 space-y-4">
-                          <h4 className="font-black text-slate-800 text-xs flex items-center space-x-2 border-b border-slate-200/60 pb-2">
-                            <CreditCard className="w-4 h-4 text-rose-600" />
-                            <span>FINANCIAL & GST INFO</span>
-                          </h4>
-                          <div className="grid grid-cols-3 gap-y-3">
-                            <span className="text-slate-400 font-medium">GST Identification</span>
-                            <span className="col-span-2 text-slate-800 font-semibold">{dealerDetail.gstNumber || 'N/A'}</span>
-
-                            <span className="text-slate-400 font-medium">Dealer Tier</span>
-                            <span className="col-span-2">
-                              {dealerDetail.dealerCategory ? (
-                                <span className={`text-[10px] font-black px-2.5 py-1 rounded-lg ${
-                                  dealerDetail.dealerCategory === 'SUPER' ? 'bg-purple-100 text-purple-700 border border-purple-200' :
-                                  dealerDetail.dealerCategory === 'PREMIUM' ? 'bg-amber-100 text-amber-700 border border-amber-200' :
-                                  dealerDetail.dealerCategory === 'GROWTH' ? 'bg-blue-100 text-blue-700 border border-blue-200' :
-                                  'bg-slate-100 text-slate-600 border border-slate-200'
-                                }`}>
-                                  {dealerDetail.dealerCategory === 'SUPER' ? '⭐ SUPER' : dealerDetail.dealerCategory === 'PREMIUM' ? '🥇 PREMIUM' : dealerDetail.dealerCategory === 'GROWTH' ? '📈 GROWTH' : '🌱 STARTER'}
-                                </span>
-                              ) : <span className="text-slate-500 font-semibold">Not assigned</span>}
-                            </span>
-
-                            <span className="text-slate-400 font-medium">Initial Deposit</span>
-                            <span className="col-span-2 text-slate-800 font-semibold">
-                              {dealerDetail.initialDeposit !== undefined && dealerDetail.initialDeposit !== null
-                                ? `₹${Number(dealerDetail.initialDeposit).toLocaleString('en-IN')}`
-                                : '₹0'}
-                            </span>
-
-                            <span className="text-slate-400 font-medium">Credit Limit</span>
-                            <span className="col-span-2 text-slate-800 font-semibold">
-                              {dealerDetail.creditLimit !== undefined && dealerDetail.creditLimit !== null
-                                ? `₹${Number(dealerDetail.creditLimit).toLocaleString('en-IN')}` 
-                                : 'No Credit Limit Set'}
-                            </span>
-
-                            <span className="text-slate-400 font-medium">Categories</span>
-                            <span className="col-span-2">
-                              {dealerDetail.categoryDetails && dealerDetail.categoryDetails.length > 0 ? (
-                                <div className="flex flex-wrap gap-1.5">
-                                  {dealerDetail.categoryDetails.map(cat => (
-                                    <span key={cat.id} className="text-[10px] font-bold px-2.5 py-1 bg-indigo-50 text-indigo-700 rounded-lg border border-indigo-100">{cat.name}</span>
-                                  ))}
-                                </div>
-                              ) : (
-                                <span className="text-slate-500 font-semibold">No categories assigned</span>
-                              )}
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Box 4: Metadata / System Log */}
-                        <div className="bg-slate-50 border border-slate-200/60 rounded-xl p-5 space-y-4">
-                          <h4 className="font-black text-slate-800 text-xs flex items-center space-x-2 border-b border-slate-200/60 pb-2">
-                            <Clock className="w-4 h-4 text-rose-600" />
-                            <span>VERIFICATION LOGS</span>
-                          </h4>
-                          <div className="grid grid-cols-3 gap-y-3">
-                            <span className="text-slate-400 font-medium">Registered on</span>
-                            <span className="col-span-2 text-slate-800 font-semibold">
-                              {dealerDetail.createdAt ? new Date(dealerDetail.createdAt).toLocaleDateString() : 'N/A'}
-                            </span>
-
-                            <span className="text-slate-400 font-medium">Approved on</span>
-                            <span className="col-span-2 text-slate-800 font-semibold">
-                              {dealerDetail.approvedAt ? new Date(dealerDetail.approvedAt).toLocaleString() : 'N/A'}
-                            </span>
-
-                            <span className="text-slate-400 font-medium">Approver User ID</span>
-                            <span className="col-span-2 text-slate-800 font-semibold truncate">{dealerDetail.approvedBy || 'N/A'}</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Notes Section */}
-                      <div className="bg-slate-50 border border-slate-200/60 rounded-xl p-5 space-y-2">
-                        <h4 className="font-black text-slate-800 text-xs border-b border-slate-200/60 pb-2">ADMIN NOTES / REMARKS</h4>
-                        <p className="text-slate-700 whitespace-pre-line leading-relaxed">
-                          {dealerDetail.notes || 'No administrative notes added to this profile yet.'}
-                        </p>
-                      </div>
-
-                      {/* Change Password Section */}
-                      <div className="bg-amber-50 border border-amber-200 rounded-xl p-5 space-y-4">
-                        <h4 className="font-black text-slate-800 text-xs flex items-center space-x-2 border-b border-amber-200 pb-2">
-                          <KeyRound className="w-4 h-4 text-amber-600" />
-                          <span>RESET DEALER PASSWORD</span>
-                        </h4>
-                        <p className="text-[10px] text-amber-700 font-medium">
-                          Set a new login password for <strong>{dealerDetail.companyName}</strong>. The dealer will be notified via their account.
-                        </p>
-
-                        {pwMessage.text && (
-                          <div className={`px-3 py-2.5 rounded-lg text-[11px] font-semibold flex items-center space-x-2 ${
-                            pwMessage.type === 'success'
-                              ? 'bg-emerald-50 border border-emerald-200 text-emerald-800'
-                              : 'bg-rose-50 border border-rose-200 text-rose-800'
-                          }`}>
-                            <span>{pwMessage.type === 'success' ? '✓' : '!'}</span>
-                            <span>{pwMessage.text}</span>
-                          </div>
-                        )}
-
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          <div>
-                            <label className="block text-[10px] font-bold text-slate-500 mb-1">New Password</label>
-                            <div className="relative">
-                              <input
-                                type={pwShowNew ? 'text' : 'password'}
-                                value={pwNew}
-                                onChange={e => { setPwNew(e.target.value); setPwMessage({ text: '', type: '' }); }}
-                                placeholder="Min. 6 characters"
-                                className="w-full pr-9 pl-3 py-2 text-xs bg-white border border-amber-200 focus:border-amber-400 rounded-lg focus:outline-none transition-all"
-                              />
-                              <button
-                                type="button"
-                                onClick={() => setPwShowNew(v => !v)}
-                                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                              >
-                                {pwShowNew ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                              </button>
+                          {editError && (
+                            <div className="px-4 py-2.5 bg-rose-50 border border-rose-200 text-rose-800 rounded-lg font-semibold mb-2">
+                              {editError}
                             </div>
-                            {/* Strength bar */}
-                            {pwNew.length > 0 && (
-                              <div className="mt-1.5 flex space-x-1">
-                                {[1,2,3,4].map(i => (
-                                  <div key={i} className={`h-1 flex-1 rounded-full transition-colors ${
-                                    pwNew.length >= i * 3
-                                      ? i <= 1 ? 'bg-rose-400'
-                                        : i <= 2 ? 'bg-amber-400'
-                                        : i <= 3 ? 'bg-blue-400'
-                                        : 'bg-emerald-500'
-                                      : 'bg-slate-200'
-                                  }`} />
-                                ))}
+                          )}
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-slate-500 font-bold mb-1">Company / Firm Name *</label>
+                              <input type="text" required value={editCompanyName} onChange={e => setEditCompanyName(e.target.value)} className="w-full p-2.5 bg-white border border-slate-200 focus:border-rose-500 rounded-xl focus:outline-none" />
+                            </div>
+                            <div>
+                              <label className="block text-slate-500 font-bold mb-1">GST Number</label>
+                              <input type="text" value={editGstNumber} onChange={e => setEditGstNumber(e.target.value)} className="w-full p-2.5 bg-white border border-slate-200 focus:border-rose-500 rounded-xl focus:outline-none" />
+                            </div>
+                            <div>
+                              <label className="block text-slate-500 font-bold mb-1">Dealer Contact Name *</label>
+                              <input type="text" required value={editName} onChange={e => setEditName(e.target.value)} className="w-full p-2.5 bg-white border border-slate-200 focus:border-rose-500 rounded-xl focus:outline-none" />
+                            </div>
+                            <div>
+                              <label className="block text-slate-500 font-bold mb-1">Phone Number *</label>
+                              <input type="text" required value={editPhone} onChange={e => setEditPhone(e.target.value)} className="w-full p-2.5 bg-white border border-slate-200 focus:border-rose-500 rounded-xl focus:outline-none" />
+                            </div>
+                            <div>
+                              <label className="block text-slate-500 font-bold mb-1">Dealer Type</label>
+                              <select value={editDealerType} onChange={e => setEditDealerType(e.target.value)} className="w-full p-2.5 bg-white border border-slate-200 focus:border-rose-500 rounded-xl focus:outline-none cursor-pointer">
+                                <option value="RETAIL">Retail</option>
+                                <option value="WHOLESALE">Wholesale</option>
+                                <option value="DISTRIBUTOR">Distributor</option>
+                                <option value="SUPER_DISTRIBUTOR">Super Distributor</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-slate-500 font-bold mb-1">Dealer Tier / Category *</label>
+                              <select value={editDealerCategory} onChange={e => setEditDealerCategory(e.target.value)} className="w-full p-2.5 bg-white border border-slate-200 focus:border-rose-500 rounded-xl focus:outline-none cursor-pointer">
+                                <option value="STARTER">Starter</option>
+                                <option value="GROWTH">Growth</option>
+                                <option value="PREMIUM">Premium</option>
+                                <option value="SUPER">Super</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-slate-500 font-bold mb-1">Credit Limit (₹)</label>
+                              <input type="number" min="0" step="0.01" value={editCreditLimit} onChange={e => setEditCreditLimit(e.target.value)} className="w-full p-2.5 bg-white border border-slate-200 focus:border-rose-500 rounded-xl focus:outline-none" placeholder="e.g. 50000" />
+                            </div>
+                            <div>
+                              <label className="block text-slate-500 font-bold mb-1">Initial Deposit (₹)</label>
+                              <input type="number" min="0" step="0.01" value={editInitialDeposit} onChange={e => setEditInitialDeposit(e.target.value)} className="w-full p-2.5 bg-white border border-slate-200 focus:border-rose-500 rounded-xl focus:outline-none" />
+                            </div>
+                          </div>
+
+                          {/* Zones Tag Builder */}
+                          <div>
+                            <label className="block text-slate-500 font-bold mb-2">Zones / Territories (add multiple)</label>
+                            <div className="border border-slate-200 rounded-xl bg-white p-2.5 min-h-[42px] flex flex-wrap gap-1.5 items-center focus-within:border-rose-500 transition-all">
+                              {editZones.map(z => (
+                                <span key={z} className="inline-flex items-center space-x-1 bg-rose-100 text-rose-700 font-bold text-[10px] px-2.5 py-1 rounded-lg">
+                                  <span>{z}</span>
+                                  <button type="button" onClick={() => removeEditZone(z)} className="text-rose-500 hover:text-rose-700 ml-0.5">
+                                    <X className="w-2.5 h-2.5" />
+                                  </button>
+                                </span>
+                              ))}
+                              <input
+                                type="text"
+                                value={editZoneInput}
+                                onChange={e => setEditZoneInput(e.target.value)}
+                                onKeyDown={e => {
+                                  if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addEditZone(editZoneInput); }
+                                }}
+                                onBlur={() => { if (editZoneInput.trim()) addEditZone(editZoneInput); }}
+                                placeholder={editZones.length === 0 ? "Type zone name, press Enter..." : "Add zone..."}
+                                className="flex-1 min-w-[140px] bg-transparent text-xs focus:outline-none text-slate-700 placeholder-slate-400"
+                              />
+                            </div>
+                          </div>
+
+                          {/* Category Multi-select */}
+                          <div>
+                            <label className="block text-slate-500 font-bold mb-2">Dealer Product Categories</label>
+                            <div className="flex flex-wrap gap-2">
+                              {categoryList.map(cat => (
+                                <button
+                                  key={cat.id}
+                                  type="button"
+                                  onClick={() => toggleEditCategory(cat.id)}
+                                  className={`text-[11px] font-bold px-3 py-1.5 rounded-lg border transition-all ${
+                                    editCategories.includes(cat.id)
+                                      ? 'bg-rose-600 text-white border-rose-600 shadow-sm'
+                                      : 'bg-white text-slate-600 border-slate-200 hover:border-rose-400 hover:text-rose-600'
+                                  }`}
+                                >
+                                  {editCategories.includes(cat.id) && '✓ '}{cat.name}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="block text-slate-500 font-bold mb-1">Street Address *</label>
+                            <textarea required value={editAddress} onChange={e => setEditAddress(e.target.value)} rows="2" className="w-full p-2.5 bg-white border border-slate-200 focus:border-rose-500 rounded-xl focus:outline-none"></textarea>
+                          </div>
+
+                          <div className="grid grid-cols-3 gap-4">
+                            <div>
+                              <label className="block text-slate-500 font-bold mb-1">City</label>
+                              <input type="text" value={editCity} onChange={e => setEditCity(e.target.value)} className="w-full p-2.5 bg-white border border-slate-200 focus:border-rose-500 rounded-xl focus:outline-none" />
+                            </div>
+                            <div>
+                              <label className="block text-slate-500 font-bold mb-1">State</label>
+                              <input type="text" value={editState} onChange={e => setEditState(e.target.value)} className="w-full p-2.5 bg-white border border-slate-200 focus:border-rose-500 rounded-xl focus:outline-none" />
+                            </div>
+                            <div>
+                              <label className="block text-slate-500 font-bold mb-1">Pincode</label>
+                              <input type="text" value={editPincode} onChange={e => setEditPincode(e.target.value)} className="w-full p-2.5 bg-white border border-slate-200 focus:border-rose-500 rounded-xl focus:outline-none" />
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="block text-slate-500 font-bold mb-1">Admin Remarks / Notes</label>
+                            <textarea value={editNotes} onChange={e => setEditNotes(e.target.value)} rows="2" className="w-full p-2.5 bg-white border border-slate-200 focus:border-rose-500 rounded-xl focus:outline-none" placeholder="Add notes..."></textarea>
+                          </div>
+
+                          <div className="flex space-x-3 pt-4">
+                            <button
+                              type="submit"
+                              disabled={editLoading}
+                              className="flex-1 bg-rose-600 hover:bg-rose-700 disabled:bg-rose-400 text-white font-bold py-2.5 rounded-xl transition-all shadow-md flex items-center justify-center space-x-2"
+                            >
+                              {editLoading ? 'Saving...' : 'Save Changes'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setIsEditingProfile(false)}
+                              className="px-6 bg-white border border-slate-250 hover:bg-slate-50 text-slate-700 font-bold py-2.5 rounded-xl transition-colors"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </form>
+                      ) : (
+                        <>
+                          <div className="flex justify-end mb-4">
+                            <button
+                              type="button"
+                              onClick={startEditing}
+                              className="bg-rose-600 hover:bg-rose-700 text-white font-bold px-4 py-2 rounded-xl shadow-md text-xs uppercase tracking-wide flex items-center space-x-1.5"
+                            >
+                              <span>Edit Profile Details</span>
+                            </button>
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {/* Box 1: Owner & Contact details */}
+                            <div className="bg-slate-50 border border-slate-200/60 rounded-xl p-5 space-y-4">
+                              <h4 className="font-black text-slate-800 text-xs flex items-center space-x-2 border-b border-slate-200/60 pb-2">
+                                <User className="w-4 h-4 text-rose-600" />
+                                <span>PRIMARY CONTACT DETAILS</span>
+                              </h4>
+                              <div className="grid grid-cols-3 gap-y-3">
+                                <span className="text-slate-400 font-medium">Full Name</span>
+                                <span className="col-span-2 text-slate-800 font-semibold">{dealerDetail.user?.name || 'N/A'}</span>
+
+                                <span className="text-slate-400 font-medium">Email Address</span>
+                                <span className="col-span-2 text-slate-800 font-semibold truncate">{dealerDetail.user?.email || 'N/A'}</span>
+
+                                <span className="text-slate-400 font-medium">Phone Number</span>
+                                <span className="col-span-2 text-slate-800 font-semibold">{dealerDetail.phone || 'N/A'}</span>
+                                
+                                <span className="text-slate-400 font-medium">Last Login</span>
+                                <span className="col-span-2 text-slate-800 font-semibold">
+                                  {dealerDetail.user?.lastLogin ? new Date(dealerDetail.user.lastLogin).toLocaleString() : 'Never logged in'}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Box 2: Billing & Location details */}
+                            <div className="bg-slate-50 border border-slate-200/60 rounded-xl p-5 space-y-4">
+                              <h4 className="font-black text-slate-800 text-xs flex items-center space-x-2 border-b border-slate-200/60 pb-2">
+                                <MapPin className="w-4 h-4 text-rose-600" />
+                                <span>OFFICE / BILLING ADDRESS</span>
+                              </h4>
+                              <div className="grid grid-cols-3 gap-y-3">
+                                <span className="text-slate-400 font-medium">Street Address</span>
+                                <span className="col-span-2 text-slate-800 font-semibold">{dealerDetail.address || 'N/A'}</span>
+
+                                <span className="text-slate-400 font-medium">City / Town</span>
+                                <span className="col-span-2 text-slate-800 font-semibold">{dealerDetail.city || 'N/A'}</span>
+
+                                <span className="text-slate-400 font-medium">State / Region</span>
+                                <span className="col-span-2 text-slate-800 font-semibold">{dealerDetail.state || 'N/A'}</span>
+
+                                <span className="text-slate-400 font-medium">Pincode</span>
+                                <span className="col-span-2 text-slate-800 font-semibold">{dealerDetail.pincode || 'N/A'}</span>
+                                
+                                <span className="text-slate-400 font-medium">Area / Landmark</span>
+                                <span className="col-span-2 text-slate-800 font-semibold">{dealerDetail.area || 'N/A'}</span>
+
+                                <span className="text-slate-400 font-medium">Zones</span>
+                                <span className="col-span-2">
+                                  {dealerDetail.zones && dealerDetail.zones.length > 0 ? (
+                                    <div className="flex flex-wrap gap-1.5">
+                                      {dealerDetail.zones.map(z => (
+                                        <span key={z} className="text-[10px] font-bold px-2.5 py-1 bg-rose-50 text-rose-700 rounded-lg border border-rose-100">{z}</span>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <span className="text-slate-500 font-semibold">No zones assigned</span>
+                                  )}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Box 3: Financial Details */}
+                            <div className="bg-slate-50 border border-slate-200/60 rounded-xl p-5 space-y-4">
+                              <h4 className="font-black text-slate-800 text-xs flex items-center space-x-2 border-b border-slate-200/60 pb-2">
+                                <CreditCard className="w-4 h-4 text-rose-600" />
+                                <span>FINANCIAL & GST INFO</span>
+                              </h4>
+                              <div className="grid grid-cols-3 gap-y-3">
+                                <span className="text-slate-400 font-medium">GST Identification</span>
+                                <span className="col-span-2 text-slate-800 font-semibold">{dealerDetail.gstNumber || 'N/A'}</span>
+
+                                <span className="text-slate-400 font-medium">Dealer Tier</span>
+                                <span className="col-span-2">
+                                  {dealerDetail.dealerCategory ? (
+                                    <span className={`text-[10px] font-black px-2.5 py-1 rounded-lg ${
+                                      dealerDetail.dealerCategory === 'SUPER' ? 'bg-purple-100 text-purple-700 border border-purple-200' :
+                                      dealerDetail.dealerCategory === 'PREMIUM' ? 'bg-amber-100 text-amber-700 border border-amber-200' :
+                                      dealerDetail.dealerCategory === 'GROWTH' ? 'bg-blue-100 text-blue-700 border border-blue-200' :
+                                      'bg-slate-100 text-slate-600 border border-slate-200'
+                                    }`}>
+                                      {dealerDetail.dealerCategory === 'SUPER' ? '⭐ SUPER' : dealerDetail.dealerCategory === 'PREMIUM' ? '🥇 PREMIUM' : dealerDetail.dealerCategory === 'GROWTH' ? '📈 GROWTH' : '🌱 STARTER'}
+                                    </span>
+                                  ) : <span className="text-slate-500 font-semibold">Not assigned</span>}
+                                </span>
+
+                                <span className="text-slate-400 font-medium">Initial Deposit</span>
+                                <span className="col-span-2 text-slate-800 font-semibold">
+                                  {dealerDetail.initialDeposit !== undefined && dealerDetail.initialDeposit !== null
+                                    ? `₹${Number(dealerDetail.initialDeposit).toLocaleString('en-IN')}`
+                                    : '₹0'}
+                                </span>
+
+                                <span className="text-slate-400 font-medium">Credit Limit</span>
+                                <span className="col-span-2 text-slate-800 font-semibold">
+                                  {dealerDetail.creditLimit !== undefined && dealerDetail.creditLimit !== null
+                                    ? `₹${Number(dealerDetail.creditLimit).toLocaleString('en-IN')}` 
+                                    : 'No Credit Limit Set'}
+                                </span>
+
+                                <span className="text-slate-400 font-medium">Categories</span>
+                                <span className="col-span-2">
+                                  {dealerDetail.categoryDetails && dealerDetail.categoryDetails.length > 0 ? (
+                                    <div className="flex flex-wrap gap-1.5">
+                                      {dealerDetail.categoryDetails.map(cat => (
+                                        <span key={cat.id} className="text-[10px] font-bold px-2.5 py-1 bg-indigo-50 text-indigo-700 rounded-lg border border-indigo-100">{cat.name}</span>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <span className="text-slate-500 font-semibold">No categories assigned</span>
+                                  )}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Box 4: Metadata / System Log */}
+                            <div className="bg-slate-50 border border-slate-200/60 rounded-xl p-5 space-y-4">
+                              <h4 className="font-black text-slate-800 text-xs flex items-center space-x-2 border-b border-slate-200/60 pb-2">
+                                <Clock className="w-4 h-4 text-rose-600" />
+                                <span>VERIFICATION LOGS</span>
+                              </h4>
+                              <div className="grid grid-cols-3 gap-y-3">
+                                <span className="text-slate-400 font-medium">Registered on</span>
+                                <span className="col-span-2 text-slate-800 font-semibold">
+                                  {dealerDetail.createdAt ? new Date(dealerDetail.createdAt).toLocaleDateString() : 'N/A'}
+                                </span>
+
+                                <span className="text-slate-400 font-medium">Approved on</span>
+                                <span className="col-span-2 text-slate-800 font-semibold">
+                                  {dealerDetail.approvedAt ? new Date(dealerDetail.approvedAt).toLocaleString() : 'N/A'}
+                                </span>
+
+                                <span className="text-slate-400 font-medium">Approver User ID</span>
+                                <span className="col-span-2 text-slate-800 font-semibold truncate">{dealerDetail.approvedBy || 'N/A'}</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Notes Section */}
+                          <div className="bg-slate-50 border border-slate-200/60 rounded-xl p-5 space-y-2">
+                            <h4 className="font-black text-slate-800 text-xs border-b border-slate-200/60 pb-2">ADMIN NOTES / REMARKS</h4>
+                            <p className="text-slate-700 whitespace-pre-line leading-relaxed">
+                              {dealerDetail.notes || 'No administrative notes added to this profile yet.'}
+                            </p>
+                          </div>
+
+                          {/* Change Password Section */}
+                          <div className="bg-amber-50 border border-amber-200 rounded-xl p-5 space-y-4">
+                            <h4 className="font-black text-slate-800 text-xs flex items-center space-x-2 border-b border-amber-200 pb-2">
+                              <KeyRound className="w-4 h-4 text-amber-600" />
+                              <span>RESET DEALER PASSWORD</span>
+                            </h4>
+                            <p className="text-[10px] text-amber-700 font-medium">
+                              Set a new login password for <strong>{dealerDetail.companyName}</strong>. The dealer will be notified via their account.
+                            </p>
+
+                            {pwMessage.text && (
+                              <div className={`px-3 py-2.5 rounded-lg text-[11px] font-semibold flex items-center space-x-2 ${
+                                pwMessage.type === 'success'
+                                  ? 'bg-emerald-50 border border-emerald-200 text-emerald-800'
+                                  : 'bg-rose-50 border border-rose-200 text-rose-800'
+                              }`}>
+                                <span>{pwMessage.type === 'success' ? '✓' : '!'}</span>
+                                <span>{pwMessage.text}</span>
                               </div>
                             )}
-                          </div>
 
-                          <div>
-                            <label className="block text-[10px] font-bold text-slate-500 mb-1">Confirm Password</label>
-                            <div className="relative">
-                              <input
-                                type={pwShowConfirm ? 'text' : 'password'}
-                                value={pwConfirm}
-                                onChange={e => { setPwConfirm(e.target.value); setPwMessage({ text: '', type: '' }); }}
-                                placeholder="Re-enter password"
-                                className={`w-full pr-9 pl-3 py-2 text-xs border rounded-lg focus:outline-none transition-all ${
-                                  pwConfirm.length > 0 && pwNew !== pwConfirm
-                                    ? 'border-rose-300 bg-rose-50/30 focus:border-rose-400'
-                                    : 'bg-white border-amber-200 focus:border-amber-400'
-                                }`}
-                              />
-                              <button
-                                type="button"
-                                onClick={() => setPwShowConfirm(v => !v)}
-                                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                              >
-                                {pwShowConfirm ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                              </button>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              <div>
+                                <label className="block text-[10px] font-bold text-slate-500 mb-1">New Password</label>
+                                <div className="relative">
+                                  <input
+                                    type={pwShowNew ? 'text' : 'password'}
+                                    value={pwNew}
+                                    onChange={e => { setPwNew(e.target.value); setPwMessage({ text: '', type: '' }); }}
+                                    placeholder="Min. 6 characters"
+                                    className="w-full pr-9 pl-3 py-2 text-xs bg-white border border-amber-200 focus:border-amber-400 rounded-lg focus:outline-none transition-all"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => setPwShowNew(v => !v)}
+                                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                                  >
+                                    {pwShowNew ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                                  </button>
+                                </div>
+                                {/* Strength bar */}
+                                {pwNew.length > 0 && (
+                                  <div className="mt-1.5 flex space-x-1">
+                                    {[1,2,3,4].map(i => (
+                                      <div key={i} className={`h-1 flex-1 rounded-full transition-colors ${
+                                        pwNew.length >= i * 3
+                                          ? i <= 1 ? 'bg-rose-400'
+                                            : i <= 2 ? 'bg-amber-400'
+                                            : i <= 3 ? 'bg-blue-400'
+                                            : 'bg-emerald-500'
+                                          : 'bg-slate-200'
+                                      }`} />
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+
+                              <div>
+                                <label className="block text-[10px] font-bold text-slate-500 mb-1">Confirm Password</label>
+                                <div className="relative">
+                                  <input
+                                    type={pwShowConfirm ? 'text' : 'password'}
+                                    value={pwConfirm}
+                                    onChange={e => { setPwConfirm(e.target.value); setPwMessage({ text: '', type: '' }); }}
+                                    placeholder="Re-enter password"
+                                    className={`w-full pr-9 pl-3 py-2 text-xs border rounded-lg focus:outline-none transition-all ${
+                                      pwConfirm.length > 0 && pwNew !== pwConfirm
+                                        ? 'border-rose-300 bg-rose-50/30 focus:border-rose-400'
+                                        : 'bg-white border-amber-200 focus:border-amber-400'
+                                    }`}
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => setPwShowConfirm(v => !v)}
+                                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                                  >
+                                    {pwShowConfirm ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                                  </button>
+                                </div>
+                                {pwConfirm.length > 0 && pwNew !== pwConfirm && (
+                                  <p className="text-[10px] text-rose-600 font-semibold mt-1">⚠ Passwords do not match</p>
+                                )}
+                                {pwConfirm.length > 0 && pwNew === pwConfirm && pwNew.length >= 6 && (
+                                  <p className="text-[10px] text-emerald-600 font-semibold mt-1">✓ Passwords match</p>
+                                )}
+                              </div>
                             </div>
-                            {pwConfirm.length > 0 && pwNew !== pwConfirm && (
-                              <p className="text-[10px] text-rose-600 font-semibold mt-1">⚠ Passwords do not match</p>
-                            )}
-                            {pwConfirm.length > 0 && pwNew === pwConfirm && pwNew.length >= 6 && (
-                              <p className="text-[10px] text-emerald-600 font-semibold mt-1">✓ Passwords match</p>
-                            )}
-                          </div>
-                        </div>
 
-                        <button
-                          type="button"
-                          disabled={!pwNew || !pwConfirm || pwNew !== pwConfirm || pwNew.length < 6 || pwLoading}
-                          onClick={async () => {
-                            setPwLoading(true);
-                            setPwMessage({ text: '', type: '' });
-                            try {
-                              const res = await axios.patch(`/dealers/${dealerDetail.id}/change-password`, { newPassword: pwNew });
-                              setPwMessage({ text: res.data.message || 'Password updated successfully!', type: 'success' });
-                              setPwNew('');
-                              setPwConfirm('');
-                            } catch (err) {
-                              setPwMessage({ text: err.response?.data?.message || 'Failed to update password.', type: 'error' });
-                            } finally {
-                              setPwLoading(false);
-                            }
-                          }}
-                          className="w-full flex items-center justify-center space-x-2 bg-amber-500 hover:bg-amber-600 disabled:bg-amber-200 disabled:cursor-not-allowed text-white font-bold text-xs py-2.5 rounded-xl transition-all shadow-sm"
-                        >
-                          {pwLoading ? (
-                            <>
-                              <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                              <span>Updating Password...</span>
-                            </>
-                          ) : (
-                            <>
-                              <KeyRound className="w-3.5 h-3.5" />
-                              <span>Update Password</span>
-                            </>
-                          )}
-                        </button>
-                      </div>
+                            <button
+                              type="button"
+                              disabled={!pwNew || !pwConfirm || pwNew !== pwConfirm || pwNew.length < 6 || pwLoading}
+                              onClick={async () => {
+                                setPwLoading(true);
+                                setPwMessage({ text: '', type: '' });
+                                try {
+                                  const res = await axios.patch(`/dealers/${dealerDetail.id}/change-password`, { newPassword: pwNew });
+                                  setPwMessage({ text: res.data.message || 'Password updated successfully!', type: 'success' });
+                                  setPwNew('');
+                                  setPwConfirm('');
+                                } catch (err) {
+                                  setPwMessage({ text: err.response?.data?.message || 'Failed to update password.', type: 'error' });
+                                } finally {
+                                  setPwLoading(false);
+                                }
+                              }}
+                              className="w-full flex items-center justify-center space-x-2 bg-amber-500 hover:bg-amber-600 disabled:bg-amber-200 disabled:cursor-not-allowed text-white font-bold text-xs py-2.5 rounded-xl transition-all shadow-sm"
+                            >
+                              {pwLoading ? (
+                                <>
+                                  <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                  <span>Updating Password...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <KeyRound className="w-3.5 h-3.5" />
+                                  <span>Update Password</span>
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        </>
+                      )}
                     </div>
                   )}
 

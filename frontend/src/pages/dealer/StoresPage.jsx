@@ -11,6 +11,7 @@ import {
   ShieldCheck, 
   Layers 
 } from 'lucide-react';
+import { useAuthStore } from '../../store/authStore';
 
 export default function StoresPage() {
   const [stores, setStores] = useState([]);
@@ -19,6 +20,9 @@ export default function StoresPage() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [currentStore, setCurrentStore] = useState(null);
   const [message, setMessage] = useState({ text: '', type: '' });
+
+  const { user } = useAuthStore();
+  const dealerZones = user?.dealer?.zones || [];
 
   // Form states
   const [name, setName] = useState('');
@@ -218,7 +222,20 @@ export default function StoresPage() {
                 </div>
                 <div>
                   <label className="block text-slate-500 font-bold mb-1">Store Zone / Area (optional)</label>
-                  <input type="text" value={zone} onChange={e => setZone(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none" />
+                  {dealerZones.length > 0 ? (
+                    <select
+                      value={zone}
+                      onChange={e => setZone(e.target.value)}
+                      className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none font-bold text-slate-700 text-xs"
+                    >
+                      <option value="">-- Select Zone --</option>
+                      {dealerZones.map(z => (
+                        <option key={z} value={z}>{z}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input type="text" value={zone} onChange={e => setZone(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none" />
+                  )}
                 </div>
               </div>
 
@@ -277,7 +294,20 @@ export default function StoresPage() {
                 </div>
                 <div>
                   <label className="block text-slate-500 font-bold mb-1">Store Zone / Area (optional)</label>
-                  <input type="text" value={zone} onChange={e => setZone(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none" />
+                  {dealerZones.length > 0 ? (
+                    <select
+                      value={zone}
+                      onChange={e => setZone(e.target.value)}
+                      className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none font-bold text-slate-700 text-xs"
+                    >
+                      <option value="">-- Select Zone --</option>
+                      {dealerZones.map(z => (
+                        <option key={z} value={z}>{z}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input type="text" value={zone} onChange={e => setZone(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none" />
+                  )}
                 </div>
               </div>
 

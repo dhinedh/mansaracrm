@@ -17,9 +17,9 @@ import {
   CheckCircle2
 } from 'lucide-react';
 
-export default function InventoryPage() {
+export default function InventoryPage({ defaultTab }) {
   const location = useLocation();
-  const [activeTab, setActiveTab] = useState('stocks'); // 'stocks', 'transfer', 'history'
+  const [activeTab, setActiveTab] = useState(defaultTab || 'stocks'); // 'stocks', 'transfer', 'history'
   const [highlightedId, setHighlightedId] = useState(null);
   const [stocks, setStocks] = useState([]);
   const [dealers, setDealers] = useState([]);
@@ -49,6 +49,8 @@ export default function InventoryPage() {
   useEffect(() => {
     if (location.state?.activeTab) {
       setActiveTab(location.state.activeTab);
+    } else if (defaultTab) {
+      setActiveTab(defaultTab);
     }
     if (location.state?.transferId) {
       setHighlightedId(location.state.transferId);
@@ -59,7 +61,26 @@ export default function InventoryPage() {
         }
       }, 300);
     }
-  }, [location.state]);
+  }, [location.state, defaultTab]);
+
+  const [dealerMargins, setDealerMargins] = useState([]);
+
+  useEffect(() => {
+    if (selectedDealerId) {
+      fetchDealerMargins(selectedDealerId);
+    } else {
+      setDealerMargins([]);
+    }
+  }, [selectedDealerId]);
+
+  const fetchDealerMargins = async (dealerId) => {
+    try {
+      const res = await axios.get('/margins', { params: { dealerId } });
+      setDealerMargins(res.data.data || []);
+    } catch (err) {
+      console.error('Failed to load dealer margins', err);
+    }
+  };
 
   const fetchStocks = async () => {
     try {
@@ -103,6 +124,21 @@ export default function InventoryPage() {
       return;
     }
 
+    // Auto-detect margin percentage based on dealer configuration
+    let detectedMargin = 0;
+    const prodMargin = dealerMargins.find(m => m.productId === currentProductId);
+    const catId = productRecord.categoryId || productRecord.category?._id || productRecord.category;
+    const catMargin = dealerMargins.find(m => m.categoryId === String(catId));
+    const defaultMargin = dealerMargins.find(m => m.isDefault);
+
+    if (prodMargin) {
+      detectedMargin = prodMargin.marginPercent;
+    } else if (catMargin) {
+      detectedMargin = catMargin.marginPercent;
+    } else if (defaultMargin) {
+      detectedMargin = defaultMargin.marginPercent;
+    }
+
     const existingIndex = transferItems.findIndex(i => i.productId === currentProductId);
     if (existingIndex > -1) {
       const newItems = [...transferItems];
@@ -112,12 +148,18 @@ export default function InventoryPage() {
         return;
       }
       newItems[existingIndex].quantity = potentialNewQty;
+      // Update margin if it wasn't customized yet
+      if (!newItems[existingIndex].isMarginCustomized) {
+        newItems[existingIndex].marginPct = detectedMargin;
+      }
       setTransferItems(newItems);
     } else {
       setTransferItems([...transferItems, {
         productId: currentProductId,
         product: productRecord,
-        quantity: parseInt(currentQty)
+        quantity: parseInt(currentQty),
+        marginPct: detectedMargin,
+        isMarginCustomized: false
       }]);
     }
 
@@ -139,7 +181,7 @@ export default function InventoryPage() {
     try {
       await axios.post('/inventory/transfers', {
         dealerId: selectedDealerId,
-        items: transferItems.map(i => ({ productId: i.productId, quantity: i.quantity })),
+        items: transferItems.map(i => ({ productId: i.productId, quantity: i.quantity, marginPct: i.marginPct || 0 })),
         notes: transferNotes
       });
 
@@ -371,17 +413,43 @@ export default function InventoryPage() {
                     {transferItems.map((item) => {
                       const keyVal = typeof item.productId === 'object' ? item.productId?.id || item.productId?.toString() : item.productId;
                       return (
-                        <div key={keyVal} className="flex items-center justify-between p-3.5 border-b border-slate-100 last:border-0">
+                        <div key={keyVal} className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 border-b border-slate-100 last:border-0 gap-3">
                           <div>
                             <p className="font-bold text-slate-800">{item.product.name}</p>
-                            <p className="text-[9px] font-black text-rose-600">SKU: {item.product.sku}</p>
+                            <p className="text-[9px] font-black text-rose-600">SKU: {item.product.sku} | Base: ₹{item.product.price}</p>
                           </div>
-                          <div className="flex items-center space-x-4">
-                            <span className="font-black text-slate-700 text-xs">{item.quantity} {item.product.unit}</span>
+                          <div className="flex items-center justify-between sm:justify-end gap-4">
+                            <div className="flex items-center space-x-1">
+                              <span className="text-[10px] text-slate-400 font-bold">Margin:</span>
+                              <input
+                                type="number"
+                                min="0"
+                                max="100"
+                                value={item.marginPct !== undefined ? item.marginPct : 0}
+                                onChange={(e) => {
+                                  const val = parseFloat(e.target.value) || 0;
+                                  const newItems = [...transferItems];
+                                  const idx = newItems.findIndex(i => i.productId === item.productId);
+                                  if (idx > -1) {
+                                    newItems[idx].marginPct = Math.min(100, Math.max(0, val));
+                                    newItems[idx].isMarginCustomized = true;
+                                    setTransferItems(newItems);
+                                  }
+                                }}
+                                className="w-14 p-1 text-center bg-slate-50 border border-slate-200 rounded text-xs focus:outline-none focus:border-rose-500 font-bold text-slate-700"
+                              />
+                              <span className="text-[10px] text-slate-400 font-bold">%</span>
+                            </div>
+                            <div className="text-right">
+                              <p className="font-black text-slate-700 text-xs">{item.quantity} {item.product.unit}</p>
+                              <p className="text-[10px] text-rose-600 font-bold">
+                                Eff: ₹{(item.product.price * (1 - (item.marginPct || 0)/100)).toFixed(2)}
+                              </p>
+                            </div>
                             <button
                               type="button"
                               onClick={() => handleRemoveFromTransferCart(item.productId)}
-                              className="text-rose-600 hover:text-rose-800 p-1"
+                              className="text-rose-600 hover:text-rose-800 p-1 bg-rose-50 rounded-lg hover:bg-rose-100 transition-colors"
                             >
                               <X className="w-4 h-4" />
                             </button>

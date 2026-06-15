@@ -276,13 +276,35 @@ const buildInvoiceHtml = (company, invoice) => {
           <tr>
             <td>
               <div class="logo-container">
-                ${logoBase64 
-                  ? `<img class="logo-img" src="data:image/png;base64,${logoBase64}" alt="${company.name}" />`
-                  : `<div class="logo-text">${company.name}</div>`
-                }
+                ${(() => {
+                  const isRetail = !!invoice.store;
+                  if (isRetail) {
+                    if (invoice.dealer && invoice.dealer.logoBase64) {
+                      const src = invoice.dealer.logoBase64.startsWith('data:') 
+                        ? invoice.dealer.logoBase64 
+                        : `data:image/png;base64,${invoice.dealer.logoBase64}`;
+                      return `<img class="logo-img" src="${src}" alt="${invoice.dealer.companyName}" />`;
+                    }
+                    return `<div class="logo-text">${invoice.dealer ? invoice.dealer.companyName : ''}</div>`;
+                  }
+                  return logoBase64 
+                    ? `<img class="logo-img" src="data:image/png;base64,${logoBase64}" alt="${company.name}" />`
+                    : `<div class="logo-text">${company.name}</div>`;
+                })()}
                 <div class="company-contact">
-                  <strong>GSTIN:</strong> ${company.gstNumber}<br>
-                  <strong>Tel:</strong> ${company.phone} | <strong>Email:</strong> ${company.email}
+                  ${(() => {
+                    const isRetail = !!invoice.store;
+                    if (isRetail && invoice.dealer) {
+                      return `
+                        <strong>GSTIN:</strong> ${invoice.dealer.gstNumber || 'N/A'}<br>
+                        <strong>Tel:</strong> ${invoice.dealer.phone || 'N/A'} | <strong>Email:</strong> ${invoice.dealer.user?.email || 'N/A'}
+                      `;
+                    }
+                    return `
+                      <strong>GSTIN:</strong> ${company.gstNumber}<br>
+                      <strong>Tel:</strong> ${company.phone} | <strong>Email:</strong> ${company.email}
+                    `;
+                  })()}
                 </div>
               </div>
             </td>
@@ -304,25 +326,25 @@ const buildInvoiceHtml = (company, invoice) => {
           <tr>
             <td style="padding-left: 0;">
               <div class="info-card">
-                <div class="section-title">Billed By (Distributor)</div>
+                <div class="section-title">${invoice.store ? 'Billed By (Distributor)' : 'Billed By (Manufacturer)'}</div>
                 <div class="info-card-content">
-                  <strong>${invoice.dealer.companyName}</strong><br>
-                  ${invoice.dealer.address}<br>
-                  ${invoice.dealer.city || ''}, ${invoice.dealer.state || ''} - ${invoice.dealer.pincode || ''}<br>
-                  <strong>GSTIN:</strong> ${invoice.dealer.gstNumber || 'N/A'}<br>
-                  <strong>Contact:</strong> ${invoice.dealer.phone}
+                  <strong>${invoice.store ? invoice.dealer.companyName : company.name}</strong><br>
+                  ${invoice.store ? invoice.dealer.address : company.address}<br>
+                  ${invoice.store ? ((invoice.dealer.city || '') + ' ' + (invoice.dealer.state || '') + ' ' + (invoice.dealer.pincode || '')) : ''}<br>
+                  <strong>GSTIN:</strong> ${invoice.store ? (invoice.dealer.gstNumber || 'N/A') : company.gstNumber}<br>
+                  <strong>Contact:</strong> ${invoice.store ? invoice.dealer.phone : company.phone}
                 </div>
               </div>
             </td>
             <td style="padding-right: 0;">
               <div class="info-card">
-                <div class="section-title">Billed To (Customer Store)</div>
+                <div class="section-title">${invoice.store ? 'Billed To (Customer Store)' : 'Billed To (Dealer Partner)'}</div>
                 <div class="info-card-content">
-                  <strong>${invoice.store.name}</strong><br>
-                  ${invoice.store.address}<br>
-                  ${invoice.store.city || ''}, ${invoice.store.state || ''} - ${invoice.store.pincode || ''}<br>
-                  <strong>GSTIN:</strong> ${invoice.store.gstNumber || 'N/A'}<br>
-                  <strong>Contact:</strong> ${invoice.store.phone || 'N/A'}
+                  <strong>${invoice.store ? invoice.store.name : invoice.dealer.companyName}</strong><br>
+                  ${invoice.store ? invoice.store.address : invoice.dealer.address}<br>
+                  ${invoice.store ? (invoice.store.city || '') : (invoice.dealer.city || '')}, ${invoice.store ? (invoice.store.state || '') : (invoice.dealer.state || '')} - ${invoice.store ? (invoice.store.pincode || '') : (invoice.dealer.pincode || '')}<br>
+                  <strong>GSTIN:</strong> ${invoice.store ? (invoice.store.gstNumber || 'N/A') : (invoice.dealer.gstNumber || 'N/A')}<br>
+                  <strong>Contact:</strong> ${invoice.store ? (invoice.store.phone || 'N/A') : invoice.dealer.phone}
                 </div>
               </div>
             </td>
@@ -376,6 +398,15 @@ const buildInvoiceHtml = (company, invoice) => {
               </tr>
             `
           }
+          ${invoice.shippingCharges && parseFloat(invoice.shippingCharges) > 0
+            ? `
+              <tr>
+                <td>Shipping Charges:</td>
+                <td style="text-align: right; font-weight: 500;">₹${parseFloat(invoice.shippingCharges).toFixed(2)}</td>
+              </tr>
+            `
+            : ''
+          }
           <tr class="grand-total">
             <td>Grand Total:</td>
             <td style="text-align: right;">₹${parseFloat(invoice.totalAmount).toFixed(2)}</td>
@@ -400,7 +431,7 @@ const buildInvoiceHtml = (company, invoice) => {
               </td>
               <td style="text-align: right;">
                 <div class="sig-box" style="width: 220px; margin-left: auto;">
-                  <div style="font-weight: bold; color: #61220F;">For ${invoice.dealer.companyName}</div>
+                  <div style="font-weight: bold; color: #61220F;">For ${invoice.store ? invoice.dealer.companyName : company.name}</div>
                   <div class="sig-line">Authorized Signatory</div>
                 </div>
               </td>

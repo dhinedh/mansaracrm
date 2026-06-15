@@ -5,6 +5,7 @@ import {
   DollarSign, 
   Store, 
   AlertTriangle,
+  AlertCircle,
   Receipt,
   ShoppingCart,
   User,
@@ -18,6 +19,7 @@ export default function DealerDashboard() {
   const { user } = useAuthStore();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [overdueInvoices, setOverdueInvoices] = useState([]);
 
   useEffect(() => {
     fetchDashboardData();
@@ -27,6 +29,16 @@ export default function DealerDashboard() {
     try {
       const res = await axios.get('/analytics/dealer');
       setData(res.data.data);
+
+      const billRes = await axios.get('/billing');
+      const allInvoices = billRes.data.data || [];
+      const fifteenDaysAgo = new Date();
+      fifteenDaysAgo.setDate(fifteenDaysAgo.getDate() - 15);
+      const overdue = allInvoices.filter(inv => 
+        inv.status === 'GENERATED' && 
+        new Date(inv.createdAt) <= fifteenDaysAgo
+      );
+      setOverdueInvoices(overdue);
     } catch (err) {
       console.error(err);
     } finally {
@@ -59,6 +71,47 @@ export default function DealerDashboard() {
           <p className="text-slate-300 text-xs md:text-sm">Welcome to Mansara Foods! View stock catalog, add retail outlets, set custom margin rules, and build GST compliant bills instantly.</p>
         </div>
       </div>
+
+      {/* Overdue Invoices Alert Section */}
+      {overdueInvoices.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 space-y-4 shadow-sm text-xs">
+          <div className="flex items-center space-x-3 text-amber-800 font-bold">
+            <AlertCircle className="w-6 h-6 text-amber-600 shrink-0" />
+            <h3 className="text-sm uppercase tracking-wide">Action Required: Overdue Unpaid Invoices (&gt;= 15 Days)</h3>
+          </div>
+          <p className="text-amber-700 font-medium">Please clear these outstanding invoices generated more than 15 days ago to prevent logistics or delivery blockages.</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {overdueInvoices.map(inv => {
+              const days = Math.floor((new Date() - new Date(inv.createdAt)) / (1000 * 60 * 60 * 24));
+              return (
+                <div 
+                  key={inv.id} 
+                  className="bg-white border border-amber-100 p-4 rounded-xl flex flex-col justify-between"
+                >
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <p className="font-bold text-slate-800 text-xs">Invoice: {inv.invoiceNo}</p>
+                      <p className="text-[10px] text-slate-400 font-mono">Date: {new Date(inv.createdAt).toLocaleDateString()}</p>
+                    </div>
+                    <span className="text-rose-600 font-black text-xs">₹{(inv.totalAmount || 0).toLocaleString('en-IN')}</span>
+                  </div>
+                  <div className="flex justify-between items-center mt-3 pt-2.5 border-t border-slate-100">
+                    <span className="text-[9px] bg-amber-100 text-amber-800 font-black px-2 py-0.5 rounded-full">
+                      ⚠️ {days} Days Overdue
+                    </span>
+                    <button
+                      onClick={() => navigate('/dealer/invoices')}
+                      className="text-[9px] text-rose-600 font-bold hover:underline"
+                    >
+                      View Invoice →
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Dealer Profile and Account Status Card */}
       <div className="bg-white border border-slate-150 rounded-2xl shadow-sm p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
@@ -170,6 +223,53 @@ export default function DealerDashboard() {
         </div>
       </div>
 
+      {/* Product Movers Section */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div className="bg-white border border-slate-150 p-6 rounded-2xl shadow-sm">
+          <h3 className="text-sm font-bold text-slate-800 mb-4 uppercase tracking-wider flex items-center space-x-2">
+            <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+            <span>My Fast Moving Products</span>
+          </h3>
+          <div className="divide-y divide-slate-100 text-xs">
+            {data?.fastMovers?.length > 0 ? data.fastMovers.map((prod) => (
+              <div key={prod.productId} className="py-3 flex justify-between items-center">
+                <div>
+                  <p className="font-bold text-slate-800 text-xs">{prod.name}</p>
+                  <p className="text-[9px] text-slate-400 font-mono">SKU: {prod.sku}</p>
+                </div>
+                <span className="text-xs bg-emerald-50 text-emerald-700 font-black px-2.5 py-1 rounded-lg">
+                  {prod.quantitySold} units sold
+                </span>
+              </div>
+            )) : (
+              <p className="text-slate-400 py-3 text-center italic">No customer bills recorded</p>
+            )}
+          </div>
+        </div>
+
+        <div className="bg-white border border-slate-150 p-6 rounded-2xl shadow-sm">
+          <h3 className="text-sm font-bold text-slate-800 mb-4 uppercase tracking-wider flex items-center space-x-2">
+            <span className="w-2 h-2 rounded-full bg-rose-500"></span>
+            <span>My Slow Moving Products</span>
+          </h3>
+          <div className="divide-y divide-slate-100 text-xs">
+            {data?.slowMovers?.length > 0 ? data.slowMovers.map((prod) => (
+              <div key={prod.productId} className="py-3 flex justify-between items-center">
+                <div>
+                  <p className="font-bold text-slate-800 text-xs">{prod.name}</p>
+                  <p className="text-[9px] text-slate-400 font-mono">SKU: {prod.sku}</p>
+                </div>
+                <span className="text-xs bg-rose-50 text-rose-700 font-black px-2.5 py-1 rounded-lg">
+                  {prod.quantitySold} units sold
+                </span>
+              </div>
+            )) : (
+              <p className="text-slate-400 py-3 text-center italic">No customer bills recorded</p>
+            )}
+          </div>
+        </div>
+      </div>
+
       {/* Quick Action blocks */}
       <div className="bg-white border border-slate-150 p-6 rounded-2xl shadow-sm">
         <h3 className="text-xs font-bold text-slate-800 mb-6 uppercase tracking-wider">Quick Actions Panel</h3>
@@ -197,7 +297,7 @@ export default function DealerDashboard() {
           </button>
 
           <button
-            onClick={() => navigate('/dealer/invoices')}
+            onClick={() => navigate('/dealer/ledgers')}
             className="flex items-center justify-between p-4 bg-slate-50 border border-slate-100 rounded-xl hover:bg-rose-50/50 hover:border-rose-100 transition-all text-left group"
           >
             <div>

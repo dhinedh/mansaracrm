@@ -12,6 +12,8 @@ router.use(verifyToken);
 router.get('/', billingController.getInvoices);
 router.get('/:id', billingController.getInvoiceById);
 router.get('/:id/pdf', billingController.downloadPdf);
+router.patch('/:id/close', requireRole('DEALER', 'ADMIN'), billingController.closeInvoice);
+router.delete('/:id', requireRole('DEALER', 'ADMIN'), billingController.deleteInvoice);
 
 router.post('/', requireRole('DEALER'), validate([
   body('storeId').custom((value, { req }) => {

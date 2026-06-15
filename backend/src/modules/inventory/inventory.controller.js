@@ -148,7 +148,7 @@ exports.getDealerInventory = async (req, res, next) => {
 // Create a stock transfer to dealer (Admin only)
 exports.createStockTransfer = async (req, res, next) => {
   try {
-    const { dealerId, items, notes } = req.body; // items: [{ productId, quantity }]
+    const { dealerId, items, notes } = req.body; // items: [{ productId, quantity, marginPct }]
 
     if (!items || items.length === 0) {
       return res.status(400).json({ success: false, message: 'Transfer must contain at least one item' });
@@ -179,39 +179,100 @@ exports.createStockTransfer = async (req, res, next) => {
 
     const transferNo = `TX-${Date.now()}`;
 
+    // Calculate invoice totals
+    let calculatedSubtotal = 0;
+    let calculatedGstTotal = 0;
+    const invoiceItemsDetails = [];
+
+    for (const item of items) {
+      const product = await prisma.product.findUnique({ where: { id: item.productId } });
+      const marginPct = parseFloat(item.marginPct) || 0;
+      const unitPrice = parseFloat(product.price) * (1 - marginPct / 100);
+      const lineSubtotal = unitPrice * item.quantity;
+      const lineGst = lineSubtotal * (parseFloat(product.gstPercent) / 100);
+      const lineTotal = lineSubtotal + lineGst;
+
+      calculatedSubtotal += lineSubtotal;
+      calculatedGstTotal += lineGst;
+
+      invoiceItemsDetails.push({
+        productId: item.productId,
+        quantity: item.quantity,
+        unitPrice: parseFloat(product.price),
+        marginPct,
+        sellingPrice: unitPrice,
+        gstPercent: parseFloat(product.gstPercent),
+        gstAmount: lineGst,
+        lineTotal
+      });
+    }
+
+    const calculatedGrandTotal = calculatedSubtotal + calculatedGstTotal;
+
     const transfer = await prisma.$transaction(async (tx) => {
-      // 1. Create StockTransfer record (Starts as PENDING)
+      // A. Create B2B Invoice first
+      const seq = await tx.invoiceSequence.upsert({
+        where: { id: 'singleton' },
+        update: { lastNumber: { increment: 1 } },
+        create: { id: 'singleton', lastNumber: 1, prefix: 'MF-INV' }
+      });
+      const invoiceNo = `${seq.prefix}-${String(seq.lastNumber).padStart(5, '0')}`;
+
+      const inv = await tx.invoice.create({
+        data: {
+          invoiceNo,
+          dealerId,
+          subtotal: calculatedSubtotal,
+          totalGst: calculatedGstTotal,
+          cgst: calculatedGstTotal / 2,
+          sgst: calculatedGstTotal / 2,
+          isGstEnabled: true,
+          totalAmount: calculatedGrandTotal,
+          status: 'GENERATED',
+          notes: `Auto-generated B2B Invoice for Transfer ${transferNo}. ${notes || ''}`,
+          channel: 'B2B',
+          items: {
+            create: invoiceItemsDetails
+          }
+        }
+      });
+
+      // B. Create StockTransfer record linked to Invoice (Starts as PENDING)
       const stockTx = await tx.stockTransfer.create({
         data: {
           transferNo,
           dealerId,
+          invoiceId: inv.id,
           status: 'PENDING',
           notes,
           createdBy: req.user.id
         }
       });
 
-      // 2. Create Transfer Items and fetch prices
+      // C. Create Transfer Items
       for (const item of items) {
         const product = await tx.product.findUnique({ where: { id: item.productId } });
+        const marginPct = parseFloat(item.marginPct) || 0;
+        const unitPrice = parseFloat(product.price) * (1 - marginPct / 100);
         await tx.stockTransferItem.create({
           data: {
             transferId: stockTx.id,
             productId: item.productId,
             quantity: item.quantity,
-            unitPrice: product.price
+            unitPrice,
+            marginPct
           }
         });
       }
 
-      // 3. Create Notification for Dealer (stock NOT yet allocated at PENDING stage)
+      // D. Create Notification for Dealer
       await tx.notification.create({
         data: {
           userId: dealer.userId,
           type: 'STOCK_TRANSFER',
-          title: 'Stock Transfer Initiated',
-          message: `Stock transfer ${transferNo} has been prepared for you. Your inventory will be updated once the shipment is delivered and confirmed. Current status: Pending Shipment.`,
-          metadata: { transferId: stockTx.id }
+          title: 'Stock Transfer & Invoice Initiated',
+          message: `Stock transfer ${transferNo} and Invoice ${invoiceNo} have been prepared. Your inventory will update upon delivery confirmation. Current status: Pending Shipment.`,
+          metadata: { transferId: stockTx.id, invoiceId: inv.id }
         }
       });
 
@@ -220,7 +281,7 @@ exports.createStockTransfer = async (req, res, next) => {
 
     res.status(201).json({
       success: true,
-      message: 'Stock transfer initiated successfully (Pending status)',
+      message: 'Stock transfer initiated successfully (B2B invoice generated)',
       data: transfer
     });
   } catch (error) {

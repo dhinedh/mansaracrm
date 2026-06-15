@@ -18,15 +18,20 @@ import ProductsPage from './pages/admin/ProductsPage';
 import InventoryPage from './pages/admin/InventoryPage';
 import AdminAnalyticsPage from './pages/admin/AdminAnalyticsPage';
 import NotificationsPage from './pages/admin/NotificationsPage';
+import RequestsPage from './pages/admin/RequestsPage';
+import ReturnsPage from './pages/admin/ReturnsPage';
+import TicketsPage from './pages/admin/TicketsPage';
+import ReportsPage from './pages/admin/ReportsPage';
+import ForecastingPage from './pages/admin/ForecastingPage';
 
 // Dealer Pages
 import DealerDashboard from './pages/dealer/DealerDashboard';
 import StoresPage from './pages/dealer/StoresPage';
 import DealerProductsPage from './pages/dealer/DealerProductsPage';
 import CartPage from './pages/dealer/CartPage';
-import InvoicesHistoryPage from './pages/dealer/InvoicesHistoryPage';
+import MyLedgersPage from './pages/dealer/MyLedgersPage';
 import DealerAnalyticsPage from './pages/dealer/DealerAnalyticsPage';
-import WarehouseTransfersPage from './pages/dealer/WarehouseTransfersPage';
+import ProfilePage from './pages/dealer/ProfilePage';
 
 // Simple Route Protection wrapper
 const ProtectedRoute = ({ children, allowedRole }) => {
@@ -73,6 +78,12 @@ export default function App() {
           <Route path="dealers" element={<DealersPage />} />
           <Route path="products" element={<ProductsPage />} />
           <Route path="inventory" element={<InventoryPage />} />
+          <Route path="transfers" element={<InventoryPage defaultTab="dispatches" />} />
+          <Route path="requests" element={<RequestsPage />} />
+          <Route path="returns" element={<ReturnsPage />} />
+          <Route path="services" element={<TicketsPage />} />
+          <Route path="reports" element={<ReportsPage />} />
+          <Route path="forecasting" element={<ForecastingPage />} />
           <Route path="analytics" element={<AdminAnalyticsPage />} />
           <Route path="notifications" element={<NotificationsPage />} />
         </Route>
@@ -91,8 +102,13 @@ export default function App() {
           <Route path="stores" element={<StoresPage />} />
           <Route path="products" element={<DealerProductsPage />} />
           <Route path="cart" element={<CartPage />} />
-          <Route path="invoices" element={<InvoicesHistoryPage />} />
-          <Route path="transfers" element={<WarehouseTransfersPage />} />
+          <Route path="ledgers" element={<MyLedgersPage />} />
+          <Route path="invoices" element={<MyLedgersPage />} />
+          <Route path="transfers" element={<MyLedgersPage />} />
+          <Route path="profile" element={<ProfilePage />} />
+          <Route path="requests" element={<RequestsPage />} />
+          <Route path="returns" element={<ReturnsPage />} />
+          <Route path="services" element={<TicketsPage />} />
           <Route path="analytics" element={<DealerAnalyticsPage />} />
           <Route path="notifications" element={<NotificationsPage />} />
         </Route>

@@ -9,6 +9,13 @@ const router = express.Router();
 
 router.use(verifyToken);
 
+// Dealer self-profile update action
+router.put('/profile/update', requireRole('DEALER'), validate([
+  body('companyName').optional().notEmpty().withMessage('Company name cannot be empty'),
+  body('phone').optional().notEmpty().withMessage('Phone cannot be empty'),
+  body('address').optional().notEmpty().withMessage('Address cannot be empty')
+]), dealersController.updateSelfProfile);
+
 // Admin-only actions
 router.get('/', requireRole('ADMIN'), dealersController.getAllDealers);
 router.get('/pincode-lookup/:pincode', dealersController.lookupPincode);

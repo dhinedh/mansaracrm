@@ -370,3 +370,50 @@ exports.lookupPincode = async (req, res, next) => {
     next(error);
   }
 };
+
+exports.updateSelfProfile = async (req, res, next) => {
+  try {
+    const dealerId = req.user.dealer?.id;
+    if (!dealerId) {
+      return res.status(400).json({ success: false, message: 'Dealer profile not found' });
+    }
+
+    const { name, companyName, phone, address, city, state, pincode, logoBase64 } = req.body;
+
+    const updatedDealer = await prisma.$transaction(async (tx) => {
+      if (name) {
+        await tx.user.update({
+          where: { id: req.user.id },
+          data: { name }
+        });
+      }
+
+      return await tx.dealer.update({
+        where: { id: dealerId },
+        data: {
+          companyName: companyName || undefined,
+          phone: phone || undefined,
+          address: address || undefined,
+          city: city !== undefined ? city : undefined,
+          state: state !== undefined ? state : undefined,
+          pincode: pincode !== undefined ? pincode : undefined,
+          logoBase64: logoBase64 !== undefined ? logoBase64 : undefined
+        },
+        include: {
+          user: {
+            select: { id: true, email: true, name: true, isActive: true }
+          }
+        }
+      });
+    });
+
+    res.json({
+      success: true,
+      message: 'Billing profile updated successfully',
+      data: updatedDealer
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
