@@ -514,6 +514,7 @@ exports.getStockTransfers = async (req, res, next) => {
       where,
       include: {
         dealer: true,
+        invoice: true,
         items: {
           include: {
             product: true

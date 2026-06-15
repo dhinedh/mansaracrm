@@ -720,7 +720,14 @@ export default function MyLedgersPage() {
                   >
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-2 border-b border-slate-100">
                       <div>
-                        <span className="font-black text-slate-800 text-xs">{item.transferNo}</span>
+                        <div className="flex items-center space-x-2">
+                          <span className="font-black text-slate-800 text-xs">{item.transferNo}</span>
+                          {item.invoice?.invoiceNo && (
+                            <span className="text-[9px] font-bold text-indigo-600 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-full">
+                              Invoice: {item.invoice.invoiceNo}
+                            </span>
+                          )}
+                        </div>
                         <p className="text-[10px] text-slate-400 mt-0.5">
                           Dispatched: {new Date(item.createdAt).toLocaleDateString('en-IN')}
                         </p>

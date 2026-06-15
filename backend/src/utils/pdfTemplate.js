@@ -58,12 +58,9 @@ const buildInvoiceHtml = (company, invoice) => {
     <head>
       <meta charset="UTF-8">
       <title>GST Invoice ${invoice.invoiceNo}</title>
-      <link rel="preconnect" href="https://fonts.googleapis.com">
-      <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-      <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
       <style>
         body {
-          font-family: 'Outfit', 'Inter', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+          font-family: 'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif;
           color: #36302E;
           margin: 0;
           padding: 0;

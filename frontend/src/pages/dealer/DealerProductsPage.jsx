@@ -23,6 +23,7 @@ export default function DealerProductsPage() {
   const [search, setSearch] = useState('');
   const { addToCart, items } = useCartStore();
   const [quantities, setQuantities] = useState({}); // local input states for quantity picker { productId: number }
+  const [marginRules, setMarginRules] = useState([]);
 
   // PO Request Modal states
   const [showPoModal, setShowPoModal] = useState(false);
@@ -65,6 +66,62 @@ export default function DealerProductsPage() {
   useEffect(() => {
     fetchProductsAndInventory();
   }, [search]);
+
+  useEffect(() => {
+    const fetchMargins = async () => {
+      try {
+        const res = await axios.get('/margins');
+        setMarginRules(res.data.data || []);
+      } catch (err) {
+        console.error('Error fetching margins:', err);
+      }
+    };
+    fetchMargins();
+  }, []);
+
+  const resolveMargin = (product, targetStoreId, rulesList = marginRules) => {
+    if (!rulesList || rulesList.length === 0) return 10; // Default fallback
+
+    // 1. Check rule matching storeId AND productId
+    let rule = rulesList.find(r => 
+      r.storeId && r.storeId.toString() === targetStoreId?.toString() && 
+      r.productId && r.productId.toString() === product.id.toString()
+    );
+    if (rule) return rule.marginPercent;
+
+    // 2. Check rule matching storeId AND categoryId
+    const catId = product.category?._id || product.category || product.categoryId;
+    rule = rulesList.find(r => 
+      r.storeId && r.storeId.toString() === targetStoreId?.toString() && 
+      r.categoryId && r.categoryId.toString() === catId?.toString()
+    );
+    if (rule) return rule.marginPercent;
+
+    // 3. Check rule matching storeId only
+    rule = rulesList.find(r => 
+      r.storeId && r.storeId.toString() === targetStoreId?.toString() && 
+      !r.productId && !r.categoryId
+    );
+    if (rule) return rule.marginPercent;
+
+    // 4. Check rule matching productId only
+    rule = rulesList.find(r => 
+      !r.storeId && r.productId && r.productId.toString() === product.id.toString()
+    );
+    if (rule) return rule.marginPercent;
+
+    // 5. Check rule matching categoryId only
+    rule = rulesList.find(r => 
+      !r.storeId && r.categoryId && r.categoryId.toString() === catId?.toString()
+    );
+    if (rule) return rule.marginPercent;
+
+    // 6. Check default margin rule
+    rule = rulesList.find(r => r.isDefault);
+    if (rule) return rule.marginPercent;
+
+    return 10; // default margin fallback
+  };
 
   const fetchProductsAndInventory = async () => {
     try {
@@ -126,7 +183,10 @@ export default function DealerProductsPage() {
       return;
     }
 
-    addToCart(product, qty, 10); // default margin to 10%
+    const currentStoreId = useCartStore.getState().storeId;
+    const detectedMargin = resolveMargin(product, currentStoreId);
+
+    addToCart(product, qty, detectedMargin);
     alert(`Added ${qty} ${product.unit} of ${product.name} to billing cart!`);
   };
 

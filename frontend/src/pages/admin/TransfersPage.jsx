@@ -518,9 +518,9 @@ export default function TransfersPage() {
                       }`}>
                         {item.status}
                       </span>
-                      {item.invoiceId && (
+                      {item.invoice?.invoiceNo && (
                         <span className="text-[9px] font-bold text-indigo-600 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-full">
-                          Invoice Generated ✓
+                          Invoice: {item.invoice.invoiceNo}
                         </span>
                       )}
                     </div>

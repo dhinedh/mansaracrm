@@ -16,13 +16,19 @@ import {
   AlertTriangle,
   X,
   Eye,
-  ChevronRight
+  ChevronRight,
+  User
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 
 export default function RequestsPage() {
   const { user } = useAuthStore();
   const isAdmin = user?.role === 'ADMIN';
+
+  // Tabs:
+  // For Dealer: 'create' | 'history'
+  // For Admin: 'pending' | 'history'
+  const [activeTab, setActiveTab] = useState(isAdmin ? 'pending' : 'create');
 
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -47,6 +53,19 @@ export default function RequestsPage() {
   const [dispatchRequestId, setDispatchRequestId] = useState(null);
   const [dispatching, setDispatching] = useState(false);
 
+  // Synchronize status filters with tab selections
+  useEffect(() => {
+    if (isAdmin) {
+      if (activeTab === 'pending') {
+        setStatusFilter('PENDING');
+      } else {
+        setStatusFilter(''); // Load all by default for history/archive tab
+      }
+    } else {
+      setStatusFilter(''); // Dealers load all requests in their history tab
+    }
+  }, [activeTab, isAdmin]);
+
   useEffect(() => {
     fetchRequests();
     if (!isAdmin) {
@@ -55,6 +74,7 @@ export default function RequestsPage() {
   }, [statusFilter]);
 
   const fetchRequests = async () => {
+    setLoading(true);
     try {
       const res = await axios.get('/requests', {
         params: { status: statusFilter }
@@ -116,6 +136,8 @@ export default function RequestsPage() {
       setMessage({ text: 'Order request submitted successfully to Admin.', type: 'success' });
       setRequestItems([]);
       setNotes('');
+      // Switch to history tab to revisit the order
+      setActiveTab('history');
       fetchRequests();
     } catch (err) {
       setMessage({ text: err.response?.data?.message || 'Failed to submit request', type: 'error' });
@@ -163,34 +185,69 @@ export default function RequestsPage() {
     }
   };
 
+  // Tabs list
+  const tabs = isAdmin 
+    ? [
+        { id: 'pending', label: 'Pending Requests', icon: Clock },
+        { id: 'history', label: 'Request History / Archive', icon: FileText }
+      ]
+    : [
+        { id: 'create', label: 'Create PO Request', icon: Plus },
+        { id: 'history', label: 'Request History & Status', icon: FileText }
+      ];
+
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div>
         <h2 className="text-xl font-black text-slate-800 tracking-tight">
           {isAdmin ? 'Dealers Purchase & Stock Requests' : 'Warehouse Purchase Orders'}
         </h2>
         <p className="text-slate-500 text-xs">
           {isAdmin 
-            ? 'Review dealer stock requests and dispatch logistics to generate invoices.' 
+            ? 'Review dealer stock requests, check contacts, and dispatch logistics to generate invoices.' 
             : 'Request warehouse stock dispatches and monitor B2B shipment approvals.'}
         </p>
       </div>
 
+      {/* Tabs Switcher */}
+      <div className="flex border-b border-slate-200">
+        {tabs.map(tab => {
+          const TabIcon = tab.icon;
+          const isActive = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center space-x-2 py-3 px-6 border-b-2 font-black text-xs uppercase tracking-wider transition-all duration-200 cursor-pointer ${
+                isActive 
+                  ? 'border-rose-600 text-rose-600' 
+                  : 'border-transparent text-slate-400 hover:text-slate-600'
+              }`}
+            >
+              <TabIcon className="w-4 h-4" />
+              <span>{tab.label}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Messages */}
       {message.text && (
         <div className={`px-4 py-3 rounded-xl text-xs font-semibold ${message.type === 'success' ? 'bg-emerald-50 text-emerald-800 border border-emerald-100' : 'bg-rose-50 text-rose-800 border border-rose-100'}`}>
           {message.text}
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        
-        {/* LEFT COLUMN: Dealer Wizard Form OR Admin Filters */}
-        <div className="lg:col-span-1 space-y-6">
-          {!isAdmin ? (
+      {/* ─── TAB 1: DEALER CREATE REQUEST ─── */}
+      {!isAdmin && activeTab === 'create' && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Create Form */}
+          <div className="lg:col-span-1 space-y-6">
             <div className="bg-white border border-slate-150 p-6 rounded-2xl shadow-sm space-y-4">
               <h3 className="font-black text-slate-800 text-xs uppercase tracking-wider flex items-center space-x-2">
                 <FileText className="w-4 h-4 text-rose-600" />
-                <span>Create PO Request</span>
+                <span>New PO request</span>
               </h3>
 
               <div className="space-y-4 text-xs">
@@ -215,7 +272,7 @@ export default function RequestsPage() {
                     min="1"
                     value={selectedQty}
                     onChange={(e) => setSelectedQty(e.target.value)}
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none"
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none font-bold"
                   />
                 </div>
 
@@ -226,11 +283,11 @@ export default function RequestsPage() {
                   className="w-full bg-slate-800 hover:bg-slate-900 disabled:bg-slate-200 text-white font-bold text-xs py-2.5 rounded-xl transition-all flex items-center justify-center space-x-1.5"
                 >
                   <Plus className="w-4 h-4" />
-                  <span>Add Product</span>
+                  <span>Add to request</span>
                 </button>
               </div>
 
-              {/* Cart List */}
+              {/* Request Cart List */}
               {requestItems.length > 0 && (
                 <div className="space-y-3 pt-4 border-t border-slate-100 text-xs">
                   <span className="block text-[10px] font-black uppercase text-slate-400 tracking-wider">Requested Items List</span>
@@ -274,65 +331,81 @@ export default function RequestsPage() {
                 </div>
               )}
             </div>
-          ) : (
-            <div className="bg-white border border-slate-150 p-6 rounded-2xl shadow-sm space-y-4 text-xs">
-              <h3 className="font-bold text-slate-800 uppercase tracking-wider">Request Filters</h3>
-              <div className="flex flex-col space-y-2">
-                {['PENDING', 'DISPATCHED', 'CANCELLED', ''].map(status => (
-                  <button
-                    key={status}
-                    onClick={() => setStatusFilter(status)}
-                    className={`text-left px-4 py-2.5 rounded-xl font-semibold transition-colors flex items-center justify-between ${
-                      statusFilter === status 
-                        ? 'bg-rose-50 text-rose-700 border border-rose-100/50' 
-                        : 'bg-white hover:bg-slate-50 text-slate-600 border border-transparent'
-                    }`}
-                  >
-                    <span>{status === '' ? 'All Requests' : status}</span>
-                    <ChevronRight className="w-3.5 h-3.5 opacity-60" />
-                  </button>
-                ))}
+          </div>
+
+          {/* Guidelines Box */}
+          <div className="lg:col-span-2 space-y-6">
+            <div className="bg-white border border-slate-150 p-6 rounded-2xl shadow-sm space-y-3">
+              <h4 className="font-bold text-slate-800 text-xs uppercase tracking-wider">Logistics Flow & Guidelines</h4>
+              <div className="space-y-3 text-[12px] text-slate-600 leading-relaxed">
+                <p>1. **Compile PO List:** Choose items and required quantities from the catalog on the left to add them to your request list.</p>
+                <p>2. **Submit to Warehouse:** Once complete, provide delivery remarks and submit the order. The central warehouse administration will be notified immediately.</p>
+                <p>3. **Admin Dispatch & Auto-Billing:** The admin will review stock levels and dispatch the request. Approval automatically generates a B2B invoice for you and updates inventories.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── TAB 2: REQUEST LISTING / HISTORY (BOTH ROLES) ─── */}
+      {((isAdmin) || (!isAdmin && activeTab === 'history')) && (
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+          
+          {/* History Sidebar Filters (Only for Admin History or when activeTab is history) */}
+          {isAdmin && activeTab === 'history' && (
+            <div className="lg:col-span-1 space-y-4">
+              <div className="bg-white border border-slate-150 p-6 rounded-2xl shadow-sm space-y-4 text-xs">
+                <h3 className="font-bold text-slate-800 uppercase tracking-wider">Status Filters</h3>
+                <div className="flex flex-col space-y-2">
+                  {[
+                    { id: '', label: 'All Requests' },
+                    { id: 'PENDING', label: 'Pending' },
+                    { id: 'DISPATCHED', label: 'Dispatched' },
+                    { id: 'CANCELLED', label: 'Cancelled' }
+                  ].map(filter => (
+                    <button
+                      key={filter.id}
+                      onClick={() => setStatusFilter(filter.id)}
+                      className={`text-left px-4 py-2.5 rounded-xl font-semibold transition-colors flex items-center justify-between ${
+                        statusFilter === filter.id 
+                          ? 'bg-rose-50 text-rose-700 border border-rose-100/50' 
+                          : 'bg-white hover:bg-slate-50 text-slate-600 border border-transparent'
+                      }`}
+                    >
+                      <span>{filter.label}</span>
+                      <ChevronRight className="w-3.5 h-3.5 opacity-60" />
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           )}
 
-          {/* Guidelines Box */}
-          <div className="bg-white border border-slate-150 p-6 rounded-2xl shadow-sm space-y-3">
-            <h4 className="font-bold text-slate-800 text-xs uppercase tracking-wider">Logistics Flow</h4>
-            <div className="space-y-2 text-[11px] text-slate-500 leading-relaxed">
-              <p>1. **Submit Request:** Dealer partner compiles items and submits request to the company warehouse.</p>
-              <p>2. **Admin Review:** Admin checks stock levels and clicks "Dispatch Stock" to approve.</p>
-              <p>3. **Auto Billing:** Approval automatically generates B2B invoice and linked stock transfer log immediately.</p>
-            </div>
-          </div>
-        </div>
-
-        {/* RIGHT COLUMN: Requests Log List */}
-        <div className="lg:col-span-2 space-y-4">
-          <div className="bg-white border border-slate-150 rounded-2xl shadow-sm overflow-hidden">
-            <div className="p-4 bg-slate-50/50 border-b border-slate-100 flex items-center justify-between">
-              <span className="text-xs font-black uppercase text-slate-500 tracking-wider">Stock Requests Tracker</span>
-              <span className="text-[10px] text-slate-400 font-bold">{requests.length} Requests Found</span>
-            </div>
-
+          {/* List Component */}
+          <div className={isAdmin && activeTab === 'history' ? 'lg:col-span-3 space-y-4' : 'lg:col-span-4 space-y-4'}>
+            
             {loading ? (
-              <div className="flex justify-center items-center py-12">
-                <div className="animate-spin rounded-full h-7 w-7 border-b-2 border-rose-600"></div>
+              <div className="flex justify-center items-center py-16 bg-white border border-slate-150 rounded-2xl">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-rose-600"></div>
               </div>
             ) : requests.length === 0 ? (
-              <div className="py-16 text-center text-xs text-slate-400 font-semibold italic">
-                No stock requests found.
+              <div className="py-20 text-center text-xs text-slate-400 font-semibold italic bg-white border border-slate-150 rounded-2xl">
+                No orders or requests found.
               </div>
             ) : (
-              <div className="divide-y divide-slate-100">
+              <div className="space-y-4">
                 {requests.map(req => {
                   const totalItemsQty = req.items?.reduce((acc, i) => acc + i.quantity, 0) || 0;
                   return (
-                    <div key={req.id} className="p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 hover:bg-slate-50/30 transition-colors">
-                      <div className="space-y-1">
+                    <div key={req.id} className="p-6 bg-white border border-slate-150 rounded-2xl shadow-sm hover:shadow-md transition-all space-y-4">
+                      
+                      {/* Top Header Row */}
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
                         <div className="flex items-center space-x-2">
-                          <strong className="text-slate-800 text-xs">{req.requestNo}</strong>
-                          <span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${
+                          <span className="font-mono text-[11px] bg-slate-100 border border-slate-200 text-slate-800 font-bold px-2.5 py-1 rounded-lg">
+                            {req.requestNo}
+                          </span>
+                          <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase ${
                             req.status === 'DISPATCHED' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' :
                             req.status === 'CANCELLED' ? 'bg-rose-50 text-rose-700 border border-rose-100' :
                             'bg-amber-50 text-amber-700 border border-amber-200 animate-pulse'
@@ -340,46 +413,122 @@ export default function RequestsPage() {
                             {req.status}
                           </span>
                         </div>
-                        {isAdmin && (
-                          <p className="text-[10px] text-slate-500 flex items-center space-x-1">
-                            <Building2 className="w-3 h-3 text-slate-400" />
-                            <strong className="text-slate-700">{req.dealer?.companyName}</strong>
-                          </p>
-                        )}
-                        <p className="text-[10px] text-slate-400">
-                          Date: {new Date(req.createdAt).toLocaleDateString('en-IN')} · Items: <strong className="text-slate-600">{req.items?.length || 0} ({totalItemsQty} units)</strong>
-                        </p>
+                        <span className="text-[10px] text-slate-400 font-semibold">
+                          Date: {new Date(req.createdAt).toLocaleDateString('en-IN', {
+                            day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
+                          })}
+                        </span>
                       </div>
 
-                      <div className="flex items-center space-x-2">
-                        <button
-                          onClick={() => { setSelectedRequest(req); setShowDetailModal(true); }}
-                          className="inline-flex items-center space-x-1 text-[10px] bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200 px-2.5 py-1.5 rounded-lg font-bold"
-                        >
-                          <Eye className="w-3.5 h-3.5" />
-                          <span>View Details</span>
-                        </button>
+                      {/* Content Section: Requestor Contact + Order details */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-1">
+                        
+                        {/* Requestor Contact Info (Left) */}
+                        <div className="space-y-3">
+                          <span className="block text-[9px] font-black uppercase text-slate-400 tracking-wider">
+                            {isAdmin ? 'Dealer Partner Contact details' : 'My Information'}
+                          </span>
+                          {isAdmin ? (
+                            <div className="space-y-2">
+                              <div className="flex items-center space-x-2">
+                                <div className="p-1.5 bg-rose-50 rounded-lg text-rose-600">
+                                  <Building2 className="w-3.5 h-3.5" />
+                                </div>
+                                <div>
+                                  <strong className="text-slate-800 text-xs">{req.dealer?.companyName}</strong>
+                                  {req.dealer?.user?.name && (
+                                    <span className="block text-[10px] text-slate-500 font-medium">Contact: {req.dealer.user.name}</span>
+                                  )}
+                                </div>
+                              </div>
+                              
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] pl-1 pt-1">
+                                <a 
+                                  href={`tel:${req.dealer?.phone}`} 
+                                  className="inline-flex items-center space-x-1.5 text-rose-600 hover:text-rose-700 font-bold border border-rose-100 hover:bg-rose-50/50 px-2 py-1 rounded-lg transition-colors cursor-pointer"
+                                >
+                                  <Phone className="w-3 h-3" />
+                                  <span>{req.dealer?.phone || 'No Phone'}</span>
+                                </a>
+                                <a 
+                                  href={`mailto:${req.dealer?.user?.email}`} 
+                                  className="inline-flex items-center space-x-1.5 text-slate-600 hover:text-slate-800 border border-slate-200 hover:bg-slate-50 px-2 py-1 rounded-lg transition-colors cursor-pointer truncate"
+                                  title={req.dealer?.user?.email}
+                                >
+                                  <Mail className="w-3 h-3 text-slate-400 shrink-0" />
+                                  <span className="truncate">{req.dealer?.user?.email || 'No Email'}</span>
+                                </a>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="space-y-1.5 bg-slate-50 border border-slate-100 p-3 rounded-xl text-slate-600 text-[11px]">
+                              <p className="font-bold text-slate-700">Self Request Fulfillment</p>
+                              <p className="text-slate-400 text-[10px]">Your stock requests are fulfilled directly by the manufacturer logistics team.</p>
+                            </div>
+                          )}
+                        </div>
 
-                        {isAdmin && req.status === 'PENDING' && (
-                          <button
-                            onClick={() => openDispatchDialog(req.id)}
-                            className="inline-flex items-center space-x-1 text-[10px] bg-rose-600 hover:bg-rose-700 text-white px-2.5 py-1.5 rounded-lg font-bold shadow-sm"
-                          >
-                            <Truck className="w-3.5 h-3.5" />
-                            <span>Dispatch Stock</span>
-                          </button>
-                        )}
+                        {/* Order Items Details (Right) */}
+                        <div className="space-y-2.5">
+                          <span className="block text-[9px] font-black uppercase text-slate-400 tracking-wider">
+                            Order Items Breakdown
+                          </span>
+                          <div className="bg-slate-50/70 border border-slate-150 rounded-xl overflow-hidden text-[11px] shadow-sm">
+                            <div className="divide-y divide-slate-150 max-h-40 overflow-y-auto">
+                              {req.items?.map((item, idx) => (
+                                <div key={idx} className="flex justify-between items-center p-2.5 hover:bg-slate-100/30">
+                                  <div className="flex flex-col">
+                                    <span className="font-bold text-slate-800">{item.product?.name || 'Unknown Product'}</span>
+                                    <span className="text-[9px] text-slate-400 font-mono">SKU: {item.product?.sku || 'N/A'}</span>
+                                  </div>
+                                  <span className="font-black text-rose-600 bg-rose-50/50 px-2 py-0.5 rounded-lg border border-rose-100/50 text-[10px]">
+                                    {item.quantity} {item.product?.unit || 'PCS'}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
 
-                        {req.status === 'PENDING' && (
-                          <button
-                            onClick={() => handleCancelRequest(req.id)}
-                            className="inline-flex items-center space-x-1 text-[10px] bg-rose-50 hover:bg-rose-100 text-rose-600 px-2.5 py-1.5 rounded-lg border border-rose-100 font-bold"
-                          >
-                            <XCircle className="w-3.5 h-3.5" />
-                            <span>{isAdmin ? 'Reject' : 'Cancel'}</span>
-                          </button>
-                        )}
                       </div>
+
+                      {/* Memo & Actions Footer */}
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pt-3 border-t border-slate-100 text-[11px]">
+                        <div className="text-slate-500 italic max-w-md truncate">
+                          {req.notes ? `Remarks: "${req.notes}"` : 'No remarks added.'}
+                        </div>
+                        
+                        <div className="flex items-center space-x-2 shrink-0 self-end sm:self-auto">
+                          <button
+                            onClick={() => { setSelectedRequest(req); setShowDetailModal(true); }}
+                            className="inline-flex items-center space-x-1 bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200 px-3 py-1.5 rounded-xl font-bold cursor-pointer transition-colors"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            <span>View Full details</span>
+                          </button>
+
+                          {isAdmin && req.status === 'PENDING' && (
+                            <button
+                              onClick={() => openDispatchDialog(req.id)}
+                              className="inline-flex items-center space-x-1.5 bg-rose-600 hover:bg-rose-700 text-white px-3 py-1.5 rounded-xl font-bold shadow-md cursor-pointer transition-all hover:scale-[1.02]"
+                            >
+                              <Truck className="w-3.5 h-3.5" />
+                              <span>Dispatch Stock</span>
+                            </button>
+                          )}
+
+                          {req.status === 'PENDING' && (
+                            <button
+                              onClick={() => handleCancelRequest(req.id)}
+                              className="inline-flex items-center space-x-1 bg-rose-50 hover:bg-rose-100 text-rose-600 px-3 py-1.5 rounded-xl border border-rose-100 font-bold cursor-pointer transition-colors"
+                            >
+                              <XCircle className="w-3.5 h-3.5" />
+                              <span>{isAdmin ? 'Reject' : 'Cancel'}</span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
                     </div>
                   );
                 })}
@@ -387,7 +536,7 @@ export default function RequestsPage() {
             )}
           </div>
         </div>
-      </div>
+      )}
 
       {/* Detail Modal */}
       {showDetailModal && selectedRequest && (
@@ -531,7 +680,7 @@ export default function RequestsPage() {
                   value={dispatchNotes}
                   onChange={(e) => setDispatchNotes(e.target.value)}
                   rows="3"
-                  placeholder="e.g. Dispatched via VRL Logistics, Invoice linked."
+                  placeholder="e.g. Dispatched via Gati Cargo, Invoice linked."
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none"
                 ></textarea>
               </div>
