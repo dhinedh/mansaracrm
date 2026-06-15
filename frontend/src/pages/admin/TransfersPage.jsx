@@ -172,7 +172,7 @@ export default function TransfersPage() {
   const invoiceLines = transferItems.map(item => {
     const basePrice = parseFloat(item.product.price);
     const margin = item.marginPct || 0;
-    const sellingPrice = basePrice * (1 - margin / 100);
+    const sellingPrice = basePrice * (1 + margin / 100);
     const gstPct = parseFloat(item.product.gstPercent || 0);
     const lineSubtotal = sellingPrice * item.quantity;
     const lineGst = lineSubtotal * (gstPct / 100);
@@ -374,7 +374,7 @@ export default function TransfersPage() {
                     </div>
                     {transferItems.map(item => {
                       const id = typeof item.productId === 'object' ? item.productId?.id || item.productId?.toString() : item.productId;
-                      const effPrice = parseFloat(item.product.price) * (1 - (item.marginPct || 0) / 100);
+                      const effPrice = parseFloat(item.product.price) * (1 + (item.marginPct || 0) / 100);
                       return (
                         <div key={id} className="grid grid-cols-12 gap-2 items-center px-4 py-3 border-b border-slate-100 last:border-0 text-xs">
                           <div className="col-span-4">
@@ -666,8 +666,8 @@ export default function TransfersPage() {
                           <td className="px-4 py-3 text-center text-slate-600 font-bold">{line.quantity}</td>
                           <td className="px-4 py-3 text-center text-slate-500">{fmt(line.basePrice)}</td>
                           <td className="px-4 py-3 text-center">
-                            <span className="bg-rose-50 text-rose-700 font-black text-[10px] px-2 py-0.5 rounded-full">
-                              -{line.marginPct}%
+                            <span className="bg-emerald-50 text-emerald-700 font-black text-[10px] px-2 py-0.5 rounded-full">
+                              +{line.marginPct}%
                             </span>
                           </td>
                           <td className="px-4 py-3 text-center font-bold text-slate-700">{fmt(line.sellingPrice)}</td>

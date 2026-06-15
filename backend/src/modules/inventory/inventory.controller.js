@@ -187,7 +187,7 @@ exports.createStockTransfer = async (req, res, next) => {
     for (const item of items) {
       const product = await prisma.product.findUnique({ where: { id: item.productId } });
       const marginPct = parseFloat(item.marginPct) || 0;
-      const unitPrice = parseFloat(product.price) * (1 - marginPct / 100);
+      const unitPrice = parseFloat(product.price) * (1 + marginPct / 100);
       const lineSubtotal = unitPrice * item.quantity;
       const lineGst = lineSubtotal * (parseFloat(product.gstPercent) / 100);
       const lineTotal = lineSubtotal + lineGst;
@@ -253,7 +253,7 @@ exports.createStockTransfer = async (req, res, next) => {
       for (const item of items) {
         const product = await tx.product.findUnique({ where: { id: item.productId } });
         const marginPct = parseFloat(item.marginPct) || 0;
-        const unitPrice = parseFloat(product.price) * (1 - marginPct / 100);
+        const unitPrice = parseFloat(product.price) * (1 + marginPct / 100);
         await tx.stockTransferItem.create({
           data: {
             transferId: stockTx.id,
