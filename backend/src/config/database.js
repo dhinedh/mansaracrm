@@ -607,6 +607,13 @@ const ReturnSchema = new Schema({
   toObject: { virtuals: true }
 });
 
+ReturnSchema.virtual('dealer', {
+  ref: 'Dealer',
+  localField: 'dealerId',
+  foreignField: '_id',
+  justOne: true
+});
+
 // StockRequest (Dealer Order Requests)
 const StockRequestSchema = new Schema({
   requestNo: { type: String, unique: true, required: true },
@@ -621,6 +628,13 @@ const StockRequestSchema = new Schema({
   timestamps: true,
   toJSON: { virtuals: true },
   toObject: { virtuals: true }
+});
+
+StockRequestSchema.virtual('dealer', {
+  ref: 'Dealer',
+  localField: 'dealerId',
+  foreignField: '_id',
+  justOne: true
 });
 
 // ComplaintTicket

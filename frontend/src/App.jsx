@@ -31,6 +31,8 @@ import StoresPage from './pages/dealer/StoresPage';
 import DealerProductsPage from './pages/dealer/DealerProductsPage';
 import CartPage from './pages/dealer/CartPage';
 import MyLedgersPage from './pages/dealer/MyLedgersPage';
+import InvoicesHistoryPage from './pages/dealer/InvoicesHistoryPage';
+import WarehouseTransfersPage from './pages/dealer/WarehouseTransfersPage';
 import DealerAnalyticsPage from './pages/dealer/DealerAnalyticsPage';
 import ProfilePage from './pages/dealer/ProfilePage';
 
@@ -104,8 +106,8 @@ export default function App() {
           <Route path="products" element={<DealerProductsPage />} />
           <Route path="cart" element={<CartPage />} />
           <Route path="ledgers" element={<MyLedgersPage />} />
-          <Route path="invoices" element={<MyLedgersPage />} />
-          <Route path="transfers" element={<MyLedgersPage />} />
+          <Route path="invoices" element={<InvoicesHistoryPage />} />
+          <Route path="transfers" element={<WarehouseTransfersPage />} />
           <Route path="profile" element={<ProfilePage />} />
           <Route path="requests" element={<RequestsPage />} />
           <Route path="returns" element={<ReturnsPage />} />
