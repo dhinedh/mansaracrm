@@ -16,6 +16,7 @@ import AdminDashboard from './pages/admin/AdminDashboard';
 import DealersPage from './pages/admin/DealersPage';
 import ProductsPage from './pages/admin/ProductsPage';
 import InventoryPage from './pages/admin/InventoryPage';
+import TransfersPage from './pages/admin/TransfersPage';
 import AdminAnalyticsPage from './pages/admin/AdminAnalyticsPage';
 import NotificationsPage from './pages/admin/NotificationsPage';
 import RequestsPage from './pages/admin/RequestsPage';
@@ -78,7 +79,7 @@ export default function App() {
           <Route path="dealers" element={<DealersPage />} />
           <Route path="products" element={<ProductsPage />} />
           <Route path="inventory" element={<InventoryPage />} />
-          <Route path="transfers" element={<InventoryPage defaultTab="dispatches" />} />
+          <Route path="transfers" element={<TransfersPage />} />
           <Route path="requests" element={<RequestsPage />} />
           <Route path="returns" element={<ReturnsPage />} />
           <Route path="services" element={<TicketsPage />} />
