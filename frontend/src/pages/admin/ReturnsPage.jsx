@@ -35,7 +35,9 @@ export default function ReturnsPage() {
   const [selectedStoreId, setSelectedStoreId] = useState('');
   const [selectedProductId, setSelectedProductId] = useState('');
   const [selectedQty, setSelectedQty] = useState('1');
-  const [returnItems, setReturnItems] = useState([]); // [{ productId, product, quantity }]
+  const [itemReason, setItemReason] = useState('Defective/Expired');
+  const [customReason, setCustomReason] = useState('');
+  const [returnItems, setReturnItems] = useState([]); // [{ productId, product, quantity, reason }]
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -60,7 +62,7 @@ export default function ReturnsPage() {
     try {
       const params = { status: statusFilter };
       if (!isAdmin) {
-        // For dealers, we let them filter by return type to keep dashboard clean
+        // For dealers, filter by return type
         params.type = returnType;
       }
       const res = await axios.get('/returns', { params });
@@ -95,21 +97,29 @@ export default function ReturnsPage() {
     const prod = products.find(p => p.id === selectedProductId);
     if (!prod) return;
 
+    const finalReason = itemReason === 'Other' 
+      ? (customReason.trim() || 'Other Return Reason') 
+      : itemReason;
+
     const existingIndex = returnItems.findIndex(item => item.productId === selectedProductId);
     if (existingIndex > -1) {
       const updated = [...returnItems];
       updated[existingIndex].quantity += parseInt(selectedQty);
+      updated[existingIndex].reason = finalReason;
       setReturnItems(updated);
     } else {
       setReturnItems([...returnItems, {
         productId: selectedProductId,
         product: prod,
-        quantity: parseInt(selectedQty)
+        quantity: parseInt(selectedQty),
+        reason: finalReason
       }]);
     }
 
     setSelectedProductId('');
     setSelectedQty('1');
+    setItemReason('Defective/Expired');
+    setCustomReason('');
   };
 
   const handleRemoveFromReturnCart = (prodId) => {
@@ -129,7 +139,7 @@ export default function ReturnsPage() {
         items: returnItems.map(i => ({ 
           productId: i.productId, 
           quantity: i.quantity,
-          reason: notes || 'Defective/Return'
+          reason: i.reason || notes || 'Defective/Return'
         })),
         notes
       });
@@ -179,7 +189,7 @@ export default function ReturnsPage() {
         <p className="text-slate-500 text-xs">
           {isAdmin 
             ? 'Review returned stocks from dealers and record additions to warehouse inventory.'
-            : 'Initiate returns to warehouse, record store-to-dealer returns, and verify inventory additions.'}
+            : 'Initiate returns to central warehouse, log store-to-dealer returns, and track inventory additions.'}
         </p>
       </div>
 
@@ -202,7 +212,7 @@ export default function ReturnsPage() {
                     returnType === 'DEALER_TO_WAREHOUSE' ? 'border-rose-600 text-rose-600' : 'border-transparent text-slate-400'
                   }`}
                 >
-                  Return to Warehouse
+                  Return to Central
                 </button>
                 <button
                   onClick={() => { setReturnType('STORE_TO_DEALER'); setReturnItems([]); }}
@@ -252,9 +262,35 @@ export default function ReturnsPage() {
                       min="1"
                       value={selectedQty}
                       onChange={(e) => setSelectedQty(e.target.value)}
-                      className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 rounded-xl focus:outline-none"
+                      className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 rounded-xl focus:outline-none font-bold"
                     />
                   </div>
+                </div>
+
+                <div>
+                  <label className="block text-slate-500 font-bold mb-1">Reason / Defect details</label>
+                  <select
+                    value={itemReason}
+                    onChange={(e) => setItemReason(e.target.value)}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 rounded-xl focus:outline-none cursor-pointer"
+                  >
+                    <option value="Defective/Expired">Defective or Expired Product</option>
+                    <option value="Transit Damage">Transit Packaging Damage</option>
+                    <option value="Incorrect Item">Wrong item sent by company</option>
+                    <option value="Quality Issue">Quality complaints / off-taste</option>
+                    <option value="Customer Return">Returned by end customer</option>
+                    <option value="Other">Other Reason (Specify below)</option>
+                  </select>
+
+                  {itemReason === 'Other' && (
+                    <input
+                      type="text"
+                      value={customReason}
+                      onChange={(e) => setCustomReason(e.target.value)}
+                      placeholder="Please specify specific return reason details..."
+                      className="w-full mt-2 p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 rounded-xl focus:outline-none font-medium"
+                    />
+                  )}
                 </div>
 
                 <button
@@ -278,6 +314,7 @@ export default function ReturnsPage() {
                         <div>
                           <p className="font-bold text-slate-800">{item.product.name}</p>
                           <p className="text-[9px] font-black text-rose-600">Qty: {item.quantity} {item.product.unit}</p>
+                          <p className="text-[9px] text-slate-400 font-semibold italic mt-0.5">Reason: {item.reason}</p>
                         </div>
                         <button
                           type="button"
@@ -292,7 +329,7 @@ export default function ReturnsPage() {
 
                   <form onSubmit={handleInitiateReturn} className="space-y-3 pt-2">
                     <div>
-                      <label className="block text-slate-500 font-bold mb-1">Reason for Return / Defect description</label>
+                      <label className="block text-slate-500 font-bold mb-1">Overall Logistics remarks (optional)</label>
                       <textarea
                         value={notes}
                         onChange={(e) => setNotes(e.target.value)}
@@ -304,7 +341,7 @@ export default function ReturnsPage() {
                     <button
                       type="submit"
                       disabled={submitting || (returnType === 'STORE_TO_DEALER' && !selectedStoreId)}
-                      className="w-full bg-rose-600 hover:bg-rose-700 disabled:bg-rose-400 text-white font-bold py-2.5 rounded-xl transition-all shadow-md"
+                      className="w-full bg-rose-600 hover:bg-rose-700 disabled:bg-rose-400 text-white font-bold py-2.5 rounded-xl transition-all shadow-md flex items-center justify-center space-x-1.5"
                     >
                       {submitting ? 'Recording...' : returnType === 'DEALER_TO_WAREHOUSE' ? 'Submit Return to Company' : 'Record Store Return'}
                     </button>
@@ -404,19 +441,22 @@ export default function ReturnsPage() {
                         </p>
 
                         {/* Detailed list of returned products & reasons directly inside the list card */}
-                        <div className="mt-3 bg-slate-50 border border-slate-150 p-3.5 rounded-xl max-w-xl space-y-2">
+                        <div className="mt-3 bg-slate-50/50 border border-slate-150 p-4 rounded-xl max-w-xl space-y-2">
                           <div className="space-y-1.5">
                             <span className="block text-[8px] font-black text-slate-400 uppercase tracking-wider border-b border-slate-200 pb-1.5">Returned Products Log</span>
                             {ret.items?.map((it, idx) => (
-                              <div key={idx} className="flex justify-between items-center text-[10px] text-slate-650">
-                                <span className="font-semibold text-slate-700">{it.product?.name || 'Product'} (SKU: {it.product?.sku || 'N/A'})</span>
-                                <span className="font-black text-rose-600 bg-white border border-slate-150 px-2 py-0.5 rounded text-[9px]">{it.quantity} {it.product?.unit || 'PCS'}</span>
+                              <div key={idx} className="flex flex-col border-b border-slate-100 last:border-0 pb-1.5 last:pb-0 pt-1.5 first:pt-0">
+                                <div className="flex justify-between items-center text-[10px]">
+                                  <span className="font-semibold text-slate-700">{it.product?.name || 'Product'} (SKU: {it.product?.sku || 'N/A'})</span>
+                                  <span className="font-black text-rose-600 bg-white border border-slate-150 px-2 py-0.5 rounded text-[9px]">{it.quantity} {it.product?.unit || 'PCS'}</span>
+                                </div>
+                                <span className="text-[9px] text-slate-500 italic mt-0.5">Reason: {it.reason || 'Defective/Return'}</span>
                               </div>
                             ))}
                           </div>
                           {ret.notes && (
                             <div className="text-[10px] text-slate-500 italic border-t border-slate-150 pt-1.5 mt-1.5 flex items-start gap-1">
-                              <span className="font-bold text-slate-600 not-italic">Remarks:</span>
+                              <span className="font-bold text-slate-600 not-italic">Overall remarks:</span>
                               <span className="leading-relaxed">"{ret.notes}"</span>
                             </div>
                           )}
@@ -499,6 +539,7 @@ export default function ReturnsPage() {
                       <tr className="bg-slate-50 border-b border-slate-200 text-[9px] font-black uppercase text-slate-400">
                         <th className="p-3">Product Name</th>
                         <th className="p-3">SKU</th>
+                        <th className="p-3">Return Reason / Details</th>
                         <th className="p-3 text-right">Return Qty</th>
                         <th className="p-3 text-right">Value</th>
                       </tr>
@@ -510,6 +551,7 @@ export default function ReturnsPage() {
                           <tr key={index} className="hover:bg-slate-50/30 transition-colors">
                             <td className="p-3 font-bold text-slate-800">{prod.name || 'Unknown Product'}</td>
                             <td className="p-3 font-mono text-[10px] text-slate-400">{prod.sku || 'N/A'}</td>
+                            <td className="p-3 text-slate-500 italic">{item.reason || 'Defective/Return'}</td>
                             <td className="p-3 text-right font-black text-rose-600">{item.quantity} {prod.unit || 'PCS'}</td>
                             <td className="p-3 text-right font-bold">₹{(prod.price || 0).toLocaleString()}</td>
                           </tr>

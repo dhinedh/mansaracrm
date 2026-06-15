@@ -24,6 +24,7 @@ export default function CartPage() {
   const [stores, setStores] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isGstEnabled, setIsGstEnabled] = useState(true);
+  const [isCredit, setIsCredit] = useState(false);
   const [storeSearch, setStoreSearch] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [filteredSuggestions, setFilteredSuggestions] = useState([]);
@@ -305,6 +306,7 @@ export default function CartPage() {
         storeName: storeId ? undefined : storeSearch.trim(),
         notes,
         isGstEnabled,
+        isCredit,
         shippingCharges: parseFloat(shippingCharges || 0),
         items: items.map(item => ({
           productId: item.productId,
@@ -621,6 +623,21 @@ export default function CartPage() {
                 className="rounded text-rose-600 border-slate-300 focus:ring-rose-500 w-4 h-4 cursor-pointer"
               />
               <span>Enable GST Tax Billing</span>
+            </label>
+          </div>
+
+          <div className="flex items-center justify-between border-t border-dashed border-slate-100 pt-3 pb-1">
+            <label className="flex items-center space-x-2 font-bold text-slate-750 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={isCredit}
+                onChange={(e) => setIsCredit(e.target.checked)}
+                className="rounded text-indigo-600 border-slate-300 focus:ring-indigo-500 w-4 h-4 cursor-pointer"
+              />
+              <span className="flex items-center space-x-1">
+                <span>Mark as Credit (15 Days Terms)</span>
+                <span className="text-[9px] bg-indigo-50 text-indigo-700 font-extrabold px-1.5 py-0.2 rounded uppercase tracking-wider">Credit</span>
+              </span>
             </label>
           </div>
 

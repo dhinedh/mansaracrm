@@ -20,7 +20,7 @@ exports.createInvoice = async (req, res, next) => {
       return res.status(403).json({ success: false, message: 'Only dealers can generate invoices' });
     }
 
-    const { storeId, storeName, items, notes, isGstEnabled = true, shippingCharges = 0 } = req.body; // items: [{ productId, quantity, marginPct }]
+    const { storeId, storeName, items, notes, isGstEnabled = true, shippingCharges = 0, isCredit = false } = req.body; // items: [{ productId, quantity, marginPct }]
     const dealerId = req.user.dealer.id;
 
     if (!items || items.length === 0) {
@@ -130,6 +130,12 @@ exports.createInvoice = async (req, res, next) => {
 
       const invoiceNo = `${seq.prefix}-${String(seq.lastNumber).padStart(5, '0')}`;
 
+      let dueDate = null;
+      if (isCredit) {
+        dueDate = new Date();
+        dueDate.setDate(dueDate.getDate() + 15);
+      }
+
       // B. Create Invoice as OPEN
       const inv = await tx.invoice.create({
         data: {
@@ -145,6 +151,8 @@ exports.createInvoice = async (req, res, next) => {
           shippingCharges: parseFloat(shippingCharges || 0),
           status: 'OPEN',
           notes,
+          isCredit: !!isCredit,
+          dueDate,
           items: {
             create: invoiceItemsDetails
           }
@@ -163,8 +171,8 @@ exports.createInvoice = async (req, res, next) => {
         data: {
           userId: req.user.id,
           type: 'INVOICE_GENERATED',
-          title: 'Invoice Created (Open)',
-          message: `Invoice ${invoiceNo} created as OPEN for ${store.name}. Total amount: ₹${calculatedGrandTotal.toFixed(2)}`,
+          title: isCredit ? 'Invoice Created on Credit (Open)' : 'Invoice Created (Open)',
+          message: `Invoice ${invoiceNo} created as ${isCredit ? 'CREDIT (Open)' : 'OPEN'} for ${store.name}. Total amount: ₹${calculatedGrandTotal.toFixed(2)}`,
           metadata: { invoiceId: inv.id }
         }
       });

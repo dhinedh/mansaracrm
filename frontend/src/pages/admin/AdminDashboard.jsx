@@ -14,7 +14,8 @@ import {
   FileText,
   Store,
   Download,
-  X
+  X,
+  ChevronRight
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -38,6 +39,7 @@ export default function AdminDashboard() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [overdueInvoices, setOverdueInvoices] = useState([]);
+  const [dashboardTab, setDashboardTab] = useState('daily'); // 'daily', 'monthly', 'financial'
 
   // Invoice Details Modal state (for navigation from notification)
   const [selectedInvoice, setSelectedInvoice] = useState(null);
@@ -416,7 +418,7 @@ export default function AdminDashboard() {
       const fifteenDaysAgo = new Date();
       fifteenDaysAgo.setDate(fifteenDaysAgo.getDate() - 15);
       const overdue = allInvoices.filter(inv => 
-        inv.status === 'GENERATED' && 
+        (inv.status === 'GENERATED' || (inv.isCredit && inv.status === 'OPEN')) && 
         new Date(inv.createdAt) <= fifteenDaysAgo
       );
       setOverdueInvoices(overdue);
@@ -453,250 +455,454 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      {/* KPI Cards Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        {kpiList.map((kpi) => {
-          const Icon = kpi.icon;
-          return (
-            <div key={kpi.name} className="bg-white border border-slate-150 p-6 rounded-2xl shadow-sm hover:shadow-md transition-shadow duration-300">
-              <div className="flex items-center justify-between mb-4">
-                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">{kpi.name}</span>
-                <div className={`p-2.5 rounded-xl ${kpi.color}`}>
-                  <Icon className="w-5 h-5" />
-                </div>
-              </div>
-              <h3 className="text-2xl font-black text-slate-800">{kpi.value}</h3>
-              <p className="text-slate-400 text-[10px] font-medium mt-1">{kpi.desc}</p>
-            </div>
-          );
-        })}
+      {/* Dashboard Tabs Selector */}
+      <div className="bg-slate-100/80 p-1.5 rounded-2xl flex space-x-1 max-w-lg shadow-sm border border-slate-200/50 backdrop-blur-sm">
+        <button
+          onClick={() => setDashboardTab('daily')}
+          className={`flex-1 py-3 px-4 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-300 flex items-center justify-center space-x-2 cursor-pointer ${
+            dashboardTab === 'daily'
+              ? 'bg-white text-rose-600 shadow-md shadow-slate-200/50'
+              : 'text-slate-500 hover:text-slate-800 hover:bg-white/50'
+          }`}
+        >
+          <Calendar className="w-4 h-4" />
+          <span>Daily Pulse</span>
+        </button>
+        <button
+          onClick={() => setDashboardTab('monthly')}
+          className={`flex-1 py-3 px-4 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-300 flex items-center justify-center space-x-2 cursor-pointer ${
+            dashboardTab === 'monthly'
+              ? 'bg-white text-rose-600 shadow-md shadow-slate-200/50'
+              : 'text-slate-500 hover:text-slate-800 hover:bg-white/50'
+          }`}
+        >
+          <TrendingUp className="w-4 h-4" />
+          <span>Monthly Analytics</span>
+        </button>
+        <button
+          onClick={() => setDashboardTab('financial')}
+          className={`flex-1 py-3 px-4 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-300 flex items-center justify-center space-x-2 cursor-pointer ${
+            dashboardTab === 'financial'
+              ? 'bg-white text-rose-600 shadow-md shadow-slate-200/50'
+              : 'text-slate-500 hover:text-slate-800 hover:bg-white/50'
+          }`}
+        >
+          <DollarSign className="w-4 h-4" />
+          <span>Financial Insights</span>
+        </button>
       </div>
 
-      {/* Overdue Invoices Alert Section */}
-      {overdueInvoices.length > 0 && (
-        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 space-y-4 shadow-sm">
-          <div className="flex items-center space-x-3 text-amber-800 font-bold">
-            <AlertCircle className="w-6 h-6 text-amber-600 shrink-0" />
-            <h3 className="text-sm uppercase tracking-wide">Action Required: Overdue Unpaid Invoices (&gt;= 15 Days)</h3>
+      {/* Daily Tab View */}
+      {dashboardTab === 'daily' && (
+        <div className="space-y-8 animate-fade-in">
+          {/* Daily Pulse KPIs Section */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="bg-white border border-slate-150 p-6 rounded-2xl shadow-sm hover:shadow-md transition-shadow duration-300 flex items-center space-x-4">
+              <div className="p-3 bg-emerald-50 rounded-xl text-emerald-600">
+                <DollarSign className="w-5 h-5" />
+              </div>
+              <div>
+                <span className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider">Today's Sales</span>
+                <h4 className="text-xl font-black text-slate-800">₹{(data?.kpis?.todaySales || 0).toLocaleString('en-IN')}</h4>
+                <p className="text-[9px] text-slate-400 font-medium">Billed revenue today</p>
+              </div>
+            </div>
+            
+            <div className="bg-white border border-slate-150 p-6 rounded-2xl shadow-sm hover:shadow-md transition-shadow duration-300 flex items-center space-x-4">
+              <div className="p-3 bg-indigo-50 rounded-xl text-indigo-600">
+                <DollarSign className="w-5 h-5" />
+              </div>
+              <div>
+                <span className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider">Collections Received</span>
+                <h4 className="text-xl font-black text-slate-800">₹{(data?.kpis?.collectionsReceived || 0).toLocaleString('en-IN')}</h4>
+                <p className="text-[9px] text-slate-400 font-medium">Payments cleared today</p>
+              </div>
+            </div>
+
+            <div className="bg-white border border-slate-150 p-6 rounded-2xl shadow-sm hover:shadow-md transition-shadow duration-300 flex items-center space-x-4">
+              <div className="p-3 bg-rose-50 rounded-xl text-rose-600">
+                <ShoppingBag className="w-5 h-5" />
+              </div>
+              <div>
+                <span className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider">Orders Received</span>
+                <h4 className="text-xl font-black text-slate-800">{data?.kpis?.ordersReceived || 0}</h4>
+                <p className="text-[9px] text-slate-400 font-medium">Requests + Bills today</p>
+              </div>
+            </div>
+
+            <div className="bg-white border border-slate-150 p-6 rounded-2xl shadow-sm hover:shadow-md transition-shadow duration-300 flex items-center space-x-4">
+              <div className="p-3 bg-amber-50 rounded-xl text-amber-600">
+                <Truck className="w-5 h-5" />
+              </div>
+              <div>
+                <span className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider">Pending Dispatches</span>
+                <h4 className="text-xl font-black text-slate-800">{data?.kpis?.dispatchPending || 0}</h4>
+                <p className="text-[9px] text-slate-400 font-medium">Awaiting delivery</p>
+              </div>
+            </div>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 text-xs">
-            {overdueInvoices.map(inv => {
-              const days = Math.floor((new Date() - new Date(inv.createdAt)) / (1000 * 60 * 60 * 24));
-              return (
-                <div 
-                  key={inv.id} 
-                  onClick={() => fetchInvoiceDetail(inv.id)}
-                  className="bg-white border border-amber-100 hover:border-amber-300 hover:shadow-md cursor-pointer transition-all p-4 rounded-xl flex flex-col justify-between"
-                >
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <p className="font-bold text-slate-800 text-xs truncate max-w-[150px]">{inv.dealer?.companyName}</p>
-                      <p className="text-[10px] text-slate-400 font-mono">Bill #: {inv.invoiceNo}</p>
+
+          {/* Overdue Invoices Alert Section */}
+          {overdueInvoices.length > 0 && (
+            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 space-y-4 shadow-sm">
+              <div className="flex items-center space-x-3 text-amber-800 font-bold">
+                <AlertCircle className="w-6 h-6 text-amber-600 shrink-0" />
+                <h3 className="text-sm uppercase tracking-wide">Action Required: Overdue Unpaid Invoices (&gt;= 15 Days)</h3>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 text-xs">
+                {overdueInvoices.map(inv => {
+                  const days = Math.floor((new Date() - new Date(inv.createdAt)) / (1000 * 60 * 60 * 24));
+                  return (
+                    <div 
+                      key={inv.id} 
+                      onClick={() => fetchInvoiceDetail(inv.id)}
+                      className="bg-white border border-amber-100 hover:border-amber-300 hover:shadow-md cursor-pointer transition-all p-4 rounded-xl flex flex-col justify-between"
+                    >
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <div className="flex items-center space-x-1.5 flex-wrap">
+                            <p className="font-bold text-slate-800 text-xs truncate max-w-[130px]">{inv.dealer?.companyName}</p>
+                            {inv.isCredit && (
+                              <span className="text-[8px] font-black text-indigo-700 bg-indigo-50 border border-indigo-100 px-1.5 py-0.2 rounded uppercase">
+                                Credit
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[10px] text-slate-400 font-mono">Bill #: {inv.invoiceNo}</p>
+                        </div>
+                        <span className="text-rose-600 font-black text-xs">₹{(inv.totalAmount || 0).toLocaleString('en-IN')}</span>
+                      </div>
+                      <div className="flex justify-between items-center mt-3 pt-2.5 border-t border-slate-100">
+                        <span className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase ${
+                          inv.isCredit 
+                            ? 'bg-indigo-50 text-indigo-700 border border-indigo-100' 
+                            : 'bg-amber-100 text-amber-800'
+                        }`}>
+                          {inv.isCredit ? `⚠️ Credit Follow-up (${days}d)` : `⚠️ ${days} Days Overdue`}
+                        </span>
+                        <span className="text-[9px] text-rose-600 font-bold hover:underline">View Invoice →</span>
+                      </div>
                     </div>
-                    <span className="text-rose-600 font-black text-xs">₹{(inv.totalAmount || 0).toLocaleString('en-IN')}</span>
-                  </div>
-                  <div className="flex justify-between items-center mt-3 pt-2.5 border-t border-slate-100">
-                    <span className="text-[9px] bg-amber-100 text-amber-800 font-black px-2 py-0.5 rounded-full">
-                      ⚠️ {days} Days Overdue
-                    </span>
-                    <span className="text-[9px] text-rose-600 font-bold hover:underline">View Invoice →</span>
-                  </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Quick Actions Panel */}
+          <div className="bg-white border border-slate-150 p-6 rounded-2xl shadow-sm">
+            <h3 className="text-sm font-bold text-slate-800 mb-6 uppercase tracking-wider">Quick Executive Controls</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <button
+                onClick={() => navigate('/admin/dealers')}
+                className="flex items-center justify-between p-4 bg-slate-50 border border-slate-100 rounded-xl hover:bg-rose-50/50 hover:border-rose-100 transition-all text-left group cursor-pointer"
+              >
+                <div>
+                  <span className="block text-xs font-bold text-slate-800">Add New Partner</span>
+                  <span className="text-[10px] text-slate-400">Register new dealers</span>
                 </div>
-              );
-            })}
+                <PlusCircle className="w-5 h-5 text-slate-400 group-hover:text-rose-600 transition-colors" />
+              </button>
+              
+              <button
+                onClick={() => navigate('/admin/inventory')}
+                className="flex items-center justify-between p-4 bg-slate-50 border border-slate-100 rounded-xl hover:bg-rose-50/50 hover:border-rose-100 transition-all text-left group cursor-pointer"
+              >
+                <div>
+                  <span className="block text-xs font-bold text-slate-800">Initiate Transfer</span>
+                  <span className="text-[10px] text-slate-400">Move stocks to dealer</span>
+                </div>
+                <Truck className="w-5 h-5 text-slate-400 group-hover:text-rose-600 transition-colors" />
+              </button>
+
+              <button
+                onClick={() => navigate('/admin/products')}
+                className="flex items-center justify-between p-4 bg-slate-50 border border-slate-100 rounded-xl hover:bg-rose-50/50 hover:border-rose-100 transition-all text-left group cursor-pointer"
+              >
+                <div>
+                  <span className="block text-xs font-bold text-slate-800">Add Catalog Product</span>
+                  <span className="text-[10px] text-slate-400">Add price & SKU details</span>
+                </div>
+                <PlusCircle className="w-5 h-5 text-slate-400 group-hover:text-rose-600 transition-colors" />
+              </button>
+            </div>
           </div>
         </div>
       )}
 
-      {/* Daily Pulse KPIs Section */}
-      <div>
-        <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-4">Today's Pulse (Daily KPIs)</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          <div className="bg-white border border-slate-150 p-6 rounded-2xl shadow-sm flex items-center space-x-4">
-            <div className="p-3 bg-emerald-50 rounded-xl text-emerald-600">
-              <DollarSign className="w-5 h-5" />
-            </div>
-            <div>
-              <span className="block text-[10px] text-slate-400 font-bold uppercase">Today's Sales</span>
-              <h4 className="text-base font-black text-slate-800">₹{(data?.kpis?.todaySales || 0).toLocaleString('en-IN')}</h4>
-            </div>
-          </div>
-          <div className="bg-white border border-slate-150 p-6 rounded-2xl shadow-sm flex items-center space-x-4">
-            <div className="p-3 bg-indigo-50 rounded-xl text-indigo-600">
-              <DollarSign className="w-5 h-5" />
-            </div>
-            <div>
-              <span className="block text-[10px] text-slate-400 font-bold uppercase">Collections Received</span>
-              <h4 className="text-base font-black text-slate-800">₹{(data?.kpis?.collectionsReceived || 0).toLocaleString('en-IN')}</h4>
-            </div>
-          </div>
-          <div className="bg-white border border-slate-150 p-6 rounded-2xl shadow-sm flex items-center space-x-4">
-            <div className="p-3 bg-rose-50 rounded-xl text-rose-600">
-              <ShoppingBag className="w-5 h-5" />
-            </div>
-            <div>
-              <span className="block text-[10px] text-slate-400 font-bold uppercase">Orders Received</span>
-              <h4 className="text-base font-black text-slate-800">{data?.kpis?.ordersReceived || 0}</h4>
-            </div>
-          </div>
-          <div className="bg-white border border-slate-150 p-6 rounded-2xl shadow-sm flex items-center space-x-4">
-            <div className="p-3 bg-amber-50 rounded-xl text-amber-600">
-              <Truck className="w-5 h-5" />
-            </div>
-            <div>
-              <span className="block text-[10px] text-slate-400 font-bold uppercase">Pending Dispatches</span>
-              <h4 className="text-base font-black text-slate-800">{data?.kpis?.dispatchPending || 0}</h4>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Charts Display */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Sales by Zone */}
-        <div className="bg-white border border-slate-150 p-6 rounded-2xl shadow-sm lg:col-span-1">
-          <h3 className="text-sm font-bold text-slate-800 mb-6 uppercase tracking-wider">Sales by Zone</h3>
-          <div className="h-64">
-            {data?.zoneSales?.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={data.zoneSales}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={80}
-                    paddingAngle={4}
-                    dataKey="value"
-                  >
-                    {data.zoneSales.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(value) => `₹${value.toFixed(2)}`} />
-                </PieChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="flex items-center justify-center h-full text-xs text-slate-400">No data available</div>
-            )}
-          </div>
-          {/* Legend */}
-          <div className="flex flex-wrap gap-3 justify-center mt-4">
-            {data?.zoneSales?.map((entry, idx) => (
-              <div key={entry.name} className="flex items-center space-x-1.5 text-xs">
-                <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: COLORS[idx % COLORS.length] }}></div>
-                <span className="text-slate-600 font-semibold">{entry.name}</span>
+      {/* Monthly Tab View */}
+      {dashboardTab === 'monthly' && (
+        <div className="space-y-8 animate-fade-in">
+          {/* Top Rankings Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* Distributors Ranking */}
+            <div className="bg-white border border-slate-150 p-6 rounded-2xl shadow-sm">
+              <h3 className="text-sm font-bold text-slate-800 mb-6 uppercase tracking-wider flex items-center space-x-2">
+                <Store className="w-4 h-4 text-rose-600" />
+                <span>Distributor Performance</span>
+              </h3>
+              <div className="space-y-4">
+                {data?.distributorPerformance?.length > 0 ? (
+                  data.distributorPerformance.map((dist, idx) => {
+                    const maxAmt = Math.max(...data.distributorPerformance.map(d => d.totalAmount), 1);
+                    const pct = (dist.totalAmount / maxAmt) * 100;
+                    return (
+                      <div key={dist.dealerId || idx} className="space-y-1">
+                        <div className="flex justify-between items-center text-xs">
+                          <div className="flex items-center space-x-2 font-medium">
+                            <span className="w-5 h-5 flex items-center justify-center bg-slate-100 rounded text-[10px] font-bold text-slate-500">#{idx + 1}</span>
+                            <span className="text-slate-800 font-bold">{dist.companyName}</span>
+                          </div>
+                          <span className="font-extrabold text-slate-800">₹{dist.totalAmount?.toLocaleString('en-IN')}</span>
+                        </div>
+                        <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                          <div 
+                            className="bg-gradient-to-r from-rose-500 to-rose-600 h-full rounded-full transition-all duration-500" 
+                            style={{ width: `${pct}%` }}
+                          ></div>
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <p className="text-slate-400 text-xs italic text-center py-6">No distributor billing logs found</p>
+                )}
               </div>
-            ))}
+            </div>
+
+            {/* Dealers/Retailers Ranking */}
+            <div className="bg-white border border-slate-150 p-6 rounded-2xl shadow-sm">
+              <h3 className="text-sm font-bold text-slate-800 mb-6 uppercase tracking-wider flex items-center space-x-2">
+                <Users className="w-4 h-4 text-teal-600" />
+                <span>Dealer / Retailer Performance</span>
+              </h3>
+              <div className="space-y-4">
+                {data?.dealerPerformance?.length > 0 ? (
+                  data.dealerPerformance.map((deal, idx) => {
+                    const maxAmt = Math.max(...data.dealerPerformance.map(d => d.totalAmount), 1);
+                    const pct = (deal.totalAmount / maxAmt) * 100;
+                    return (
+                      <div key={deal.dealerId || idx} className="space-y-1">
+                        <div className="flex justify-between items-center text-xs">
+                          <div className="flex items-center space-x-2 font-medium">
+                            <span className="w-5 h-5 flex items-center justify-center bg-slate-100 rounded text-[10px] font-bold text-slate-500">#{idx + 1}</span>
+                            <span className="text-slate-800 font-bold">{deal.companyName}</span>
+                          </div>
+                          <span className="font-extrabold text-slate-800">₹{deal.totalAmount?.toLocaleString('en-IN')}</span>
+                        </div>
+                        <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                          <div 
+                            className="bg-gradient-to-r from-teal-500 to-teal-600 h-full rounded-full transition-all duration-500" 
+                            style={{ width: `${pct}%` }}
+                          ></div>
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <p className="text-slate-400 text-xs italic text-center py-6">No dealer billing logs found</p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Product Movers Section */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="bg-white border border-slate-150 p-6 rounded-2xl shadow-sm hover:shadow-md transition-shadow">
+              <h3 className="text-sm font-bold text-slate-800 mb-4 uppercase tracking-wider flex items-center space-x-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                <span>Top Fast-Moving Products</span>
+              </h3>
+              <div className="divide-y divide-slate-100 text-xs">
+                {data?.fastMovers?.length > 0 ? data.fastMovers.map((prod, idx) => (
+                  <div key={prod.productId || idx} className="py-3 flex justify-between items-center">
+                    <div>
+                      <p className="font-bold text-slate-800 text-xs">{prod.name}</p>
+                      <p className="text-[9px] text-slate-400 font-mono">SKU: {prod.sku}</p>
+                    </div>
+                    <span className="text-xs bg-emerald-50 text-emerald-700 font-black px-2.5 py-1 rounded-lg">
+                      {prod.quantityTransferred} Dispatched
+                    </span>
+                  </div>
+                )) : (
+                  <p className="text-slate-400 py-6 text-center italic">No transfer logs recorded</p>
+                )}
+              </div>
+            </div>
+
+            <div className="bg-white border border-slate-150 p-6 rounded-2xl shadow-sm hover:shadow-md transition-shadow">
+              <h3 className="text-sm font-bold text-slate-800 mb-4 uppercase tracking-wider flex items-center space-x-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-rose-500"></span>
+                <span>Slow-Moving Products</span>
+              </h3>
+              <div className="divide-y divide-slate-100 text-xs">
+                {data?.slowMovers?.length > 0 ? data.slowMovers.map((prod, idx) => (
+                  <div key={prod.productId || idx} className="py-3 flex justify-between items-center">
+                    <div>
+                      <p className="font-bold text-slate-800 text-xs">{prod.name}</p>
+                      <p className="text-[9px] text-slate-400 font-mono">SKU: {prod.sku}</p>
+                    </div>
+                    <span className="text-xs bg-rose-50 text-rose-700 font-black px-2.5 py-1 rounded-lg">
+                      {prod.quantityTransferred} Dispatched
+                    </span>
+                  </div>
+                )) : (
+                  <p className="text-slate-400 py-6 text-center italic">No transfer logs recorded</p>
+                )}
+              </div>
+            </div>
           </div>
         </div>
+      )}
 
-        {/* Dealer Revenue Rankings */}
-        <div className="bg-white border border-slate-150 p-6 rounded-2xl shadow-sm lg:col-span-2">
-          <h3 className="text-sm font-bold text-slate-800 mb-6 uppercase tracking-wider">Top Performing Partners</h3>
-          <div className="h-72">
-            {data?.dealerPerformance?.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={data.dealerPerformance}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="companyName" tick={{ fontSize: 10, fontWeight: 500 }} />
-                  <YAxis tick={{ fontSize: 10, fontWeight: 500 }} />
-                  <Tooltip formatter={(value) => `₹${value.toLocaleString()}`} />
-                  <Bar dataKey="totalAmount" fill="#be123c" radius={[6, 6, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="flex items-center justify-center h-full text-xs text-slate-400">No data available</div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Product Movers Section */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        <div className="bg-white border border-slate-150 p-6 rounded-2xl shadow-sm">
-          <h3 className="text-sm font-bold text-slate-800 mb-4 uppercase tracking-wider flex items-center space-x-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-            <span>Fast Moving Products (This Month)</span>
-          </h3>
-          <div className="divide-y divide-slate-100 text-xs">
-            {data?.fastMovers?.length > 0 ? data.fastMovers.map((prod) => (
-              <div key={prod.productId} className="py-3 flex justify-between items-center">
-                <div>
-                  <p className="font-bold text-slate-800 text-xs">{prod.name}</p>
-                  <p className="text-[9px] text-slate-400 font-mono">SKU: {prod.sku}</p>
+      {/* Financial Tab View */}
+      {dashboardTab === 'financial' && (
+        <div className="space-y-8 animate-fade-in">
+          {/* Financial KPIs Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="bg-white border border-slate-150 p-6 rounded-2xl shadow-sm hover:shadow-md transition-shadow duration-300">
+              <div className="flex items-center justify-between mb-4">
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Billed Revenue</span>
+                <div className="p-2.5 rounded-xl text-rose-600 bg-rose-50">
+                  <DollarSign className="w-5 h-5" />
                 </div>
-                <span className="text-xs bg-emerald-50 text-emerald-700 font-black px-2.5 py-1 rounded-lg">
-                  {prod.quantityTransferred} Dispatched
-                </span>
               </div>
-            )) : (
-              <p className="text-slate-400 py-3 text-center italic">No transfer logs recorded</p>
-            )}
-          </div>
-        </div>
+              <h3 className="text-2xl font-black text-slate-800">₹{(data?.kpis?.totalRevenue || 0).toLocaleString('en-IN')}</h3>
+              <p className="text-slate-400 text-[10px] font-medium mt-1">Total revenue generated from all bills</p>
+            </div>
 
-        <div className="bg-white border border-slate-150 p-6 rounded-2xl shadow-sm">
-          <h3 className="text-sm font-bold text-slate-800 mb-4 uppercase tracking-wider flex items-center space-x-2">
-            <span className="w-2 h-2 rounded-full bg-rose-500"></span>
-            <span>Slow Moving Products (This Month)</span>
-          </h3>
-          <div className="divide-y divide-slate-100 text-xs">
-            {data?.slowMovers?.length > 0 ? data.slowMovers.map((prod) => (
-              <div key={prod.productId} className="py-3 flex justify-between items-center">
-                <div>
-                  <p className="font-bold text-slate-800 text-xs">{prod.name}</p>
-                  <p className="text-[9px] text-slate-400 font-mono">SKU: {prod.sku}</p>
+            <div className="bg-white border border-slate-150 p-6 rounded-2xl shadow-sm hover:shadow-md transition-shadow duration-300">
+              <div className="flex items-center justify-between mb-4">
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Outstanding Amount</span>
+                <div className="p-2.5 rounded-xl text-indigo-600 bg-indigo-50">
+                  <AlertCircle className="w-5 h-5" />
                 </div>
-                <span className="text-xs bg-rose-50 text-rose-700 font-black px-2.5 py-1 rounded-lg">
-                  {prod.quantityTransferred} Dispatched
-                </span>
               </div>
-            )) : (
-              <p className="text-slate-400 py-3 text-center italic">No transfer logs recorded</p>
-            )}
+              <h3 className="text-2xl font-black text-slate-800">₹{(data?.kpis?.outstandingAmount || 0).toLocaleString('en-IN')}</h3>
+              <p className="text-slate-400 text-[10px] font-medium mt-1">Pending payments from generated/open bills</p>
+            </div>
+
+            <div className="bg-white border border-slate-150 p-6 rounded-2xl shadow-sm hover:shadow-md transition-shadow duration-300">
+              <div className="flex items-center justify-between mb-4">
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Profit Estimate (15%)</span>
+                <div className="p-2.5 rounded-xl text-teal-600 bg-teal-50">
+                  <TrendingUp className="w-5 h-5" />
+                </div>
+              </div>
+              <h3 className="text-2xl font-black text-slate-800">₹{((data?.kpis?.totalRevenue || 0) * 0.15).toLocaleString('en-IN')}</h3>
+              <p className="text-slate-400 text-[10px] font-medium mt-1">Estimated standard dealer profit margin</p>
+            </div>
+          </div>
+
+          {/* Collection comparison and Zone Sales */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {/* Collection Ratio and Stats */}
+            <div className="bg-white border border-slate-150 p-6 rounded-2xl shadow-sm lg:col-span-1 flex flex-col justify-between">
+              <div>
+                <h3 className="text-sm font-bold text-slate-800 mb-6 uppercase tracking-wider">Billed vs Outstanding</h3>
+                {(() => {
+                  const revenue = data?.kpis?.totalRevenue || 0;
+                  const outstanding = data?.kpis?.outstandingAmount || 0;
+                  const collected = Math.max(0, revenue - outstanding);
+                  const collectedPct = revenue > 0 ? (collected / revenue) * 100 : 0;
+                  const outstandingPct = revenue > 0 ? (outstanding / revenue) * 100 : 0;
+                  return (
+                    <div className="space-y-6">
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-xs text-slate-500">
+                          <span>Collected (Cleared Payments)</span>
+                          <span className="font-bold text-emerald-600">{collectedPct.toFixed(1)}%</span>
+                        </div>
+                        <div className="flex justify-between text-xs font-black text-slate-800">
+                          <span>₹{collected.toLocaleString('en-IN')}</span>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-xs text-slate-500">
+                          <span>Outstanding (Credit/Pending)</span>
+                          <span className="font-bold text-indigo-600">{outstandingPct.toFixed(1)}%</span>
+                        </div>
+                        <div className="flex justify-between text-xs font-black text-slate-800">
+                          <span>₹{outstanding.toLocaleString('en-IN')}</span>
+                        </div>
+                      </div>
+
+                      {/* Stacked Progress Bar */}
+                      <div className="w-full h-4 bg-slate-100 rounded-full overflow-hidden flex border border-slate-150">
+                        {collectedPct > 0 && (
+                          <div 
+                            className="bg-emerald-500 h-full transition-all" 
+                            style={{ width: `${collectedPct}%` }}
+                            title={`Collected: ${collectedPct.toFixed(1)}%`}
+                          ></div>
+                        )}
+                        {outstandingPct > 0 && (
+                          <div 
+                            className="bg-indigo-500 h-full transition-all" 
+                            style={{ width: `${outstandingPct}%` }}
+                            title={`Outstanding: ${outstandingPct.toFixed(1)}%`}
+                          ></div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+              <div className="border-t border-slate-100 pt-4 mt-6 text-[10px] text-slate-400 font-semibold leading-relaxed">
+                ℹ️ Collection ratio reflects the percentage of generated invoice values that have been fully completed/cleared.
+              </div>
+            </div>
+
+            {/* Sales by Zone */}
+            <div className="bg-white border border-slate-150 p-6 rounded-2xl shadow-sm lg:col-span-2">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-2">
+                <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Regional Distribution (Sales by Zone)</h3>
+                <span className="text-[10px] font-black text-rose-600 uppercase bg-rose-50 px-2 py-0.5 rounded border border-rose-100">Zone Revenue</span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
+                <div className="h-56">
+                  {data?.zoneSales?.length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={data.zoneSales}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={60}
+                          outerRadius={80}
+                          paddingAngle={4}
+                          dataKey="value"
+                        >
+                          {data.zoneSales.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip formatter={(value) => `₹${value.toLocaleString()}`} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="flex items-center justify-center h-full text-xs text-slate-400">No zone sales recorded</div>
+                  )}
+                </div>
+
+                <div className="space-y-3">
+                  {data?.zoneSales?.map((entry, idx) => (
+                    <div key={entry.name} className="flex items-center justify-between text-xs border-b border-slate-50 pb-2 last:border-0 last:pb-0">
+                      <div className="flex items-center space-x-2">
+                        <div className="w-3 h-3 rounded" style={{ backgroundColor: COLORS[idx % COLORS.length] }}></div>
+                        <span className="text-slate-800 font-bold">{entry.name}</span>
+                        <span className="text-[10px] text-slate-400">({entry.dealerCount || 0} Partners)</span>
+                      </div>
+                      <span className="font-extrabold text-slate-800">₹{entry.value?.toLocaleString('en-IN')}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
-
-      {/* Quick Actions Panel */}
-      <div className="bg-white border border-slate-150 p-6 rounded-2xl shadow-sm">
-        <h3 className="text-sm font-bold text-slate-800 mb-6 uppercase tracking-wider">Quick Executive Controls</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <button
-            onClick={() => navigate('/admin/dealers')}
-            className="flex items-center justify-between p-4 bg-slate-50 border border-slate-100 rounded-xl hover:bg-rose-50/50 hover:border-rose-100 transition-all text-left group"
-          >
-            <div>
-              <span className="block text-xs font-bold text-slate-800">Add New Partner</span>
-              <span className="text-[10px] text-slate-400">Register new dealers</span>
-            </div>
-            <PlusCircle className="w-5 h-5 text-slate-400 group-hover:text-rose-600 transition-colors" />
-          </button>
-          
-          <button
-            onClick={() => navigate('/admin/inventory')}
-            className="flex items-center justify-between p-4 bg-slate-50 border border-slate-100 rounded-xl hover:bg-rose-50/50 hover:border-rose-100 transition-all text-left group"
-          >
-            <div>
-              <span className="block text-xs font-bold text-slate-800">Initiate Transfer</span>
-              <span className="text-[10px] text-slate-400">Move stocks to dealer</span>
-            </div>
-            <Truck className="w-5 h-5 text-slate-400 group-hover:text-rose-600 transition-colors" />
-          </button>
-
-          <button
-            onClick={() => navigate('/admin/products')}
-            className="flex items-center justify-between p-4 bg-slate-50 border border-slate-100 rounded-xl hover:bg-rose-50/50 hover:border-rose-100 transition-all text-left group"
-          >
-            <div>
-              <span className="block text-xs font-bold text-slate-800">Add Catalog Product</span>
-              <span className="text-[10px] text-slate-400">Add price & SKU details</span>
-            </div>
-            <PlusCircle className="w-5 h-5 text-slate-400 group-hover:text-rose-600 transition-colors" />
-          </button>
-        </div>
-      </div>
+      )}
 
       {/* Invoice Details Modal */}
       {showInvoiceModal && (
@@ -759,15 +965,44 @@ export default function AdminDashboard() {
                     </div>
                     <div className="space-y-1">
                       <span className="block text-[9px] font-black uppercase text-slate-400 tracking-wider">Invoice Status</span>
-                      <span className={`inline-flex text-[10px] font-black px-2.5 py-0.5 rounded-full border uppercase ${
-                        selectedInvoice.status === 'CLOSED' ? 'text-emerald-700 bg-emerald-50 border-emerald-100' :
-                        selectedInvoice.status === 'OPEN' ? 'text-blue-700 bg-blue-50 border-blue-100' :
-                        'text-slate-700 bg-slate-50 border-slate-100'
-                      }`}>
-                        {selectedInvoice.status}
-                      </span>
+                      <div className="flex items-center space-x-2 flex-wrap">
+                        <span className={`inline-flex text-[10px] font-black px-2.5 py-0.5 rounded-full border uppercase ${
+                          selectedInvoice.status === 'CLOSED' ? 'text-emerald-700 bg-emerald-50 border-emerald-100' :
+                          selectedInvoice.status === 'OPEN' ? 'text-blue-700 bg-blue-50 border-blue-100' :
+                          'text-slate-700 bg-slate-50 border-slate-100'
+                        }`}>
+                          {selectedInvoice.status}
+                        </span>
+                        {selectedInvoice.isCredit && (
+                          <span className="inline-flex text-[10px] font-black px-2.5 py-0.5 rounded-full border border-indigo-100 text-indigo-700 bg-indigo-50 uppercase">
+                            Credit (15 Days)
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
+
+                  {selectedInvoice.isCredit && (
+                    <div className="p-4 border border-indigo-100 bg-indigo-50/50 rounded-xl flex items-center justify-between">
+                      <div>
+                        <span className="block text-[9px] font-black uppercase text-indigo-500 tracking-wider">Credit Terms</span>
+                        <p className="font-bold text-indigo-800 text-xs">15 Days Payment Terms</p>
+                      </div>
+                      {selectedInvoice.status === 'OPEN' && (new Date(selectedInvoice.createdAt) <= (() => {
+                        const d = new Date();
+                        d.setDate(d.getDate() - 15);
+                        return d;
+                      })()) ? (
+                        <span className="text-[9px] font-black text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full uppercase animate-pulse border border-amber-200">
+                          ⚠️ Credit Follow-up Alert (Overdue)
+                        </span>
+                      ) : (
+                        <span className="text-[9px] font-bold text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded-full uppercase">
+                          Active Credit
+                        </span>
+                      )}
+                    </div>
+                  )}
 
                   {/* Items listing breakdown */}
                   <div className="space-y-2">

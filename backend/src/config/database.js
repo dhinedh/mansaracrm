@@ -422,6 +422,7 @@ const InvoiceSchema = new Schema({
   status: { type: String, enum: ['DRAFT', 'GENERATED', 'PAID', 'CANCELLED', 'OPEN', 'CLOSED'], default: 'OPEN' },
   pdfUrl: { type: String },
   notes: { type: String },
+  isCredit: { type: Boolean, default: false },
   dueDate: { type: Date },
   paidAt: { type: Date }
 }, {

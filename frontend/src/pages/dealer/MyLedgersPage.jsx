@@ -620,8 +620,24 @@ export default function MyLedgersPage() {
                       <tr key={inv.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50">
                         <td className="p-4">
                           <div>
-                            <span className="font-black text-slate-800 text-xs">{inv.invoiceNo}</span>
-                            <span className="block text-[9px] text-slate-400 font-medium">
+                            <div className="flex items-center flex-wrap gap-1">
+                              <span className="font-black text-slate-800 text-xs">{inv.invoiceNo}</span>
+                              {inv.isCredit && (
+                                <span className="text-[8px] font-black text-indigo-700 bg-indigo-50 border border-indigo-100 px-1.5 py-0.2 rounded uppercase tracking-wide">
+                                  Credit
+                                </span>
+                              )}
+                              {inv.isCredit && inv.status === 'OPEN' && (new Date(inv.createdAt) <= (() => {
+                                const d = new Date();
+                                d.setDate(d.getDate() - 15);
+                                return d;
+                              })()) && (
+                                <span className="text-[8px] font-black text-amber-700 bg-amber-50 border border-amber-250 border-amber-200 px-1.5 py-0.2 rounded uppercase tracking-wide animate-pulse">
+                                  ⚠️ Follow-up Alert
+                                </span>
+                              )}
+                            </div>
+                            <span className="block text-[9px] text-slate-400 font-medium mt-0.5">
                               {new Date(inv.createdAt).toLocaleDateString('en-IN', {
                                 day: '2-digit', month: 'short', year: 'numeric'
                               })}
@@ -834,6 +850,23 @@ export default function MyLedgersPage() {
                       selectedInvoice.status === 'OPEN' ? 'text-blue-600' : 'text-slate-600'
                     }`}>{selectedInvoice.status}</strong></span>
                   </p>
+                  {selectedInvoice.isCredit && (
+                    <div className="mt-2 p-2 bg-indigo-50 border border-indigo-100 rounded-lg text-indigo-750 font-bold space-y-1">
+                      <p className="flex items-center space-x-1">
+                        <span className="inline-block w-1.5 h-1.5 rounded-full bg-indigo-600"></span>
+                        <span>Terms: 15 Days Credit</span>
+                      </p>
+                      {selectedInvoice.status === 'OPEN' && (new Date(selectedInvoice.createdAt) <= (() => {
+                        const d = new Date();
+                        d.setDate(d.getDate() - 15);
+                        return d;
+                      })()) && (
+                        <p className="flex items-center space-x-1 text-amber-700 font-extrabold animate-pulse">
+                          <span>⚠️ Credit Follow-up Alert (Overdue)</span>
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
 
