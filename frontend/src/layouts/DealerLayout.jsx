@@ -59,7 +59,7 @@ export default function DealerLayout() {
     { name: 'My Ledgers', path: '/dealer/ledgers', icon: Receipt },
     { name: 'Order Requests', path: '/dealer/requests', icon: FileText },
     { name: 'Returns Log', path: '/dealer/returns', icon: RotateCcw },
-    { name: 'Services / Tickets', path: '/dealer/services', icon: HelpCircle },
+    { name: 'Complaints tickets', path: '/dealer/services', icon: HelpCircle },
     { name: 'My Shops', path: '/dealer/stores', icon: Store },
     { name: 'Browse Products', path: '/dealer/products', icon: ShoppingBag },
     { name: 'Cart / Bill Builder', path: '/dealer/cart', icon: ShoppingCart, badge: items.length },

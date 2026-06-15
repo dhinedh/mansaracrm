@@ -159,6 +159,48 @@ async function main() {
   }
   console.log('✅ Allocated initial partner stock of 50 units for testing billing cart.');
 
+  // Seed sample Complaints/Tickets
+  console.log('🌱 Seeding sample complaint tickets...');
+  await prisma.complaintTicket.create({
+    data: {
+      ticketNo: 'TKT-1001',
+      userId: dealerUser.id,
+      subject: 'Delayed Delivery of Millet Fusion Mix Order',
+      category: 'DELIVERY',
+      priority: 'HIGH',
+      status: 'OPEN',
+      description: 'Our last stock request (Millet Fusion Mix, 100 packs) has not arrived yet. It was scheduled for delivery 3 days ago. Please check with logistics.',
+      replies: []
+    }
+  });
+
+  await prisma.complaintTicket.create({
+    data: {
+      ticketNo: 'TKT-1002',
+      userId: dealerUser.id,
+      subject: 'Urad Classic Margin Applied Incorrectly',
+      category: 'BILLING',
+      priority: 'MEDIUM',
+      status: 'IN_PROGRESS',
+      description: 'The margin rate applied on invoice #MF-INV-001 for Urad Health Mix - Classic is 12%, but our contract states 15%. Please adjust this invoice.',
+      replies: [
+        {
+          userId: admin.id,
+          userName: 'Mansara Support',
+          message: 'Hello Ramesh, we have received your ticket. We are cross-referencing your margin configuration with our accounts team and will update you shortly.',
+          createdAt: new Date(Date.now() - 4 * 3600 * 1000) // 4 hours ago
+        },
+        {
+          userId: dealerUser.id,
+          userName: 'Kumar Traders',
+          message: 'Thank you for the quick response. Looking forward to the correction.',
+          createdAt: new Date(Date.now() - 2 * 3600 * 1000) // 2 hours ago
+        }
+      ]
+    }
+  });
+  console.log('✅ 2 sample complaint tickets seeded.');
+
   console.log('\n🎉 Database Seed Completed Successfully!');
 }
 

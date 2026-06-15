@@ -60,7 +60,7 @@ export default function AdminLayout() {
     { name: 'Transfers', path: '/admin/transfers', icon: Truck },
     { name: 'Order Requests', path: '/admin/requests', icon: FileText },
     { name: 'Returns Log', path: '/admin/returns', icon: RotateCcw },
-    { name: 'Services / Tickets', path: '/admin/services', icon: HelpCircle },
+    { name: 'Complaints tickets', path: '/admin/services', icon: HelpCircle },
     { name: 'CRM Reports', path: '/admin/reports', icon: BarChart3 },
     { name: 'Production Forecasting', path: '/admin/forecasting', icon: TrendingUp },
     { name: 'Analytics', path: '/admin/analytics', icon: BarChart3 },

@@ -128,7 +128,7 @@ export default function TicketsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-black text-slate-800 tracking-tight">Support Services Helpdesk</h2>
+        <h2 className="text-xl font-black text-slate-800 tracking-tight">Complaints Tickets Helpdesk</h2>
         <p className="text-slate-500 text-xs">
           {isAdmin 
             ? 'Manage dealer complaints, answer queries, and maintain SLA statuses.' 
