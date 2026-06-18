@@ -128,6 +128,25 @@ export default function ReportsPage() {
     document.body.removeChild(link);
   };
 
+  // SUB-TAB RENDERER — renders pill navigation for sub-sections
+  const renderSubTabs = (tabs, activeSubTab, setSubTab) => (
+    <div className="flex flex-wrap gap-2">
+      {tabs.map(tab => (
+        <button
+          key={tab.id}
+          onClick={() => setSubTab(tab.id)}
+          className={`px-4 py-1.5 rounded-full text-[11px] font-bold transition-all duration-200 border cursor-pointer ${
+            activeSubTab === tab.id
+              ? 'bg-rose-600 text-white border-rose-600 shadow-md shadow-rose-200'
+              : 'bg-white text-slate-600 border-slate-200 hover:border-rose-300 hover:text-rose-700'
+          }`}
+        >
+          {tab.label}
+        </button>
+      ))}
+    </div>
+  );
+
   // EXPORTERS
   const exportSalesReport = () => {
     const filtered = getFilteredInvoices();

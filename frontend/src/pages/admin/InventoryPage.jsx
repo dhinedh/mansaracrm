@@ -90,7 +90,7 @@ export default function InventoryPage() {
         <div>
           <h2 className="text-xl font-black text-slate-800 tracking-tight flex items-center gap-2">
             <Warehouse className="w-5 h-5 text-rose-600" />
-            Inventory
+            Stock Management
           </h2>
           <p className="text-slate-500 text-xs mt-0.5">Live warehouse stock — data pulled directly from the database.</p>
         </div>
@@ -150,12 +150,12 @@ export default function InventoryPage() {
       <div className="bg-white border border-slate-150 rounded-2xl shadow-sm overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center py-20 text-slate-400 text-xs font-bold">
-            <RefreshCw className="w-4 h-4 animate-spin mr-2" /> Loading inventory...
+            <RefreshCw className="w-4 h-4 animate-spin mr-2" /> Loading stock...
           </div>
         ) : filteredStocks.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-slate-400 gap-2">
             <Package className="w-8 h-8" />
-            <p className="text-xs font-bold">{search ? 'No results match your search.' : 'No inventory records found.'}</p>
+            <p className="text-xs font-bold">{search ? 'No results match your search.' : 'No stock records found.'}</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -248,14 +248,30 @@ export default function InventoryPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-slate-500 font-bold mb-1">Available Stock ({editItem.product.unit}) *</label>
-                  <input
-                    type="number"
-                    required
-                    min="0"
-                    value={editQty}
-                    onChange={e => setEditQty(e.target.value)}
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none"
-                  />
+                  <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl p-0.5 justify-between">
+                    <button
+                      type="button"
+                      onClick={() => setEditQty(q => String(Math.max(0, (parseInt(q) || 0) - 1)))}
+                      className="px-3 py-1.5 hover:bg-slate-200 rounded-lg text-slate-500 font-extrabold text-sm select-none cursor-pointer"
+                    >
+                      -
+                    </button>
+                    <input
+                      type="number"
+                      required
+                      min="0"
+                      value={editQty}
+                      onChange={e => setEditQty(e.target.value)}
+                      className="w-full border-0 bg-transparent text-center font-bold text-slate-800 focus:outline-none focus:ring-0 p-0 text-xs"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setEditQty(q => String((parseInt(q) || 0) + 1))}
+                      className="px-3 py-1.5 hover:bg-slate-200 rounded-lg text-slate-500 font-extrabold text-sm select-none cursor-pointer"
+                    >
+                      +
+                    </button>
+                  </div>
                 </div>
                 <div>
                   <label className="block text-slate-500 font-bold mb-1">Min Threshold ({editItem.product.unit}) *</label>

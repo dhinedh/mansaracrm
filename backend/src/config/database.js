@@ -170,7 +170,18 @@ const ProductSchema = new Schema({
   minOrderQty: { type: Number, default: 1 },
   isActive: { type: Boolean, default: true },
   stock: { type: Number, default: 0 },
-  minQuantity: { type: Number, default: 10 }
+  minQuantity: { type: Number, default: 10 },
+  // E-commerce specific fields
+  slug: { type: String, unique: true, sparse: true },
+  offerPrice: { type: Number },
+  isFeatured: { type: Boolean, default: false },
+  isNewArrival: { type: Boolean, default: false },
+  isOffer: { type: Boolean, default: false },
+  ingredients: { type: String },
+  howToUse: { type: String },
+  storage: { type: String },
+  weight: { type: String },
+  images: [{ type: String }]
 }, {
   timestamps: true,
   toJSON: { virtuals: true },
@@ -652,17 +663,164 @@ const ComplaintTicketSchema = new Schema({
     message: { type: String, required: true },
     createdAt: { type: Date, default: Date.now }
   }]
-}, {
-  timestamps: true,
-  toJSON: { virtuals: true },
-  toObject: { virtuals: true }
 });
+
+
+// ======================================================
+// E-COMMERCE SCHEMAS
+// ======================================================
+
+// Combo Schema
+const ComboSchema = new Schema({
+  products: [{ type: Schema.Types.ObjectId, ref: 'Product' }],
+  comboPrice: { type: Number, required: true, min: 0 }
+});
+
+// Banner Schema
+const BannerSchema = new Schema({
+  page: { type: String, enum: ['home', 'products', 'about', 'contact'], required: true, index: true },
+  image: { type: String, required: true },
+  mobileImage: { type: String },
+  title: String,
+  subtitle: String,
+  link: String,
+  order: { type: Number, default: 0, index: true },
+  active: { type: Boolean, default: true, index: true }
+}, { timestamps: true });
+
+// BlogPost Schema
+const BlogPostSchema = new Schema({
+  title: { type: String, required: true, trim: true, index: true },
+  slug: { type: String, unique: true, index: true },
+  content: { type: String, required: true },
+  excerpt: String,
+  featuredImage: String,
+  video: String,
+  category: { type: String, index: true },
+  tags: { type: [String], index: true },
+  isPublished: { type: Boolean, default: false, index: true },
+  publishedAt: { type: Date, index: true }
+}, { timestamps: true });
+
+// Career Schema
+const CareerSchema = new Schema({
+  title: { type: String, required: true, index: true },
+  slug: { type: String, unique: true, index: true },
+  description: String,
+  requirements: [String],
+  responsibilities: [String],
+  location: { type: String, index: true },
+  department: { type: String, index: true },
+  employmentType: { type: String, index: true },
+  experience: String,
+  salary: {
+    min: Number,
+    max: Number,
+    currency: { type: String, default: 'INR' }
+  },
+  isActive: { type: Boolean, default: true, index: true }
+}, { timestamps: true });
+
+// PressRelease Schema
+const PressReleaseSchema = new Schema({
+  title: { type: String, required: true, trim: true },
+  slug: { type: String, unique: true, lowercase: true },
+  summary: { type: String, required: true },
+  content: { type: String },
+  externalLink: { type: String },
+  image: { type: String },
+  images: [String],
+  video: String,
+  date: { type: Date, default: Date.now, required: true },
+  isPublished: { type: Boolean, default: true }
+}, { timestamps: true });
+
+// Review Schema
+const ReviewSchema = new Schema({
+  user: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+  product: { type: Schema.Types.ObjectId, ref: 'Product', required: true, index: true },
+  order: { type: Schema.Types.ObjectId, ref: 'Order', index: true },
+  rating: { type: Number, required: true, min: 1, max: 5 },
+  comment: { type: String, required: true, maxlength: 1000 },
+  images: [String],
+  isApproved: { type: Boolean, default: false, index: true },
+  adminResponse: {
+    text: String,
+    date: Date
+  }
+}, { timestamps: true });
+
+// Setting Schema
+const SettingSchema = new Schema({
+  key: { type: String, required: true, unique: true, index: true, default: 'site_settings' },
+  website_name: { type: String, default: 'MANSARA Foods' },
+  contact_email: { type: String, default: 'contact@mansarafoods.com' },
+  phone_number: String,
+  address: String,
+  facebook_url: String,
+  instagram_url: String,
+  twitter_url: String,
+  whatsapp_number: String,
+  freeShippingThreshold: { type: Number, default: 0 },
+  defaultShippingCharge: { type: Number, default: 0 }
+}, { timestamps: true });
+
+// Order Schema
+const OrderSchema = new Schema({
+  user: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+  orderId: { type: String, unique: true, required: true, index: true },
+  date: { type: Date, default: Date.now, index: true },
+  total: { type: Number, required: true, min: 0, index: true },
+  paymentStatus: { type: String, default: 'Pending', index: true },
+  orderStatus: { type: String, default: 'Ordered', index: true },
+  feedbackStatus: { type: String, default: 'Pending', index: true },
+  items: [{
+    product: { type: Schema.Types.ObjectId, ref: 'Product', required: true, index: true },
+    name: { type: String, required: true },
+    quantity: { type: Number, required: true, min: 1 },
+    price: { type: Number, required: true, min: 0 },
+    image: String,
+    weight: String
+  }],
+  deliveryAddress: {
+    firstName: { type: String, required: true },
+    lastName: { type: String },
+    street: { type: String, required: true },
+    city: { type: String, required: true },
+    state: { type: String, required: true },
+    zip: { type: String, required: true },
+    phone: { type: String, required: true },
+    whatsapp: String
+  },
+  paymentMethod: { type: String, default: 'Cash on Delivery', index: true },
+  estimatedDeliveryDate: { type: Date, index: true },
+  trackingNumber: String,
+  courier: String,
+  shipping: {
+    srOrderId: String,
+    shipmentId: String,
+    awb: { type: String, index: true },
+    courierName: String,
+    labelUrl: String,
+    invoiceUrl: String,
+    status: { type: String, default: 'pending' },
+    trackingUrl: String
+  }
+}, { timestamps: true });
 
 // Compile Models
 const User = mongoose.model('User', UserSchema, 'users');
 const Dealer = mongoose.model('Dealer', DealerSchema, 'dealers');
 const Category = mongoose.model('Category', CategorySchema, 'categories');
 const Product = mongoose.model('Product', ProductSchema, 'products');
+const Combo = Product.discriminator('Combo', ComboSchema);
+const Banner = mongoose.model('Banner', BannerSchema, 'banners');
+const BlogPost = mongoose.model('BlogPost', BlogPostSchema, 'blogposts');
+const Career = mongoose.model('Career', CareerSchema, 'careers');
+const PressRelease = mongoose.model('PressRelease', PressReleaseSchema, 'pressreleases');
+const Review = mongoose.model('Review', ReviewSchema, 'reviews');
+const Setting = mongoose.model('Setting', SettingSchema, 'settings');
+const Order = mongoose.model('Order', OrderSchema, 'orders');
 const CompanyInventory = mongoose.model('CompanyInventory', CompanyInventorySchema, 'company_inventory');
 const DealerInventory = mongoose.model('DealerInventory', DealerInventorySchema, 'dealer_inventory');
 const StockMovement = mongoose.model('StockMovement', StockMovementSchema, 'stock_movements');
@@ -1278,6 +1436,14 @@ const prisma = {
   return: new PrismaCollectionWrapper('Return'),
   stockRequest: new PrismaCollectionWrapper('StockRequest'),
   complaintTicket: new PrismaCollectionWrapper('ComplaintTicket'),
+  combo: new PrismaCollectionWrapper('Combo'),
+  banner: new PrismaCollectionWrapper('Banner'),
+  blogPost: new PrismaCollectionWrapper('BlogPost'),
+  career: new PrismaCollectionWrapper('Career'),
+  pressRelease: new PrismaCollectionWrapper('PressRelease'),
+  review: new PrismaCollectionWrapper('Review'),
+  setting: new PrismaCollectionWrapper('Setting'),
+  order: new PrismaCollectionWrapper('Order'),
 
   $transaction: async (fn) => {
     // Run transactions sequentially on standalone local MongoDB instances

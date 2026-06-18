@@ -38,6 +38,17 @@ export default function ProductsPage() {
   const [initialStock, setInitialStock] = useState('100');
   const [imageFile, setImageFile] = useState(null);
 
+  // E-commerce specific states
+  const [slug, setSlug] = useState('');
+  const [offerPrice, setOfferPrice] = useState('');
+  const [weight, setWeight] = useState('');
+  const [isFeatured, setIsFeatured] = useState(false);
+  const [isNewArrival, setIsNewArrival] = useState(false);
+  const [isOffer, setIsOffer] = useState(false);
+  const [ingredients, setIngredients] = useState('');
+  const [howToUse, setHowToUse] = useState('');
+  const [storage, setStorage] = useState('');
+
   useEffect(() => {
     fetchProducts();
     fetchCategories();
@@ -88,6 +99,15 @@ export default function ProductsPage() {
     formData.append('categoryId', categoryId);
     formData.append('unit', unit);
     formData.append('initialStock', initialStock);
+    formData.append('slug', slug);
+    formData.append('offerPrice', offerPrice);
+    formData.append('isFeatured', isFeatured);
+    formData.append('isNewArrival', isNewArrival);
+    formData.append('isOffer', isOffer);
+    formData.append('ingredients', ingredients);
+    formData.append('howToUse', howToUse);
+    formData.append('storage', storage);
+    formData.append('weight', weight);
     if (imageFile) {
       formData.append('image', imageFile);
     }
@@ -119,6 +139,15 @@ export default function ProductsPage() {
     formData.append('hsnCode', hsnCode);
     formData.append('categoryId', categoryId);
     formData.append('unit', unit);
+    formData.append('slug', slug);
+    formData.append('offerPrice', offerPrice);
+    formData.append('isFeatured', isFeatured);
+    formData.append('isNewArrival', isNewArrival);
+    formData.append('isOffer', isOffer);
+    formData.append('ingredients', ingredients);
+    formData.append('howToUse', howToUse);
+    formData.append('storage', storage);
+    formData.append('weight', weight);
     if (imageFile) {
       formData.append('image', imageFile);
     }
@@ -158,6 +187,15 @@ export default function ProductsPage() {
     setHsnCode(p.hsnCode || '');
     setCategoryId(p.categoryId);
     setUnit(p.unit);
+    setSlug(p.slug || '');
+    setOfferPrice(p.offerPrice ? String(p.offerPrice) : '');
+    setWeight(p.weight || '');
+    setIsFeatured(p.isFeatured || false);
+    setIsNewArrival(p.isNewArrival || false);
+    setIsOffer(p.isOffer || false);
+    setIngredients(p.ingredients || '');
+    setHowToUse(p.howToUse || '');
+    setStorage(p.storage || '');
     setShowEditModal(true);
   };
 
@@ -165,6 +203,9 @@ export default function ProductsPage() {
     setName(''); setSku(''); setDescription(''); setPrice(''); setMrp('');
     setGstPercent('5'); setHsnCode(''); setCategoryId(''); setUnit('KG');
     setInitialStock('100'); setImageFile(null); setCurrentProduct(null);
+    setSlug(''); setOfferPrice(''); setWeight('');
+    setIsFeatured(false); setIsNewArrival(false); setIsOffer(false);
+    setIngredients(''); setHowToUse(''); setStorage('');
   };
 
   return (
@@ -355,6 +396,53 @@ export default function ProductsPage() {
                 <textarea value={description} onChange={e => setDescription(e.target.value)} rows="3" className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none"></textarea>
               </div>
 
+              <div className="border-t border-slate-100 pt-4 mt-2">
+                <h4 className="font-bold text-slate-800 text-xs mb-3 uppercase tracking-wide text-rose-600">E-Commerce Store Settings</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-slate-500 font-bold mb-1">Custom URL Slug</label>
+                    <input type="text" value={slug} onChange={e => setSlug(e.target.value)} placeholder="e.g. millet-porridge-mix" className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-slate-500 font-bold mb-1">Store Offer Price (₹)</label>
+                    <input type="number" step="0.01" value={offerPrice} onChange={e => setOfferPrice(e.target.value)} placeholder="Promo retail price" className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-slate-500 font-bold mb-1">Net Weight</label>
+                    <input type="text" value={weight} onChange={e => setWeight(e.target.value)} placeholder="e.g. 250g, 500g, 1L" className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none" />
+                  </div>
+                  <div className="flex items-center space-x-4 pt-6">
+                    <label className="flex items-center space-x-2 font-bold text-slate-600 cursor-pointer">
+                      <input type="checkbox" checked={isFeatured} onChange={e => setIsFeatured(e.target.checked)} className="rounded border-slate-300 text-rose-600 focus:ring-rose-500 w-4 h-4 cursor-pointer" />
+                      <span>Featured</span>
+                    </label>
+                    <label className="flex items-center space-x-2 font-bold text-slate-600 cursor-pointer">
+                      <input type="checkbox" checked={isNewArrival} onChange={e => setIsNewArrival(e.target.checked)} className="rounded border-slate-300 text-rose-600 focus:ring-rose-500 w-4 h-4 cursor-pointer" />
+                      <span>New Arrival</span>
+                    </label>
+                    <label className="flex items-center space-x-2 font-bold text-slate-600 cursor-pointer">
+                      <input type="checkbox" checked={isOffer} onChange={e => setIsOffer(e.target.checked)} className="rounded border-slate-300 text-rose-600 focus:ring-rose-500 w-4 h-4 cursor-pointer" />
+                      <span>On Offer</span>
+                    </label>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
+                  <div>
+                    <label className="block text-slate-500 font-bold mb-1">Ingredients</label>
+                    <textarea value={ingredients} onChange={e => setIngredients(e.target.value)} rows="2" placeholder="List of ingredients..." className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none"></textarea>
+                  </div>
+                  <div>
+                    <label className="block text-slate-500 font-bold mb-1">How to Use</label>
+                    <textarea value={howToUse} onChange={e => setHowToUse(e.target.value)} rows="2" placeholder="Directions of use..." className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none"></textarea>
+                  </div>
+                  <div>
+                    <label className="block text-slate-500 font-bold mb-1">Storage Instructions</label>
+                    <textarea value={storage} onChange={e => setStorage(e.target.value)} rows="2" placeholder="e.g. Store in a cool, dry place..." className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none"></textarea>
+                  </div>
+                </div>
+              </div>
+
               <div className="pt-4">
                 <button type="submit" className="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold py-3 rounded-xl shadow-lg transition-all text-xs">
                   Create Catalog Entry
@@ -426,6 +514,53 @@ export default function ProductsPage() {
               <div>
                 <label className="block text-slate-500 font-bold mb-1">Description</label>
                 <textarea value={description} onChange={e => setDescription(e.target.value)} rows="3" className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none"></textarea>
+              </div>
+
+              <div className="border-t border-slate-100 pt-4 mt-2">
+                <h4 className="font-bold text-slate-800 text-xs mb-3 uppercase tracking-wide text-rose-600">E-Commerce Store Settings</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-slate-500 font-bold mb-1">Custom URL Slug</label>
+                    <input type="text" value={slug} onChange={e => setSlug(e.target.value)} placeholder="e.g. millet-porridge-mix" className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-slate-500 font-bold mb-1">Store Offer Price (₹)</label>
+                    <input type="number" step="0.01" value={offerPrice} onChange={e => setOfferPrice(e.target.value)} placeholder="Promo retail price" className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-slate-500 font-bold mb-1">Net Weight</label>
+                    <input type="text" value={weight} onChange={e => setWeight(e.target.value)} placeholder="e.g. 250g, 500g, 1L" className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none" />
+                  </div>
+                  <div className="flex items-center space-x-4 pt-6">
+                    <label className="flex items-center space-x-2 font-bold text-slate-600 cursor-pointer">
+                      <input type="checkbox" checked={isFeatured} onChange={e => setIsFeatured(e.target.checked)} className="rounded border-slate-300 text-rose-600 focus:ring-rose-500 w-4 h-4 cursor-pointer" />
+                      <span>Featured</span>
+                    </label>
+                    <label className="flex items-center space-x-2 font-bold text-slate-600 cursor-pointer">
+                      <input type="checkbox" checked={isNewArrival} onChange={e => setIsNewArrival(e.target.checked)} className="rounded border-slate-300 text-rose-600 focus:ring-rose-500 w-4 h-4 cursor-pointer" />
+                      <span>New Arrival</span>
+                    </label>
+                    <label className="flex items-center space-x-2 font-bold text-slate-600 cursor-pointer">
+                      <input type="checkbox" checked={isOffer} onChange={e => setIsOffer(e.target.checked)} className="rounded border-slate-300 text-rose-600 focus:ring-rose-500 w-4 h-4 cursor-pointer" />
+                      <span>On Offer</span>
+                    </label>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
+                  <div>
+                    <label className="block text-slate-500 font-bold mb-1">Ingredients</label>
+                    <textarea value={ingredients} onChange={e => setIngredients(e.target.value)} rows="2" placeholder="List of ingredients..." className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none"></textarea>
+                  </div>
+                  <div>
+                    <label className="block text-slate-500 font-bold mb-1">How to Use</label>
+                    <textarea value={howToUse} onChange={e => setHowToUse(e.target.value)} rows="2" placeholder="Directions of use..." className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none"></textarea>
+                  </div>
+                  <div>
+                    <label className="block text-slate-500 font-bold mb-1">Storage Instructions</label>
+                    <textarea value={storage} onChange={e => setStorage(e.target.value)} rows="2" placeholder="e.g. Store in a cool, dry place..." className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none"></textarea>
+                  </div>
+                </div>
               </div>
 
               <div className="pt-4">

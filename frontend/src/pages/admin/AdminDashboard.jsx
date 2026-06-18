@@ -15,7 +15,14 @@ import {
   Store,
   Download,
   X,
-  ChevronRight
+  ChevronRight,
+  Tag,
+  Cable,
+  Microscope,
+  HelpCircle,
+  RotateCcw,
+  BarChart3,
+  LayoutDashboard
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -40,6 +47,21 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [overdueInvoices, setOverdueInvoices] = useState([]);
   const [dashboardTab, setDashboardTab] = useState('daily'); // 'daily', 'monthly', 'financial'
+
+  const bannerImages = [
+    '/products/ragi-choco-malt-front.png',
+    '/products/black-rice-delight-front.jpg',
+    '/products/millet-idly-podi-front.jpg',
+    '/products/urad-classic-front.jpg'
+  ];
+  const [currentBannerIdx, setCurrentBannerIdx] = useState(0);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentBannerIdx(prev => (prev + 1) % bannerImages.length);
+    }, 4000);
+    return () => clearInterval(timer);
+  }, []);
 
   // Invoice Details Modal state (for navigation from notification)
   const [selectedInvoice, setSelectedInvoice] = useState(null);
@@ -447,11 +469,30 @@ export default function AdminDashboard() {
   return (
     <div className="space-y-8 animate-fade-in">
       {/* Top Banner */}
-      <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-rose-950 p-8 rounded-3xl text-white relative overflow-hidden shadow-xl shadow-slate-100">
-        <div className="absolute top-0 right-0 w-64 h-full bg-white/5 skew-x-12"></div>
-        <div className="relative z-10 space-y-2">
-          <h2 className="text-2xl md:text-3xl font-black tracking-tight">Mansara Distributor Cockpit</h2>
-          <p className="text-slate-300 text-xs md:text-sm">Manage dealers, products, track global stock transfers, and visualize revenue metrics.</p>
+      <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-rose-950 p-6 md:p-8 rounded-3xl text-white relative overflow-hidden shadow-xl shadow-slate-100 flex flex-col md:flex-row justify-between items-center gap-6">
+        <div className="absolute top-0 right-0 w-64 h-full bg-white/5 skew-x-12 hidden md:block"></div>
+        <div className="relative z-10 space-y-2 max-w-xl">
+          <span className="bg-rose-600/30 text-rose-300 border border-rose-500/20 text-[9px] font-black uppercase px-2.5 py-0.5 rounded-full tracking-wider">
+            Internal Operations Portal
+          </span>
+          <h2 className="text-2xl md:text-3xl font-black tracking-tight">Mansara CRM Cockpit</h2>
+          <p className="text-slate-350 text-xs md:text-sm leading-relaxed">
+            Manage dealers, products, track global stock transfers, analyze billing, and monitor raw materials in real-time.
+          </p>
+        </div>
+        
+        {/* Banner Screensaver */}
+        <div className="relative w-28 h-28 md:w-36 md:h-36 bg-white/10 border border-white/10 rounded-2xl overflow-hidden flex-shrink-0 flex items-center justify-center p-2 shadow-inner">
+          {bannerImages.map((img, idx) => (
+            <img
+              key={idx}
+              src={img}
+              alt="Mansara Product"
+              className={`absolute object-contain w-full h-full p-2 transition-all duration-1000 ${
+                idx === currentBannerIdx ? 'opacity-100 scale-100 rotate-0' : 'opacity-0 scale-95 rotate-3'
+              }`}
+            />
+          ))}
         </div>
       </div>
 
@@ -903,6 +944,51 @@ export default function AdminDashboard() {
           </div>
         </div>
       )}
+
+      {/* Mansara Operations Command Center */}
+      <div className="bg-white border border-slate-150 p-6 md:p-8 rounded-3xl shadow-sm space-y-6">
+        <div>
+          <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider flex items-center gap-2">
+            <LayoutDashboard className="w-4.5 h-4.5 text-rose-600" />
+            <span>Mansara CRM Operations Center</span>
+          </h3>
+          <p className="text-slate-400 text-xs mt-1">Direct shortcut navigations to all active workspaces and reports.</p>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+          {[
+            { name: 'Products Catalog', path: '/admin/products', desc: 'Manage product SKUs & pricing', icon: ShoppingBag, color: 'text-rose-605 bg-rose-50/50 border-rose-100/50' },
+            { name: 'Categories Manager', path: '/admin/categories', desc: 'Product taxonomy rules', icon: Tag, color: 'text-rose-605 bg-rose-50/50 border-rose-100/50' },
+            { name: 'Stock (Finished)', path: '/admin/inventory', desc: 'Live warehouse stock levels', icon: Warehouse, color: 'text-rose-605 bg-rose-50/50 border-rose-100/50' },
+            { name: 'Raw Inventories', path: '/admin/inventories', desc: 'Dal, rice raw ingredients', icon: Warehouse, color: 'text-slate-600 bg-slate-50 border-slate-150/50' },
+            { name: 'Channel Integrations', path: '/admin/channel-integration', desc: 'Amazon & storefront setup', icon: Cable, color: 'text-slate-600 bg-slate-50 border-slate-150/50' },
+            { name: 'R&D Lab Log', path: '/admin/rnd', desc: 'Formulation test reports', icon: Microscope, color: 'text-slate-600 bg-slate-50 border-slate-150/50' },
+            { name: 'Dealer Directory', path: '/admin/dealers', desc: 'Approved dealer profiles', icon: Users, color: 'text-rose-605 bg-rose-50/50 border-rose-100/50' },
+            { name: 'Stock Transfers', path: '/admin/transfers', desc: 'Logistics dispatch & billing', icon: Truck, color: 'text-rose-605 bg-rose-50/50 border-rose-100/50' },
+            { name: 'Order Requests', path: '/admin/requests', desc: 'PO requests from dealers', icon: FileText, color: 'text-rose-605 bg-rose-50/50 border-rose-100/50' },
+            { name: 'Returns Log', path: '/admin/returns', desc: 'Defective product log', icon: RotateCcw, color: 'text-rose-605 bg-rose-50/50 border-rose-100/50' },
+            { name: 'Complaint Tickets', path: '/admin/services', desc: 'Dealer service tickets', icon: HelpCircle, color: 'text-rose-605 bg-rose-50/50 border-rose-100/50' },
+            { name: 'Analytics & Reports', path: '/admin/analytics', desc: 'Sales, region & revenue KPIs', icon: BarChart3, color: 'text-rose-605 bg-rose-50/50 border-rose-100/50' }
+          ].map((workspace) => {
+            const WsIcon = workspace.icon;
+            return (
+              <button
+                key={workspace.name}
+                onClick={() => navigate(workspace.path)}
+                className={`p-4 border rounded-2xl flex flex-col justify-between text-left hover:scale-[1.03] hover:shadow-md transition-all h-[130px] group cursor-pointer ${workspace.color}`}
+              >
+                <div className="p-2 w-fit rounded-lg bg-white border border-slate-100 shadow-sm text-slate-700 group-hover:text-rose-600 group-hover:border-rose-100 transition-colors">
+                  <WsIcon className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="font-black text-slate-800 text-xs leading-tight group-hover:text-rose-600 transition-colors">{workspace.name}</h4>
+                  <p className="text-[10px] text-slate-405 mt-1 leading-tight">{workspace.desc}</p>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
       {/* Invoice Details Modal */}
       {showInvoiceModal && (

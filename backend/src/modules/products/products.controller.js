@@ -105,7 +105,17 @@ exports.createProduct = async (req, res, next) => {
       categoryId,
       unit,
       minOrderQty,
-      initialStock
+      initialStock,
+      slug,
+      offerPrice,
+      isFeatured,
+      isNewArrival,
+      isOffer,
+      ingredients,
+      howToUse,
+      storage,
+      weight,
+      images
     } = req.body;
 
     const existing = await prisma.product.findUnique({ where: { sku } });
@@ -132,7 +142,17 @@ exports.createProduct = async (req, res, next) => {
           categoryId,
           imageUrl,
           unit: unit || 'PCS',
-          minOrderQty: minOrderQty ? parseInt(minOrderQty) : 1
+          minOrderQty: minOrderQty ? parseInt(minOrderQty) : 1,
+          slug: slug || name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, ''),
+          offerPrice: offerPrice ? parseFloat(offerPrice) : null,
+          isFeatured: isFeatured === 'true' || isFeatured === true,
+          isNewArrival: isNewArrival === 'true' || isNewArrival === true,
+          isOffer: isOffer === 'true' || isOffer === true,
+          ingredients,
+          howToUse,
+          storage,
+          weight,
+          images: Array.isArray(images) ? images : (images ? [images] : [])
         }
       });
 
@@ -193,7 +213,17 @@ exports.updateProduct = async (req, res, next) => {
       hsnCode,
       categoryId,
       unit,
-      minOrderQty
+      minOrderQty,
+      slug,
+      offerPrice,
+      isFeatured,
+      isNewArrival,
+      isOffer,
+      ingredients,
+      howToUse,
+      storage,
+      weight,
+      images
     } = req.body;
 
     const existing = await prisma.product.findUnique({ where: { id } });
@@ -227,7 +257,17 @@ exports.updateProduct = async (req, res, next) => {
           categoryId: categoryId || existing.categoryId,
           imageUrl,
           unit: unit || existing.unit,
-          minOrderQty: minOrderQty ? parseInt(minOrderQty) : existing.minOrderQty
+          minOrderQty: minOrderQty ? parseInt(minOrderQty) : existing.minOrderQty,
+          slug: slug !== undefined ? slug : existing.slug,
+          offerPrice: offerPrice !== undefined ? (offerPrice ? parseFloat(offerPrice) : null) : existing.offerPrice,
+          isFeatured: isFeatured !== undefined ? (isFeatured === 'true' || isFeatured === true) : existing.isFeatured,
+          isNewArrival: isNewArrival !== undefined ? (isNewArrival === 'true' || isNewArrival === true) : existing.isNewArrival,
+          isOffer: isOffer !== undefined ? (isOffer === 'true' || isOffer === true) : existing.isOffer,
+          ingredients: ingredients !== undefined ? ingredients : existing.ingredients,
+          howToUse: howToUse !== undefined ? howToUse : existing.howToUse,
+          storage: storage !== undefined ? storage : existing.storage,
+          weight: weight !== undefined ? weight : existing.weight,
+          images: images !== undefined ? (Array.isArray(images) ? images : [images]) : existing.images
         }
       });
 

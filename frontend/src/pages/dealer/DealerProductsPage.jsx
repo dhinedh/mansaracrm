@@ -299,19 +299,29 @@ export default function DealerProductsPage() {
                   {availableStock > 0 ? (
                     <div className="flex flex-col gap-2">
                       {/* Qty Plus/Minus Picker */}
-                      <div className="flex items-center justify-between bg-white border border-slate-200 rounded-xl p-1">
+                      <div className="flex items-center justify-between bg-white border border-slate-200 rounded-xl p-0.5">
                         <button
                           onClick={() => handleQtyChange(product.id, -1)}
-                          className="p-1 hover:bg-slate-50 rounded-lg text-slate-500"
+                          className="p-1 hover:bg-slate-50 rounded-lg text-slate-500 cursor-pointer"
                         >
-                          <Minus className="w-3 h-3" />
+                          <Minus className="w-3.5 h-3.5" />
                         </button>
-                        <span className="text-xs font-black text-slate-800">{chosenQty}</span>
+                        <input
+                          type="number"
+                          min="1"
+                          max={availableStock}
+                          value={chosenQty}
+                          onChange={(e) => {
+                            const val = Math.min(availableStock, Math.max(1, parseInt(e.target.value) || 1));
+                            setQuantities({ ...quantities, [product.id]: val });
+                          }}
+                          className="w-12 border-0 bg-transparent text-center font-bold text-xs text-slate-800 focus:outline-none focus:ring-0 p-0"
+                        />
                         <button
                           onClick={() => handleQtyChange(product.id, 1)}
-                          className="p-1 hover:bg-slate-50 rounded-lg text-slate-500"
+                          className="p-1 hover:bg-slate-50 rounded-lg text-slate-500 cursor-pointer"
                         >
-                          <Plus className="w-3 h-3" />
+                          <Plus className="w-3.5 h-3.5" />
                         </button>
                       </div>
 
