@@ -129,7 +129,7 @@ export default function MyLedgersPage() {
       const qty = parseInt(item.quantity);
       const unitPrice = parseFloat(item.unitPrice);
       const margin = parseFloat(item.marginPct);
-      const sellingPrice = parseFloat(item.sellingPrice || (unitPrice * (1 + margin / 100)));
+      const sellingPrice = parseFloat(item.sellingPrice || (unitPrice * (1 - margin / 100)));
       const gstPct = parseFloat(item.gstPercent || item.product?.gstPercent || 5);
       const lineTotal = parseFloat(item.lineTotal);
 

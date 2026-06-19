@@ -188,7 +188,8 @@ exports.dispatchRequest = async (req, res, next) => {
           }
         });
         const marginPct = configuredMargin ? parseFloat(configuredMargin.marginPercent) : 0;
-        const unitPrice = parseFloat(product.price) * (1 - marginPct / 100);
+        const mrp = parseFloat(product.mrp || product.price || 0);
+        const unitPrice = mrp * (1 - marginPct / 100);
         const lineSubtotal = unitPrice * item.quantity;
         const lineGst = lineSubtotal * (parseFloat(product.gstPercent) / 100);
         const lineTotal = lineSubtotal + lineGst;
@@ -199,7 +200,7 @@ exports.dispatchRequest = async (req, res, next) => {
         invoiceItemsDetails.push({
           productId: item.productId,
           quantity: item.quantity,
-          unitPrice: parseFloat(product.price),
+          unitPrice: mrp,
           marginPct,
           sellingPrice: unitPrice,
           gstPercent: parseFloat(product.gstPercent),

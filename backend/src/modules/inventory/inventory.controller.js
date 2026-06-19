@@ -187,8 +187,9 @@ exports.createStockTransfer = async (req, res, next) => {
     for (const item of items) {
       const product = await prisma.product.findUnique({ where: { id: item.productId } });
       const marginPct = parseFloat(item.marginPct) || 0;
-      const unitPrice = parseFloat(product.price) * (1 + marginPct / 100);
-      const lineSubtotal = unitPrice * item.quantity;
+      const mrp = parseFloat(product.mrp || product.price || 0);
+      const sellingPrice = mrp * (1 - marginPct / 100);
+      const lineSubtotal = sellingPrice * item.quantity;
       const lineGst = lineSubtotal * (parseFloat(product.gstPercent) / 100);
       const lineTotal = lineSubtotal + lineGst;
 
@@ -198,9 +199,9 @@ exports.createStockTransfer = async (req, res, next) => {
       invoiceItemsDetails.push({
         productId: item.productId,
         quantity: item.quantity,
-        unitPrice: parseFloat(product.price),
+        unitPrice: mrp,
         marginPct,
-        sellingPrice: unitPrice,
+        sellingPrice,
         gstPercent: parseFloat(product.gstPercent),
         gstAmount: lineGst,
         lineTotal

@@ -170,14 +170,14 @@ export default function TransfersPage() {
   });
 
   const invoiceLines = transferItems.map(item => {
-    const basePrice = parseFloat(item.product.price);
+    const mrp = parseFloat(item.product.mrp || item.product.price || 0);
     const margin = item.marginPct || 0;
-    const sellingPrice = basePrice * (1 + margin / 100);
+    const sellingPrice = mrp * (1 - margin / 100);
     const gstPct = parseFloat(item.product.gstPercent || 0);
     const lineSubtotal = sellingPrice * item.quantity;
     const lineGst = lineSubtotal * (gstPct / 100);
     const lineTotal = lineSubtotal + lineGst;
-    return { ...item, basePrice, sellingPrice, gstPct, lineSubtotal, lineGst, lineTotal };
+    return { ...item, basePrice: mrp, sellingPrice, gstPct, lineSubtotal, lineGst, lineTotal };
   });
 
   const invoiceSubtotal = invoiceLines.reduce((s, l) => s + l.lineSubtotal, 0);
