@@ -27,6 +27,7 @@ import {
   X,
   IndianRupee
 } from 'lucide-react';
+import ZoneSelectionMap from '../../components/ZoneSelectionMap';
 
 export default function DealersPage() {
   const location = useLocation();
@@ -75,6 +76,8 @@ export default function DealersPage() {
   const [editError, setEditError] = useState('');
   const [zoneConflicts, setZoneConflicts] = useState([]);
   const [editZoneConflicts, setEditZoneConflicts] = useState([]);
+  const [showMap, setShowMap] = useState(false);
+  const [showEditMap, setShowEditMap] = useState(false);
 
   // Form states
   const [email, setEmail] = useState('');
@@ -180,6 +183,16 @@ export default function DealersPage() {
     e.preventDefault();
     setEditLoading(true);
     setEditError('');
+
+    if (editZoneConflicts.length > 0) {
+      const conflictMsg = editZoneConflicts.map(c => `- Zone "${c.zones.join(', ')}" is already assigned to active dealer "${c.companyName}"`).join('\n');
+      const proceed = window.confirm(`⚠️ Warning: Zone Assignment Conflicts Detected!\n\n${conflictMsg}\n\nDo you still want to save these profile changes?`);
+      if (!proceed) {
+        setEditLoading(false);
+        return;
+      }
+    }
+
     try {
       const res = await axios.put(`/dealers/${dealerDetail.id}`, {
         name: editName,
@@ -294,6 +307,15 @@ export default function DealersPage() {
     setFormSuccess(false);
     setSubmitting(true);
 
+    if (zoneConflicts.length > 0) {
+      const conflictMsg = zoneConflicts.map(c => `- Zone "${c.zones.join(', ')}" is already assigned to active dealer "${c.companyName}"`).join('\n');
+      const proceed = window.confirm(`⚠️ Warning: Zone Assignment Conflicts Detected!\n\n${conflictMsg}\n\nDo you still want to proceed with this registration?`);
+      if (!proceed) {
+        setSubmitting(false);
+        return;
+      }
+    }
+
     try {
       await axios.post('/auth/register-dealer', {
         email, password, name, companyName, gstNumber, address, city, state, pincode,
@@ -342,6 +364,8 @@ export default function DealersPage() {
     setPhone(''); setDealerType('RETAIL'); setDealerCategory('STARTER'); setInitialDeposit(''); setSelectedCategories([]);
     setFormError(''); setFormSuccess(false); setSubmitting(false);
     setPincodeSuggestions([]);
+    setShowMap(false);
+    setShowEditMap(false);
   };
 
   const handlePincodeChange = async (val) => {
@@ -675,7 +699,27 @@ export default function DealersPage() {
 
               {/* Zones Tag Builder */}
               <div>
-                <label className="block text-slate-500 font-bold mb-2">Zones / Territories (add multiple)</label>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-slate-500 font-bold">Zones / Territories (add multiple)</label>
+                  <button
+                    type="button"
+                    onClick={() => setShowMap(!showMap)}
+                    className="text-[10px] font-bold text-rose-600 hover:text-rose-700 bg-rose-50 border border-rose-100 hover:bg-rose-100 px-2.5 py-1.5 rounded-xl transition-all"
+                  >
+                    {showMap ? '🗺️ Hide Interactive Map' : '🗺️ Use Interactive Map'}
+                  </button>
+                </div>
+
+                {showMap && (
+                  <div className="mb-3 animate-fade-in">
+                    <ZoneSelectionMap
+                      selectedZones={zones}
+                      onToggleZone={z => zones.includes(z) ? removeZone(z) : addZone(z)}
+                      zoneConflicts={zoneConflicts}
+                    />
+                  </div>
+                )}
+
                 <div className="border border-slate-200 rounded-xl bg-slate-50 p-2.5 min-h-[42px] flex flex-wrap gap-1.5 items-center focus-within:border-rose-500 focus-within:bg-white transition-all">
                   {zones.map(z => (
                     <span key={z} className="inline-flex items-center space-x-1 bg-rose-100 text-rose-700 font-bold text-[10px] px-2.5 py-1 rounded-lg">
@@ -969,7 +1013,27 @@ export default function DealersPage() {
 
                           {/* Zones Tag Builder */}
                           <div>
-                            <label className="block text-slate-500 font-bold mb-2">Zones / Territories (add multiple)</label>
+                            <div className="flex items-center justify-between mb-2">
+                              <label className="block text-slate-500 font-bold">Zones / Territories (add multiple)</label>
+                              <button
+                                type="button"
+                                onClick={() => setShowEditMap(!showEditMap)}
+                                className="text-[10px] font-bold text-rose-600 hover:text-rose-700 bg-rose-50 border border-rose-100 hover:bg-rose-100 px-2.5 py-1.5 rounded-xl transition-all"
+                              >
+                                {showEditMap ? '🗺️ Hide Interactive Map' : '🗺️ Use Interactive Map'}
+                              </button>
+                            </div>
+
+                            {showEditMap && (
+                              <div className="mb-3 animate-fade-in">
+                                <ZoneSelectionMap
+                                  selectedZones={editZones}
+                                  onToggleZone={z => editZones.includes(z) ? removeEditZone(z) : addEditZone(z)}
+                                  zoneConflicts={editZoneConflicts}
+                                />
+                              </div>
+                            )}
+
                             <div className="border border-slate-200 rounded-xl bg-white p-2.5 min-h-[42px] flex flex-wrap gap-1.5 items-center focus-within:border-rose-500 transition-all">
                               {editZones.map(z => (
                                 <span key={z} className="inline-flex items-center space-x-1 bg-rose-100 text-rose-700 font-bold text-[10px] px-2.5 py-1 rounded-lg">
