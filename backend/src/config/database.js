@@ -319,6 +319,13 @@ StockTransferSchema.virtual('dealer', {
   justOne: true
 });
 
+StockTransferSchema.virtual('invoice', {
+  ref: 'Invoice',
+  localField: 'invoiceId',
+  foreignField: '_id',
+  justOne: true
+});
+
 StockTransferSchema.virtual('items', {
   ref: 'StockTransferItem',
   localField: '_id',
