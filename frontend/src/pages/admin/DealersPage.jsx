@@ -76,6 +76,27 @@ export default function DealersPage() {
   const [zoneConflicts, setZoneConflicts] = useState([]);
   const [editZoneConflicts, setEditZoneConflicts] = useState([]);
 
+  // Form states
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
+  const [companyName, setCompanyName] = useState('');
+  const [gstNumber, setGstNumber] = useState('');
+  const [address, setAddress] = useState('');
+  const [city, setCity] = useState('');
+  const [state, setState] = useState('');
+  const [pincode, setPincode] = useState('');
+  const [zones, setZones] = useState([]);         // multi-zone array
+  const [zoneInput, setZoneInput] = useState(''); // zone tag input buffer
+  const [area, setArea] = useState('');
+  const [phone, setPhone] = useState('');
+  const [dealerType, setDealerType] = useState('RETAIL');
+  const [dealerCategory, setDealerCategory] = useState('STARTER');
+  const [initialDeposit, setInitialDeposit] = useState('');
+  const [selectedCategories, setSelectedCategories] = useState([]);
+  const [categoryList, setCategoryList] = useState([]);
+  const [pincodeSuggestions, setPincodeSuggestions] = useState([]);
+
   // Check conflicts for registration modal
   useEffect(() => {
     if (zones.length === 0) {
@@ -224,26 +245,7 @@ export default function DealersPage() {
     }
   };
 
-  // Form states
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [name, setName] = useState('');
-  const [companyName, setCompanyName] = useState('');
-  const [gstNumber, setGstNumber] = useState('');
-  const [address, setAddress] = useState('');
-  const [city, setCity] = useState('');
-  const [state, setState] = useState('');
-  const [pincode, setPincode] = useState('');
-  const [zones, setZones] = useState([]);         // multi-zone array
-  const [zoneInput, setZoneInput] = useState(''); // zone tag input buffer
-  const [area, setArea] = useState('');
-  const [phone, setPhone] = useState('');
-  const [dealerType, setDealerType] = useState('RETAIL');
-  const [dealerCategory, setDealerCategory] = useState('STARTER');
-  const [initialDeposit, setInitialDeposit] = useState('');
-  const [selectedCategories, setSelectedCategories] = useState([]);
-  const [categoryList, setCategoryList] = useState([]);
-  const [pincodeSuggestions, setPincodeSuggestions] = useState([]);
+
 
   useEffect(() => {
     fetchDealers();
