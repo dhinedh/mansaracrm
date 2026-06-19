@@ -97,8 +97,8 @@ export default function NotificationsPage() {
       else if (n.type === 'ACCOUNT_UPDATE') navigate('/admin/dealers', { state: { dealerId } });
       else navigate('/admin/dashboard');
     } else {
-      if (n.type === 'STOCK_TRANSFER' || n.type === 'DELIVERY_UPDATE') navigate('/dealer/transfers', { state: { transferId } });
-      else if (n.type === 'INVOICE_GENERATED') navigate('/dealer/invoices', { state: { invoiceId } });
+      if (n.type === 'STOCK_TRANSFER' || n.type === 'DELIVERY_UPDATE') navigate('/dealer/ledgers', { state: { activeTab: 'transfers', transferId } });
+      else if (n.type === 'INVOICE_GENERATED') navigate('/dealer/ledgers', { state: { activeTab: 'invoices', invoiceId } });
       else navigate('/dealer/dashboard');
     }
   };

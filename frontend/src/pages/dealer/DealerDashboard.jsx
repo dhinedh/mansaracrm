@@ -121,7 +121,7 @@ export default function DealerDashboard() {
                       ⚠️ {days} Days Overdue
                     </span>
                     <button
-                      onClick={() => navigate('/dealer/invoices')}
+                      onClick={() => navigate('/dealer/ledgers', { state: { activeTab: 'invoices', invoiceId: inv.id } })}
                       className="text-[9px] text-rose-600 font-bold hover:underline"
                     >
                       View Invoice →
