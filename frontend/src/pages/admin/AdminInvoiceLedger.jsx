@@ -20,15 +20,59 @@ import {
   Filter,
   Truck,
   Package,
-  ArrowRight,
   RefreshCw,
   ChevronDown,
   ChevronUp,
   BadgeCheck,
   Clock,
-  XCircle,
-  Layers
+  XCircle
 } from 'lucide-react';
+
+// ── Sub-components defined OUTSIDE main component to prevent Vite TDZ issues ─
+function StatusBadge({ inv, onClose }) {
+  const base = 'text-[9px] font-black px-2.5 py-0.5 rounded-full uppercase select-none flex items-center space-x-1';
+  if (inv.status === 'CLOSED') return (
+    <span className={`${base} bg-emerald-50 text-emerald-700`}><Lock className="w-2.5 h-2.5" /><span>CLOSED</span></span>
+  );
+  if (inv.status === 'OPEN') return (
+    <span
+      onClick={() => onClose(inv)}
+      title="Click to Close Invoice & Deduct Stock"
+      className={`${base} bg-blue-50 text-blue-700 hover:bg-blue-100 cursor-pointer ring-1 ring-blue-200`}
+    >OPEN ↗</span>
+  );
+  return <span className={`${base} bg-slate-50 text-slate-700`}>{inv.status}</span>;
+}
+
+function ChannelBadge({ channel }) {
+  if (channel === 'B2B') return (
+    <span className="text-[8px] font-black text-violet-700 bg-violet-50 border border-violet-100 px-1.5 py-0.5 rounded uppercase tracking-wide">B2B</span>
+  );
+  if (channel === 'WEBSITE' || channel === 'E_COMMERCE') return (
+    <span className="text-[8px] font-black text-sky-700 bg-sky-50 border border-sky-100 px-1.5 py-0.5 rounded uppercase tracking-wide">{channel}</span>
+  );
+  return (
+    <span className="text-[8px] font-black text-rose-700 bg-rose-50 border border-rose-100 px-1.5 py-0.5 rounded uppercase tracking-wide">RETAIL</span>
+  );
+}
+
+const TRANSFER_STATUS_CFG = {
+  PENDING:     { cls: 'bg-amber-50 text-amber-700 ring-amber-200',   Icon: Clock,         label: 'PENDING' },
+  IN_TRANSIT:  { cls: 'bg-indigo-50 text-indigo-700 ring-indigo-200 animate-pulse', Icon: Truck, label: 'IN TRANSIT' },
+  DELIVERED:   { cls: 'bg-emerald-50 text-emerald-700 ring-emerald-200', Icon: BadgeCheck, label: 'DELIVERED' },
+  DISCREPANCY: { cls: 'bg-orange-50 text-orange-700 ring-orange-200', Icon: AlertTriangle, label: 'DISCREPANCY' },
+  CANCELLED:   { cls: 'bg-rose-50 text-rose-700 ring-rose-200',      Icon: XCircle,       label: 'CANCELLED' },
+};
+
+function TransferStatusBadge({ status }) {
+  const c = TRANSFER_STATUS_CFG[status] || TRANSFER_STATUS_CFG.PENDING;
+  const { Icon } = c;
+  return (
+    <span className={`text-[9px] font-black px-2.5 py-1 rounded-full uppercase flex items-center space-x-1 ring-1 ${c.cls}`}>
+      <Icon className="w-2.5 h-2.5" /><span>{c.label}</span>
+    </span>
+  );
+}
 
 export default function AdminInvoiceLedger() {
   const location = useLocation();
@@ -157,7 +201,7 @@ export default function AdminInvoiceLedger() {
       (inv.store?.name || '').toLowerCase().includes(term);
     const matchesDealer = !selectedDealer || inv.dealerId === selectedDealer;
     const matchesStatus = !selectedStatus || inv.status === selectedStatus;
-    const matchesChannel = !selectedChannel || (inv.channel || 'RETAIL') === selectedChannel;
+    const matchesChannel = !selectedChannel || (inv.channel || 'B2B') === selectedChannel;
     const invDate = new Date(inv.createdAt);
     const matchesStart = !startDate || invDate >= new Date(startDate + 'T00:00:00');
     const matchesEnd = !endDate || invDate <= new Date(endDate + 'T23:59:59');
@@ -179,48 +223,6 @@ export default function AdminInvoiceLedger() {
   const totalBilled = filteredInvoices.reduce((a, c) => a + (c.totalAmount || 0), 0);
   const totalCollected = filteredInvoices.filter(i => i.status === 'CLOSED' || i.status === 'PAID').reduce((a, c) => a + (c.totalAmount || 0), 0);
   const totalOutstanding = filteredInvoices.filter(i => i.status === 'OPEN').reduce((a, c) => a + (c.totalAmount || 0), 0);
-
-  // ── Small Components ──────────────────────────────────────────────────────
-  const StatusBadge = ({ inv }) => {
-    const base = 'text-[9px] font-black px-2.5 py-0.5 rounded-full uppercase select-none flex items-center space-x-1';
-    if (inv.status === 'CLOSED') return (
-      <span className={`${base} bg-emerald-50 text-emerald-700`}><Lock className="w-2.5 h-2.5" /><span>CLOSED</span></span>
-    );
-    if (inv.status === 'OPEN') return (
-      <span
-        onClick={() => setConfirmModal({ open: true, type: 'close', invoiceId: inv.id, invoiceNo: inv.invoiceNo })}
-        title="Click to Close Invoice & Deduct Stock"
-        className={`${base} bg-blue-50 text-blue-700 hover:bg-blue-100 cursor-pointer ring-1 ring-blue-200`}
-      >OPEN ↗</span>
-    );
-    return <span className={`${base} bg-slate-50 text-slate-700`}>{inv.status}</span>;
-  };
-
-  const ChannelBadge = ({ channel }) => {
-    if (channel === 'B2B') return (
-      <span className="text-[8px] font-black text-violet-700 bg-violet-50 border border-violet-100 px-1.5 py-0.5 rounded uppercase tracking-wide">B2B</span>
-    );
-    return (
-      <span className="text-[8px] font-black text-rose-700 bg-rose-50 border border-rose-100 px-1.5 py-0.5 rounded uppercase tracking-wide">RETAIL</span>
-    );
-  };
-
-  const TransferStatusBadge = ({ status }) => {
-    const cfg = {
-      PENDING:     { cls: 'bg-amber-50 text-amber-700 ring-amber-200',   icon: Clock,       label: 'PENDING' },
-      IN_TRANSIT:  { cls: 'bg-indigo-50 text-indigo-700 ring-indigo-200 animate-pulse', icon: Truck, label: 'IN TRANSIT' },
-      DELIVERED:   { cls: 'bg-emerald-50 text-emerald-700 ring-emerald-200', icon: BadgeCheck, label: 'DELIVERED' },
-      DISCREPANCY: { cls: 'bg-orange-50 text-orange-700 ring-orange-200', icon: AlertTriangle, label: 'DISCREPANCY' },
-      CANCELLED:   { cls: 'bg-rose-50 text-rose-700 ring-rose-200',      icon: XCircle,     label: 'CANCELLED' },
-    };
-    const c = cfg[status] || cfg.PENDING;
-    const Icon = c.icon;
-    return (
-      <span className={`text-[9px] font-black px-2.5 py-1 rounded-full uppercase flex items-center space-x-1 ring-1 ${c.cls}`}>
-        <Icon className="w-2.5 h-2.5" /><span>{c.label}</span>
-      </span>
-    );
-  };
 
   return (
     <div className="space-y-6">
@@ -314,7 +316,8 @@ export default function AdminInvoiceLedger() {
                 className="px-3 py-2 text-xs bg-slate-50 border border-slate-200 focus:border-rose-500 rounded-xl focus:outline-none font-semibold text-slate-600 cursor-pointer">
                 <option value="">All Channels</option>
                 <option value="B2B">B2B</option>
-                <option value="RETAIL">RETAIL</option>
+                <option value="WEBSITE">Website</option>
+                <option value="E_COMMERCE">E-Commerce</option>
               </select>
               <select value={selectedStatus} onChange={e => setSelectedStatus(e.target.value)}
                 className="px-3 py-2 text-xs bg-slate-50 border border-slate-200 focus:border-rose-500 rounded-xl focus:outline-none font-semibold text-slate-600 cursor-pointer">
@@ -376,7 +379,7 @@ export default function AdminInvoiceLedger() {
                           </div>
                         </td>
                         <td className="p-4">
-                          <ChannelBadge channel={inv.channel || 'RETAIL'} />
+                          <ChannelBadge channel={inv.channel || 'B2B'} />
                         </td>
                         <td className="p-4">
                           <div className="flex items-center space-x-2">
@@ -391,7 +394,9 @@ export default function AdminInvoiceLedger() {
                           </div>
                         </td>
                         <td className="p-4 text-center">
-                          <div className="flex justify-center"><StatusBadge inv={inv} /></div>
+                          <div className="flex justify-center">
+                            <StatusBadge inv={inv} onClose={(inv) => setConfirmModal({ open: true, type: 'close', invoiceId: inv.id, invoiceNo: inv.invoiceNo })} />
+                          </div>
                         </td>
                         <td className="p-4 text-right font-medium text-slate-600">₹{parseFloat(inv.subtotal).toFixed(2)}</td>
                         <td className="p-4 text-right font-medium text-slate-500">₹{parseFloat(inv.totalGst).toFixed(2)}</td>
@@ -637,8 +642,8 @@ export default function AdminInvoiceLedger() {
               <div>
                 <h3 className="font-black text-slate-800 text-sm uppercase tracking-wide">GST Tax Invoice Breakdown</h3>
                 <span className="text-[10px] text-slate-400 block font-mono mt-0.5">{selectedInvoice.invoiceNo}</span>
-                <div className="flex items-center gap-2 mt-1.5">
-                  <ChannelBadge channel={selectedInvoice.channel || 'RETAIL'} />
+                  <div className="flex items-center gap-2 mt-1.5">
+                  <ChannelBadge channel={selectedInvoice.channel || 'B2B'} />
                   {selectedInvoice.isCredit && (
                     <span className="text-[8px] font-black text-indigo-700 bg-indigo-50 border border-indigo-100 px-1.5 py-0.5 rounded uppercase">Credit</span>
                   )}
