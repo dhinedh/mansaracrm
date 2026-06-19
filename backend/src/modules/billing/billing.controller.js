@@ -1,7 +1,7 @@
 // src/modules/billing/billing.controller.js
 const prisma = require('../../config/database');
 const { generateInvoicePdf } = require('../../utils/pdfGenerator');
-const { buildInvoiceHtml } = require('../../utils/pdfTemplate');
+const { buildInvoiceHtml, buildAgreementHtml } = require('../../utils/pdfTemplate');
 
 // Helper to fetch company settings
 const getCompanyDetails = () => {
@@ -92,13 +92,18 @@ exports.createInvoice = async (req, res, next) => {
         marginPct = configuredMargin ? parseFloat(configuredMargin.marginPercent) : 0;
       }
 
+      // Determine unit and quantity normalization
+      const unit = item.unit || 'PCS';
+      const cartonSize = product.cartonSize || 12;
+      const qtyInPieces = unit === 'CTN' ? (item.quantity * cartonSize) : item.quantity;
+
       // Calculations:
-      // sellingPrice = base price * (1 + marginPct/100)
-      const basePrice = parseFloat(product.price);
-      const sellingPrice = basePrice * (1 + marginPct / 100);
+      // sellingPrice = MRP * (1 - marginPct/100)
+      const mrp = parseFloat(product.mrp || product.price || 0);
+      const sellingPrice = mrp * (1 - marginPct / 100);
       const gstPct = parseFloat(product.gstPercent);
       
-      const lineSubtotal = sellingPrice * item.quantity;
+      const lineSubtotal = sellingPrice * qtyInPieces;
       const lineGst = isGstEnabled ? (lineSubtotal * (gstPct / 100)) : 0;
       const lineTotal = lineSubtotal + lineGst;
 
@@ -107,8 +112,9 @@ exports.createInvoice = async (req, res, next) => {
 
       invoiceItemsDetails.push({
         productId: item.productId,
-        quantity: item.quantity,
-        unitPrice: basePrice,
+        quantity: qtyInPieces,
+        unit: unit,
+        unitPrice: mrp, // store MRP as reference price
         marginPct,
         sellingPrice,
         gstPercent: isGstEnabled ? gstPct : 0,
@@ -119,14 +125,34 @@ exports.createInvoice = async (req, res, next) => {
 
     const calculatedGrandTotal = calculatedSubtotal + calculatedGstTotal + parseFloat(shippingCharges || 0);
 
+    const dealer = await prisma.dealer.findUnique({
+      where: { id: dealerId }
+    });
+
+    if (!dealer) {
+      return res.status(404).json({ success: false, message: 'Dealer profile not found' });
+    }
+
     // 3. Execute invoice generation in single secure Transaction
     const invoice = await prisma.$transaction(async (tx) => {
       // A. Get & increment invoice sequence
+      const seqId = dealer.invoicePrefix ? `dealer_${dealerId}` : 'singleton';
+      const defaultPrefix = dealer.invoicePrefix ? dealer.invoicePrefix : 'MF-INV';
+
       const seq = await tx.invoiceSequence.upsert({
-        where: { id: 'singleton' },
+        where: { id: seqId },
         update: { lastNumber: { increment: 1 } },
-        create: { id: 'singleton', lastNumber: 1, prefix: 'MF-INV' }
+        create: { id: seqId, lastNumber: 1, prefix: defaultPrefix }
       });
+
+      // Ensure the sequence prefix is up to date with the dealer's profile setting
+      if (dealer.invoicePrefix && seq.prefix !== dealer.invoicePrefix) {
+        await tx.invoiceSequence.update({
+          where: { id: seqId },
+          data: { prefix: dealer.invoicePrefix }
+        });
+        seq.prefix = dealer.invoicePrefix;
+      }
 
       const invoiceNo = `${seq.prefix}-${String(seq.lastNumber).padStart(5, '0')}`;
 
@@ -467,6 +493,49 @@ exports.downloadPdf = async (req, res, next) => {
       );
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.setHeader('Content-Disposition', `inline; filename="Invoice_${invoice.invoiceNo}.html"`);
+      res.send(printableHtml);
+    }
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.downloadAgreementPdf = async (req, res, next) => {
+  try {
+    const { dealerId } = req.params;
+
+    const dealer = await prisma.dealer.findUnique({
+      where: { id: dealerId },
+      include: {
+        user: true
+      }
+    });
+
+    if (!dealer) {
+      return res.status(404).json({ success: false, message: 'Dealer not found' });
+    }
+
+    // Auth verification: ADMINs can download any agreement; DEALER can only download their own
+    if (req.user.role === 'DEALER' && req.user.dealer?.id !== dealerId) {
+      return res.status(403).json({ success: false, message: 'Unauthorized' });
+    }
+
+    const company = getCompanyDetails();
+    const html = buildAgreementHtml(company, dealer);
+
+    try {
+      const pdfBuffer = await generateInvoicePdf(html);
+      res.contentType('application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="Agreement_${dealer.companyName.replace(/\s+/g, '_')}.pdf"`);
+      res.send(pdfBuffer);
+    } catch (pdfErr) {
+      console.warn(`PDF agreement generation failed for ${dealer.companyName}, falling back to HTML:`, pdfErr.message);
+      const printableHtml = html.replace(
+        '</body>',
+        '<script>window.onload=function(){window.print();}</script></body>'
+      );
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.setHeader('Content-Disposition', `inline; filename="Agreement_${dealer.companyName.replace(/\s+/g, '_')}.html"`);
       res.send(printableHtml);
     }
   } catch (error) {

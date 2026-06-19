@@ -5,7 +5,7 @@ const prisma = require('../../config/database');
 
 const generateTokens = (user) => {
   const accessToken = jwt.sign(
-    { id: user.id, email: user.email, role: user.role },
+    { id: user.id, email: user.email, role: user.role, staffRole: user.staffRole },
     process.env.JWT_SECRET,
     { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
   );
@@ -186,6 +186,7 @@ exports.login = async (req, res, next) => {
           name: user.name,
           email: user.email,
           role: user.role,
+          staffRole: user.staffRole,
           dealer: user.dealer ? {
             id: user.dealer.id,
             companyName: user.dealer.companyName,
@@ -209,6 +210,7 @@ exports.me = async (req, res, next) => {
         name: user.name,
         email: user.email,
         role: user.role,
+        staffRole: user.staffRole,
         dealer: user.dealer
       }
     });
@@ -286,6 +288,141 @@ exports.resetPassword = async (req, res, next) => {
     res.json({
       success: true,
       message: 'Password has been reset successfully'
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.createStaffUser = async (req, res, next) => {
+  try {
+    const { email, password, name, staffRole } = req.body;
+
+    const existingUser = await prisma.user.findUnique({ where: { email } });
+    if (existingUser) {
+      return res.status(400).json({ success: false, message: 'Email already registered' });
+    }
+
+    const hashedPassword = await bcrypt.hash(password || 'Staff@123', 12);
+    const newUser = await prisma.user.create({
+      data: {
+        email,
+        password: hashedPassword,
+        name,
+        role: 'ADMIN',
+        staffRole: staffRole || 'VIEWER',
+        isActive: true
+      }
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Staff user created successfully',
+      data: {
+        id: newUser.id,
+        email: newUser.email,
+        name: newUser.name,
+        role: newUser.role,
+        staffRole: newUser.staffRole,
+        isActive: newUser.isActive
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.getStaffUsers = async (req, res, next) => {
+  try {
+    // Only return users who have role: 'ADMIN' (staff)
+    const staff = await prisma.user.findMany({
+      where: { role: 'ADMIN' },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        staffRole: true,
+        isActive: true,
+        lastLogin: true,
+        createdAt: true
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    res.json({
+      success: true,
+      data: staff
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.updateStaffUser = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { name, staffRole, isActive, password } = req.body;
+
+    const user = await prisma.user.findUnique({ where: { id } });
+    if (!user || user.role !== 'ADMIN') {
+      return res.status(404).json({ success: false, message: 'Staff user not found' });
+    }
+
+    const updateData = {};
+    if (name) updateData.name = name;
+    if (staffRole) updateData.staffRole = staffRole;
+    if (isActive !== undefined) updateData.isActive = isActive;
+    if (password) {
+      updateData.password = await bcrypt.hash(password, 12);
+    }
+
+    const updatedUser = await prisma.user.update({
+      where: { id },
+      data: updateData
+    });
+
+    res.json({
+      success: true,
+      message: 'Staff user updated successfully',
+      data: {
+        id: updatedUser.id,
+        email: updatedUser.email,
+        name: updatedUser.name,
+        role: updatedUser.role,
+        staffRole: updatedUser.staffRole,
+        isActive: updatedUser.isActive
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.deleteStaffUser = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const user = await prisma.user.findUnique({ where: { id } });
+    if (!user || user.role !== 'ADMIN') {
+      return res.status(404).json({ success: false, message: 'Staff user not found' });
+    }
+
+    // Do not allow deleting the last super admin
+    if (user.staffRole === 'ADMIN') {
+      const adminCount = await prisma.user.count({
+        where: { role: 'ADMIN', staffRole: 'ADMIN' }
+      });
+      if (adminCount <= 1) {
+        return res.status(400).json({ success: false, message: 'Cannot delete the last super administrator' });
+      }
+    }
+
+    await prisma.user.delete({ where: { id } });
+
+    res.json({
+      success: true,
+      message: 'Staff user deleted successfully'
     });
   } catch (error) {
     next(error);

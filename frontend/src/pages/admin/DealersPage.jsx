@@ -73,6 +73,64 @@ export default function DealersPage() {
   const [editNotes, setEditNotes] = useState('');
   const [editLoading, setEditLoading] = useState(false);
   const [editError, setEditError] = useState('');
+  const [zoneConflicts, setZoneConflicts] = useState([]);
+  const [editZoneConflicts, setEditZoneConflicts] = useState([]);
+
+  // Check conflicts for registration modal
+  useEffect(() => {
+    if (zones.length === 0) {
+      setZoneConflicts([]);
+      return;
+    }
+    const checkConflicts = async () => {
+      try {
+        const queryParams = zones.map(z => `zones[]=${encodeURIComponent(z)}`).join('&');
+        const res = await axios.get(`/dealers/zone-check?${queryParams}`);
+        setZoneConflicts(res.data.conflicts || []);
+      } catch (err) {
+        console.error('Zone conflict check error:', err);
+      }
+    };
+    const debounce = setTimeout(checkConflicts, 400);
+    return () => clearTimeout(debounce);
+  }, [zones]);
+
+  // Check conflicts for edit modal
+  useEffect(() => {
+    if (editZones.length === 0) {
+      setEditZoneConflicts([]);
+      return;
+    }
+    const checkConflicts = async () => {
+      try {
+        const queryParams = editZones.map(z => `zones[]=${encodeURIComponent(z)}`).join('&');
+        const res = await axios.get(`/dealers/zone-check?${queryParams}`);
+        const otherConflicts = (res.data.conflicts || []).filter(c => c.dealerId !== dealerDetail?.id);
+        setEditZoneConflicts(otherConflicts);
+      } catch (err) {
+        console.error('Zone conflict check error:', err);
+      }
+    };
+    const debounce = setTimeout(checkConflicts, 400);
+    return () => clearTimeout(debounce);
+  }, [editZones, dealerDetail]);
+
+  const downloadAgreement = async (dealerId, companyName) => {
+    try {
+      const response = await axios.get(`/billing/agreement/${dealerId}`, { responseType: 'blob' });
+      const file = new Blob([response.data], { type: 'application/pdf' });
+      const fileURL = URL.createObjectURL(file);
+      const link = document.createElement('a');
+      link.href = fileURL;
+      link.setAttribute('download', `Agreement_${companyName.replace(/\s+/g, '_')}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err) {
+      console.error('Failed to download agreement:', err);
+      alert('Failed to download agreement PDF.');
+    }
+  };
 
   const startEditing = () => {
     setEditName(dealerDetail.user?.name || '');
@@ -640,6 +698,21 @@ export default function DealersPage() {
                 <p className="text-[10px] text-slate-400 mt-1">e.g. North, South, East · Press Enter or comma to add each zone</p>
               </div>
 
+              {zoneConflicts.length > 0 && (
+                <div className="bg-amber-50 border border-amber-200 text-amber-800 p-3 rounded-xl space-y-1">
+                  <p className="font-bold text-[10px] flex items-center gap-1">
+                    <span>⚠️ Warning: Zone Assignment Conflict</span>
+                  </p>
+                  <ul className="list-disc pl-4 text-[10px]">
+                    {zoneConflicts.map((c, idx) => (
+                      <li key={idx}>
+                        Zone <strong>{c.zones.join(', ')}</strong> is already assigned to active dealer <strong>{c.companyName}</strong>.
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
               {pincodeSuggestions.length > 0 && (
                 <div className="bg-rose-50/20 border border-rose-100/50 p-3.5 rounded-xl space-y-2">
                   <span className="block text-[10px] font-black uppercase text-rose-600 tracking-wider">Quick Add Suggested Zones:</span>
@@ -918,6 +991,21 @@ export default function DealersPage() {
                             </div>
                           </div>
 
+                          {editZoneConflicts.length > 0 && (
+                            <div className="bg-amber-50 border border-amber-200 text-amber-800 p-3 rounded-xl space-y-1">
+                              <p className="font-bold text-[10px] flex items-center gap-1">
+                                <span>⚠️ Warning: Zone Assignment Conflict</span>
+                              </p>
+                              <ul className="list-disc pl-4 text-[10px]">
+                                {editZoneConflicts.map((c, idx) => (
+                                  <li key={idx}>
+                                    Zone <strong>{c.zones.join(', ')}</strong> is already assigned to active dealer <strong>{c.companyName}</strong>.
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+
                           {/* Category Multi-select */}
                           <div>
                             <label className="block text-slate-500 font-bold mb-2">Dealer Product Categories</label>
@@ -983,7 +1071,17 @@ export default function DealersPage() {
                         </form>
                       ) : (
                         <>
-                          <div className="flex justify-end mb-4">
+                          <div className="flex justify-end mb-4 gap-3">
+                            {dealerDetail.approvalStatus === 'APPROVED' && (
+                              <button
+                                type="button"
+                                onClick={() => downloadAgreement(dealerDetail.id, dealerDetail.companyName)}
+                                className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-4 py-2 rounded-xl shadow-md text-xs uppercase tracking-wide flex items-center space-x-1.5 cursor-pointer"
+                              >
+                                <FileText className="w-4 h-4" />
+                                <span>Download Agreement PDF</span>
+                              </button>
+                            )}
                             <button
                               type="button"
                               onClick={startEditing}

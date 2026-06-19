@@ -22,6 +22,7 @@ export default function ProfilePage() {
   const [state, setState] = useState('');
   const [pincode, setPincode] = useState('');
   const [logoBase64, setLogoBase64] = useState('');
+  const [invoicePrefix, setInvoicePrefix] = useState('');
 
   // Bank details
   const [bankName, setBankName] = useState('');
@@ -43,6 +44,7 @@ export default function ProfilePage() {
       setState(user.dealer?.state || '');
       setPincode(user.dealer?.pincode || '');
       setLogoBase64(user.dealer?.logoBase64 || '');
+      setInvoicePrefix(user.dealer?.invoicePrefix || '');
       // Bank Details
       const bd = user.dealer?.bankDetails || {};
       setBankName(bd.bankName || '');
@@ -85,7 +87,8 @@ export default function ProfilePage() {
         pincode,
         logoBase64,
         bankDetails: { bankName, accountNo, ifscCode, branch, accountType },
-        invoiceTerms
+        invoiceTerms,
+        invoicePrefix
       });
       setMessage({ text: '✓ Billing profile and invoice template updated successfully!', type: 'success' });
       await fetchCurrentUser();
@@ -158,7 +161,7 @@ export default function ProfilePage() {
               <div className="text-right">
                 <h2 className="text-lg font-black text-rose-600 tracking-widest">TAX INVOICE</h2>
                 <div className="text-[10px] text-slate-600 mt-1 space-y-0.5">
-                  <div><span className="font-bold text-rose-800">Invoice No:</span> INV-2024-0001</div>
+                  <div><span className="font-bold text-rose-800">Invoice No:</span> {invoicePrefix ? `${invoicePrefix}-00001` : 'MF-INV-00001'}</div>
                   <div><span className="font-bold text-rose-800">Date:</span> {new Date().toLocaleDateString('en-IN')}</div>
                 </div>
               </div>
@@ -322,6 +325,12 @@ export default function ProfilePage() {
                 <label className="block text-slate-400 font-bold">GSTIN Registration (Admin Managed)</label>
                 <input type="text" disabled value={user?.dealer?.gstNumber || 'Not Registered'}
                   className="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-lg text-slate-500 cursor-not-allowed font-semibold" />
+              </div>
+              <div className="space-y-1">
+                <label className="block text-slate-500 font-bold">Invoice Number Prefix (e.g. RK-INV)</label>
+                <input type="text" maxLength={12} placeholder="e.g. RK-INV" value={invoicePrefix}
+                  onChange={e => setInvoicePrefix(e.target.value.toUpperCase())}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 focus:border-rose-500 rounded-lg focus:outline-none uppercase" />
               </div>
             </div>
             <div className="space-y-1 text-xs">

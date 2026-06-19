@@ -237,19 +237,21 @@ exports.dispatchRequest = async (req, res, next) => {
         }
       });
 
-      // C. Create StockTransfer linked to B2B Invoice
+      // C. Create StockTransfer linked to B2B Invoice (instantly DELIVERED on request dispatch approval)
       const stockTx = await tx.stockTransfer.create({
         data: {
           transferNo,
           dealerId: request.dealerId,
           invoiceId: inv.id,
-          status: 'PENDING',
+          status: 'DELIVERED',
+          shippedAt: new Date(),
+          deliveredAt: new Date(),
           notes: notes || `Dispatched from Dealer Request: ${request.requestNo}`,
           createdBy: req.user.id
         }
       });
 
-      // D. Create transfer items
+      // D. Create transfer items and adjust stock instantly
       for (const item of invoiceItemsDetails) {
         await tx.stockTransferItem.create({
           data: {
@@ -257,7 +259,65 @@ exports.dispatchRequest = async (req, res, next) => {
             productId: item.productId,
             quantity: item.quantity,
             unitPrice: item.sellingPrice,
-            marginPct: item.marginPct
+            marginPct: item.marginPct,
+            receivedQuantity: item.quantity,
+            hasDiscrepancy: false
+          }
+        });
+
+        // A. Decrement Company Stock
+        const compStock = await tx.companyInventory.findUnique({ where: { productId: item.productId } });
+        if (!compStock || compStock.quantity < item.quantity) {
+          const product = await tx.product.findUnique({ where: { id: item.productId } });
+          throw new Error(`Insufficient company stock to complete delivery for product SKU: ${product ? product.sku : 'Unknown'}. Requested: ${item.quantity}, Available: ${compStock ? compStock.quantity : 0}`);
+        }
+        await tx.companyInventory.update({
+          where: { productId: item.productId },
+          data: { quantity: compStock.quantity - item.quantity }
+        });
+
+        await tx.stockMovement.create({
+          data: {
+            productId: item.productId,
+            type: 'TRANSFER_OUT',
+            quantity: item.quantity,
+            referenceId: stockTx.id,
+            notes: `Stock Transfer Out to dealer: ${request.dealer.companyName}`
+          }
+        });
+
+        // B. Increment Dealer Stock
+        const dealerStock = await tx.dealerInventory.findUnique({
+          where: {
+            dealerId_productId: {
+              dealerId: request.dealerId,
+              productId: item.productId
+            }
+          }
+        });
+
+        if (dealerStock) {
+          await tx.dealerInventory.update({
+            where: { id: dealerStock.id },
+            data: { quantity: dealerStock.quantity + item.quantity }
+          });
+        } else {
+          await tx.dealerInventory.create({
+            data: {
+              dealerId: request.dealerId,
+              productId: item.productId,
+              quantity: item.quantity
+            }
+          });
+        }
+
+        await tx.stockMovement.create({
+          data: {
+            productId: item.productId,
+            type: 'TRANSFER_IN',
+            quantity: item.quantity,
+            referenceId: stockTx.id,
+            notes: `Stock Transfer In to dealer: ${request.dealer.companyName}`
           }
         });
       }
@@ -273,8 +333,8 @@ exports.dispatchRequest = async (req, res, next) => {
         data: {
           userId: request.dealer.userId,
           type: 'STOCK_TRANSFER',
-          title: 'Stock Request Dispatched',
-          message: `Your purchase request ${request.requestNo} has been dispatched. Stock transfer ${transferNo} and B2B Invoice ${invoiceNo} have been generated.`,
+          title: '✅ Stock Request Dispatched & Inventory Updated',
+          message: `Your purchase request ${request.requestNo} has been dispatched and fulfilled. Stock transfer ${transferNo} and B2B Invoice ${invoiceNo} have been generated, and your dealer inventory has been updated.`,
           metadata: { transferId: stockTx.id, invoiceId: inv.id }
         }
       });

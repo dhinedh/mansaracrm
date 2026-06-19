@@ -91,7 +91,8 @@ export default function CartPage() {
     setNotes, 
     addToCart,
     updateQuantity, 
-    updateMargin, 
+    updateMargin,
+    updateUnit,
     removeFromCart, 
     clearCart,
     getTotals 
@@ -356,7 +357,8 @@ export default function CartPage() {
         items: items.map(item => ({
           productId: item.productId,
           quantity: item.quantity,
-          marginPct: item.marginPct
+          marginPct: item.marginPct,
+          unit: item.unit || 'PCS'
         }))
       });
 
@@ -538,9 +540,13 @@ export default function CartPage() {
               </div>
 
               {items.map((item) => {
-                const basePrice = parseFloat(item.product.price);
-                const sellingPrice = basePrice * (1 + (item.marginPct || 0) / 100);
-                const lineTotal = sellingPrice * item.quantity;
+                const mrp = parseFloat(item.product.mrp || item.product.price || 0);
+                const sellingPrice = mrp * (1 - (item.marginPct || 0) / 100);
+                
+                const unit = item.unit || 'PCS';
+                const cartonSize = item.product.cartonSize || 12;
+                const qtyInPieces = unit === 'CTN' ? item.quantity * cartonSize : item.quantity;
+                const lineTotal = sellingPrice * qtyInPieces;
                 const maxStock = dealerInventory[item.productId] || 0;
 
                 return (
@@ -548,18 +554,26 @@ export default function CartPage() {
                     <div className="col-span-5 pr-2">
                       <p className="font-bold text-slate-800 truncate">{item.product.name}</p>
                       <span className="text-[9px] font-black text-rose-600 block">SKU: {item.product.sku}</span>
-                      <span className="text-[9px] text-slate-450 block font-medium">Base: ₹{basePrice.toFixed(2)} · Stock: {maxStock}</span>
+                      <span className="text-[9px] text-slate-450 block font-medium">MRP: ₹{mrp.toFixed(2)} · Stock: {maxStock} PCS</span>
                     </div>
 
-                    <div className="col-span-2 flex justify-center">
+                    <div className="col-span-2 flex flex-col items-center gap-1">
                       <input
                         type="number"
                         min="1"
-                        max={maxStock}
+                        max={unit === 'CTN' ? Math.floor(maxStock / cartonSize) : maxStock}
                         value={item.quantity}
-                        onChange={(e) => updateQuantity(item.productId, Math.min(maxStock, Math.max(0, parseInt(e.target.value) || 0)))}
+                        onChange={(e) => updateQuantity(item.productId, Math.max(0, parseInt(e.target.value) || 0))}
                         className="w-14 p-1 bg-slate-50 border border-slate-200 focus:border-rose-500 rounded-lg text-center font-bold text-slate-700 text-xs focus:outline-none"
                       />
+                      <select
+                        value={unit}
+                        onChange={(e) => updateUnit(item.productId, e.target.value)}
+                        className="text-[9px] p-0.5 border border-slate-200 rounded bg-white text-slate-600 focus:outline-none focus:border-rose-500"
+                      >
+                        <option value="PCS">PCS</option>
+                        <option value="CTN">CTN ({cartonSize})</option>
+                      </select>
                     </div>
 
                     <div className="col-span-2 flex justify-center">

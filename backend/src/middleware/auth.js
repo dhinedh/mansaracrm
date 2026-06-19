@@ -37,6 +37,20 @@ const requireRole = (...roles) => (req, res, next) => {
   next();
 };
 
+const requireStaffRole = (...staffRoles) => (req, res, next) => {
+  if (req.user.role !== 'ADMIN') {
+    return res.status(403).json({ success: false, message: 'Admin access required' });
+  }
+  // ADMIN role with staffRole 'ADMIN' is a super admin and bypasses all checks
+  if (req.user.staffRole === 'ADMIN') {
+    return next();
+  }
+  if (!staffRoles.includes(req.user.staffRole)) {
+    return res.status(403).json({ success: false, message: 'You do not have privilege access for this module' });
+  }
+  next();
+};
+
 const requireApprovedDealer = (req, res, next) => {
   if (req.user.role === 'DEALER') {
     if (!req.user.dealer || req.user.dealer.approvalStatus !== 'APPROVED') {
@@ -46,4 +60,4 @@ const requireApprovedDealer = (req, res, next) => {
   next();
 };
 
-module.exports = { verifyToken, requireRole, requireApprovedDealer };
+module.exports = { verifyToken, requireRole, requireStaffRole, requireApprovedDealer };

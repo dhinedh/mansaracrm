@@ -36,46 +36,50 @@ import axios from 'axios';
 
 // ─── Menu Sections Config ────────────────────────────────────────────────────
 const getCrmMenuItems = (unreadNotifications) => [
-  { name: 'Dashboard',             path: '/admin/dashboard',           icon: LayoutDashboard },
-  { name: 'Dealers',               path: '/admin/dealers',             icon: Users },
+  { name: 'Dashboard',             path: '/admin/dashboard',           icon: LayoutDashboard, allowedStaffRoles: ['ADMIN', 'ECOM_MANAGER', 'B2B_MANAGER', 'SUPPORT_AGENT', 'FINANCE_OFFICER', 'VIEWER'] },
+  { name: 'Dealers',               path: '/admin/dealers',             icon: Users, allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'] },
   {
     name: 'Products',
     icon: ShoppingBag,
+    allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'],
     subItems: [
       { name: 'All Products', path: '/admin/products',   icon: ShoppingBag },
       { name: 'Categories',   path: '/admin/categories', icon: Tag }
     ]
   },
-  { name: 'Stock',                 path: '/admin/inventory',           icon: Warehouse },
-  { name: 'Inventories',           path: '/admin/inventories',         icon: Boxes },
-  { name: 'Channel Integration',   path: '/admin/channel-integration', icon: Cable },
-  { name: 'R&D',                   path: '/admin/rnd',                 icon: Microscope },
-  { name: 'Transfers',             path: '/admin/transfers',           icon: Truck },
-  { name: 'Order Requests',        path: '/admin/requests',            icon: FileText },
-  { name: 'Returns Log',           path: '/admin/returns',             icon: RotateCcw },
-  { name: 'Tickets / Support',     path: '/admin/services',            icon: HelpCircle },
-  { name: 'Reports',               path: '/admin/reports',             icon: BarChart3 },
-  { name: 'Forecasting',           path: '/admin/forecasting',         icon: TrendingUp },
-  { name: 'Analytics',             path: '/admin/analytics',           icon: BarChart3 },
+  { name: 'Stock',                 path: '/admin/inventory',           icon: Warehouse, allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'] },
+  { name: 'Inventories',           path: '/admin/inventories',         icon: Boxes, allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'] },
+  { name: 'Channel Integration',   path: '/admin/channel-integration', icon: Cable, allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'] },
+  { name: 'R&D',                   path: '/admin/rnd',                 icon: Microscope, allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'] },
+  { name: 'Transfers',             path: '/admin/transfers',           icon: Truck, allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'] },
+  { name: 'Order Requests',        path: '/admin/requests',            icon: FileText, allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'] },
+  { name: 'Invoice Ledger',        path: '/admin/invoice-ledger',      icon: FileText, allowedStaffRoles: ['ADMIN', 'FINANCE_OFFICER', 'B2B_MANAGER'] },
+  { name: 'Returns Log',           path: '/admin/returns',             icon: RotateCcw, allowedStaffRoles: ['ADMIN', 'SUPPORT_AGENT', 'B2B_MANAGER'] },
+  { name: 'Tickets / Support',     path: '/admin/services',            icon: HelpCircle, allowedStaffRoles: ['ADMIN', 'SUPPORT_AGENT'] },
+  { name: 'Reports',               path: '/admin/reports',             icon: BarChart3, allowedStaffRoles: ['ADMIN', 'FINANCE_OFFICER'] },
+  { name: 'Forecasting',           path: '/admin/forecasting',         icon: TrendingUp, allowedStaffRoles: ['ADMIN', 'FINANCE_OFFICER'] },
+  { name: 'Analytics',             path: '/admin/analytics',           icon: BarChart3, allowedStaffRoles: ['ADMIN', 'FINANCE_OFFICER'] },
+  { name: 'Privilege Management',  path: '/admin/users',               icon: Settings, allowedStaffRoles: ['ADMIN'] },
   {
     name: 'Notifications',
     path: '/admin/notifications',
     icon: Bell,
-    badge: unreadNotifications
+    badge: unreadNotifications,
+    allowedStaffRoles: ['ADMIN', 'ECOM_MANAGER', 'B2B_MANAGER', 'SUPPORT_AGENT', 'FINANCE_OFFICER', 'VIEWER']
   },
 ];
 
 const ecomMenuItems = [
-  { name: 'E-Com Products',  path: '/admin/ecom/products',  icon: Package },
-  { name: 'Website Orders',  path: '/admin/ecom/orders',    icon: ShoppingCart },
-  { name: 'Customers',       path: '/admin/ecom/customers', icon: Users },
-  { name: 'Product Combos',  path: '/admin/ecom/combos',    icon: PackageSearch },
-  { name: 'Banners & Hero',  path: '/admin/ecom/banners',   icon: Image },
-  { name: 'Product Reviews', path: '/admin/ecom/reviews',   icon: MessageSquare },
-  { name: 'Website Content', path: '/admin/ecom/content',   icon: FileText },
-  { name: 'Store Settings',  path: '/admin/ecom/settings',  icon: Settings },
-  { name: 'Ecom Reports',    path: '/admin/ecom/reports',   icon: BarChart3 },
-  { name: 'Ecom Analytics',  path: '/admin/ecom/analytics', icon: TrendingUp },
+  { name: 'E-Com Products',  path: '/admin/ecom/products',  icon: Package, allowedStaffRoles: ['ADMIN', 'ECOM_MANAGER'] },
+  { name: 'Website Orders',  path: '/admin/ecom/orders',    icon: ShoppingCart, allowedStaffRoles: ['ADMIN', 'ECOM_MANAGER'] },
+  { name: 'Customers',       path: '/admin/ecom/customers', icon: Users, allowedStaffRoles: ['ADMIN', 'ECOM_MANAGER'] },
+  { name: 'Product Combos',  path: '/admin/ecom/combos',    icon: PackageSearch, allowedStaffRoles: ['ADMIN', 'ECOM_MANAGER'] },
+  { name: 'Banners & Hero',  path: '/admin/ecom/banners',   icon: Image, allowedStaffRoles: ['ADMIN', 'ECOM_MANAGER'] },
+  { name: 'Product Reviews', path: '/admin/ecom/reviews',   icon: MessageSquare, allowedStaffRoles: ['ADMIN', 'ECOM_MANAGER'] },
+  { name: 'Website Content', path: '/admin/ecom/content',   icon: FileText, allowedStaffRoles: ['ADMIN', 'ECOM_MANAGER'] },
+  { name: 'Store Settings',  path: '/admin/ecom/settings',  icon: Settings, allowedStaffRoles: ['ADMIN', 'ECOM_MANAGER'] },
+  { name: 'Ecom Reports',    path: '/admin/ecom/reports',   icon: BarChart3, allowedStaffRoles: ['ADMIN', 'ECOM_MANAGER'] },
+  { name: 'Ecom Analytics',  path: '/admin/ecom/analytics', icon: TrendingUp, allowedStaffRoles: ['ADMIN', 'ECOM_MANAGER'] },
 ];
 
 // ─── Reusable Nav Item Components ────────────────────────────────────────────
@@ -194,32 +198,59 @@ function SectionLabel({ label, color = 'slate' }) {
 }
 
 // ─── Full Sidebar Nav ─────────────────────────────────────────────────────────
-function SidebarNav({ submenusOpen, toggleSubmenu, onLinkClick, unreadNotifications }) {
+function SidebarNav({ submenusOpen, toggleSubmenu, onLinkClick, unreadNotifications, staffRole }) {
   const crmItems = getCrmMenuItems(unreadNotifications);
+  
+  // Filter items based on staffRole
+  const filteredCrmItems = crmItems.filter(item => {
+    // If user's staffRole is ADMIN (super admin), allow all
+    if (staffRole === 'ADMIN') return true;
+    if (item.allowedStaffRoles && !item.allowedStaffRoles.includes(staffRole)) {
+      return false;
+    }
+    return true;
+  });
+
+  const filteredEcomItems = ecomMenuItems.filter(item => {
+    if (staffRole === 'ADMIN') return true;
+    if (item.allowedStaffRoles && !item.allowedStaffRoles.includes(staffRole)) {
+      return false;
+    }
+    return true;
+  });
+
   return (
     <nav className="flex-1 px-4 py-4 space-y-0.5 overflow-y-auto">
       {/* ── CRM Section ── */}
-      <SectionLabel label="CRM Management" color="slate" />
-      {crmItems.map((item) =>
-        item.subItems ? (
-          <NavGroup
-            key={item.name}
-            item={item}
-            submenusOpen={submenusOpen}
-            toggleSubmenu={toggleSubmenu}
-            onLinkClick={onLinkClick}
-          />
-        ) : (
-          <NavLink key={item.name} item={item} onLinkClick={onLinkClick} />
-        )
+      {filteredCrmItems.length > 0 && (
+        <>
+          <SectionLabel label="CRM Management" color="slate" />
+          {filteredCrmItems.map((item) =>
+            item.subItems ? (
+              <NavGroup
+                key={item.name}
+                item={item}
+                submenusOpen={submenusOpen}
+                toggleSubmenu={toggleSubmenu}
+                onLinkClick={onLinkClick}
+              />
+            ) : (
+              <NavLink key={item.name} item={item} onLinkClick={onLinkClick} />
+            )
+          )}
+        </>
       )}
 
       {/* ── E-Commerce Section ── */}
-      <div className="pt-3" />
-      <SectionLabel label="E-Commerce" color="blue" />
-      {ecomMenuItems.map((item) => (
-        <NavLinkEcom key={item.name} item={item} onLinkClick={onLinkClick} />
-      ))}
+      {filteredEcomItems.length > 0 && (
+        <>
+          <div className="pt-3" />
+          <SectionLabel label="E-Commerce" color="blue" />
+          {filteredEcomItems.map((item) => (
+            <NavLinkEcom key={item.name} item={item} onLinkClick={onLinkClick} />
+          ))}
+        </>
+      )}
     </nav>
   );
 }
@@ -295,6 +326,7 @@ export default function AdminLayout() {
           toggleSubmenu={toggleSubmenu}
           onLinkClick={undefined}
           unreadNotifications={unreadNotifications}
+          staffRole={user?.staffRole}
         />
 
         {/* User Card */}
@@ -305,7 +337,10 @@ export default function AdminLayout() {
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-xs font-bold text-slate-800 truncate">{user?.name || 'Administrator'}</p>
-              <p className="text-[10px] text-slate-500 truncate">{user?.email}</p>
+              <p className="text-[9px] text-rose-600 font-bold tracking-wider uppercase truncate">
+                {user?.staffRole || user?.role}
+              </p>
+              <p className="text-[9px] text-slate-400 truncate">{user?.email}</p>
             </div>
           </div>
           <button
@@ -336,7 +371,7 @@ export default function AdminLayout() {
           <div className="flex items-center space-x-3">
             <div className="text-right hidden sm:block">
               <span className="text-xs bg-rose-100 text-rose-800 px-2 py-0.5 rounded-full font-bold text-[10px] uppercase">
-                {user?.role}
+                {user?.staffRole || user?.role}
               </span>
             </div>
           </div>
@@ -358,7 +393,7 @@ export default function AdminLayout() {
             >
               <X className="w-6 h-6" />
             </button>
-
+            
             <div className="p-6 border-b border-slate-100">
               <div className="flex items-center space-x-2.5">
                 <img src="/logo.png" alt="Mansara Foods" className="h-10 w-auto object-contain" />
@@ -371,6 +406,7 @@ export default function AdminLayout() {
               toggleSubmenu={toggleSubmenu}
               onLinkClick={() => setMobileMenuOpen(false)}
               unreadNotifications={unreadNotifications}
+              staffRole={user?.staffRole}
             />
 
             <div className="p-6 border-t border-slate-100">
@@ -380,6 +416,9 @@ export default function AdminLayout() {
                 </div>
                 <div>
                   <p className="text-sm font-bold text-slate-800">{user?.name}</p>
+                  <p className="text-[10px] text-rose-600 font-bold tracking-wider uppercase">
+                    {user?.staffRole || user?.role}
+                  </p>
                   <p className="text-xs text-slate-500">{user?.email}</p>
                 </div>
               </div>

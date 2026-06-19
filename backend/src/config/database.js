@@ -24,6 +24,7 @@ const UserSchema = new Schema({
   password: { type: String, required: true },
   name: { type: String, required: true },
   role: { type: String, enum: ['ADMIN', 'DEALER'], default: 'DEALER' },
+  staffRole: { type: String, enum: ['ADMIN', 'ECOM_MANAGER', 'B2B_MANAGER', 'SUPPORT_AGENT', 'FINANCE_OFFICER', 'VIEWER'], default: 'ADMIN' },
   isActive: { type: Boolean, default: true },
   lastLogin: { type: Date },
   passwordReset: { type: String },
@@ -83,7 +84,8 @@ const DealerSchema = new Schema({
     branch: { type: String },
     accountType: { type: String, default: 'Current' }
   },
-  invoiceTerms: { type: String, default: '' }
+  invoiceTerms: { type: String, default: '' },
+  invoicePrefix: { type: String }
 }, {
   timestamps: true,
   toJSON: { virtuals: true },
@@ -167,6 +169,7 @@ const ProductSchema = new Schema({
   category: { type: Schema.Types.ObjectId, ref: 'Category', required: true, alias: 'categoryId' },
   image: { type: String, alias: 'imageUrl' },
   unit: { type: String, default: 'PCS' },
+  cartonSize: { type: Number, default: 12 },
   minOrderQty: { type: Number, default: 1 },
   isActive: { type: Boolean, default: true },
   stock: { type: Number, default: 0 },
@@ -475,6 +478,7 @@ const InvoiceItemSchema = new Schema({
   invoiceId: { type: Schema.Types.ObjectId, ref: 'Invoice', required: true },
   productId: { type: Schema.Types.ObjectId, ref: 'Product', required: true },
   quantity: { type: Number, required: true },
+  unit: { type: String, enum: ['PCS', 'CTN'], default: 'PCS' },
   unitPrice: { type: Number, required: true },
   marginPct: { type: Number, default: 0 },
   sellingPrice: { type: Number, required: true },

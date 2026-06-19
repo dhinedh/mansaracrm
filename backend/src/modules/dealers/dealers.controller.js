@@ -378,7 +378,7 @@ exports.updateSelfProfile = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Dealer profile not found' });
     }
 
-    const { name, companyName, phone, address, city, state, pincode, logoBase64, bankDetails, invoiceTerms } = req.body;
+    const { name, companyName, phone, address, city, state, pincode, logoBase64, bankDetails, invoiceTerms, invoicePrefix } = req.body;
 
     const updatedDealer = await prisma.$transaction(async (tx) => {
       if (name) {
@@ -406,6 +406,10 @@ exports.updateSelfProfile = async (req, res, next) => {
         updateData.invoiceTerms = invoiceTerms;
       }
 
+      if (invoicePrefix !== undefined) {
+        updateData.invoicePrefix = invoicePrefix;
+      }
+
       return await tx.dealer.update({
         where: { id: dealerId },
         data: updateData,
@@ -421,6 +425,48 @@ exports.updateSelfProfile = async (req, res, next) => {
       success: true,
       message: 'Billing profile updated successfully',
       data: updatedDealer
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.checkZoneConflicts = async (req, res, next) => {
+  try {
+    let { zones } = req.query;
+    if (!zones) {
+      return res.json({ success: true, conflicts: [] });
+    }
+    
+    // Normalize zones to array
+    const queryZones = Array.isArray(zones) ? zones : [zones];
+    if (queryZones.length === 0) {
+      return res.json({ success: true, conflicts: [] });
+    }
+
+    // Query active approved dealers with overlapping zones
+    const conflictingDealers = await prisma.dealer.findMany({
+      where: {
+        approvalStatus: 'APPROVED',
+        zones: { in: queryZones }
+      },
+      include: {
+        user: true
+      }
+    });
+
+    // Filter to active dealer users
+    const activeConflicts = conflictingDealers.filter(d => d.user?.isActive);
+
+    const conflicts = activeConflicts.map(d => ({
+      dealerId: d.id,
+      companyName: d.companyName,
+      zones: d.zones.filter(z => queryZones.includes(z))
+    }));
+
+    res.json({
+      success: true,
+      conflicts
     });
   } catch (error) {
     next(error);

@@ -36,4 +36,20 @@ router.post('/register-dealer', verifyToken, requireRole('ADMIN'), validate([
   body('dealerType').optional().isIn(['WHOLESALE', 'RETAIL', 'DISTRIBUTOR', 'SUPER_DISTRIBUTOR'])
 ]), authController.registerDealer);
 
+// Admin-only staff user CRUD routes
+router.post('/staff/create', verifyToken, requireRole('ADMIN'), validate([
+  body('email').trim().isEmail().withMessage('Please enter a valid email'),
+  body('name').notEmpty().withMessage('Name is required'),
+  body('staffRole').isIn(['ADMIN', 'ECOM_MANAGER', 'B2B_MANAGER', 'SUPPORT_AGENT', 'FINANCE_OFFICER', 'VIEWER']).withMessage('Invalid staff role')
+]), authController.createStaffUser);
+
+router.get('/staff', verifyToken, requireRole('ADMIN'), authController.getStaffUsers);
+
+router.put('/staff/:id', verifyToken, requireRole('ADMIN'), validate([
+  body('name').optional().notEmpty().withMessage('Name cannot be empty'),
+  body('staffRole').optional().isIn(['ADMIN', 'ECOM_MANAGER', 'B2B_MANAGER', 'SUPPORT_AGENT', 'FINANCE_OFFICER', 'VIEWER']).withMessage('Invalid staff role')
+]), authController.updateStaffUser);
+
+router.delete('/staff/:id', verifyToken, requireRole('ADMIN'), authController.deleteStaffUser);
+
 module.exports = router;

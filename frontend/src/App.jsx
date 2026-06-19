@@ -10,6 +10,7 @@ import DealerLayout from './layouts/DealerLayout';
 // Auth Pages
 import LoginPage from './pages/auth/LoginPage';
 import ForgotPasswordPage from './pages/auth/ForgotPasswordPage';
+import AccessDeniedPage from './pages/auth/AccessDeniedPage';
 
 // Admin Pages
 import AdminDashboard from './pages/admin/AdminDashboard';
@@ -28,6 +29,8 @@ import CategoriesPage from './pages/admin/CategoriesPage';
 import ChannelIntegrationPage from './pages/admin/ChannelIntegrationPage';
 import RnDPage from './pages/admin/RnDPage';
 import InventoriesPage from './pages/admin/InventoriesPage';
+import AdminInvoiceLedger from './pages/admin/AdminInvoiceLedger';
+import UserManagement from './pages/admin/UserManagement';
 
 // E-Commerce Pages
 import EcomOrdersPage from './pages/admin/EcomOrdersPage';
@@ -53,15 +56,33 @@ import DealerAnalyticsPage from './pages/dealer/DealerAnalyticsPage';
 import ProfilePage from './pages/dealer/ProfilePage';
 
 // Simple Route Protection wrapper
-const ProtectedRoute = ({ children, allowedRole }) => {
-  const { isAuthenticated, token, user } = useAuthStore();
+const ProtectedRoute = ({ children, allowedRole, allowedStaffRoles }) => {
+  const { isAuthenticated, token, user, loading } = useAuthStore();
 
   if (!isAuthenticated || !token) {
     return <Navigate to="/login" replace />;
   }
 
+  // If loading user profile, show a loading indicator to prevent flash/wrong redirects
+  if (loading && !user) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+        <div className="w-8 h-8 border-4 border-rose-500 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+
+  // Primary Role Check
   if (allowedRole && user && user.role !== allowedRole) {
     return <Navigate to={user.role === 'ADMIN' ? '/admin/dashboard' : '/dealer/dashboard'} replace />;
+  }
+
+  // Staff Role Check (Only relevant for users with ADMIN primary role)
+  if (allowedStaffRoles && user && user.role === 'ADMIN') {
+    // ADMIN staffRole is a super admin and bypasses all checks
+    if (user.staffRole !== 'ADMIN' && !allowedStaffRoles.includes(user.staffRole)) {
+      return <Navigate to="/admin/access-denied" replace />;
+    }
   }
 
   return children;
@@ -82,6 +103,7 @@ export default function App() {
         {/* Public Routes */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/admin/access-denied" element={<AccessDeniedPage />} />
 
         {/* Admin Dashboard Protected Routes */}
         <Route
@@ -94,33 +116,139 @@ export default function App() {
         >
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<AdminDashboard />} />
-          <Route path="dealers" element={<DealersPage />} />
-          <Route path="products" element={<ProductsPage />} />
-          <Route path="categories" element={<CategoriesPage />} />
-          <Route path="inventory" element={<InventoryPage />} />
-          <Route path="inventories" element={<InventoriesPage />} />
-          <Route path="channel-integration" element={<ChannelIntegrationPage />} />
-          <Route path="rnd" element={<RnDPage />} />
-          <Route path="transfers" element={<TransfersPage />} />
-          <Route path="requests" element={<RequestsPage />} />
-          <Route path="returns" element={<ReturnsPage />} />
-          <Route path="services" element={<TicketsPage />} />
-          <Route path="reports" element={<ReportsPage />} />
-          <Route path="forecasting" element={<ForecastingPage />} />
-          <Route path="analytics" element={<AdminAnalyticsPage />} />
+          <Route path="dealers" element={
+            <ProtectedRoute allowedStaffRoles={['ADMIN', 'B2B_MANAGER']}>
+              <DealersPage />
+            </ProtectedRoute>
+          } />
+          <Route path="products" element={
+            <ProtectedRoute allowedStaffRoles={['ADMIN', 'B2B_MANAGER']}>
+              <ProductsPage />
+            </ProtectedRoute>
+          } />
+          <Route path="categories" element={
+            <ProtectedRoute allowedStaffRoles={['ADMIN', 'B2B_MANAGER']}>
+              <CategoriesPage />
+            </ProtectedRoute>
+          } />
+          <Route path="inventory" element={
+            <ProtectedRoute allowedStaffRoles={['ADMIN', 'B2B_MANAGER']}>
+              <InventoryPage />
+            </ProtectedRoute>
+          } />
+          <Route path="inventories" element={
+            <ProtectedRoute allowedStaffRoles={['ADMIN', 'B2B_MANAGER']}>
+              <InventoriesPage />
+            </ProtectedRoute>
+          } />
+          <Route path="channel-integration" element={
+            <ProtectedRoute allowedStaffRoles={['ADMIN', 'B2B_MANAGER']}>
+              <ChannelIntegrationPage />
+            </ProtectedRoute>
+          } />
+          <Route path="rnd" element={
+            <ProtectedRoute allowedStaffRoles={['ADMIN', 'B2B_MANAGER']}>
+              <RnDPage />
+            </ProtectedRoute>
+          } />
+          <Route path="transfers" element={
+            <ProtectedRoute allowedStaffRoles={['ADMIN', 'B2B_MANAGER']}>
+              <TransfersPage />
+            </ProtectedRoute>
+          } />
+          <Route path="requests" element={
+            <ProtectedRoute allowedStaffRoles={['ADMIN', 'B2B_MANAGER']}>
+              <RequestsPage />
+            </ProtectedRoute>
+          } />
+          <Route path="invoice-ledger" element={
+            <ProtectedRoute allowedStaffRoles={['ADMIN', 'FINANCE_OFFICER', 'B2B_MANAGER']}>
+              <AdminInvoiceLedger />
+            </ProtectedRoute>
+          } />
+          <Route path="returns" element={
+            <ProtectedRoute allowedStaffRoles={['ADMIN', 'SUPPORT_AGENT', 'B2B_MANAGER']}>
+              <ReturnsPage />
+            </ProtectedRoute>
+          } />
+          <Route path="services" element={
+            <ProtectedRoute allowedStaffRoles={['ADMIN', 'SUPPORT_AGENT']}>
+              <TicketsPage />
+            </ProtectedRoute>
+          } />
+          <Route path="reports" element={
+            <ProtectedRoute allowedStaffRoles={['ADMIN', 'FINANCE_OFFICER']}>
+              <ReportsPage />
+            </ProtectedRoute>
+          } />
+          <Route path="forecasting" element={
+            <ProtectedRoute allowedStaffRoles={['ADMIN', 'FINANCE_OFFICER']}>
+              <ForecastingPage />
+            </ProtectedRoute>
+          } />
+          <Route path="analytics" element={
+            <ProtectedRoute allowedStaffRoles={['ADMIN', 'FINANCE_OFFICER']}>
+              <AdminAnalyticsPage />
+            </ProtectedRoute>
+          } />
+          <Route path="users" element={
+            <ProtectedRoute allowedStaffRoles={['ADMIN']}>
+              <UserManagement />
+            </ProtectedRoute>
+          } />
           <Route path="notifications" element={<NotificationsPage />} />
           
           {/* E-Commerce Routes */}
-          <Route path="ecom/orders" element={<EcomOrdersPage />} />
-          <Route path="ecom/customers" element={<EcomCustomersPage />} />
-          <Route path="ecom/combos" element={<EcomCombosPage />} />
-          <Route path="ecom/banners" element={<EcomBannersPage />} />
-          <Route path="ecom/reviews" element={<EcomReviewsPage />} />
-          <Route path="ecom/content" element={<EcomContentPage />} />
-          <Route path="ecom/settings" element={<EcomSettingsPage />} />
-          <Route path="ecom/products" element={<EcomProductsPage />} />
-          <Route path="ecom/reports" element={<EcomReportsPage />} />
-          <Route path="ecom/analytics" element={<EcomAnalyticsPage />} />
+          <Route path="ecom/orders" element={
+            <ProtectedRoute allowedStaffRoles={['ADMIN', 'ECOM_MANAGER']}>
+              <EcomOrdersPage />
+            </ProtectedRoute>
+          } />
+          <Route path="ecom/customers" element={
+            <ProtectedRoute allowedStaffRoles={['ADMIN', 'ECOM_MANAGER']}>
+              <EcomCustomersPage />
+            </ProtectedRoute>
+          } />
+          <Route path="ecom/combos" element={
+            <ProtectedRoute allowedStaffRoles={['ADMIN', 'ECOM_MANAGER']}>
+              <EcomCombosPage />
+            </ProtectedRoute>
+          } />
+          <Route path="ecom/banners" element={
+            <ProtectedRoute allowedStaffRoles={['ADMIN', 'ECOM_MANAGER']}>
+              <EcomBannersPage />
+            </ProtectedRoute>
+          } />
+          <Route path="ecom/reviews" element={
+            <ProtectedRoute allowedStaffRoles={['ADMIN', 'ECOM_MANAGER']}>
+              <EcomReviewsPage />
+            </ProtectedRoute>
+          } />
+          <Route path="ecom/content" element={
+            <ProtectedRoute allowedStaffRoles={['ADMIN', 'ECOM_MANAGER']}>
+              <EcomContentPage />
+            </ProtectedRoute>
+          } />
+          <Route path="ecom/settings" element={
+            <ProtectedRoute allowedStaffRoles={['ADMIN', 'ECOM_MANAGER']}>
+              <EcomSettingsPage />
+            </ProtectedRoute>
+          } />
+          <Route path="ecom/products" element={
+            <ProtectedRoute allowedStaffRoles={['ADMIN', 'ECOM_MANAGER']}>
+              <EcomProductsPage />
+            </ProtectedRoute>
+          } />
+          <Route path="ecom/reports" element={
+            <ProtectedRoute allowedStaffRoles={['ADMIN', 'ECOM_MANAGER']}>
+              <EcomReportsPage />
+            </ProtectedRoute>
+          } />
+          <Route path="ecom/analytics" element={
+            <ProtectedRoute allowedStaffRoles={['ADMIN', 'ECOM_MANAGER']}>
+              <EcomAnalyticsPage />
+            </ProtectedRoute>
+          } />
         </Route>
 
         {/* Dealer Portal Protected Routes */}

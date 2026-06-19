@@ -10,6 +10,7 @@ const router = express.Router();
 router.use(verifyToken);
 
 router.get('/', billingController.getInvoices);
+router.get('/agreement/:dealerId', billingController.downloadAgreementPdf);
 router.get('/:id', billingController.getInvoiceById);
 router.get('/:id/pdf', billingController.downloadPdf);
 router.patch('/:id/close', requireRole('DEALER', 'ADMIN'), billingController.closeInvoice);
