@@ -806,6 +806,17 @@ export default function MyLedgersPage() {
                         <strong>Memo:</strong> {item.notes}
                       </p>
                     )}
+
+                    {/* Stock confirmation banner for DELIVERED transfers */}
+                    {item.status === 'DELIVERED' && (
+                      <div className="flex items-start space-x-2 bg-emerald-50 border border-emerald-100 rounded-xl p-2.5 text-[10px] text-emerald-800">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                        <div>
+                          <p className="font-black">Stock Credited to Your Inventory</p>
+                          <p className="text-emerald-700 font-medium">All shipped quantities have been added to your dealer stock. Visit the <strong>Browse Products</strong> page to view updated levels.</p>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))
               )}

@@ -492,6 +492,19 @@ export default function RequestsPage() {
 
                       </div>
 
+                      {/* Dealer-facing stock updated banner when dispatched */}
+                      {!isAdmin && req.status === 'DISPATCHED' && (
+                        <div className="flex items-start space-x-2.5 bg-emerald-50 border border-emerald-100 rounded-xl p-3 text-[10px] text-emerald-800 mt-1">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                          <div>
+                            <p className="font-black">✅ Stock Dispatched & Inventory Updated</p>
+                            <p className="text-emerald-700 font-medium mt-0.5">
+                              The ordered quantities have been added to your dealer inventory. Visit the <strong>Products page</strong> to see updated stock levels and start billing.
+                            </p>
+                          </div>
+                        </div>
+                      )}
+
                       {/* Memo & Actions Footer */}
                       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pt-3 border-t border-slate-100 text-[11px]">
                         <div className="text-slate-500 italic max-w-md truncate">
