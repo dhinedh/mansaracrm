@@ -642,7 +642,7 @@ export default function AdminInvoiceLedger() {
               <div>
                 <h3 className="font-black text-slate-800 text-sm uppercase tracking-wide">GST Tax Invoice Breakdown</h3>
                 <span className="text-[10px] text-slate-400 block font-mono mt-0.5">{selectedInvoice.invoiceNo}</span>
-                  <div className="flex items-center gap-2 mt-1.5">
+                <div className="flex items-center gap-2 mt-1.5">
                   <ChannelBadge channel={selectedInvoice.channel || 'B2B'} />
                   {selectedInvoice.isCredit && (
                     <span className="text-[8px] font-black text-indigo-700 bg-indigo-50 border border-indigo-100 px-1.5 py-0.5 rounded uppercase">Credit</span>
