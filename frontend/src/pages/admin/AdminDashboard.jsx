@@ -83,170 +83,35 @@ function KpiPill({ icon: Icon, label, value, color }) {
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function AdminDashboard() {
   const navigate = useNavigate();
-  const [kpis, setKpis] = useState(null);
-  const [overdueCount, setOverdueCount] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [activeSection, setActiveSection] = useState('crm');
-  const bannerImages = [
-    '/products/ragi-choco-malt-front.png',
-    '/products/black-rice-delight-front.jpg',
-    '/products/millet-idly-podi-front.jpg',
-    '/products/urad-classic-front.jpg'
-  ];
-  const [bannerIdx, setBannerIdx] = useState(0);
-
-  useEffect(() => {
-    const t = setInterval(() => setBannerIdx(p => (p + 1) % bannerImages.length), 4000);
-    return () => clearInterval(t);
-  }, []);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await axios.get('/analytics/admin');
-        setKpis(res.data.data?.kpis || {});
-        // Lightweight overdue check
-        const billRes = await axios.get('/billing');
-        const allInv = billRes.data.data || [];
-        const cutoff = new Date();
-        cutoff.setDate(cutoff.getDate() - 15);
-        setOverdueCount(allInv.filter(i =>
-          (i.status === 'GENERATED' || (i.isCredit && i.status === 'OPEN')) &&
-          new Date(i.createdAt) <= cutoff
-        ).length);
-      } catch { /* silent */ }
-      finally { setLoading(false); }
-    })();
-  }, []);
-
-  const fmt = (n) => typeof n === 'number' ? n.toLocaleString('en-IN') : (n || '—');
 
   return (
-    <div className="space-y-6 animate-fade-in">
-
-      {/* ── Hero Banner ──────────────────────────────────────────────────── */}
-      <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-rose-950 rounded-3xl overflow-hidden shadow-xl relative">
-        {/* Decorative blob */}
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute -top-16 -right-16 w-72 h-72 bg-rose-600/20 rounded-full blur-3xl" />
-          <div className="absolute -bottom-10 -left-10 w-48 h-48 bg-slate-600/30 rounded-full blur-2xl" />
+    <div className="space-y-8 animate-fade-in">
+      {/* CRM Modules Section */}
+      <div className="bg-white border border-slate-150 p-6 rounded-2xl shadow-sm space-y-4">
+        <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
+          <h2 className="text-xs font-black text-rose-700 uppercase tracking-widest flex items-center gap-2">
+            <LayoutGrid className="w-4 h-4" /> CRM Management Modules
+          </h2>
+          <span className="text-[10px] text-slate-400 font-semibold">{crmModules.length} Modules</span>
         </div>
-
-        <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-6 p-6 md:p-8">
-          <div className="space-y-3 max-w-2xl">
-            <span className="inline-flex items-center gap-1.5 bg-rose-600/25 text-rose-300 border border-rose-500/20 text-[9px] font-black uppercase px-3 py-1 rounded-full tracking-widest">
-              <LayoutGrid className="w-2.5 h-2.5" /> Operations Portal
-            </span>
-            <h1 className="text-2xl md:text-3xl font-black text-white tracking-tight">
-              Mansara CRM <span className="text-rose-400">Command Centre</span>
-            </h1>
-            <p className="text-slate-400 text-xs leading-relaxed max-w-lg">
-              Select any module below to launch it instantly. Dealers, inventory, billing, e-commerce, analytics — all in one place.
-            </p>
-
-            {/* Quick KPIs inline */}
-            {!loading && kpis && (
-              <div className="flex flex-wrap gap-2 pt-1">
-                <KpiPill icon={DollarSign} label="Today's Sales" value={`₹${fmt(kpis.todaySales)}`} color="#f43f5e" />
-                <KpiPill icon={Users}      label="Active Dealers" value={fmt(kpis.activeDealers)} color="#6366f1" />
-                <KpiPill icon={Truck}      label="Pending Dispatch" value={fmt(kpis.dispatchPending)} color="#f59e0b" />
-                <KpiPill icon={FileText}   label="Total Invoices" value={fmt(kpis.totalInvoices)} color="#14b8a6" />
-              </div>
-            )}
-          </div>
-
-          {/* Product Screensaver */}
-          <div className="relative w-28 h-28 md:w-36 md:h-36 bg-white/10 border border-white/10 rounded-2xl overflow-hidden flex-shrink-0 shadow-inner">
-            {bannerImages.map((img, i) => (
-              <img
-                key={i} src={img} alt="Mansara Product"
-                className={`absolute inset-0 object-contain w-full h-full p-2 transition-all duration-1000 ${i === bannerIdx ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}
-              />
-            ))}
-          </div>
-        </div>
-
-        {/* Overdue Alert Bar */}
-        {overdueCount > 0 && (
-          <div
-            onClick={() => navigate('/admin/reports')}
-            className="relative z-10 flex items-center gap-3 bg-amber-500/20 border-t border-amber-500/30 px-6 py-2.5 cursor-pointer hover:bg-amber-500/30 transition-colors"
-          >
-            <AlertCircle className="w-4 h-4 text-amber-300 flex-shrink-0" />
-            <p className="text-amber-200 text-xs font-semibold">
-              ⚠️ {overdueCount} overdue invoice{overdueCount > 1 ? 's' : ''} pending (≥15 days) — Click to review
-            </p>
-          </div>
-        )}
-      </div>
-
-      {/* ── Section Toggle ────────────────────────────────────────────────── */}
-      <div className="flex items-center gap-2">
-        <div className="bg-slate-100 p-1 rounded-xl flex gap-1 shadow-inner">
-          <button
-            onClick={() => setActiveSection('crm')}
-            className={`px-5 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all duration-200 cursor-pointer ${
-              activeSection === 'crm'
-                ? 'bg-white text-rose-700 shadow-sm'
-                : 'text-slate-500 hover:text-slate-700'
-            }`}
-          >
-            CRM Modules
-          </button>
-          <button
-            onClick={() => setActiveSection('ecom')}
-            className={`px-5 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all duration-200 cursor-pointer ${
-              activeSection === 'ecom'
-                ? 'bg-white text-blue-700 shadow-sm'
-                : 'text-slate-500 hover:text-slate-700'
-            }`}
-          >
-            E-Commerce
-          </button>
-        </div>
-        <div className="flex-1 h-px bg-slate-200" />
-        <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">
-          {activeSection === 'crm' ? `${crmModules.length} modules` : `${ecomModules.length} modules`}
-        </span>
-      </div>
-
-      {/* ── CRM Module Grid ───────────────────────────────────────────────── */}
-      {activeSection === 'crm' && (
-        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-3">
+        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-4">
           {crmModules.map(m => (
             <AppTile key={m.name} module={m} navigate={navigate} />
           ))}
         </div>
-      )}
+      </div>
 
-      {/* ── E-Com Module Grid ─────────────────────────────────────────────── */}
-      {activeSection === 'ecom' && (
-        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-3">
+      {/* E-Commerce Section */}
+      <div className="bg-white border border-slate-150 p-6 rounded-2xl shadow-sm space-y-4">
+        <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
+          <h2 className="text-xs font-black text-blue-700 uppercase tracking-widest flex items-center gap-2">
+            <LayoutGrid className="w-4 h-4" /> E-Commerce Modules
+          </h2>
+          <span className="text-[10px] text-slate-400 font-semibold">{ecomModules.length} Modules</span>
+        </div>
+        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-4">
           {ecomModules.map(m => (
             <AppTile key={m.name} module={m} navigate={navigate} />
-          ))}
-        </div>
-      )}
-
-      {/* ── Quick Action Strip ────────────────────────────────────────────── */}
-      <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
-        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4">Quick Executive Actions</p>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {[
-            { label: 'Add New Partner',     sub: 'Register dealer',         path: '/admin/dealers',   color: '#e11d48' },
-            { label: 'Initiate Transfer',   sub: 'Move stock to dealer',    path: '/admin/inventory', color: '#0369a1' },
-            { label: 'Add Catalog Product', sub: 'New SKU + price',         path: '/admin/products',  color: '#0f766e' },
-            { label: 'Generate Report',     sub: 'Export billing data',     path: '/admin/reports',   color: '#7c3aed' },
-          ].map(a => (
-            <button
-              key={a.label}
-              onClick={() => navigate(a.path)}
-              className="flex flex-col items-start p-4 rounded-xl border border-slate-100 hover:border-slate-200 hover:shadow-md transition-all duration-200 text-left cursor-pointer group"
-            >
-              <div className="w-2 h-2 rounded-full mb-2 group-hover:scale-125 transition-transform" style={{ backgroundColor: a.color }} />
-              <span className="text-xs font-bold text-slate-800">{a.label}</span>
-              <span className="text-[10px] text-slate-400 mt-0.5">{a.sub}</span>
-            </button>
           ))}
         </div>
       </div>

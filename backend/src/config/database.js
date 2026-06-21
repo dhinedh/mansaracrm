@@ -1221,8 +1221,49 @@ class PrismaCollectionWrapper {
         product: formatResult(prod)
       };
     }
-    const data = translateCreateData(args.data);
+    // Extract nested create operations
+    const nestedCreates = [];
+    const cleanData = {};
+    for (const key in args.data) {
+      const val = args.data[key];
+      if (val && typeof val === 'object' && val.create) {
+        const virtual = this.model.schema.virtuals[key];
+        if (virtual && virtual.options && virtual.options.ref && virtual.options.foreignField) {
+          nestedCreates.push({
+            key,
+            ref: virtual.options.ref,
+            foreignField: virtual.options.foreignField,
+            localField: virtual.options.localField || '_id',
+            createVal: val.create
+          });
+        } else {
+          cleanData[key] = val;
+        }
+      } else {
+        cleanData[key] = val;
+      }
+    }
+
+    const data = translateCreateData(cleanData);
     const doc = await this.model.create(data);
+
+    // Execute nested creations
+    for (const nc of nestedCreates) {
+      const relatedModel = mongoose.model(nc.ref);
+      const foreignKey = nc.foreignField;
+      const parentId = nc.localField === '_id' ? doc._id : doc[nc.localField];
+
+      const createItems = Array.isArray(nc.createVal) ? nc.createVal : [nc.createVal];
+      for (const itemData of createItems) {
+        const itemToCreate = {
+          ...itemData,
+          [foreignKey]: parentId
+        };
+        const cleanItemData = translateCreateData(itemToCreate);
+        await relatedModel.create(cleanItemData);
+      }
+    }
+
     let result = doc;
     if (args.include) {
       result = await this.model.findById(doc._id).populate(translateInclude(args.include));

@@ -1,405 +1,71 @@
 // src/pages/dealer/DealerDashboard.jsx
-import React, { useEffect, useState } from 'react';
-import axios from 'axios';
-import { 
-  DollarSign, 
-  Store, 
-  AlertTriangle,
-  AlertCircle,
-  Receipt,
-  ShoppingCart,
-  User,
-  ArrowRight
-} from 'lucide-react';
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuthStore } from '../../store/authStore';
+import { 
+  Wallet, 
+  FileText, 
+  RotateCcw, 
+  HelpCircle, 
+  Store, 
+  ShoppingBag, 
+  ShoppingCart, 
+  BarChart3, 
+  User, 
+  Bell,
+  LayoutGrid
+} from 'lucide-react';
 
-const MOCK_FAST_MOVERS = [
-  { productId: 'mock-fast-1', name: 'Urad Health Mix – Classic', sku: 'MF-URAD-CLA-100', quantitySold: 120 },
-  { productId: 'mock-fast-2', name: 'Ragi Choco Malt', sku: 'MF-RAGI-CHO-250', quantitySold: 85 },
-  { productId: 'mock-fast-3', name: 'Health Mix – Black Rice Delight', sku: 'MF-BLAC-DEL-100', quantitySold: 64 },
-  { productId: 'mock-fast-4', name: 'Nutriminix – Multi Grain Health Mix', sku: 'MF-NUTR-MGM-250', quantitySold: 42 }
+const dealerModules = [
+  { name: 'Ledger',             path: '/dealer/ledgers',             icon: Wallet,          color: '#0369a1', bg: '#e0f2fe', desc: 'Verify tax invoices and dispatches' },
+  { name: 'Order Requests',     path: '/dealer/requests',            icon: FileText,        color: '#be185d', bg: '#fdf2f8', desc: 'Submit stock requests to warehouse' },
+  { name: 'Returns Log',        path: '/dealer/returns',             icon: RotateCcw,       color: '#b45309', bg: '#fffbeb', desc: 'Manage store return logs' },
+  { name: 'Complaints / Tickets',path: '/dealer/services',           icon: HelpCircle,      color: '#065f46', bg: '#ecfdf5', desc: 'Raise support tickets to admin' },
+  { name: 'My Shops / Stores',  path: '/dealer/stores',              icon: Store,           color: '#e11d48', bg: '#fff1f2', desc: 'Manage retail shop outlets' },
+  { name: 'Browse Products',    path: '/dealer/products',            icon: ShoppingBag,     color: '#7c3aed', bg: '#ede9fe', desc: 'Browse catalog & check pricing' },
+  { name: 'Cart / Bill Builder',path: '/dealer/cart',                icon: ShoppingCart,    color: '#1d4ed8', bg: '#eff6ff', desc: 'Generate store billing invoices' },
+  { name: 'My Analytics',       path: '/dealer/analytics',           icon: BarChart3,       color: '#0e7490', bg: '#ecfeff', desc: 'Analyze store sales performance' },
+  { name: 'Billing Profile',    path: '/dealer/profile',             icon: User,            color: '#475569', bg: '#f8fafc', desc: 'View bank and business details' },
+  { name: 'Notifications',      path: '/dealer/notifications',       icon: Bell,            color: '#dc2626', bg: '#fef2f2', desc: 'View system alerts' }
 ];
 
-const MOCK_SLOW_MOVERS = [
-  { productId: 'mock-slow-1', name: 'Idly Podi – Millet Fusion', sku: 'MF-IDLY-MIL-100', quantitySold: 8 },
-  { productId: 'mock-slow-2', name: 'Coriander Rice Podi Mix', sku: 'MF-RICE-COR-100', quantitySold: 5 },
-  { productId: 'mock-slow-3', name: 'Moringa Rice Podi Mix', sku: 'MF-RICE-MOR-100', quantitySold: 3 },
-  { productId: 'mock-slow-4', name: 'Pirandai Rice Podi Mix', sku: 'MF-RICE-PIR-100', quantitySold: 2 }
-];
+function AppTile({ module, navigate }) {
+  const Icon = module.icon;
+  return (
+    <button
+      onClick={() => navigate(module.path)}
+      className="group flex flex-col items-center text-center p-4 rounded-2xl bg-white border border-slate-100 hover:border-slate-200 hover:shadow-lg hover:-translate-y-1 transition-all duration-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-rose-300"
+      title={module.desc}
+    >
+      <div
+        className="w-14 h-14 rounded-2xl flex items-center justify-center mb-3 shadow-sm group-hover:scale-110 transition-transform duration-200"
+        style={{ backgroundColor: module.bg }}
+      >
+        <Icon style={{ color: module.color }} className="w-7 h-7" strokeWidth={1.8} />
+      </div>
+      <span className="text-[11px] font-bold text-slate-700 leading-tight group-hover:text-slate-900 transition-colors line-clamp-2">
+        {module.name}
+      </span>
+    </button>
+  );
+}
 
 export default function DealerDashboard() {
   const navigate = useNavigate();
-  const { user } = useAuthStore();
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [overdueInvoices, setOverdueInvoices] = useState([]);
-
-  useEffect(() => {
-    fetchDashboardData();
-  }, []);
-
-  const fetchDashboardData = async () => {
-    try {
-      const res = await axios.get('/analytics/dealer');
-      setData(res.data.data);
-
-      const billRes = await axios.get('/billing');
-      const allInvoices = billRes.data.data || [];
-      const fifteenDaysAgo = new Date();
-      fifteenDaysAgo.setDate(fifteenDaysAgo.getDate() - 15);
-      const overdue = allInvoices.filter(inv => 
-        inv.status === 'GENERATED' && 
-        new Date(inv.createdAt) <= fifteenDaysAgo
-      );
-      setOverdueInvoices(overdue);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-rose-600"></div>
-      </div>
-    );
-  }
-
-  const kpis = [
-    { name: 'Total Store Billing', value: `₹${data?.kpis?.totalSales?.toLocaleString('en-IN') || 0}`, desc: 'Gross invoice sales', icon: DollarSign, color: 'text-rose-600 bg-rose-50' },
-    { name: 'Invoices Generated', value: data?.kpis?.totalBills || 0, desc: 'Active customer bills', icon: Receipt, color: 'text-indigo-600 bg-indigo-50' },
-    { name: 'Active Outlets', value: data?.storeSales?.length || 0, desc: 'Registered retail shops', icon: Store, color: 'text-teal-600 bg-teal-50' },
-    { name: 'Low Stock SKU Alerts', value: data?.lowStockAlerts?.length || 0, desc: 'Items with quantity <= 10', icon: AlertTriangle, color: data?.lowStockAlerts?.length > 0 ? 'text-amber-600 bg-amber-50 animate-pulse' : 'text-slate-400 bg-slate-50' }
-  ];
-
-  const fastMovers = data?.fastMovers && data.fastMovers.length > 0 ? data.fastMovers : MOCK_FAST_MOVERS;
-  const slowMovers = data?.slowMovers && data.slowMovers.length > 0 ? data.slowMovers : MOCK_SLOW_MOVERS;
-  const isMocked = !(data?.fastMovers && data.fastMovers.length > 0) && !(data?.slowMovers && data.slowMovers.length > 0);
-
-  const maxFast = Math.max(...fastMovers.map(p => p.quantitySold || 0), 1);
-  const maxSlow = Math.max(...slowMovers.map(p => p.quantitySold || 0), 1);
 
   return (
-    <div className="space-y-8">
-      {/* Welcome Banner */}
-      <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-rose-950 p-8 rounded-3xl text-white relative overflow-hidden shadow-xl">
-        <div className="absolute top-0 right-0 w-64 h-full bg-white/5 skew-x-12"></div>
-        <div className="relative z-10 space-y-2">
-          <h2 className="text-2xl md:text-3xl font-black tracking-tight">Partner Portal</h2>
-          <p className="text-slate-300 text-xs md:text-sm">Welcome to Mansara Foods! View stock catalog, add retail outlets, set custom margin rules, and build GST compliant bills instantly.</p>
+    <div className="space-y-8 animate-fade-in">
+      {/* Dealer Modules Section */}
+      <div className="bg-white border border-slate-150 p-6 rounded-2xl shadow-sm space-y-4">
+        <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
+          <h2 className="text-xs font-black text-rose-700 uppercase tracking-widest flex items-center gap-2">
+            <LayoutGrid className="w-4 h-4" /> Dealer Portal Modules
+          </h2>
+          <span className="text-[10px] text-slate-400 font-semibold">{dealerModules.length} Modules</span>
         </div>
-      </div>
-
-      {/* Overdue Invoices Alert Section */}
-      {overdueInvoices.length > 0 && (
-        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 space-y-4 shadow-sm text-xs">
-          <div className="flex items-center space-x-3 text-amber-800 font-bold">
-            <AlertCircle className="w-6 h-6 text-amber-600 shrink-0" />
-            <h3 className="text-sm uppercase tracking-wide">Action Required: Overdue Unpaid Invoices (&gt;= 15 Days)</h3>
-          </div>
-          <p className="text-amber-700 font-medium">Please clear these outstanding invoices generated more than 15 days ago to prevent logistics or delivery blockages.</p>
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {overdueInvoices.map(inv => {
-              const days = Math.floor((new Date() - new Date(inv.createdAt)) / (1000 * 60 * 60 * 24));
-              return (
-                <div 
-                  key={inv.id} 
-                  className="bg-white border border-amber-100 p-4 rounded-xl flex flex-col justify-between"
-                >
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <p className="font-bold text-slate-800 text-xs">Invoice: {inv.invoiceNo}</p>
-                      <p className="text-[10px] text-slate-400 font-mono">Date: {new Date(inv.createdAt).toLocaleDateString()}</p>
-                    </div>
-                    <span className="text-rose-600 font-black text-xs">₹{(inv.totalAmount || 0).toLocaleString('en-IN')}</span>
-                  </div>
-                  <div className="flex justify-between items-center mt-3 pt-2.5 border-t border-slate-100">
-                    <span className="text-[9px] bg-amber-100 text-amber-800 font-black px-2 py-0.5 rounded-full">
-                      ⚠️ {days} Days Overdue
-                    </span>
-                    <button
-                      onClick={() => navigate('/dealer/ledgers', { state: { activeTab: 'invoices', invoiceId: inv.id } })}
-                      className="text-[9px] text-rose-600 font-bold hover:underline"
-                    >
-                      View Invoice →
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Dealer Profile and Account Status Card */}
-      <div className="bg-white border border-slate-150 rounded-2xl shadow-sm p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-        <div className="space-y-1">
-          <span className="text-[10px] font-black text-rose-600 uppercase tracking-wider block">Verified Account Profile</span>
-          <h3 className="text-lg font-bold text-slate-800 flex items-center space-x-2">
-            <span className="bg-rose-50 p-1.5 rounded-lg text-rose-600 shrink-0">
-              <User className="w-4 h-4" />
-            </span>
-            <span>{user?.dealer?.companyName || 'Mansara Foods Partner'}</span>
-          </h3>
-          <p className="text-slate-500 text-xs mt-1">
-            Partner Name: <strong className="text-slate-700">{user?.name}</strong> · Email: <strong className="text-slate-700">{user?.email}</strong> · Phone: <strong className="text-slate-700">{user?.dealer?.phone}</strong>
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-4 items-center border-t md:border-t-0 md:border-l border-slate-100 pt-4 md:pt-0 md:pl-6 shrink-0">
-          <div className="bg-rose-50/50 border border-rose-100/50 px-4 py-3 rounded-xl min-w-[140px]">
-            <span className="block text-[9px] font-bold text-rose-600 uppercase tracking-wider">Initial Deposit Paid</span>
-            <strong className="text-base font-black text-rose-700">
-              ₹{user?.dealer?.initialDeposit !== undefined && user?.dealer?.initialDeposit !== null
-                ? Number(user.dealer.initialDeposit).toLocaleString('en-IN', { minimumFractionDigits: 2 })
-                : '0.00'}
-            </strong>
-          </div>
-          <div className="bg-slate-50 border border-slate-150 px-4 py-3 rounded-xl min-w-[140px]">
-            <span className="block text-[9px] font-bold text-slate-500 uppercase tracking-wider">Credit Limit</span>
-            <strong className="text-base font-black text-slate-700">
-              {user?.dealer?.creditLimit !== undefined && user?.dealer?.creditLimit !== null
-                ? `₹${Number(user.dealer.creditLimit).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
-                : 'No Limit'}
-            </strong>
-          </div>
-        </div>
-      </div>
-
-      {/* KPIs */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        {kpis.map((kpi) => {
-          const Icon = kpi.icon;
-          return (
-            <div key={kpi.name} className="bg-white border border-slate-150 p-6 rounded-2xl shadow-sm hover:shadow-md transition-shadow">
-              <div className="flex items-center justify-between mb-4">
-                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">{kpi.name}</span>
-                <div className={`p-2.5 rounded-xl ${kpi.color}`}>
-                  <Icon className="w-5 h-5" />
-                </div>
-              </div>
-              <h3 className="text-2xl font-black text-slate-800">{kpi.value}</h3>
-              <p className="text-slate-400 text-[10px] font-medium mt-1">{kpi.desc}</p>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Stock warnings and leaderboard */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Low Stock Alerts */}
-        <div className="bg-white border border-slate-150 p-6 rounded-2xl shadow-sm lg:col-span-1 space-y-4">
-          <h3 className="text-xs font-bold text-slate-800 flex items-center space-x-2 uppercase tracking-wider">
-            <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
-            <span>Low Stock Alerts</span>
-          </h3>
-
-          <div className="space-y-3 max-h-72 overflow-y-auto">
-            {data?.lowStockAlerts?.length === 0 ? (
-              <div className="text-center py-8 text-xs text-slate-400 font-semibold">
-                Perfect! No low stock alerts.
-              </div>
-            ) : (
-              data?.lowStockAlerts?.map(item => (
-                <div key={item.productId} className="flex items-center justify-between p-3.5 bg-rose-50/20 border border-rose-100/50 rounded-xl text-xs">
-                  <div>
-                    <h4 className="font-bold text-slate-800 truncate max-w-[120px]">{item.name}</h4>
-                    <span className="text-[9px] font-black text-rose-600 block">SKU: {item.sku}</span>
-                  </div>
-                  <span className="font-black text-rose-700 bg-white border border-rose-100 px-2.5 py-0.5 rounded-lg">
-                    {item.quantity} units left
-                  </span>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-
-        {/* Store Performance Leaderboard */}
-        <div className="bg-white border border-slate-150 p-6 rounded-2xl shadow-sm lg:col-span-2 space-y-4">
-          <h3 className="text-xs font-bold text-slate-800 flex items-center space-x-2 uppercase tracking-wider">
-            <Store className="w-4 h-4 text-rose-600 shrink-0" />
-            <span>Outlets Performance Billing</span>
-          </h3>
-
-          <div className="space-y-3">
-            {data?.storeSales?.length === 0 ? (
-              <div className="text-center py-8 text-xs text-slate-400 font-semibold">
-                No billing generated. Go to browse products or build invoices to start.
-              </div>
-            ) : (
-              data?.storeSales?.map((store, index) => (
-                <div key={store.storeId} className="flex items-center justify-between p-4 bg-slate-50 border border-slate-100 rounded-xl text-xs">
-                  <div className="flex items-center space-x-3">
-                    <span className="font-black text-slate-400">#{index + 1}</span>
-                    <strong className="text-slate-800">{store.name}</strong>
-                  </div>
-                  <strong className="font-black text-rose-600">₹{store.totalSales?.toLocaleString('en-IN')}</strong>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Product Movers Section */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        {isMocked && (
-          <div className="col-span-1 md:col-span-2 bg-gradient-to-r from-indigo-50 to-rose-50/40 border border-indigo-100/80 p-4 rounded-2xl flex items-start sm:items-center gap-3.5 shadow-sm">
-            <AlertCircle className="w-5 h-5 text-indigo-600 shrink-0 mt-0.5 sm:mt-0" />
-            <div className="text-xs text-indigo-900 font-medium">
-              <span className="font-bold text-indigo-950">Analytics Baseline:</span> Showing simulated product trends. Once you record retail invoices for your outlets, live B2C sales analytics will populate here.
-            </div>
-          </div>
-        )}
-
-        {/* Fast Moving Products */}
-        <div className="bg-white border border-slate-150 p-6 rounded-2xl shadow-sm flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-sm font-extrabold text-slate-800 uppercase tracking-wider flex items-center space-x-2.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-sm shadow-emerald-500/50"></span>
-                <span>Fast Moving Products</span>
-              </h3>
-              {isMocked && (
-                <span className="text-[9px] font-bold text-indigo-600 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-full">
-                  Baseline
-                </span>
-              )}
-            </div>
-            
-            <div className="space-y-5">
-              {fastMovers.map((prod, idx) => {
-                const percentage = Math.round((prod.quantitySold / maxFast) * 100);
-                return (
-                  <div key={prod.productId} className="group flex flex-col space-y-1.5 p-1 rounded-lg hover:bg-slate-50/50 transition-colors duration-150">
-                    <div className="flex justify-between items-start">
-                      <div className="space-y-0.5">
-                        <div className="flex items-center space-x-2">
-                          <span className="text-[10px] font-black text-slate-400">#{idx + 1}</span>
-                          <p className="font-bold text-slate-800 text-xs tracking-tight group-hover:text-slate-900 transition-colors">{prod.name}</p>
-                        </div>
-                        <p className="text-[9px] text-slate-400 font-mono pl-5">SKU: {prod.sku}</p>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <span className="text-[10px] bg-emerald-50 text-emerald-700 font-extrabold px-2.5 py-1 rounded-lg border border-emerald-100/50 inline-block shadow-sm">
-                          {prod.quantitySold} units
-                        </span>
-                      </div>
-                    </div>
-                    
-                    {/* Progress Bar Container */}
-                    <div className="pl-5 pr-1 flex items-center space-x-3">
-                      <div className="flex-1 bg-slate-100 rounded-full h-2 overflow-hidden shadow-inner">
-                        <div 
-                          className="bg-gradient-to-r from-emerald-500 to-teal-500 h-full rounded-full transition-all duration-700 ease-out" 
-                          style={{ width: `${percentage}%` }}
-                        />
-                      </div>
-                      <span className="text-[9px] font-bold text-slate-500 w-7 text-right shrink-0">
-                        {percentage}%
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-
-        {/* Slow Moving Products */}
-        <div className="bg-white border border-slate-150 p-6 rounded-2xl shadow-sm flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-sm font-extrabold text-slate-800 uppercase tracking-wider flex items-center space-x-2.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-rose-500 shadow-sm shadow-rose-500/50"></span>
-                <span>Slow Moving Products</span>
-              </h3>
-              {isMocked && (
-                <span className="text-[9px] font-bold text-indigo-600 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-full">
-                  Baseline
-                </span>
-              )}
-            </div>
-            
-            <div className="space-y-5">
-              {slowMovers.map((prod, idx) => {
-                const percentage = Math.round((prod.quantitySold / maxSlow) * 100);
-                return (
-                  <div key={prod.productId} className="group flex flex-col space-y-1.5 p-1 rounded-lg hover:bg-slate-50/50 transition-colors duration-150">
-                    <div className="flex justify-between items-start">
-                      <div className="space-y-0.5">
-                        <div className="flex items-center space-x-2">
-                          <span className="text-[10px] font-black text-slate-400">#{idx + 1}</span>
-                          <p className="font-bold text-slate-800 text-xs tracking-tight group-hover:text-slate-900 transition-colors">{prod.name}</p>
-                        </div>
-                        <p className="text-[9px] text-slate-400 font-mono pl-5">SKU: {prod.sku}</p>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <span className="text-[10px] bg-rose-50 text-rose-700 font-extrabold px-2.5 py-1 rounded-lg border border-rose-100/50 inline-block shadow-sm">
-                          {prod.quantitySold} units
-                        </span>
-                      </div>
-                    </div>
-                    
-                    {/* Progress Bar Container */}
-                    <div className="pl-5 pr-1 flex items-center space-x-3">
-                      <div className="flex-1 bg-slate-100 rounded-full h-2 overflow-hidden shadow-inner">
-                        <div 
-                          className="bg-gradient-to-r from-rose-400 to-orange-400 h-full rounded-full transition-all duration-700 ease-out" 
-                          style={{ width: `${percentage}%` }}
-                        />
-                      </div>
-                      <span className="text-[9px] font-bold text-slate-500 w-7 text-right shrink-0">
-                        {percentage}%
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Quick Action blocks */}
-      <div className="bg-white border border-slate-150 p-6 rounded-2xl shadow-sm">
-        <h3 className="text-xs font-bold text-slate-800 mb-6 uppercase tracking-wider">Quick Actions Panel</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <button
-            onClick={() => navigate('/dealer/products')}
-            className="flex items-center justify-between p-4 bg-slate-50 border border-slate-100 rounded-xl hover:bg-rose-50/50 hover:border-rose-100 transition-all text-left group animate-fade-in"
-          >
-            <div>
-              <span className="block text-xs font-bold text-slate-800">Browse Warehouse</span>
-              <span className="text-[10px] text-slate-400">Browse and add to cart</span>
-            </div>
-            <ShoppingCart className="w-5 h-5 text-slate-400 group-hover:text-rose-600 transition-colors" />
-          </button>
-
-          <button
-            onClick={() => navigate('/dealer/stores')}
-            className="flex items-center justify-between p-4 bg-slate-50 border border-slate-100 rounded-xl hover:bg-rose-50/50 hover:border-rose-100 transition-all text-left group"
-          >
-            <div>
-              <span className="block text-xs font-bold text-slate-800">Manage Retail Outlets</span>
-              <span className="text-[10px] text-slate-400">Add multiple shop outlets</span>
-            </div>
-            <Store className="w-5 h-5 text-slate-400 group-hover:text-rose-600 transition-colors" />
-          </button>
-
-          <button
-            onClick={() => navigate('/dealer/ledgers')}
-            className="flex items-center justify-between p-4 bg-slate-50 border border-slate-100 rounded-xl hover:bg-rose-50/50 hover:border-rose-100 transition-all text-left group"
-          >
-            <div>
-              <span className="block text-xs font-bold text-slate-800">Invoices History</span>
-              <span className="text-[10px] text-slate-400">Manage tax bill prints</span>
-            </div>
-            <Receipt className="w-5 h-5 text-slate-400 group-hover:text-rose-600 transition-colors" />
-          </button>
+        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-4">
+          {dealerModules.map(m => (
+            <AppTile key={m.name} module={m} navigate={navigate} />
+          ))}
         </div>
       </div>
     </div>

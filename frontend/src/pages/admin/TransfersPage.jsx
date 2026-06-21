@@ -103,16 +103,16 @@ export default function TransfersPage() {
 
   /* ─── cart logic ──────────────────────────────────── */
   const detectMargin = (productId, productRecord) => {
-    const prodMargin = dealerMargins.find(m => m.productId === productId);
+    const prodMargin = dealerMargins.find(m => (m.productId?.toString() || m.productId) === String(productId));
     const catId = productRecord?.categoryId || productRecord?.category?._id || productRecord?.category;
-    const catMargin = dealerMargins.find(m => m.categoryId === String(catId));
+    const catMargin = dealerMargins.find(m => (m.categoryId?.toString() || m.categoryId) === String(catId));
     const defMargin = dealerMargins.find(m => m.isDefault);
     return prodMargin?.marginPercent ?? catMargin?.marginPercent ?? defMargin?.marginPercent ?? 0;
   };
 
   const handleAddProduct = () => {
     if (!currentProductId || parseInt(currentQty) <= 0) return;
-    const stockRecord = stocks.find(s => s.productId === currentProductId);
+    const stockRecord = stocks.find(s => (s.productId?.toString() || s.productId) === String(currentProductId));
     if (!stockRecord) return;
     const availableQty = stockRecord.quantity;
     const product = stockRecord.product;

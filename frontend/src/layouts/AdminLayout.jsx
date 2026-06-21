@@ -262,6 +262,7 @@ export default function AdminLayout() {
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const isDashboard = location.pathname === '/admin/dashboard' || location.pathname === '/admin';
 
   const [submenusOpen, setSubmenusOpen] = useState({
     Products:
@@ -308,72 +309,47 @@ export default function AdminLayout() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex">
-
-      {/* ── Desktop Sidebar ── */}
-      <aside className="hidden md:flex flex-col w-64 bg-white border-r border-slate-200">
-        {/* Brand */}
-        <div className="h-16 flex items-center px-6 border-b border-slate-200 bg-white">
-          <div className="flex items-center space-x-2.5">
-            <img src="/logo.png" alt="Mansara Foods" className="h-10 w-auto object-contain" />
-            <span className="font-bold text-slate-800 text-base tracking-wide uppercase">Mansara CRM</span>
-          </div>
-        </div>
-
-        {/* Nav */}
-        <SidebarNav
-          submenusOpen={submenusOpen}
-          toggleSubmenu={toggleSubmenu}
-          onLinkClick={undefined}
-          unreadNotifications={unreadNotifications}
-          staffRole={user?.staffRole}
-        />
-
-        {/* User Card */}
-        <div className="p-4 border-t border-slate-200">
-          <div className="flex items-center space-x-3 p-2 rounded-xl bg-slate-50 border border-slate-100 mb-2">
-            <div className="w-9 h-9 rounded-full bg-rose-100 flex items-center justify-center text-rose-700 font-bold">
-              <User className="w-4 h-4" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-bold text-slate-800 truncate">{user?.name || 'Administrator'}</p>
-              <p className="text-[9px] text-rose-600 font-bold tracking-wider uppercase truncate">
-                {user?.staffRole || user?.role}
-              </p>
-              <p className="text-[9px] text-slate-400 truncate">{user?.email}</p>
-            </div>
-          </div>
-          <button
-            onClick={handleLogout}
-            className="flex items-center space-x-2.5 w-full px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50/50 rounded-lg transition-all duration-200"
-          >
-            <LogOut className="w-4 h-4" />
-            <span>Sign Out</span>
-          </button>
-        </div>
-      </aside>
+    <div className="min-h-screen bg-slate-50 flex flex-col">
 
       {/* ── Main Content ── */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Top Header */}
         <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 z-10">
           <div className="flex items-center space-x-4">
-            <button
-              onClick={() => setMobileMenuOpen(true)}
-              className="md:hidden p-2 rounded-lg text-slate-600 hover:bg-slate-50 focus:outline-none"
-            >
-              <Menu className="w-6 h-6" />
-            </button>
-            <h1 className="text-base font-bold text-slate-800 md:text-lg tracking-tight">
-              {getActivePageName()}
-            </h1>
+            {isDashboard ? (
+              <div className="flex items-center space-x-2.5">
+                <img src="/logo.png" alt="Mansara Foods" className="h-10 w-auto object-contain" />
+                <span className="font-bold text-slate-800 text-base tracking-wide uppercase">Mansara CRM</span>
+              </div>
+            ) : (
+              <div className="flex items-center space-x-3">
+                <Link
+                  to="/admin/dashboard"
+                  className="p-2 text-slate-500 hover:text-rose-600 hover:bg-slate-50 rounded-xl transition-all duration-200 cursor-pointer flex items-center justify-center border border-slate-100/50"
+                  title="Return to Dashboard"
+                >
+                  <LayoutDashboard className="w-4.5 h-4.5" />
+                </Link>
+                <h1 className="text-base font-bold text-slate-800 md:text-lg tracking-tight">
+                  {getActivePageName()}
+                </h1>
+              </div>
+            )}
           </div>
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-4">
             <div className="text-right hidden sm:block">
-              <span className="text-xs bg-rose-100 text-rose-800 px-2 py-0.5 rounded-full font-bold text-[10px] uppercase">
+              <p className="text-xs font-bold text-slate-800">{user?.name || 'Administrator'}</p>
+              <span className="text-[9px] bg-rose-100 text-rose-800 px-2 py-0.5 rounded-full font-bold uppercase text-rose-700">
                 {user?.staffRole || user?.role}
               </span>
             </div>
+            <button
+              onClick={handleLogout}
+              className="flex items-center space-x-1.5 px-3 py-1.5 text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg transition-all duration-200 cursor-pointer"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span>Sign Out</span>
+            </button>
           </div>
         </header>
 
@@ -382,57 +358,6 @@ export default function AdminLayout() {
           <Outlet />
         </main>
       </div>
-
-      {/* ── Mobile Drawer ── */}
-      {mobileMenuOpen && (
-        <div className="fixed inset-0 z-50 flex md:hidden bg-slate-900/40 backdrop-blur-sm transition-opacity">
-          <div className="w-72 bg-white flex flex-col h-full shadow-2xl relative">
-            <button
-              onClick={() => setMobileMenuOpen(false)}
-              className="absolute top-4 right-4 p-2 rounded-lg text-slate-600 hover:bg-slate-50"
-            >
-              <X className="w-6 h-6" />
-            </button>
-            
-            <div className="p-6 border-b border-slate-100">
-              <div className="flex items-center space-x-2.5">
-                <img src="/logo.png" alt="Mansara Foods" className="h-10 w-auto object-contain" />
-                <span className="font-bold text-slate-800 text-base uppercase">Mansara CRM</span>
-              </div>
-            </div>
-
-            <SidebarNav
-              submenusOpen={submenusOpen}
-              toggleSubmenu={toggleSubmenu}
-              onLinkClick={() => setMobileMenuOpen(false)}
-              unreadNotifications={unreadNotifications}
-              staffRole={user?.staffRole}
-            />
-
-            <div className="p-6 border-t border-slate-100">
-              <div className="flex items-center space-x-3 mb-4">
-                <div className="w-10 h-10 rounded-full bg-rose-100 flex items-center justify-center text-rose-700 font-bold">
-                  <User className="w-5 h-5" />
-                </div>
-                <div>
-                  <p className="text-sm font-bold text-slate-800">{user?.name}</p>
-                  <p className="text-[10px] text-rose-600 font-bold tracking-wider uppercase">
-                    {user?.staffRole || user?.role}
-                  </p>
-                  <p className="text-xs text-slate-500">{user?.email}</p>
-                </div>
-              </div>
-              <button
-                onClick={handleLogout}
-                className="flex items-center space-x-2.5 w-full px-4 py-2.5 text-sm font-semibold text-rose-600 hover:bg-rose-50 rounded-xl transition-all duration-200"
-              >
-                <LogOut className="w-5 h-5" />
-                <span>Sign Out</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

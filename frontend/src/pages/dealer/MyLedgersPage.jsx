@@ -30,6 +30,7 @@ export default function MyLedgersPage() {
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+  const [invoiceSubTab, setInvoiceSubTab] = useState('sales'); // 'sales' | 'purchases'
 
   // Transfers/Shipments state
   const [transfers, setTransfers] = useState([]);
@@ -602,122 +603,164 @@ export default function MyLedgersPage() {
           <div className="flex items-center justify-center h-48">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-rose-600"></div>
           </div>
-        ) : (
-          <div className="bg-white border border-slate-150 rounded-2xl shadow-sm overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs text-left border-collapse min-w-[700px] sm:min-w-0">
-                <thead>
-                  <tr className="bg-slate-50 border-b border-slate-100 text-slate-550 font-bold uppercase tracking-wider">
-                    <th className="p-4">Invoice No / Date</th>
-                    <th className="p-4">Retail Outlet Store</th>
-                    <th className="p-4 text-center">Status</th>
-                    <th className="p-4 text-right">Subtotal</th>
-                    <th className="p-4 text-right">Shipping Charges</th>
-                    <th className="p-4 text-right">Invoice Amount</th>
-                    <th className="p-4 text-center">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {invoices.length === 0 ? (
-                    <tr>
-                      <td colSpan="7" className="p-8 text-center text-slate-400 font-bold">
-                        No retail store invoices generated yet.
-                      </td>
-                    </tr>
-                  ) : (
-                    invoices.map((inv) => (
-                      <tr key={inv.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50">
-                        <td className="p-4">
-                          <div>
-                            <div className="flex items-center flex-wrap gap-1">
-                              <span className="font-black text-slate-800 text-xs">{inv.invoiceNo}</span>
-                              {inv.isCredit && (
-                                <span className="text-[8px] font-black text-indigo-700 bg-indigo-50 border border-indigo-100 px-1.5 py-0.2 rounded uppercase tracking-wide">
-                                  Credit
-                                </span>
-                              )}
-                              {inv.isCredit && inv.status === 'OPEN' && (new Date(inv.createdAt) <= (() => {
-                                const d = new Date();
-                                d.setDate(d.getDate() - 15);
-                                return d;
-                              })()) && (
-                                <span className="text-[8px] font-black text-amber-700 bg-amber-50 border border-amber-250 border-amber-200 px-1.5 py-0.2 rounded uppercase tracking-wide animate-pulse">
-                                  ⚠️ Follow-up Alert
-                                </span>
-                              )}
-                            </div>
-                            <span className="block text-[9px] text-slate-400 font-medium mt-0.5">
-                              {new Date(inv.createdAt).toLocaleDateString('en-IN', {
-                                day: '2-digit', month: 'short', year: 'numeric'
-                              })}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="p-4">
-                          <div className="flex items-center space-x-2">
-                            <Store className="w-3.5 h-3.5 text-rose-600 shrink-0" />
-                            <span className="font-bold text-slate-700">{inv.store?.name || 'B2B Warehouse Direct'}</span>
-                          </div>
-                        </td>
-                        <td className="p-4 text-center">
-                          <span 
-                            onClick={() => inv.status === 'OPEN' && handleCloseInvoice(inv.id)}
-                            className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase transition-all ${
-                              inv.status === 'CLOSED' ? 'bg-emerald-50 text-emerald-700' :
-                              inv.status === 'OPEN' ? 'bg-blue-50 text-blue-700 hover:bg-blue-100 hover:text-blue-800 cursor-pointer' : 'bg-slate-50 text-slate-700'
-                            }`}
-                            title={inv.status === 'OPEN' ? "Click to Close Invoice & Deduct Stock" : undefined}
-                          >
-                            {inv.status}
-                          </span>
-                        </td>
-                        <td className="p-4 text-right font-medium text-slate-600">₹{parseFloat(inv.subtotal).toFixed(2)}</td>
-                        <td className="p-4 text-right font-medium text-slate-500">₹{parseFloat(inv.shippingCharges || 0).toFixed(2)}</td>
-                        <td className="p-4 text-right font-black text-rose-600">₹{parseFloat(inv.totalAmount).toFixed(2)}</td>
-                        <td className="p-4">
-                          <div className="flex items-center justify-center space-x-2">
-                            <button
-                              onClick={() => openInvoiceDetails(inv)}
-                              className="p-1.5 hover:bg-slate-50 border border-slate-200 rounded-lg text-slate-600 hover:text-slate-800 flex items-center cursor-pointer"
-                              title="View Breakdown Details"
-                            >
-                              <Eye className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={() => handleDownloadPdf(inv)}
-                              className="p-1.5 hover:bg-rose-50 border border-rose-100 rounded-lg text-rose-600 flex items-center cursor-pointer"
-                              title="Print PDF Invoice"
-                            >
-                              <Download className="w-3.5 h-3.5" />
-                            </button>
-                            {inv.status === 'OPEN' && (
-                              <>
-                                <button
-                                  onClick={() => handleCloseInvoice(inv.id)}
-                                  className="p-1.5 hover:bg-emerald-50 border border-emerald-100 rounded-lg text-emerald-600 flex items-center cursor-pointer"
-                                  title="Close & Deduct Stock"
-                                >
-                                  <Check className="w-3.5 h-3.5" />
-                                </button>
-                                <button
-                                  onClick={() => handleDeleteInvoice(inv.id)}
-                                  className="p-1.5 hover:bg-rose-55 hover:bg-rose-50 border border-rose-100 rounded-lg text-rose-600 flex items-center cursor-pointer"
-                                  title="Delete Invoice"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              </>
-                            )}
-                          </div>
-                        </td>
+        ) : (() => {
+          const filteredInvoices = invoices.filter(inv => {
+            if (invoiceSubTab === 'sales') {
+              return !!inv.store;
+            } else {
+              return !inv.store;
+            }
+          });
+
+          return (
+            <div className="space-y-4">
+              {/* Elegant Sub-tabs */}
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setInvoiceSubTab('sales')}
+                  className={`px-4 py-2 text-xs font-bold rounded-xl transition-all border ${
+                    invoiceSubTab === 'sales'
+                      ? 'bg-rose-50 border-rose-100 text-rose-700 font-black shadow-sm'
+                      : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  Sales Invoices (Retail Stores)
+                </button>
+                <button
+                  onClick={() => setInvoiceSubTab('purchases')}
+                  className={`px-4 py-2 text-xs font-bold rounded-xl transition-all border ${
+                    invoiceSubTab === 'purchases'
+                      ? 'bg-rose-50 border-rose-100 text-rose-700 font-black shadow-sm'
+                      : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  Purchase Invoices (Warehouse Transfers)
+                </button>
+              </div>
+
+              <div className="bg-white border border-slate-150 rounded-2xl shadow-sm overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs text-left border-collapse min-w-[700px] sm:min-w-0">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-100 text-slate-550 font-bold uppercase tracking-wider">
+                        <th className="p-4">Invoice No / Date</th>
+                        <th className="p-4">{invoiceSubTab === 'sales' ? 'Retail Outlet Store' : 'Biller'}</th>
+                        <th className="p-4 text-center">Status</th>
+                        <th className="p-4 text-right">Subtotal</th>
+                        <th className="p-4 text-right">Shipping Charges</th>
+                        <th className="p-4 text-right">Invoice Amount</th>
+                        <th className="p-4 text-center">Actions</th>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+                    </thead>
+                    <tbody>
+                      {filteredInvoices.length === 0 ? (
+                        <tr>
+                          <td colSpan="7" className="p-8 text-center text-slate-400 font-bold">
+                            {invoiceSubTab === 'sales' 
+                              ? 'No retail store invoices generated yet.' 
+                              : 'No warehouse purchase invoices received yet.'}
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredInvoices.map((inv) => (
+                          <tr key={inv.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50">
+                            <td className="p-4">
+                              <div>
+                                <div className="flex items-center flex-wrap gap-1">
+                                  <span className="font-black text-slate-800 text-xs">{inv.invoiceNo}</span>
+                                  {inv.isCredit && (
+                                    <span className="text-[8px] font-black text-indigo-700 bg-indigo-50 border border-indigo-100 px-1.5 py-0.2 rounded uppercase tracking-wide">
+                                      Credit
+                                    </span>
+                                  )}
+                                  {inv.isCredit && inv.status === 'OPEN' && (new Date(inv.createdAt) <= (() => {
+                                    const d = new Date();
+                                    d.setDate(d.getDate() - 15);
+                                    return d;
+                                  })()) && (
+                                    <span className="text-[8px] font-black text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.2 rounded uppercase tracking-wide animate-pulse">
+                                      ⚠️ Follow-up Alert
+                                    </span>
+                                  )}
+                                </div>
+                                <span className="block text-[9px] text-slate-400 font-medium mt-0.5">
+                                  {new Date(inv.createdAt).toLocaleDateString('en-IN', {
+                                    day: '2-digit', month: 'short', year: 'numeric'
+                                  })}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="p-4">
+                              <div className="flex items-center space-x-2">
+                                <Store className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                                <span className="font-bold text-slate-700">
+                                  {invoiceSubTab === 'sales' 
+                                    ? (inv.store?.name || 'Retail Outlet') 
+                                    : (inv.dealer?.companyName || 'B2B Warehouse Direct')}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="p-4 text-center">
+                              <span 
+                                onClick={() => inv.status === 'OPEN' && handleCloseInvoice(inv.id)}
+                                className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase transition-all ${
+                                  inv.status === 'CLOSED' ? 'bg-emerald-50 text-emerald-700' :
+                                  inv.status === 'OPEN' ? 'bg-blue-50 text-blue-700 hover:bg-blue-100 hover:text-blue-800 cursor-pointer' : 'bg-slate-50 text-slate-700'
+                                }`}
+                                title={inv.status === 'OPEN' ? "Click to Close Invoice & Deduct Stock" : undefined}
+                              >
+                                {inv.status}
+                              </span>
+                            </td>
+                            <td className="p-4 text-right font-medium text-slate-600">₹{parseFloat(inv.subtotal).toFixed(2)}</td>
+                            <td className="p-4 text-right font-medium text-slate-505 text-slate-500">₹{parseFloat(inv.shippingCharges || 0).toFixed(2)}</td>
+                            <td className="p-4 text-right font-black text-rose-600">₹{parseFloat(inv.totalAmount).toFixed(2)}</td>
+                            <td className="p-4">
+                              <div className="flex items-center justify-center space-x-2">
+                                <button
+                                  onClick={() => openInvoiceDetails(inv)}
+                                  className="p-1.5 hover:bg-slate-50 border border-slate-200 rounded-lg text-slate-600 hover:text-slate-800 flex items-center cursor-pointer"
+                                  title="View Breakdown Details"
+                                >
+                                  <Eye className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => handleDownloadPdf(inv)}
+                                  className="p-1.5 hover:bg-rose-55 hover:bg-rose-50 border border-rose-100 rounded-lg text-rose-600 flex items-center cursor-pointer"
+                                  title="Print PDF Invoice"
+                                >
+                                  <Download className="w-3.5 h-3.5" />
+                                </button>
+                                {inv.status === 'OPEN' && (
+                                  <>
+                                    <button
+                                      onClick={() => handleCloseInvoice(inv.id)}
+                                      className="p-1.5 hover:bg-emerald-50 border border-emerald-100 rounded-lg text-emerald-600 flex items-center cursor-pointer"
+                                      title="Close & Deduct Stock"
+                                    >
+                                      <Check className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                      onClick={() => handleDeleteInvoice(inv.id)}
+                                      className="p-1.5 hover:bg-rose-50 border border-rose-100 rounded-lg text-rose-600 flex items-center cursor-pointer"
+                                      title="Delete Invoice"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </div>
-          </div>
-        )
+          );
+        })()
       ) : (
         // WAREHOUSE DISPATCHES TAB
         transfersLoading ? (
