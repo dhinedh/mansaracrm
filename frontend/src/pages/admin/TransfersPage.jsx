@@ -765,6 +765,109 @@ export default function TransfersPage() {
           </div>
         </div>
       )}
+
+      {/* ─── GST Tax Invoice Details Modal ────────────────────────────────────── */}
+      {showInvoiceDetailModal && selectedInvoice && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="bg-white max-w-2xl w-full rounded-2xl shadow-xl overflow-hidden my-8 max-h-[90vh] flex flex-col animate-zoom-in">
+            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-rose-50">
+              <div>
+                <h3 className="font-black text-slate-800 text-sm uppercase tracking-wide">GST Tax Invoice Breakdown</h3>
+                <span className="text-[10px] text-slate-400 block font-mono mt-0.5">{selectedInvoice.invoiceNo}</span>
+              </div>
+              <button onClick={() => setShowInvoiceDetailModal(false)} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 space-y-6 overflow-y-auto flex-1 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 bg-slate-50 p-4 border border-slate-100 rounded-xl">
+                <div className="space-y-1.5">
+                  <span className="block text-[9px] font-black uppercase text-slate-400 tracking-wider">Dealer Info</span>
+                  <p className="font-bold text-slate-800">Distributor: {selectedInvoice.dealer?.companyName || 'B2B Partner'}</p>
+                  <p className="text-slate-500 font-medium">Billed To: {selectedInvoice.store ? selectedInvoice.store.name : 'B2B Warehouse Direct'}</p>
+                  {selectedInvoice.store && <p className="text-slate-400">Store GST: {selectedInvoice.store.gstNumber || 'N/A'}</p>}
+                </div>
+                <div className="space-y-1.5">
+                  <span className="block text-[9px] font-black uppercase text-slate-400 tracking-wider">Invoice Info</span>
+                  <p className="flex items-center space-x-1.5 text-slate-600">
+                    <Calendar className="w-3.5 h-3.5" />
+                    <span>Date: {new Date(selectedInvoice.createdAt).toLocaleDateString('en-IN')}</span>
+                  </p>
+                  <p className="flex items-center space-x-1.5 text-slate-600">
+                    <FileText className="w-3.5 h-3.5" />
+                    <span>Status: <strong className={`uppercase ${selectedInvoice.status === 'CLOSED' ? 'text-emerald-600' : 'text-blue-600'}`}>{selectedInvoice.status}</strong></span>
+                  </p>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <span className="block text-[9px] font-black uppercase text-slate-400 tracking-wider">Items Breakdown</span>
+                <div className="border border-slate-150 rounded-xl overflow-hidden">
+                  <div className="grid grid-cols-12 bg-slate-50 border-b border-slate-100 p-3 text-[9px] font-black uppercase tracking-wider text-slate-400">
+                    <div className="col-span-5">Product / SKU</div>
+                    <div className="col-span-2 text-center">Qty</div>
+                    <div className="col-span-2 text-center">Margin</div>
+                    <div className="col-span-3 text-right">Line Total</div>
+                  </div>
+                  {selectedInvoice.items?.map(item => (
+                    <div key={item.id || item._id} className="grid grid-cols-12 items-center p-3 border-b border-slate-100 last:border-0">
+                      <div className="col-span-5 font-bold text-slate-800">
+                        {item.product?.name}
+                        <span className="block text-[9px] font-black text-rose-600">SKU: {item.product?.sku}</span>
+                      </div>
+                      <div className="col-span-2 text-center font-bold text-slate-700">{item.quantity} {item.unit || item.product?.unit || 'PCS'}</div>
+                      <div className="col-span-2 text-center font-bold text-slate-700">{parseFloat(item.marginPct || 0)}%</div>
+                      <div className="col-span-3 text-right font-bold text-slate-800">{fmt(item.lineTotal || 0)}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="flex flex-col items-end pt-4 border-t border-slate-100 space-y-2">
+                <div className="flex justify-between w-48 text-[11px] text-slate-500">
+                  <span>Subtotal:</span>
+                  <span className="font-bold text-slate-700">{fmt(selectedInvoice.subtotal)}</span>
+                </div>
+                {selectedInvoice.isGstEnabled !== false ? (
+                  <>
+                    <div className="flex justify-between w-48 text-[11px] text-slate-500">
+                      <span>CGST:</span>
+                      <span className="font-bold text-slate-700">{fmt((selectedInvoice.cgst !== undefined ? parseFloat(selectedInvoice.cgst) : parseFloat(selectedInvoice.totalGst) / 2) || 0)}</span>
+                    </div>
+                    <div className="flex justify-between w-48 text-[11px] text-slate-500">
+                      <span>SGST:</span>
+                      <span className="font-bold text-slate-700">{fmt((selectedInvoice.sgst !== undefined ? parseFloat(selectedInvoice.sgst) : parseFloat(selectedInvoice.totalGst) / 2) || 0)}</span>
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex justify-between w-48 text-[11px] text-slate-500">
+                    <span>GST:</span>
+                    <span className="font-bold text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded text-[9px] uppercase">Disabled</span>
+                  </div>
+                )}
+                {selectedInvoice.shippingCharges && parseFloat(selectedInvoice.shippingCharges) > 0 && (
+                  <div className="flex justify-between w-48 text-[11px] text-slate-500">
+                    <span>Shipping:</span>
+                    <span className="font-bold text-slate-700">{fmt(selectedInvoice.shippingCharges)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between w-48 text-xs font-black text-slate-800 border-t border-slate-100 pt-2">
+                  <span>Grand Total:</span>
+                  <span className="text-rose-600">{fmt(selectedInvoice.totalAmount)}</span>
+                </div>
+              </div>
+            </div>
+            <div className="p-6 border-t border-slate-100 flex justify-between items-center gap-3">
+              <button onClick={() => setShowInvoiceDetailModal(false)}
+                className="bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold py-2.5 px-4 rounded-xl text-xs transition-colors cursor-pointer">
+                Close
+              </button>
+              <button onClick={() => handleDownloadPdf(selectedInvoice)}
+                className="inline-flex items-center space-x-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-lg transition-all cursor-pointer">
+                <Download className="w-4 h-4" /><span>Print PDF Invoice</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
