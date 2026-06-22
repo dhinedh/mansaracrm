@@ -72,12 +72,103 @@ export default function DealerLayout() {
   const isDashboard = location.pathname === '/dealer/dashboard' || location.pathname === '/dealer';
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
+    <div className="min-h-screen bg-slate-50 flex">
+      {/* Sidebar Nav (Only shown when not on Dashboard) */}
+      {!isDashboard && (
+        <aside className="hidden lg:flex lg:flex-col w-64 bg-white border-r border-slate-200 shrink-0 h-screen sticky top-0 overflow-hidden">
+          {/* Logo / Header area for Sidebar */}
+          <div className="h-16 border-b border-slate-200 flex items-center px-6 shrink-0">
+            <Link to="/dealer/dashboard" className="flex items-center space-x-2.5">
+              <img src="/logo.png" alt="Mansara Foods" className="h-9 w-auto object-contain" />
+              <span className="font-black text-slate-800 text-sm tracking-wide uppercase">Mansara Partner</span>
+            </Link>
+          </div>
+          {/* Nav Items */}
+          <nav className="flex-1 px-4 py-4 space-y-0.5 overflow-y-auto">
+            {menuItems.map((item) => {
+              const Icon = item.icon;
+              const isActive = location.pathname === item.path;
+              return (
+                <Link
+                  key={item.name}
+                  to={item.path}
+                  className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl font-medium text-sm transition-all duration-200 ${
+                    isActive
+                      ? 'bg-rose-50 text-rose-700 shadow-sm border border-rose-100/50'
+                      : 'text-slate-600 hover:bg-slate-55 hover:bg-slate-50 hover:text-slate-905 hover:text-slate-900'
+                  }`}
+                >
+                  <div className="flex items-center space-x-3">
+                    <Icon className={`w-4 h-4 flex-shrink-0 ${isActive ? 'text-rose-600' : 'text-slate-400'}`} />
+                    <span>{item.name}</span>
+                  </div>
+                  {item.badge > 0 && (
+                    <span className="bg-rose-600 text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold">
+                      {item.badge}
+                    </span>
+                  )}
+                </Link>
+              );
+            })}
+          </nav>
+        </aside>
+      )}
+
+      {/* Mobile Drawer (Only shown when not on Dashboard and mobileMenuOpen is true) */}
+      {!isDashboard && mobileMenuOpen && (
+        <div className="lg:hidden fixed inset-0 z-50 flex">
+          {/* Backdrop */}
+          <div 
+            className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm transition-opacity"
+            onClick={() => setMobileMenuOpen(false)}
+          />
+          {/* Sidebar content */}
+          <div className="relative w-64 bg-white h-full shadow-2xl flex flex-col z-10 animate-slide-in-left border-r border-slate-200">
+            <div className="h-16 border-b border-slate-200 flex items-center justify-between px-6 shrink-0">
+              <span className="font-black text-slate-800 text-sm tracking-wide uppercase">Menu</span>
+              <button 
+                onClick={() => setMobileMenuOpen(false)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <nav className="flex-1 px-4 py-4 space-y-0.5 overflow-y-auto">
+              {menuItems.map((item) => {
+                const Icon = item.icon;
+                const isActive = location.pathname === item.path;
+                return (
+                  <Link
+                    key={item.name}
+                    to={item.path}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl font-medium text-sm transition-all duration-200 ${
+                      isActive
+                        ? 'bg-rose-50 text-rose-700 shadow-sm border border-rose-100/50'
+                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                    }`}
+                  >
+                    <div className="flex items-center space-x-3">
+                      <Icon className={`w-4 h-4 flex-shrink-0 ${isActive ? 'text-rose-600' : 'text-slate-400'}`} />
+                      <span>{item.name}</span>
+                    </div>
+                    {item.badge > 0 && (
+                      <span className="bg-rose-600 text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold">
+                        {item.badge}
+                      </span>
+                    )}
+                  </Link>
+                );
+              })}
+            </nav>
+          </div>
+        </div>
+      )}
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden h-screen">
         {/* Top Header */}
-        <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 z-10">
+        <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 z-10 shrink-0">
           <div className="flex items-center space-x-4">
             {isDashboard ? (
               <div className="flex items-center space-x-2.5">
@@ -86,9 +177,16 @@ export default function DealerLayout() {
               </div>
             ) : (
               <div className="flex items-center space-x-3">
+                <button
+                  onClick={() => setMobileMenuOpen(true)}
+                  className="lg:hidden p-2 text-slate-500 hover:text-rose-600 hover:bg-slate-50 rounded-xl transition-all duration-200 cursor-pointer flex items-center justify-center border border-slate-100/50"
+                  title="Open Navigation Menu"
+                >
+                  <Menu className="w-4.5 h-4.5" />
+                </button>
                 <Link
                   to="/dealer/dashboard"
-                  className="p-2 text-slate-500 hover:text-rose-600 hover:bg-slate-55 hover:bg-slate-50 rounded-xl transition-all duration-200 cursor-pointer flex items-center justify-center border border-slate-100/50"
+                  className="p-2 text-slate-500 hover:text-rose-600 hover:bg-slate-50 rounded-xl transition-all duration-200 cursor-pointer flex items-center justify-center border border-slate-100/50"
                   title="Return to Dashboard"
                 >
                   <LayoutDashboard className="w-4.5 h-4.5" />

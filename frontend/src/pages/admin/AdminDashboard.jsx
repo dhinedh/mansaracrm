@@ -10,35 +10,7 @@ import {
   LayoutGrid, MapPin, X
 } from 'lucide-react';
 
-// Sub-page component imports for the Office-style floating window overlay
-import DealersPage from './DealersPage';
-import ProductsPage from './ProductsPage';
-import CategoriesPage from './CategoriesPage';
-import InventoryPage from './InventoryPage';
-import InventoriesPage from './InventoriesPage';
-import TransfersPage from './TransfersPage';
-import RequestsPage from './RequestsPage';
-import ReturnsPage from './ReturnsPage';
-import TicketsPage from './TicketsPage';
-import ReportsPage from './ReportsPage';
-import ForecastingPage from './ForecastingPage';
-import AdminAnalyticsPage from './AdminAnalyticsPage';
-import NotificationsPage from './NotificationsPage';
-import ChannelIntegrationPage from './ChannelIntegrationPage';
-import RnDPage from './RnDPage';
-import UserManagement from './UserManagement';
-import AdminInvoiceLedger from './AdminInvoiceLedger';
 
-import EcomProductsPage from './EcomProductsPage';
-import EcomOrdersPage from './EcomOrdersPage';
-import EcomCustomersPage from './EcomCustomersPage';
-import EcomCombosPage from './EcomCombosPage';
-import EcomBannersPage from './EcomBannersPage';
-import EcomReviewsPage from './EcomReviewsPage';
-import EcomContentPage from './EcomContentPage';
-import EcomSettingsPage from './EcomSettingsPage';
-import EcomReportsPage from './EcomReportsPage';
-import EcomAnalyticsPage from './EcomAnalyticsPage';
 
 // ─── Module Tiles Config ──────────────────────────────────────────────────────
 const crmModules = [
@@ -120,7 +92,6 @@ function KpiPill({ icon: Icon, label, value, color }) {
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function AdminDashboard() {
   const navigate = useNavigate();
-  const [activeModule, setActiveModule] = useState(null);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [stats, setStats] = useState({
     productsCount: 0,
@@ -129,38 +100,6 @@ export default function AdminDashboard() {
     lowStockCount: 0
   });
   const [statsLoading, setStatsLoading] = useState(true);
-
-  // Component mapping for Office-style floating window overlay
-  const componentMap = {
-    'Dealers': DealersPage,
-    'Products': ProductsPage,
-    'Categories': CategoriesPage,
-    'Inventory': InventoryPage,
-    'Stock Slots': InventoriesPage,
-    'Transfers': TransfersPage,
-    'Order Requests': RequestsPage,
-    'Returns': ReturnsPage,
-    'Support Desk': TicketsPage,
-    'Reports': ReportsPage,
-    'Forecasting': ForecastingPage,
-    'Analytics': AdminAnalyticsPage,
-    'Notifications': NotificationsPage,
-    'Channels': ChannelIntegrationPage,
-    'R&D Lab': RnDPage,
-    'Zone Map': DealersPage,
-    'Invoice Ledger': AdminInvoiceLedger,
-    'Privileges': UserManagement,
-    'E-Com Products': EcomProductsPage,
-    'Website Orders': EcomOrdersPage,
-    'Customers': EcomCustomersPage,
-    'Combos': EcomCombosPage,
-    'Banners': EcomBannersPage,
-    'Reviews': EcomReviewsPage,
-    'Web Content': EcomContentPage,
-    'Store Settings': EcomSettingsPage,
-    'Ecom Reports': EcomReportsPage,
-    'Ecom Analytics': EcomAnalyticsPage
-  };
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -259,7 +198,7 @@ export default function AdminDashboard() {
         </div>
         <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-4">
           {crmModules.map(m => (
-            <AppTile key={m.name} module={m} onClick={() => setActiveModule(m.name)} badge={m.name === 'Notifications' ? unreadNotifications : 0} />
+            <AppTile key={m.name} module={m} onClick={() => navigate(m.path)} badge={m.name === 'Notifications' ? unreadNotifications : 0} />
           ))}
         </div>
       </div>
@@ -274,43 +213,10 @@ export default function AdminDashboard() {
         </div>
         <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-4">
           {ecomModules.map(m => (
-            <AppTile key={m.name} module={m} onClick={() => setActiveModule(m.name)} />
+            <AppTile key={m.name} module={m} onClick={() => navigate(m.path)} />
           ))}
         </div>
       </div>
-
-      {/* Office-style Floating Window Drawer Overlay (Slides from Left) */}
-      {activeModule && (() => {
-        const SelectedComponent = componentMap[activeModule];
-        return (
-          <div className="fixed inset-0 z-50 flex justify-start">
-            {/* Backdrop */}
-            <div 
-              className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm transition-opacity cursor-pointer"
-              onClick={() => setActiveModule(null)}
-            />
-            {/* Drawer Content */}
-            <div className="relative w-full max-w-6xl bg-slate-50 h-full shadow-2xl flex flex-col z-10 animate-slide-in-left border-r border-slate-200">
-              {/* Header */}
-              <div className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 shrink-0">
-                <div className="flex items-center space-x-3">
-                  <span className="text-base font-black text-slate-800 tracking-tight uppercase">{activeModule}</span>
-                </div>
-                <button 
-                  onClick={() => setActiveModule(null)}
-                  className="p-1.5 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100 cursor-pointer transition-colors"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-              {/* Inner Component Container */}
-              <div className="flex-1 overflow-y-auto p-6 md:p-8">
-                {SelectedComponent ? <SelectedComponent /> : <p className="text-slate-400">Module not loaded.</p>}
-              </div>
-            </div>
-          </div>
-        );
-      })()}
     </div>
   );
 }
