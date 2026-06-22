@@ -366,6 +366,8 @@ export default function WarehouseTransfersPage() {
               </div>
             </form>
           </div>
+        </div>
+      )}
       {/* ─── GST Tax Invoice Details Modal ────────────────────────────────────── */}
       {showInvoiceDetailModal && selectedInvoice && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 overflow-y-auto">
