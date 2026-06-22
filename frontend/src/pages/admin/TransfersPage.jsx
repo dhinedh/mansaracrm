@@ -19,7 +19,10 @@ import {
   RefreshCw,
   Send,
   Eye,
-  Building2
+  Building2,
+  Download,
+  Calendar,
+  Lock
 } from 'lucide-react';
 
 /* ─── helpers ─────────────────────────────────────── */
@@ -51,6 +54,8 @@ export default function TransfersPage() {
 
   /* ── invoice preview modal ── */
   const [showInvoicePreview, setShowInvoicePreview] = useState(false);
+  const [selectedInvoice, setSelectedInvoice] = useState(null);
+  const [showInvoiceDetailModal, setShowInvoiceDetailModal] = useState(false);
 
   /* ─── mount ───────────────────────────────────────── */
   useEffect(() => {
@@ -218,6 +223,27 @@ export default function TransfersPage() {
       fetchAll();
     } catch (err) {
       alert(err.response?.data?.message || 'Failed to update status');
+    }
+  };
+
+  const handleDownloadPdf = async (invoice) => {
+    try {
+      const response = await axios.get(`/billing/${invoice.id || invoice._id}/pdf`, { responseType: 'blob' });
+      const contentType = response.headers['content-type'] || '';
+      if (contentType.includes('text/html')) {
+        window.open(URL.createObjectURL(new Blob([response.data], { type: 'text/html' })), '_blank');
+      } else {
+        const fileURL = URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
+        const link = document.createElement('a');
+        link.href = fileURL;
+        link.setAttribute('download', `Invoice_${invoice.invoiceNo}.pdf`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
+    } catch (err) {
+      console.warn('PDF download failed:', err);
+      alert('Could not download invoice. Please try again.');
     }
   };
 
@@ -519,9 +545,23 @@ export default function TransfersPage() {
                         {item.status}
                       </span>
                       {item.invoice?.invoiceNo && (
-                        <span className="text-[9px] font-bold text-indigo-600 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-full">
-                          Invoice: {item.invoice.invoiceNo}
-                        </span>
+                        <div className="flex items-center gap-1.5 bg-indigo-50 border border-indigo-100 rounded-full pl-2.5 pr-1.5 py-0.5 text-[9px] font-bold text-indigo-600">
+                          <span>Invoice: {item.invoice.invoiceNo}</span>
+                          <button
+                            onClick={() => { setSelectedInvoice(item.invoice); setShowInvoiceDetailModal(true); }}
+                            className="p-0.5 hover:bg-indigo-100 rounded transition-colors cursor-pointer text-indigo-600"
+                            title="View Invoice Details"
+                          >
+                            <Eye className="w-3 h-3" />
+                          </button>
+                          <button
+                            onClick={() => handleDownloadPdf(item.invoice)}
+                            className="p-0.5 hover:bg-indigo-100 rounded transition-colors cursor-pointer text-indigo-600"
+                            title="Download PDF"
+                          >
+                            <Download className="w-3 h-3" />
+                          </button>
+                        </div>
                       )}
                     </div>
                     <p className="text-[10px] text-slate-400">

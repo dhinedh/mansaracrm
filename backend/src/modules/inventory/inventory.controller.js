@@ -280,10 +280,18 @@ exports.createStockTransfer = async (req, res, next) => {
       return stockTx;
     });
 
+    const populatedTransfer = await prisma.stockTransfer.findUnique({
+      where: { id: transfer.id },
+      include: {
+        invoice: true,
+        dealer: true
+      }
+    });
+
     res.status(201).json({
       success: true,
       message: 'Stock transfer initiated successfully (B2B invoice generated)',
-      data: transfer
+      data: populatedTransfer
     });
   } catch (error) {
     next(error);
