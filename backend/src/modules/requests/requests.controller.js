@@ -170,14 +170,14 @@ exports.dispatchRequest = async (req, res, next) => {
     // 2. Generate stock transfer inside Transaction
     const transferNo = `TX-${Date.now()}`;
     const transfer = await prisma.$transaction(async (tx) => {
-      // A. Calculate invoice details for the transfer (applying dealer custom categories or default 0% margin first)
+      // A. Calculate invoice details for the transfer (applying dealer custom categories or default 10% margin first)
       let calculatedSubtotal = 0;
       let calculatedGstTotal = 0;
       const invoiceItemsDetails = [];
 
       for (const item of request.items || []) {
         const product = await tx.product.findUnique({ where: { id: item.productId } });
-        // Retrieve dealer configured margin for this category or default to 0
+        // Retrieve dealer configured margin for this category or default to 10
         const configuredMargin = await tx.margin.findFirst({
           where: {
             dealerId: request.dealerId,
@@ -187,7 +187,7 @@ exports.dispatchRequest = async (req, res, next) => {
             ]
           }
         });
-        const marginPct = configuredMargin ? parseFloat(configuredMargin.marginPercent) : 0;
+        const marginPct = configuredMargin ? parseFloat(configuredMargin.marginPercent) : 10;
         const mrp = parseFloat(product.mrp || product.price || 0);
         const unitPrice = mrp * (1 - marginPct / 100);
         const lineSubtotal = unitPrice * item.quantity;
@@ -229,7 +229,8 @@ exports.dispatchRequest = async (req, res, next) => {
           sgst: calculatedGstTotal / 2,
           isGstEnabled: true,
           totalAmount: calculatedGrandTotal,
-          status: 'GENERATED',
+          status: 'CLOSED',
+          paidAt: new Date(),
           notes: `B2B Invoice generated automatically from Dealer Request ${request.requestNo}.`,
           channel: 'B2B',
           items: {
