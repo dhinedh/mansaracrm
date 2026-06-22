@@ -59,7 +59,7 @@ const CHENNAI_ZONES = [
   { name: 'Sholinganallur', coords: [12.9000, 80.2270] }
 ];
 
-export default function ZoneSelectionMap({ selectedZones = [], onToggleZone, zoneConflicts = [] }) {
+export default function ZoneSelectionMap({ selectedZones = [], onToggleZone, zoneConflicts = [], isGrowthPartner = false }) {
   const mapContainerRef = useRef(null);
   const mapInstance = useRef(null);
   const layerGroupRef = useRef(null);
@@ -180,6 +180,9 @@ export default function ZoneSelectionMap({ selectedZones = [], onToggleZone, zon
         popupHtml += `Status: ${isSelected ? '<span style="color: #e11d48; font-weight: bold;">Selected</span>' : '<span style="color: #64748b;">Not Selected</span>'}`;
         if (conflict) {
           popupHtml += `<div style="color: #d97706; font-weight: bold; margin-top: 4px; border-top: 1px solid #fcd34d; padding-top: 4px;">⚠️ Assigned to active dealer:<br/>${conflict.companyName}</div>`;
+          if (isGrowthPartner) {
+            popupHtml += `<div style="color: #dc2626; font-weight: bold; margin-top: 4px; border-top: 1px dashed #fca5a5; padding-top: 4px;">🚨 Partner Overlap Warning: Growth partner conflict!</div>`;
+          }
         }
       }
       popupHtml += `</div>`;
@@ -202,7 +205,7 @@ export default function ZoneSelectionMap({ selectedZones = [], onToggleZone, zon
 
       circle.addTo(layerGroup);
     });
-  }, [leafletLoaded, viewState, selectedZones, zoneConflicts]);
+  }, [leafletLoaded, viewState, selectedZones, zoneConflicts, isGrowthPartner]);
 
   const handleBackToTN = () => {
     if (mapInstance.current) {
@@ -246,6 +249,11 @@ export default function ZoneSelectionMap({ selectedZones = [], onToggleZone, zon
         
         {/* Quick legend overlay */}
         <div className="absolute bottom-3 left-3 z-[1000] bg-white/95 backdrop-blur-sm border border-slate-200 p-2 rounded-xl text-[9px] font-bold text-slate-600 space-y-1.5 shadow-sm">
+          {isGrowthPartner && zoneConflicts.length > 0 && (
+            <div className="text-[9px] text-rose-700 bg-rose-50 border border-rose-100 px-2 py-1 rounded-lg font-black animate-pulse uppercase mb-1.5">
+              ⚠️ Overlap Warning: Growth Conflict!
+            </div>
+          )}
           <div className="flex items-center space-x-1.5">
             <span className="w-2.5 h-2.5 rounded-full bg-rose-500 opacity-60 border border-rose-600" />
             <span>Selected Zones</span>

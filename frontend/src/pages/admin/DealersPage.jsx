@@ -38,6 +38,10 @@ export default function DealersPage() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [message, setMessage] = useState({ text: '', type: '' });
 
+  // Proximity Map states
+  const [showDirectoryMap, setShowDirectoryMap] = useState(false);
+  const [mapZoneFilter, setMapZoneFilter] = useState(null);
+
   // Detail Modal states
   const [selectedDealerId, setSelectedDealerId] = useState(null);
   const [dealerDetail, setDealerDetail] = useState(null);
@@ -407,6 +411,11 @@ export default function DealersPage() {
     );
   };
 
+  const displayedDealers = dealers.filter(d => {
+    if (!mapZoneFilter) return true;
+    return d.zones && d.zones.includes(mapZoneFilter);
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -414,14 +423,59 @@ export default function DealersPage() {
           <h2 className="text-xl font-black text-slate-800 tracking-tight">Partner Dealers Directory</h2>
           <p className="text-slate-500 text-xs">Manage verification pipeline, add details, and toggle dealer status.</p>
         </div>
-        <button
-          onClick={openAddModal}
-          className="inline-flex items-center space-x-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-lg shadow-rose-200 transition-all self-start sm:self-auto"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Register Dealer</span>
-        </button>
+        <div className="flex items-center space-x-2.5 self-start sm:self-auto">
+          <button
+            type="button"
+            onClick={() => setShowDirectoryMap(!showDirectoryMap)}
+            className={`inline-flex items-center space-x-2 text-xs font-bold px-4 py-2.5 rounded-xl border transition-all cursor-pointer ${
+              showDirectoryMap
+                ? 'bg-rose-50 border-rose-200 text-rose-700 font-black shadow-sm'
+                : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+            }`}
+          >
+            <MapPin className="w-4 h-4" />
+            <span>{showDirectoryMap ? 'Hide Map Filter' : 'Proximity Map Filter'}</span>
+          </button>
+          
+          <button
+            type="button"
+            onClick={openAddModal}
+            className="inline-flex items-center space-x-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-lg shadow-rose-200 transition-all cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Register Dealer</span>
+          </button>
+        </div>
       </div>
+
+      {showDirectoryMap && (
+        <div className="bg-white border border-slate-150 p-6 rounded-2xl shadow-sm animate-fade-in space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+            <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+              <MapPin className="w-4.5 h-4.5 text-rose-600" />
+              <span>Proximity Zone Filter</span>
+            </h3>
+            {mapZoneFilter && (
+              <button
+                type="button"
+                onClick={() => setMapZoneFilter(null)}
+                className="text-[10px] font-black text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 px-2.5 py-1 rounded-lg border border-rose-200 transition-all cursor-pointer"
+              >
+                ✕ Clear Filter ({mapZoneFilter})
+              </button>
+            )}
+          </div>
+          
+          <ZoneSelectionMap
+            selectedZones={mapZoneFilter ? [mapZoneFilter] : []}
+            onToggleZone={(z) => setMapZoneFilter(mapZoneFilter === z ? null : z)}
+            zoneConflicts={dealers.map(d => ({
+              companyName: d.companyName,
+              zones: d.zones || []
+            }))}
+          />
+        </div>
+      )}
 
       {/* Filter and search controls */}
       <div className="flex flex-col sm:flex-row gap-4 bg-white p-4 border border-slate-150 rounded-2xl shadow-sm">
@@ -459,7 +513,7 @@ export default function DealersPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-          {dealers.map((dealer) => (
+          {displayedDealers.map((dealer) => (
             <div 
               key={dealer.id} 
               onClick={() => fetchDealerDetail(dealer.id)}
@@ -716,6 +770,7 @@ export default function DealersPage() {
                       selectedZones={zones}
                       onToggleZone={z => zones.includes(z) ? removeZone(z) : addZone(z)}
                       zoneConflicts={zoneConflicts}
+                      isGrowthPartner={dealerCategory === 'GROWTH'}
                     />
                   </div>
                 )}
@@ -1030,6 +1085,7 @@ export default function DealersPage() {
                                   selectedZones={editZones}
                                   onToggleZone={z => editZones.includes(z) ? removeEditZone(z) : addEditZone(z)}
                                   zoneConflicts={editZoneConflicts}
+                                  isGrowthPartner={editDealerCategory === 'GROWTH'}
                                 />
                               </div>
                             )}

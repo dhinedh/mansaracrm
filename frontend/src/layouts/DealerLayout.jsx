@@ -101,6 +101,19 @@ export default function DealerLayout() {
           </div>
           
           <div className="flex items-center space-x-3">
+            <Link
+              to="/dealer/notifications"
+              className="relative p-2 text-slate-500 hover:text-rose-600 hover:bg-slate-50 rounded-xl transition-all duration-200 cursor-pointer flex items-center justify-center border border-slate-100/50"
+              title="Notifications"
+            >
+              <Bell className="w-5 h-5" />
+              {unreadNotifications > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 bg-rose-600 text-white text-[9px] font-black w-5 h-5 rounded-full flex items-center justify-center border-2 border-white animate-pulse">
+                  {unreadNotifications}
+                </span>
+              )}
+            </Link>
+
             <span className="text-xs bg-rose-100 text-rose-800 px-2.5 py-1 rounded-full font-bold text-[10px] uppercase">
               {user?.dealer?.approvalStatus || 'PENDING'}
             </span>

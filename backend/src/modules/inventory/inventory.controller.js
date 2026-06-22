@@ -254,7 +254,8 @@ exports.createStockTransfer = async (req, res, next) => {
       for (const item of items) {
         const product = await tx.product.findUnique({ where: { id: item.productId } });
         const marginPct = parseFloat(item.marginPct) || 0;
-        const unitPrice = parseFloat(product.price) * (1 + marginPct / 100);
+        const mrp = parseFloat(product.mrp || product.price || 0);
+        const unitPrice = mrp * (1 - marginPct / 100);
         await tx.stockTransferItem.create({
           data: {
             transferId: stockTx.id,
@@ -353,6 +354,13 @@ exports.updateTransferStatus = async (req, res, next) => {
         });
       } else if (status === 'DELIVERED' || status === 'DISCREPANCY') {
         updateData.deliveredAt = new Date();
+
+        if (transfer.invoiceId) {
+          await tx.invoice.update({
+            where: { id: transfer.invoiceId },
+            data: { status: 'CLOSED', paidAt: new Date() }
+          });
+        }
 
         // Perform stock movement logic
         for (const item of transfer.items) {

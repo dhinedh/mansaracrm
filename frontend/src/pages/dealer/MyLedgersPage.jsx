@@ -795,9 +795,23 @@ export default function MyLedgersPage() {
                         <div className="flex items-center space-x-2">
                           <span className="font-black text-slate-800 text-xs">{item.transferNo}</span>
                           {item.invoice?.invoiceNo && (
-                            <span className="text-[9px] font-bold text-indigo-600 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-full">
-                              Invoice: {item.invoice.invoiceNo}
-                            </span>
+                            <div className="flex items-center gap-1.5 bg-indigo-50 border border-indigo-100 rounded-full pl-2.5 pr-1.5 py-0.5 text-[9px] font-bold text-indigo-600">
+                              <span>Invoice: {item.invoice.invoiceNo}</span>
+                              <button
+                                onClick={() => { setSelectedInvoice(item.invoice); setShowDetailModal(true); }}
+                                className="p-0.5 hover:bg-indigo-100 rounded transition-colors cursor-pointer text-indigo-600 animate-fade-in"
+                                title="View Invoice Details"
+                              >
+                                <Eye className="w-3 h-3" />
+                              </button>
+                              <button
+                                onClick={() => handleDownloadPdf(item.invoice)}
+                                className="p-0.5 hover:bg-indigo-100 rounded transition-colors cursor-pointer text-indigo-600 animate-fade-in"
+                                title="Download PDF"
+                              >
+                                <Download className="w-3 h-3" />
+                              </button>
+                            </div>
                           )}
                         </div>
                         <p className="text-[10px] text-slate-400 mt-0.5">

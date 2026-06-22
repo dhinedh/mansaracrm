@@ -400,7 +400,8 @@ export default function TransfersPage() {
                     </div>
                     {transferItems.map(item => {
                       const id = typeof item.productId === 'object' ? item.productId?.id || item.productId?.toString() : item.productId;
-                      const effPrice = parseFloat(item.product.price) * (1 + (item.marginPct || 0) / 100);
+                      const mrp = parseFloat(item.product.mrp || item.product.price || 0);
+                      const effPrice = mrp * (1 - (item.marginPct || 0) / 100);
                       return (
                         <div key={id} className="grid grid-cols-12 gap-2 items-center px-4 py-3 border-b border-slate-100 last:border-0 text-xs">
                           <div className="col-span-4">

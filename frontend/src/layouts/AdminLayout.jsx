@@ -337,6 +337,19 @@ export default function AdminLayout() {
             )}
           </div>
           <div className="flex items-center space-x-4">
+            <Link
+              to="/admin/notifications"
+              className="relative p-2 text-slate-500 hover:text-rose-600 hover:bg-slate-50 rounded-xl transition-all duration-200 cursor-pointer flex items-center justify-center border border-slate-100/50"
+              title="Notifications"
+            >
+              <Bell className="w-5 h-5" />
+              {unreadNotifications > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 bg-rose-600 text-white text-[9px] font-black w-5 h-5 rounded-full flex items-center justify-center border-2 border-white animate-pulse">
+                  {unreadNotifications}
+                </span>
+              )}
+            </Link>
+
             <div className="text-right hidden sm:block">
               <p className="text-xs font-bold text-slate-800">{user?.name || 'Administrator'}</p>
               <span className="text-[9px] bg-rose-100 text-rose-800 px-2 py-0.5 rounded-full font-bold uppercase text-rose-700">

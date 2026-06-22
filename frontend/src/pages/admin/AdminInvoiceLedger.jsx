@@ -520,10 +520,23 @@ export default function AdminInvoiceLedger() {
                         <span className="font-black text-slate-800 text-xs font-mono">{tx.transferNo}</span>
                         <TransferStatusBadge status={tx.status} />
                         {tx.invoice?.invoiceNo && (
-                          <span className="text-[9px] font-bold text-violet-700 bg-violet-50 border border-violet-100 px-2 py-0.5 rounded-full flex items-center space-x-1">
-                            <Receipt className="w-2.5 h-2.5" />
+                          <div className="flex items-center gap-1.5 bg-indigo-50 border border-indigo-100 rounded-full pl-2.5 pr-1.5 py-0.5 text-[9px] font-bold text-indigo-600">
                             <span>Invoice: {tx.invoice.invoiceNo}</span>
-                          </span>
+                            <button
+                              onClick={() => { setSelectedInvoice(tx.invoice); setShowDetailModal(true); }}
+                              className="p-0.5 hover:bg-indigo-100 rounded transition-colors cursor-pointer text-indigo-600"
+                              title="View Invoice Details"
+                            >
+                              <Eye className="w-3 h-3" />
+                            </button>
+                            <button
+                              onClick={() => handleDownloadPdf(tx.invoice)}
+                              className="p-0.5 hover:bg-indigo-100 rounded transition-colors cursor-pointer text-indigo-600"
+                              title="Download PDF"
+                            >
+                              <Download className="w-3 h-3" />
+                            </button>
+                          </div>
                         )}
                       </div>
                       <div className="flex flex-wrap items-center gap-3 text-[10px] text-slate-400 font-semibold">

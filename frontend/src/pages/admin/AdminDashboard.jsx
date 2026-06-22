@@ -7,8 +7,38 @@ import {
   HelpCircle, BarChart3, TrendingUp, Bell, Tag, Cable, Microscope,
   Globe, ShoppingCart, Image, MessageSquare, Settings, PackageSearch,
   Boxes, Package, DollarSign, AlertCircle, BookOpen, UserCog,
-  LayoutGrid, MapPin
+  LayoutGrid, MapPin, X
 } from 'lucide-react';
+
+// Sub-page component imports for the Office-style floating window overlay
+import DealersPage from './DealersPage';
+import ProductsPage from './ProductsPage';
+import CategoriesPage from './CategoriesPage';
+import InventoryPage from './InventoryPage';
+import InventoriesPage from './InventoriesPage';
+import TransfersPage from './TransfersPage';
+import RequestsPage from './RequestsPage';
+import ReturnsPage from './ReturnsPage';
+import TicketsPage from './TicketsPage';
+import ReportsPage from './ReportsPage';
+import ForecastingPage from './ForecastingPage';
+import AdminAnalyticsPage from './AdminAnalyticsPage';
+import NotificationsPage from './NotificationsPage';
+import ChannelIntegrationPage from './ChannelIntegrationPage';
+import RnDPage from './RnDPage';
+import UserManagement from './UserManagement';
+import AdminInvoiceLedger from './AdminInvoiceLedger';
+
+import EcomProductsPage from './EcomProductsPage';
+import EcomOrdersPage from './EcomOrdersPage';
+import EcomCustomersPage from './EcomCustomersPage';
+import EcomCombosPage from './EcomCombosPage';
+import EcomBannersPage from './EcomBannersPage';
+import EcomReviewsPage from './EcomReviewsPage';
+import EcomContentPage from './EcomContentPage';
+import EcomSettingsPage from './EcomSettingsPage';
+import EcomReportsPage from './EcomReportsPage';
+import EcomAnalyticsPage from './EcomAnalyticsPage';
 
 // ─── Module Tiles Config ──────────────────────────────────────────────────────
 const crmModules = [
@@ -28,6 +58,8 @@ const crmModules = [
   { name: 'Channels',      path: '/admin/channel-integration', icon: Cable,         color: '#0891b2', bg: '#ecfeff', desc: 'Platform integrations' },
   { name: 'R&D Lab',       path: '/admin/rnd',                 icon: Microscope,    color: '#475569', bg: '#f8fafc', desc: 'Research & development' },
   { name: 'Zone Map',      path: '/admin/dealers',             icon: MapPin,        color: '#16a34a', bg: '#f0fdf4', desc: 'Territory assignments' },
+  { name: 'Invoice Ledger', path: '/admin/invoice-ledger',      icon: FileText,      color: '#e11d48', bg: '#fff1f2', desc: 'B2B & B2C tax invoices ledger' },
+  { name: 'Privileges',     path: '/admin/users',               icon: UserCog,       color: '#0f766e', bg: '#f0fdfa', desc: 'Manage access privileges & roles' },
 ];
 
 const ecomModules = [
@@ -44,14 +76,19 @@ const ecomModules = [
 ];
 
 // ─── App Tile Component ───────────────────────────────────────────────────────
-function AppTile({ module, navigate }) {
+function AppTile({ module, onClick, badge }) {
   const Icon = module.icon;
   return (
     <button
-      onClick={() => navigate(module.path)}
-      className="group flex flex-col items-center text-center p-4 rounded-2xl bg-white border border-slate-100 hover:border-slate-200 hover:shadow-lg hover:-translate-y-1 transition-all duration-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-rose-300"
+      onClick={onClick}
+      className="group relative flex flex-col items-center text-center p-4 rounded-2xl bg-white border border-slate-100 hover:border-slate-200 hover:shadow-lg hover:-translate-y-1 transition-all duration-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-rose-300"
       title={module.desc}
     >
+      {badge > 0 && (
+        <span className="absolute top-2.5 right-2.5 bg-rose-600 text-white text-[9px] font-black w-5 h-5 rounded-full flex items-center justify-center border border-white animate-pulse z-10 shadow-sm">
+          {badge}
+        </span>
+      )}
       <div
         className="w-14 h-14 rounded-2xl flex items-center justify-center mb-3 shadow-sm group-hover:scale-110 transition-transform duration-200"
         style={{ backgroundColor: module.bg }}
@@ -83,9 +120,135 @@ function KpiPill({ icon: Icon, label, value, color }) {
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function AdminDashboard() {
   const navigate = useNavigate();
+  const [activeModule, setActiveModule] = useState(null);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const [stats, setStats] = useState({
+    productsCount: 0,
+    dealersCount: 0,
+    totalStock: 0,
+    lowStockCount: 0
+  });
+  const [statsLoading, setStatsLoading] = useState(true);
+
+  // Component mapping for Office-style floating window overlay
+  const componentMap = {
+    'Dealers': DealersPage,
+    'Products': ProductsPage,
+    'Categories': CategoriesPage,
+    'Inventory': InventoryPage,
+    'Stock Slots': InventoriesPage,
+    'Transfers': TransfersPage,
+    'Order Requests': RequestsPage,
+    'Returns': ReturnsPage,
+    'Support Desk': TicketsPage,
+    'Reports': ReportsPage,
+    'Forecasting': ForecastingPage,
+    'Analytics': AdminAnalyticsPage,
+    'Notifications': NotificationsPage,
+    'Channels': ChannelIntegrationPage,
+    'R&D Lab': RnDPage,
+    'Zone Map': DealersPage,
+    'Invoice Ledger': AdminInvoiceLedger,
+    'Privileges': UserManagement,
+    'E-Com Products': EcomProductsPage,
+    'Website Orders': EcomOrdersPage,
+    'Customers': EcomCustomersPage,
+    'Combos': EcomCombosPage,
+    'Banners': EcomBannersPage,
+    'Reviews': EcomReviewsPage,
+    'Web Content': EcomContentPage,
+    'Store Settings': EcomSettingsPage,
+    'Ecom Reports': EcomReportsPage,
+    'Ecom Analytics': EcomAnalyticsPage
+  };
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const [stockRes, dealersRes, notifRes] = await Promise.all([
+          axios.get('/inventory/company'),
+          axios.get('/dealers'),
+          axios.get('/notifications')
+        ]);
+        const stocks = stockRes.data.data || [];
+        const dealers = dealersRes.data.data || [];
+        const notifications = notifRes.data.data || [];
+
+        const totalStock = stocks.reduce((acc, curr) => acc + (curr.quantity || 0), 0);
+        const lowStockCount = stocks.filter(s => (s.quantity || 0) <= (s.minQuantity || 10)).length;
+        const unreadCount = notifications.filter(n => !n.isRead).length;
+
+        setStats({
+          productsCount: stocks.length,
+          dealersCount: dealers.length,
+          totalStock,
+          lowStockCount
+        });
+        setUnreadNotifications(unreadCount);
+      } catch (err) {
+        console.error('Error fetching dashboard stats', err);
+      } finally {
+        setStatsLoading(false);
+      }
+    };
+    fetchStats();
+  }, []);
 
   return (
     <div className="space-y-8 animate-fade-in">
+      {/* KPI Stats Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {statsLoading ? (
+          Array(4).fill(0).map((_, idx) => (
+            <div key={idx} className="bg-white border border-slate-150 rounded-2xl p-5 shadow-sm animate-pulse space-y-3">
+              <div className="h-4 bg-slate-100 rounded-full w-24"></div>
+              <div className="h-6 bg-slate-100 rounded-full w-16"></div>
+            </div>
+          ))
+        ) : (
+          <>
+            <div className="bg-white border border-slate-150 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-300 flex items-center gap-4 animate-fade-in">
+              <div className="p-3.5 bg-sky-50 rounded-2xl shrink-0">
+                <ShoppingBag className="w-6 h-6 text-sky-600" />
+              </div>
+              <div>
+                <span className="block text-[10px] font-black uppercase tracking-widest text-slate-400">Available Products</span>
+                <strong className="text-xl font-black text-slate-800 mt-1 block">{stats.productsCount} SKUs</strong>
+              </div>
+            </div>
+            <div className="bg-white border border-slate-150 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-300 flex items-center gap-4 animate-fade-in">
+              <div className="p-3.5 bg-rose-50 rounded-2xl shrink-0">
+                <Users className="w-6 h-6 text-rose-600" />
+              </div>
+              <div>
+                <span className="block text-[10px] font-black uppercase tracking-widest text-slate-400">Active Dealers</span>
+                <strong className="text-xl font-black text-slate-800 mt-1 block">{stats.dealersCount} Partners</strong>
+              </div>
+            </div>
+            <div className="bg-white border border-slate-150 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-300 flex items-center gap-4 animate-fade-in">
+              <div className="p-3.5 bg-emerald-50 rounded-2xl shrink-0">
+                <Boxes className="w-6 h-6 text-emerald-600" />
+              </div>
+              <div>
+                <span className="block text-[10px] font-black uppercase tracking-widest text-slate-400">Total Stock Qty</span>
+                <strong className="text-xl font-black text-slate-800 mt-1 block">{stats.totalStock.toLocaleString()} Units</strong>
+              </div>
+            </div>
+            <div className="bg-white border border-slate-150 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-300 flex items-center gap-4 animate-fade-in">
+              <div className="p-3.5 bg-amber-50 rounded-2xl shrink-0">
+                <AlertCircle className="w-6 h-6 text-amber-600" />
+              </div>
+              <div>
+                <span className="block text-[10px] font-black uppercase tracking-widest text-slate-400">Low Stock Alerts</span>
+                <strong className={`text-xl font-black mt-1 block ${stats.lowStockCount > 0 ? 'text-amber-600 animate-pulse' : 'text-slate-800'}`}>
+                  {stats.lowStockCount} items
+                </strong>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+
       {/* CRM Modules Section */}
       <div className="bg-white border border-slate-150 p-6 rounded-2xl shadow-sm space-y-4">
         <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
@@ -96,7 +259,7 @@ export default function AdminDashboard() {
         </div>
         <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-4">
           {crmModules.map(m => (
-            <AppTile key={m.name} module={m} navigate={navigate} />
+            <AppTile key={m.name} module={m} onClick={() => setActiveModule(m.name)} badge={m.name === 'Notifications' ? unreadNotifications : 0} />
           ))}
         </div>
       </div>
@@ -111,10 +274,43 @@ export default function AdminDashboard() {
         </div>
         <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-4">
           {ecomModules.map(m => (
-            <AppTile key={m.name} module={m} navigate={navigate} />
+            <AppTile key={m.name} module={m} onClick={() => setActiveModule(m.name)} />
           ))}
         </div>
       </div>
+
+      {/* Office-style Floating Window Drawer Overlay (Slides from Left) */}
+      {activeModule && (() => {
+        const SelectedComponent = componentMap[activeModule];
+        return (
+          <div className="fixed inset-0 z-50 flex justify-start">
+            {/* Backdrop */}
+            <div 
+              className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm transition-opacity cursor-pointer"
+              onClick={() => setActiveModule(null)}
+            />
+            {/* Drawer Content */}
+            <div className="relative w-full max-w-6xl bg-slate-50 h-full shadow-2xl flex flex-col z-10 animate-slide-in-left border-r border-slate-200">
+              {/* Header */}
+              <div className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 shrink-0">
+                <div className="flex items-center space-x-3">
+                  <span className="text-base font-black text-slate-800 tracking-tight uppercase">{activeModule}</span>
+                </div>
+                <button 
+                  onClick={() => setActiveModule(null)}
+                  className="p-1.5 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100 cursor-pointer transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              {/* Inner Component Container */}
+              <div className="flex-1 overflow-y-auto p-6 md:p-8">
+                {SelectedComponent ? <SelectedComponent /> : <p className="text-slate-400">Module not loaded.</p>}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
