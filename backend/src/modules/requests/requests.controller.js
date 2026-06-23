@@ -136,7 +136,7 @@ exports.cancelRequest = async (req, res, next) => {
 exports.dispatchRequest = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { notes } = req.body;
+    const { notes, items } = req.body;
 
     if (req.user.role !== 'ADMIN') {
       return res.status(403).json({ success: false, message: 'Only administrators can dispatch orders' });
@@ -177,17 +177,31 @@ exports.dispatchRequest = async (req, res, next) => {
 
       for (const item of request.items || []) {
         const product = await tx.product.findUnique({ where: { id: item.productId } });
-        // Retrieve dealer configured margin for this category or default to 10
-        const configuredMargin = await tx.margin.findFirst({
-          where: {
-            dealerId: request.dealerId,
-            OR: [
-              { productId: item.productId },
-              { categoryId: product.categoryId }
-            ]
+        
+        let marginPct = 10; // default fallback
+        
+        const overrideItem = items?.find(oi => String(oi.productId) === String(item.productId));
+        if (overrideItem && overrideItem.marginPct !== undefined && overrideItem.marginPct !== null) {
+          marginPct = parseFloat(overrideItem.marginPct);
+        } else {
+          // Retrieve custom margins for this dealer
+          const marginRules = await tx.margin.findMany({
+            where: { dealerId: request.dealerId }
+          });
+          
+          const catId = product.categoryId?.toString() || product.category?.toString();
+          const productRule = marginRules.find(r => r.productId?.toString() === item.productId?.toString() && !r.isDefault);
+          const categoryRule = marginRules.find(r => r.categoryId?.toString() === catId && !r.isDefault);
+          const defaultRule = marginRules.find(r => r.isDefault);
+          
+          if (productRule) {
+            marginPct = parseFloat(productRule.marginPercent);
+          } else if (categoryRule) {
+            marginPct = parseFloat(categoryRule.marginPercent);
+          } else if (defaultRule) {
+            marginPct = parseFloat(defaultRule.marginPercent);
           }
-        });
-        const marginPct = configuredMargin ? parseFloat(configuredMargin.marginPercent) : 10;
+        }
         const mrp = parseFloat(product.mrp || product.price || 0);
         const unitPrice = mrp * (1 - marginPct / 100);
         const lineSubtotal = unitPrice * item.quantity;

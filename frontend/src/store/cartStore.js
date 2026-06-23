@@ -77,7 +77,7 @@ export const useCartStore = create((set, get) => ({
       const gstPct = parseFloat(item.product.gstPercent);
       
       const unit = item.unit || 'PCS';
-      const cartonSize = item.product.cartonSize || 12;
+      const cartonSize = item.product.cartonSize || 24;
       const qtyInPieces = unit === 'CTN' ? (item.quantity * cartonSize) : item.quantity;
       
       const lineSubtotal = sellingPrice * qtyInPieces;
@@ -95,7 +95,7 @@ export const useCartStore = create((set, get) => ({
       grandTotal,
       itemCount: items.reduce((acc, curr) => {
         const unit = curr.unit || 'PCS';
-        const cartonSize = curr.product.cartonSize || 12;
+        const cartonSize = curr.product.cartonSize || 24;
         const qtyInPieces = unit === 'CTN' ? (curr.quantity * cartonSize) : curr.quantity;
         return acc + qtyInPieces;
       }, 0)

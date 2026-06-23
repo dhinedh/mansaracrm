@@ -20,14 +20,14 @@ import {
 } from 'lucide-react';
 
 const dealerModules = [
+  { name: 'Browse Product',     path: '/dealer/products',            icon: ShoppingBag,     color: '#7c3aed', bg: '#ede9fe', desc: 'Browse catalog & check pricing' },
+  { name: 'Cart Builder',       path: '/dealer/cart',                icon: ShoppingCart,    color: '#1d4ed8', bg: '#eff6ff', desc: 'Generate store billing invoices' },
+  { name: 'My Shop',            path: '/dealer/stores',              icon: Store,           color: '#e11d48', bg: '#fff1f2', desc: 'Manage retail shop outlets' },
   { name: 'Ledger',             path: '/dealer/ledgers',             icon: Wallet,          color: '#0369a1', bg: '#e0f2fe', desc: 'Verify tax invoices and dispatches' },
-  { name: 'Order Requests',     path: '/dealer/requests',            icon: FileText,        color: '#be185d', bg: '#fdf2f8', desc: 'Submit stock requests to warehouse' },
-  { name: 'Returns Log',        path: '/dealer/returns',             icon: RotateCcw,       color: '#b45309', bg: '#fffbeb', desc: 'Manage store return logs' },
-  { name: 'Complaints / Tickets',path: '/dealer/services',           icon: HelpCircle,      color: '#065f46', bg: '#ecfdf5', desc: 'Raise support tickets to admin' },
-  { name: 'My Shops / Stores',  path: '/dealer/stores',              icon: Store,           color: '#e11d48', bg: '#fff1f2', desc: 'Manage retail shop outlets' },
-  { name: 'Browse Products',    path: '/dealer/products',            icon: ShoppingBag,     color: '#7c3aed', bg: '#ede9fe', desc: 'Browse catalog & check pricing' },
-  { name: 'Cart / Bill Builder',path: '/dealer/cart',                icon: ShoppingCart,    color: '#1d4ed8', bg: '#eff6ff', desc: 'Generate store billing invoices' },
-  { name: 'My Analytics',       path: '/dealer/analytics',           icon: BarChart3,       color: '#0e7490', bg: '#ecfeff', desc: 'Analyze store sales performance' },
+  { name: 'Return Log',         path: '/dealer/returns',             icon: RotateCcw,       color: '#b45309', bg: '#fffbeb', desc: 'Manage store return logs' },
+  { name: 'Complaint Log',      path: '/dealer/services',            icon: HelpCircle,      color: '#065f46', bg: '#ecfdf5', desc: 'Raise support tickets to admin' },
+  { name: 'Order Request',      path: '/dealer/requests',            icon: FileText,        color: '#be185d', bg: '#fdf2f8', desc: 'Submit stock requests to warehouse' },
+  { name: 'Analytics',          path: '/dealer/analytics',           icon: BarChart3,       color: '#0e7490', bg: '#ecfeff', desc: 'Analyze store sales performance' },
   { name: 'Billing Profile',    path: '/dealer/profile',             icon: User,            color: '#475569', bg: '#f8fafc', desc: 'View bank and business details' },
   { name: 'Notifications',      path: '/dealer/notifications',       icon: Bell,            color: '#dc2626', bg: '#fef2f2', desc: 'View system alerts' }
 ];

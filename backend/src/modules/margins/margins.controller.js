@@ -30,12 +30,17 @@ exports.getMargins = async (req, res, next) => {
 
 exports.setMargin = async (req, res, next) => {
   try {
-    if (req.user.role !== 'DEALER') {
-      return res.status(403).json({ success: false, message: 'Only dealers can manage margins' });
-    }
-
     const { storeId, productId, categoryId, marginPercent, isDefault } = req.body;
-    const dealerId = req.user.dealer.id;
+    
+    let dealerId;
+    if (req.user.role === 'ADMIN') {
+      dealerId = req.body.dealerId;
+      if (!dealerId) {
+        return res.status(400).json({ success: false, message: 'dealerId is required for admin' });
+      }
+    } else {
+      dealerId = req.user.dealer.id;
+    }
 
     // Validate store ownership if storeId is provided
     if (storeId) {

@@ -11,7 +11,7 @@ router.use(verifyToken);
 
 router.get('/', marginsController.getMargins);
 
-router.post('/', requireRole('DEALER'), validate([
+router.post('/', requireRole('DEALER', 'ADMIN'), validate([
   body('marginPercent').isFloat({ min: 0, max: 200 }).withMessage('Margin must be a percentage between 0 and 200')
 ]), marginsController.setMargin);
 

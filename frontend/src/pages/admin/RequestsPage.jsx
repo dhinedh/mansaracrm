@@ -17,7 +17,10 @@ import {
   X,
   Eye,
   ChevronRight,
-  User
+  ChevronDown,
+  User,
+  Package,
+  Layers
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 
@@ -25,11 +28,7 @@ export default function RequestsPage() {
   const { user } = useAuthStore();
   const isAdmin = user?.role === 'ADMIN';
 
-  // Tabs:
-  // For Dealer: 'create' | 'history'
-  // For Admin: 'pending' | 'history'
   const [activeTab, setActiveTab] = useState(isAdmin ? 'pending' : 'create');
-
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState(isAdmin ? 'PENDING' : '');
@@ -39,7 +38,7 @@ export default function RequestsPage() {
   // Dealer Submit Form states
   const [selectedProductId, setSelectedProductId] = useState('');
   const [selectedQty, setSelectedQty] = useState('10');
-  const [requestItems, setRequestItems] = useState([]); // [{ productId, product, quantity }]
+  const [requestItems, setRequestItems] = useState([]);
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -52,17 +51,20 @@ export default function RequestsPage() {
   const [showDispatchModal, setShowDispatchModal] = useState(false);
   const [dispatchRequestId, setDispatchRequestId] = useState(null);
   const [dispatching, setDispatching] = useState(false);
+  const [dispatchItems, setDispatchItems] = useState([]);
 
-  // Synchronize status filters with tab selections
+  // Grouped dealer accordion states
+  const [expandedDealers, setExpandedDealers] = useState({});
+
   useEffect(() => {
     if (isAdmin) {
       if (activeTab === 'pending') {
         setStatusFilter('PENDING');
       } else {
-        setStatusFilter(''); // Load all by default for history/archive tab
+        setStatusFilter('');
       }
     } else {
-      setStatusFilter(''); // Dealers load all requests in their history tab
+      setStatusFilter('');
     }
   }, [activeTab, isAdmin]);
 
@@ -79,7 +81,15 @@ export default function RequestsPage() {
       const res = await axios.get('/requests', {
         params: { status: statusFilter }
       });
-      setRequests(res.data.data || []);
+      const data = res.data.data || [];
+      setRequests(data);
+      // Auto-expand all dealers on initial load of pending tab
+      if (isAdmin && (statusFilter === 'PENDING' || activeTab === 'pending')) {
+        const grouped = groupByDealer(data);
+        const allExpanded = {};
+        Object.keys(grouped).forEach(k => { allExpanded[k] = true; });
+        setExpandedDealers(allExpanded);
+      }
     } catch (err) {
       console.error('Failed to fetch requests', err);
     } finally {
@@ -96,24 +106,32 @@ export default function RequestsPage() {
     }
   };
 
+  // Group requests by dealer for the admin pending view
+  const groupByDealer = (reqs) => {
+    return reqs.reduce((acc, req) => {
+      const dealerId = req.dealerId || req.dealer?.id || 'unknown';
+      if (!acc[dealerId]) acc[dealerId] = { dealer: req.dealer, requests: [] };
+      acc[dealerId].requests.push(req);
+      return acc;
+    }, {});
+  };
+
+  const toggleDealer = (dealerId) => {
+    setExpandedDealers(prev => ({ ...prev, [dealerId]: !prev[dealerId] }));
+  };
+
   const handleAddToRequestCart = () => {
     if (!selectedProductId || parseInt(selectedQty) <= 0) return;
     const prod = products.find(p => p.id === selectedProductId);
     if (!prod) return;
-
     const existingIndex = requestItems.findIndex(item => item.productId === selectedProductId);
     if (existingIndex > -1) {
       const updated = [...requestItems];
       updated[existingIndex].quantity += parseInt(selectedQty);
       setRequestItems(updated);
     } else {
-      setRequestItems([...requestItems, {
-        productId: selectedProductId,
-        product: prod,
-        quantity: parseInt(selectedQty)
-      }]);
+      setRequestItems([...requestItems, { productId: selectedProductId, product: prod, quantity: parseInt(selectedQty) }]);
     }
-
     setSelectedProductId('');
     setSelectedQty('10');
   };
@@ -127,7 +145,6 @@ export default function RequestsPage() {
     if (requestItems.length === 0) return;
     setSubmitting(true);
     setMessage({ text: '', type: '' });
-
     try {
       await axios.post('/requests', {
         items: requestItems.map(i => ({ productId: i.productId, quantity: i.quantity })),
@@ -136,7 +153,6 @@ export default function RequestsPage() {
       setMessage({ text: 'Order request submitted successfully to Admin.', type: 'success' });
       setRequestItems([]);
       setNotes('');
-      // Switch to history tab to revisit the order
       setActiveTab('history');
       fetchRequests();
     } catch (err) {
@@ -158,10 +174,54 @@ export default function RequestsPage() {
     }
   };
 
-  const openDispatchDialog = (id) => {
+  const openDispatchDialog = async (id) => {
+    const reqObj = requests.find(r => r.id === id);
+    if (!reqObj) return;
     setDispatchRequestId(id);
     setDispatchNotes('');
+    setDispatchItems([]);
     setShowDispatchModal(true);
+    try {
+      const res = await axios.get('/margins', { params: { dealerId: reqObj.dealerId } });
+      const margins = res.data.data || [];
+      const itemsWithMargins = reqObj.items.map(item => {
+        const product = item.product || {};
+        const prodMargin = margins.find(m => (m.productId?.toString() || m.productId) === String(item.productId));
+        const catId = product.categoryId || product.category?._id || product.category;
+        const catMargin = margins.find(m => (m.categoryId?.toString() || m.categoryId) === String(catId));
+        const defMargin = margins.find(m => m.isDefault);
+        const marginPct = prodMargin?.marginPercent ?? catMargin?.marginPercent ?? defMargin?.marginPercent ?? 10;
+        return {
+          productId: item.productId,
+          productName: product.name,
+          quantity: item.quantity,
+          sku: product.sku,
+          unit: product.unit,
+          mrp: parseFloat(product.mrp || product.price || 0),
+          marginPct
+        };
+      });
+      setDispatchItems(itemsWithMargins);
+    } catch (err) {
+      console.error(err);
+      setDispatchItems(reqObj.items.map(item => ({
+        productId: item.productId,
+        productName: item.product?.name,
+        quantity: item.quantity,
+        sku: item.product?.sku,
+        unit: item.product?.unit,
+        mrp: parseFloat(item.product?.mrp || item.product?.price || 0),
+        marginPct: 10
+      })));
+    }
+  };
+
+  const handleDispatchMarginChange = (productId, val) => {
+    const numeric = parseFloat(val);
+    const cleaned = isNaN(numeric) ? 0 : Math.min(100, Math.max(0, numeric));
+    setDispatchItems(prev => prev.map(item =>
+      item.productId === productId ? { ...item, marginPct: cleaned } : item
+    ));
   };
 
   const handleDispatchRequest = async (e) => {
@@ -169,10 +229,15 @@ export default function RequestsPage() {
     setDispatching(true);
     try {
       const res = await axios.post(`/requests/${dispatchRequestId}/dispatch`, {
-        notes: dispatchNotes
+        notes: dispatchNotes,
+        items: dispatchItems.map(i => ({
+          productId: i.productId,
+          quantity: i.quantity,
+          marginPct: i.marginPct
+        }))
       });
       if (res.data.success) {
-        setMessage({ text: 'Request successfully approved and dispatched! B2B Invoice generated.', type: 'success' });
+        setMessage({ text: 'Request approved & dispatched! B2B Invoice generated.', type: 'success' });
         setShowDispatchModal(false);
         fetchRequests();
       } else {
@@ -185,8 +250,7 @@ export default function RequestsPage() {
     }
   };
 
-  // Tabs list
-  const tabs = isAdmin 
+  const tabs = isAdmin
     ? [
         { id: 'pending', label: 'Pending Requests', icon: Clock },
         { id: 'history', label: 'Request History / Archive', icon: FileText }
@@ -196,6 +260,306 @@ export default function RequestsPage() {
         { id: 'history', label: 'Request History & Status', icon: FileText }
       ];
 
+  // ─── Admin Pending: Grouped by Dealer ──────────────────────────────────────
+  const renderAdminPending = () => {
+    if (loading) {
+      return (
+        <div className="flex justify-center items-center py-16 bg-white border border-slate-150 rounded-2xl">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-rose-600"></div>
+        </div>
+      );
+    }
+    const pendingReqs = requests.filter(r => r.status === 'PENDING');
+    if (pendingReqs.length === 0) {
+      return (
+        <div className="py-20 text-center text-xs text-slate-400 font-semibold italic bg-white border border-slate-150 rounded-2xl">
+          No pending requests. All dealer requests have been processed. ✅
+        </div>
+      );
+    }
+
+    const grouped = groupByDealer(pendingReqs);
+
+    return (
+      <div className="space-y-4">
+        {Object.entries(grouped).map(([dealerId, { dealer, requests: dealerReqs }]) => {
+          const isExpanded = expandedDealers[dealerId] !== false;
+          const totalItems = dealerReqs.reduce((acc, r) => acc + (r.items?.length || 0), 0);
+          const totalQty = dealerReqs.reduce((acc, r) =>
+            acc + r.items?.reduce((a, i) => a + i.quantity, 0), 0);
+
+          return (
+            <div key={dealerId} className="bg-white border border-slate-150 rounded-2xl shadow-sm overflow-hidden">
+              {/* Dealer Header — Click to Expand */}
+              <button
+                type="button"
+                onClick={() => toggleDealer(dealerId)}
+                className="w-full flex items-center justify-between p-5 hover:bg-slate-50/40 transition-colors group cursor-pointer"
+              >
+                <div className="flex items-center space-x-4">
+                  <div className="p-2.5 bg-rose-50 rounded-xl text-rose-600 group-hover:bg-rose-100 transition-colors">
+                    <Building2 className="w-5 h-5" />
+                  </div>
+                  <div className="text-left">
+                    <h3 className="font-black text-slate-800 text-sm">{dealer?.companyName || 'Unknown Dealer'}</h3>
+                    <div className="flex items-center space-x-3 mt-0.5">
+                      {dealer?.phone && (
+                        <a
+                          href={`tel:${dealer.phone}`}
+                          onClick={e => e.stopPropagation()}
+                          className="text-[10px] text-rose-600 font-bold hover:underline flex items-center space-x-1"
+                        >
+                          <Phone className="w-2.5 h-2.5" />
+                          <span>{dealer.phone}</span>
+                        </a>
+                      )}
+                      {dealer?.user?.email && (
+                        <a
+                          href={`mailto:${dealer.user.email}`}
+                          onClick={e => e.stopPropagation()}
+                          className="text-[10px] text-slate-500 hover:underline flex items-center space-x-1"
+                        >
+                          <Mail className="w-2.5 h-2.5" />
+                          <span>{dealer.user.email}</span>
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center space-x-3 shrink-0">
+                  <div className="flex items-center space-x-2 text-xs">
+                    <span className="bg-amber-50 text-amber-700 border border-amber-200 font-black px-2.5 py-1 rounded-full text-[10px] animate-pulse">
+                      {dealerReqs.length} Request{dealerReqs.length > 1 ? 's' : ''}
+                    </span>
+                    <span className="bg-slate-50 text-slate-600 border border-slate-200 font-semibold px-2.5 py-1 rounded-full text-[10px]">
+                      {totalItems} SKU · {totalQty} units
+                    </span>
+                  </div>
+                  {isExpanded
+                    ? <ChevronDown className="w-4 h-4 text-slate-400" />
+                    : <ChevronRight className="w-4 h-4 text-slate-400" />
+                  }
+                </div>
+              </button>
+
+              {/* Expanded: individual requests */}
+              {isExpanded && (
+                <div className="border-t border-slate-100 divide-y divide-slate-100">
+                  {dealerReqs.map((req, reqIdx) => {
+                    const totalItemsQty = req.items?.reduce((acc, i) => acc + i.quantity, 0) || 0;
+                    return (
+                      <div key={req.id} className="p-5 space-y-3 bg-slate-50/20 hover:bg-slate-50/50 transition-colors">
+                        {/* Request sub-header */}
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center space-x-2">
+                            <span className="text-[9px] font-bold text-slate-400 uppercase">#{reqIdx + 1}</span>
+                            <span className="font-mono text-[11px] bg-white border border-slate-200 text-slate-800 font-bold px-2.5 py-0.5 rounded-lg">
+                              {req.requestNo}
+                            </span>
+                            <span className="text-[9px] text-slate-400">
+                              {new Date(req.createdAt).toLocaleDateString('en-IN', {
+                                day: '2-digit', month: 'short', year: 'numeric',
+                                hour: '2-digit', minute: '2-digit'
+                              })}
+                            </span>
+                          </div>
+                          <div className="flex items-center space-x-1.5 shrink-0">
+                            <button
+                              onClick={() => { setSelectedRequest(req); setShowDetailModal(true); }}
+                              className="inline-flex items-center space-x-1 bg-white hover:bg-slate-100 text-slate-600 border border-slate-200 px-2.5 py-1 rounded-lg font-bold text-[10px] cursor-pointer transition-colors"
+                            >
+                              <Eye className="w-3 h-3" />
+                              <span>Details</span>
+                            </button>
+                            <button
+                              onClick={() => openDispatchDialog(req.id)}
+                              className="inline-flex items-center space-x-1.5 bg-rose-600 hover:bg-rose-700 text-white px-2.5 py-1 rounded-lg font-bold text-[10px] shadow-sm cursor-pointer transition-all hover:scale-[1.02]"
+                            >
+                              <Truck className="w-3 h-3" />
+                              <span>Dispatch</span>
+                            </button>
+                            <button
+                              onClick={() => handleCancelRequest(req.id)}
+                              className="inline-flex items-center space-x-1 bg-rose-50 hover:bg-rose-100 text-rose-600 px-2.5 py-1 rounded-lg border border-rose-100 font-bold text-[10px] cursor-pointer transition-colors"
+                            >
+                              <XCircle className="w-3 h-3" />
+                              <span>Reject</span>
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Items inline */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                          {req.items?.map((item, idx) => (
+                            <div key={idx} className="flex items-center space-x-2 bg-white border border-slate-100 rounded-xl p-2.5 shadow-sm">
+                              <div className="p-1.5 bg-rose-50 rounded-lg shrink-0">
+                                <Package className="w-3 h-3 text-rose-500" />
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="font-bold text-slate-800 text-[10px] truncate">{item.product?.name || 'Unknown Product'}</p>
+                                <p className="text-[9px] text-rose-600 font-black">{item.quantity} {item.product?.unit || 'PCS'}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Remarks */}
+                        {req.notes && (
+                          <p className="text-[10px] text-slate-500 italic pl-1">
+                            <span className="font-bold text-slate-600">Remarks: </span>"{req.notes}"
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
+  // ─── Shared: Individual Request List (History tab) ─────────────────────────
+  const renderRequestList = () => {
+    if (loading) {
+      return (
+        <div className="flex justify-center items-center py-16 bg-white border border-slate-150 rounded-2xl">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-rose-600"></div>
+        </div>
+      );
+    }
+    if (requests.length === 0) {
+      return (
+        <div className="py-20 text-center text-xs text-slate-400 font-semibold italic bg-white border border-slate-150 rounded-2xl">
+          No orders or requests found.
+        </div>
+      );
+    }
+    return (
+      <div className="space-y-4">
+        {requests.map(req => {
+          const totalItemsQty = req.items?.reduce((acc, i) => acc + i.quantity, 0) || 0;
+          return (
+            <div key={req.id} className="p-6 bg-white border border-slate-150 rounded-2xl shadow-sm hover:shadow-md transition-all space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                <div className="flex items-center space-x-2">
+                  <span className="font-mono text-[11px] bg-slate-100 border border-slate-200 text-slate-800 font-bold px-2.5 py-1 rounded-lg">
+                    {req.requestNo}
+                  </span>
+                  <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase ${
+                    req.status === 'DISPATCHED' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' :
+                    req.status === 'CANCELLED' ? 'bg-rose-50 text-rose-700 border border-rose-100' :
+                    'bg-amber-50 text-amber-700 border border-amber-200 animate-pulse'
+                  }`}>
+                    {req.status}
+                  </span>
+                </div>
+                <span className="text-[10px] text-slate-400 font-semibold">
+                  {new Date(req.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-1">
+                <div className="space-y-3">
+                  <span className="block text-[9px] font-black uppercase text-slate-400 tracking-wider">
+                    {isAdmin ? 'Dealer Partner Contact' : 'My Information'}
+                  </span>
+                  {isAdmin ? (
+                    <div className="space-y-2">
+                      <div className="flex items-center space-x-2">
+                        <div className="p-1.5 bg-rose-50 rounded-lg text-rose-600"><Building2 className="w-3.5 h-3.5" /></div>
+                        <div>
+                          <strong className="text-slate-800 text-xs">{req.dealer?.companyName}</strong>
+                          {req.dealer?.user?.name && (
+                            <span className="block text-[10px] text-slate-500 font-medium">Contact: {req.dealer.user.name}</span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] pl-1 pt-1">
+                        <a href={`tel:${req.dealer?.phone}`} className="inline-flex items-center space-x-1.5 text-rose-600 hover:text-rose-700 font-bold border border-rose-100 hover:bg-rose-50/50 px-2 py-1 rounded-lg transition-colors cursor-pointer">
+                          <Phone className="w-3 h-3" /><span>{req.dealer?.phone || 'No Phone'}</span>
+                        </a>
+                        <a href={`mailto:${req.dealer?.user?.email}`} className="inline-flex items-center space-x-1.5 text-slate-600 hover:text-slate-800 border border-slate-200 hover:bg-slate-50 px-2 py-1 rounded-lg transition-colors cursor-pointer truncate" title={req.dealer?.user?.email}>
+                          <Mail className="w-3 h-3 text-slate-400 shrink-0" /><span className="truncate">{req.dealer?.user?.email || 'No Email'}</span>
+                        </a>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-1.5 bg-slate-50 border border-slate-100 p-3 rounded-xl text-slate-600 text-[11px]">
+                      <p className="font-bold text-slate-700">Self Request Fulfillment</p>
+                      <p className="text-slate-400 text-[10px]">Your stock requests are fulfilled directly by the manufacturer logistics team.</p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-2.5">
+                  <span className="block text-[9px] font-black uppercase text-slate-400 tracking-wider">Order Items Breakdown</span>
+                  <div className="bg-slate-50/70 border border-slate-150 rounded-xl overflow-hidden text-[11px] shadow-sm">
+                    <div className="divide-y divide-slate-150 max-h-40 overflow-y-auto">
+                      {req.items?.map((item, idx) => (
+                        <div key={idx} className="flex justify-between items-center p-2.5 hover:bg-slate-100/30">
+                          <div className="flex flex-col">
+                            <span className="font-bold text-slate-800">{item.product?.name || 'Unknown Product'}</span>
+                            <span className="text-[9px] text-slate-400 font-mono">SKU: {item.product?.sku || 'N/A'}</span>
+                          </div>
+                          <span className="font-black text-rose-600 bg-rose-50/50 px-2 py-0.5 rounded-lg border border-rose-100/50 text-[10px]">
+                            {item.quantity} {item.product?.unit || 'PCS'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {!isAdmin && req.status === 'DISPATCHED' && (
+                <div className="flex items-start space-x-2.5 bg-emerald-50 border border-emerald-100 rounded-xl p-3 text-[10px] text-emerald-800 mt-1">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-black">✅ Stock Dispatched & Inventory Updated</p>
+                    <p className="text-emerald-700 font-medium mt-0.5">The ordered quantities have been added to your dealer inventory. Visit the <strong>Products page</strong> to start billing.</p>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pt-3 border-t border-slate-100 text-[11px]">
+                <div className="text-slate-500 italic max-w-md truncate">
+                  {req.notes ? `Remarks: "${req.notes}"` : 'No remarks added.'}
+                </div>
+                <div className="flex items-center space-x-2 shrink-0 self-end sm:self-auto">
+                  <button
+                    onClick={() => { setSelectedRequest(req); setShowDetailModal(true); }}
+                    className="inline-flex items-center space-x-1 bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200 px-3 py-1.5 rounded-xl font-bold cursor-pointer transition-colors"
+                  >
+                    <Eye className="w-3.5 h-3.5" /><span>View Details</span>
+                  </button>
+                  {isAdmin && req.status === 'PENDING' && (
+                    <button
+                      onClick={() => openDispatchDialog(req.id)}
+                      className="inline-flex items-center space-x-1.5 bg-rose-600 hover:bg-rose-700 text-white px-3 py-1.5 rounded-xl font-bold shadow-md cursor-pointer transition-all hover:scale-[1.02]"
+                    >
+                      <Truck className="w-3.5 h-3.5" /><span>Dispatch Stock</span>
+                    </button>
+                  )}
+                  {req.status === 'PENDING' && (
+                    <button
+                      onClick={() => handleCancelRequest(req.id)}
+                      className="inline-flex items-center space-x-1 bg-rose-50 hover:bg-rose-100 text-rose-600 px-3 py-1.5 rounded-xl border border-rose-100 font-bold cursor-pointer transition-colors"
+                    >
+                      <XCircle className="w-3.5 h-3.5" /><span>{isAdmin ? 'Reject' : 'Cancel'}</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -204,8 +568,8 @@ export default function RequestsPage() {
           {isAdmin ? 'Dealers Purchase & Stock Requests' : 'Warehouse Purchase Orders'}
         </h2>
         <p className="text-slate-500 text-xs">
-          {isAdmin 
-            ? 'Review dealer stock requests, check contacts, and dispatch logistics to generate invoices.' 
+          {isAdmin
+            ? 'All vendor requests consolidated by dealer. Review, approve, and dispatch stock efficiently.'
             : 'Request warehouse stock dispatches and monitor B2B shipment approvals.'}
         </p>
       </div>
@@ -220,9 +584,7 @@ export default function RequestsPage() {
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={`flex items-center space-x-2 py-3 px-6 border-b-2 font-black text-xs uppercase tracking-wider transition-all duration-200 cursor-pointer ${
-                isActive 
-                  ? 'border-rose-600 text-rose-600' 
-                  : 'border-transparent text-slate-400 hover:text-slate-600'
+                isActive ? 'border-rose-600 text-rose-600' : 'border-transparent text-slate-400 hover:text-slate-600'
               }`}
             >
               <TabIcon className="w-4 h-4" />
@@ -242,14 +604,12 @@ export default function RequestsPage() {
       {/* ─── TAB 1: DEALER CREATE REQUEST ─── */}
       {!isAdmin && activeTab === 'create' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Create Form */}
           <div className="lg:col-span-1 space-y-6">
             <div className="bg-white border border-slate-150 p-6 rounded-2xl shadow-sm space-y-4">
               <h3 className="font-black text-slate-800 text-xs uppercase tracking-wider flex items-center space-x-2">
                 <FileText className="w-4 h-4 text-rose-600" />
                 <span>New PO request</span>
               </h3>
-
               <div className="space-y-4 text-xs">
                 <div>
                   <label className="block text-slate-500 font-bold mb-1">Select Product SKU</label>
@@ -264,30 +624,22 @@ export default function RequestsPage() {
                     ))}
                   </select>
                 </div>
-                
                 <div>
                   <label className="block text-slate-500 font-bold mb-1">Required Quantity</label>
                   <input
-                    type="number"
-                    min="1"
-                    value={selectedQty}
+                    type="number" min="1" value={selectedQty}
                     onChange={(e) => setSelectedQty(e.target.value)}
                     className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none font-bold"
                   />
                 </div>
-
                 <button
-                  type="button"
-                  onClick={handleAddToRequestCart}
-                  disabled={!selectedProductId}
+                  type="button" onClick={handleAddToRequestCart} disabled={!selectedProductId}
                   className="w-full bg-slate-800 hover:bg-slate-900 disabled:bg-slate-200 text-white font-bold text-xs py-2.5 rounded-xl transition-all flex items-center justify-center space-x-1.5"
                 >
-                  <Plus className="w-4 h-4" />
-                  <span>Add to request</span>
+                  <Plus className="w-4 h-4" /><span>Add to request</span>
                 </button>
               </div>
 
-              {/* Request Cart List */}
               {requestItems.length > 0 && (
                 <div className="space-y-3 pt-4 border-t border-slate-100 text-xs">
                   <span className="block text-[10px] font-black uppercase text-slate-400 tracking-wider">Requested Items List</span>
@@ -298,31 +650,23 @@ export default function RequestsPage() {
                           <p className="font-bold text-slate-800">{item.product.name}</p>
                           <p className="text-[9px] font-black text-rose-600">Qty: {item.quantity} {item.product.unit}</p>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveFromRequestCart(item.productId)}
-                          className="text-rose-600 hover:text-rose-800 p-1 rounded-lg hover:bg-rose-50"
-                        >
+                        <button type="button" onClick={() => handleRemoveFromRequestCart(item.productId)} className="text-rose-600 hover:text-rose-800 p-1 rounded-lg hover:bg-rose-50">
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
                     ))}
                   </div>
-
                   <form onSubmit={handleSubmitRequest} className="space-y-3 pt-2">
                     <div>
                       <label className="block text-slate-500 font-bold mb-1">Requester Notes / Comments</label>
                       <textarea
-                        value={notes}
-                        onChange={(e) => setNotes(e.target.value)}
-                        rows="2"
-                        placeholder="Add special delivery remarks..."
+                        value={notes} onChange={(e) => setNotes(e.target.value)}
+                        rows="2" placeholder="Add special delivery remarks..."
                         className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none"
-                      ></textarea>
+                      />
                     </div>
                     <button
-                      type="submit"
-                      disabled={submitting}
+                      type="submit" disabled={submitting}
                       className="w-full bg-rose-600 hover:bg-rose-700 disabled:bg-rose-400 text-white font-bold py-2.5 rounded-xl transition-all shadow-md flex items-center justify-center space-x-2"
                     >
                       {submitting ? 'Submitting...' : 'Submit Purchase Request'}
@@ -333,7 +677,6 @@ export default function RequestsPage() {
             </div>
           </div>
 
-          {/* Guidelines Box */}
           <div className="lg:col-span-2 space-y-6">
             <div className="bg-white border border-slate-150 p-6 rounded-2xl shadow-sm space-y-3">
               <h4 className="font-bold text-slate-800 text-xs uppercase tracking-wider">Logistics Flow & Guidelines</h4>
@@ -347,11 +690,40 @@ export default function RequestsPage() {
         </div>
       )}
 
-      {/* ─── TAB 2: REQUEST LISTING / HISTORY (BOTH ROLES) ─── */}
-      {((isAdmin) || (!isAdmin && activeTab === 'history')) && (
+      {/* ─── ADMIN TAB: PENDING (Grouped by Dealer) ─── */}
+      {isAdmin && activeTab === 'pending' && (
+        <div>
+          {/* Summary bar */}
+          {!loading && requests.filter(r => r.status === 'PENDING').length > 0 && (
+            <div className="flex items-center justify-between bg-amber-50 border border-amber-200 rounded-2xl px-5 py-3 mb-4">
+              <div className="flex items-center space-x-2 text-amber-800">
+                <Layers className="w-4 h-4 text-amber-600" />
+                <span className="text-xs font-black">
+                  {requests.filter(r => r.status === 'PENDING').length} pending request(s) from{' '}
+                  {Object.keys(groupByDealer(requests.filter(r => r.status === 'PENDING'))).length} dealer(s)
+                </span>
+              </div>
+              <button
+                onClick={() => {
+                  const grouped = groupByDealer(requests.filter(r => r.status === 'PENDING'));
+                  const allCollapsed = Object.values(expandedDealers).every(v => v === false);
+                  const next = {};
+                  Object.keys(grouped).forEach(k => { next[k] = allCollapsed ? true : false; });
+                  setExpandedDealers(next);
+                }}
+                className="text-[10px] font-black text-amber-700 hover:text-amber-900 underline cursor-pointer"
+              >
+                {Object.values(expandedDealers).every(v => v === false) ? 'Expand All' : 'Collapse All'}
+              </button>
+            </div>
+          )}
+          {renderAdminPending()}
+        </div>
+      )}
+
+      {/* ─── HISTORY TAB (Both roles) ─── */}
+      {((isAdmin && activeTab === 'history') || (!isAdmin && activeTab === 'history')) && (
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-          
-          {/* History Sidebar Filters (Only for Admin History or when activeTab is history) */}
           {isAdmin && activeTab === 'history' && (
             <div className="lg:col-span-1 space-y-4">
               <div className="bg-white border border-slate-150 p-6 rounded-2xl shadow-sm space-y-4 text-xs">
@@ -367,8 +739,8 @@ export default function RequestsPage() {
                       key={filter.id}
                       onClick={() => setStatusFilter(filter.id)}
                       className={`text-left px-4 py-2.5 rounded-xl font-semibold transition-colors flex items-center justify-between ${
-                        statusFilter === filter.id 
-                          ? 'bg-rose-50 text-rose-700 border border-rose-100/50' 
+                        statusFilter === filter.id
+                          ? 'bg-rose-50 text-rose-700 border border-rose-100/50'
                           : 'bg-white hover:bg-slate-50 text-slate-600 border border-transparent'
                       }`}
                     >
@@ -380,173 +752,8 @@ export default function RequestsPage() {
               </div>
             </div>
           )}
-
-          {/* List Component */}
           <div className={isAdmin && activeTab === 'history' ? 'lg:col-span-3 space-y-4' : 'lg:col-span-4 space-y-4'}>
-            
-            {loading ? (
-              <div className="flex justify-center items-center py-16 bg-white border border-slate-150 rounded-2xl">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-rose-600"></div>
-              </div>
-            ) : requests.length === 0 ? (
-              <div className="py-20 text-center text-xs text-slate-400 font-semibold italic bg-white border border-slate-150 rounded-2xl">
-                No orders or requests found.
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {requests.map(req => {
-                  const totalItemsQty = req.items?.reduce((acc, i) => acc + i.quantity, 0) || 0;
-                  return (
-                    <div key={req.id} className="p-6 bg-white border border-slate-150 rounded-2xl shadow-sm hover:shadow-md transition-all space-y-4">
-                      
-                      {/* Top Header Row */}
-                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
-                        <div className="flex items-center space-x-2">
-                          <span className="font-mono text-[11px] bg-slate-100 border border-slate-200 text-slate-800 font-bold px-2.5 py-1 rounded-lg">
-                            {req.requestNo}
-                          </span>
-                          <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase ${
-                            req.status === 'DISPATCHED' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' :
-                            req.status === 'CANCELLED' ? 'bg-rose-50 text-rose-700 border border-rose-100' :
-                            'bg-amber-50 text-amber-700 border border-amber-200 animate-pulse'
-                          }`}>
-                            {req.status}
-                          </span>
-                        </div>
-                        <span className="text-[10px] text-slate-400 font-semibold">
-                          Date: {new Date(req.createdAt).toLocaleDateString('en-IN', {
-                            day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
-                          })}
-                        </span>
-                      </div>
-
-                      {/* Content Section: Requestor Contact + Order details */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-1">
-                        
-                        {/* Requestor Contact Info (Left) */}
-                        <div className="space-y-3">
-                          <span className="block text-[9px] font-black uppercase text-slate-400 tracking-wider">
-                            {isAdmin ? 'Dealer Partner Contact details' : 'My Information'}
-                          </span>
-                          {isAdmin ? (
-                            <div className="space-y-2">
-                              <div className="flex items-center space-x-2">
-                                <div className="p-1.5 bg-rose-50 rounded-lg text-rose-600">
-                                  <Building2 className="w-3.5 h-3.5" />
-                                </div>
-                                <div>
-                                  <strong className="text-slate-800 text-xs">{req.dealer?.companyName}</strong>
-                                  {req.dealer?.user?.name && (
-                                    <span className="block text-[10px] text-slate-500 font-medium">Contact: {req.dealer.user.name}</span>
-                                  )}
-                                </div>
-                              </div>
-                              
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] pl-1 pt-1">
-                                <a 
-                                  href={`tel:${req.dealer?.phone}`} 
-                                  className="inline-flex items-center space-x-1.5 text-rose-600 hover:text-rose-700 font-bold border border-rose-100 hover:bg-rose-50/50 px-2 py-1 rounded-lg transition-colors cursor-pointer"
-                                >
-                                  <Phone className="w-3 h-3" />
-                                  <span>{req.dealer?.phone || 'No Phone'}</span>
-                                </a>
-                                <a 
-                                  href={`mailto:${req.dealer?.user?.email}`} 
-                                  className="inline-flex items-center space-x-1.5 text-slate-600 hover:text-slate-800 border border-slate-200 hover:bg-slate-50 px-2 py-1 rounded-lg transition-colors cursor-pointer truncate"
-                                  title={req.dealer?.user?.email}
-                                >
-                                  <Mail className="w-3 h-3 text-slate-400 shrink-0" />
-                                  <span className="truncate">{req.dealer?.user?.email || 'No Email'}</span>
-                                </a>
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="space-y-1.5 bg-slate-50 border border-slate-100 p-3 rounded-xl text-slate-600 text-[11px]">
-                              <p className="font-bold text-slate-700">Self Request Fulfillment</p>
-                              <p className="text-slate-400 text-[10px]">Your stock requests are fulfilled directly by the manufacturer logistics team.</p>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Order Items Details (Right) */}
-                        <div className="space-y-2.5">
-                          <span className="block text-[9px] font-black uppercase text-slate-400 tracking-wider">
-                            Order Items Breakdown
-                          </span>
-                          <div className="bg-slate-50/70 border border-slate-150 rounded-xl overflow-hidden text-[11px] shadow-sm">
-                            <div className="divide-y divide-slate-150 max-h-40 overflow-y-auto">
-                              {req.items?.map((item, idx) => (
-                                <div key={idx} className="flex justify-between items-center p-2.5 hover:bg-slate-100/30">
-                                  <div className="flex flex-col">
-                                    <span className="font-bold text-slate-800">{item.product?.name || 'Unknown Product'}</span>
-                                    <span className="text-[9px] text-slate-400 font-mono">SKU: {item.product?.sku || 'N/A'}</span>
-                                  </div>
-                                  <span className="font-black text-rose-600 bg-rose-50/50 px-2 py-0.5 rounded-lg border border-rose-100/50 text-[10px]">
-                                    {item.quantity} {item.product?.unit || 'PCS'}
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-
-                      </div>
-
-                      {/* Dealer-facing stock updated banner when dispatched */}
-                      {!isAdmin && req.status === 'DISPATCHED' && (
-                        <div className="flex items-start space-x-2.5 bg-emerald-50 border border-emerald-100 rounded-xl p-3 text-[10px] text-emerald-800 mt-1">
-                          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                          <div>
-                            <p className="font-black">✅ Stock Dispatched & Inventory Updated</p>
-                            <p className="text-emerald-700 font-medium mt-0.5">
-                              The ordered quantities have been added to your dealer inventory. Visit the <strong>Products page</strong> to see updated stock levels and start billing.
-                            </p>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Memo & Actions Footer */}
-                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pt-3 border-t border-slate-100 text-[11px]">
-                        <div className="text-slate-500 italic max-w-md truncate">
-                          {req.notes ? `Remarks: "${req.notes}"` : 'No remarks added.'}
-                        </div>
-                        
-                        <div className="flex items-center space-x-2 shrink-0 self-end sm:self-auto">
-                          <button
-                            onClick={() => { setSelectedRequest(req); setShowDetailModal(true); }}
-                            className="inline-flex items-center space-x-1 bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200 px-3 py-1.5 rounded-xl font-bold cursor-pointer transition-colors"
-                          >
-                            <Eye className="w-3.5 h-3.5" />
-                            <span>View Full details</span>
-                          </button>
-
-                          {isAdmin && req.status === 'PENDING' && (
-                            <button
-                              onClick={() => openDispatchDialog(req.id)}
-                              className="inline-flex items-center space-x-1.5 bg-rose-600 hover:bg-rose-700 text-white px-3 py-1.5 rounded-xl font-bold shadow-md cursor-pointer transition-all hover:scale-[1.02]"
-                            >
-                              <Truck className="w-3.5 h-3.5" />
-                              <span>Dispatch Stock</span>
-                            </button>
-                          )}
-
-                          {req.status === 'PENDING' && (
-                            <button
-                              onClick={() => handleCancelRequest(req.id)}
-                              className="inline-flex items-center space-x-1 bg-rose-50 hover:bg-rose-100 text-rose-600 px-3 py-1.5 rounded-xl border border-rose-100 font-bold cursor-pointer transition-colors"
-                            >
-                              <XCircle className="w-3.5 h-3.5" />
-                              <span>{isAdmin ? 'Reject' : 'Cancel'}</span>
-                            </button>
-                          )}
-                        </div>
-                      </div>
-
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+            {renderRequestList()}
           </div>
         </div>
       )}
@@ -560,41 +767,25 @@ export default function RequestsPage() {
                 <span className="text-[10px] font-black text-rose-600 block">STOCK REQ DETAILS</span>
                 <h3 className="font-black text-slate-800 text-sm uppercase tracking-wide">{selectedRequest.requestNo}</h3>
               </div>
-              <button 
-                onClick={() => { setShowDetailModal(false); setSelectedRequest(null); }} 
+              <button
+                onClick={() => { setShowDetailModal(false); setSelectedRequest(null); }}
                 className="text-slate-400 hover:text-slate-600 font-bold bg-white/80 hover:bg-white px-3 py-1.5 rounded-lg border border-slate-200 transition-colors cursor-pointer text-xs"
               >
                 ✕ Close
               </button>
             </div>
-
             <div className="p-6 space-y-6 overflow-y-auto flex-1 text-xs">
-              {/* Requester Profile if Admin */}
               {isAdmin && selectedRequest.dealer && (
                 <div className="bg-slate-50 border border-slate-150 p-4 rounded-xl space-y-2">
                   <span className="block text-[9px] font-black uppercase text-slate-400 tracking-wider">Dealer Partner Contact</span>
                   <div className="space-y-1 text-slate-600">
-                    <p className="flex items-center space-x-2 font-bold text-slate-800">
-                      <Building2 className="w-3.5 h-3.5 text-rose-600 shrink-0" />
-                      <span>{selectedRequest.dealer.companyName}</span>
-                    </p>
-                    <p className="flex items-center space-x-2">
-                      <User className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                      <span>{selectedRequest.dealer.user?.name || 'Unknown Contact'}</span>
-                    </p>
-                    <p className="flex items-center space-x-2">
-                      <Phone className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                      <span>{selectedRequest.dealer.phone}</span>
-                    </p>
-                    <p className="flex items-center space-x-2">
-                      <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                      <span>{selectedRequest.dealer.user?.email}</span>
-                    </p>
+                    <p className="flex items-center space-x-2 font-bold text-slate-800"><Building2 className="w-3.5 h-3.5 text-rose-600 shrink-0" /><span>{selectedRequest.dealer.companyName}</span></p>
+                    <p className="flex items-center space-x-2"><User className="w-3.5 h-3.5 text-slate-400 shrink-0" /><span>{selectedRequest.dealer.user?.name || 'Unknown Contact'}</span></p>
+                    <p className="flex items-center space-x-2"><Phone className="w-3.5 h-3.5 text-slate-400 shrink-0" /><span>{selectedRequest.dealer.phone}</span></p>
+                    <p className="flex items-center space-x-2"><Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" /><span>{selectedRequest.dealer.user?.email}</span></p>
                   </div>
                 </div>
               )}
-
-              {/* Items Table */}
               <div className="space-y-2">
                 <span className="block text-[9px] font-black uppercase text-slate-400 tracking-wider">Products List Breakdown</span>
                 <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm">
@@ -623,8 +814,6 @@ export default function RequestsPage() {
                   </table>
                 </div>
               </div>
-
-              {/* Memo/Notes */}
               {selectedRequest.notes && (
                 <div className="bg-slate-50 border border-slate-150 p-4 rounded-xl space-y-1.5">
                   <span className="block text-[9px] font-black uppercase text-slate-400 tracking-wider">Dealer Memo</span>
@@ -632,8 +821,6 @@ export default function RequestsPage() {
                 </div>
               )}
             </div>
-
-            {/* Actions Footer */}
             {selectedRequest.status === 'PENDING' && (
               <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end space-x-2">
                 {isAdmin ? (
@@ -641,16 +828,14 @@ export default function RequestsPage() {
                     onClick={() => { setShowDetailModal(false); openDispatchDialog(selectedRequest.id); }}
                     className="inline-flex items-center space-x-1.5 bg-rose-600 hover:bg-rose-700 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-md cursor-pointer"
                   >
-                    <Truck className="w-4 h-4" />
-                    <span>Approve & Dispatch</span>
+                    <Truck className="w-4 h-4" /><span>Approve & Dispatch</span>
                   </button>
                 ) : (
                   <button
                     onClick={() => handleCancelRequest(selectedRequest.id)}
                     className="inline-flex items-center space-x-1 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-100 px-4 py-2 rounded-xl text-xs font-bold cursor-pointer"
                   >
-                    <XCircle className="w-4 h-4" />
-                    <span>Cancel Request</span>
+                    <XCircle className="w-4 h-4" /><span>Cancel Request</span>
                   </button>
                 )}
               </div>
@@ -662,54 +847,86 @@ export default function RequestsPage() {
       {/* Admin Dispatch Confirmation Modal */}
       {showDispatchModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 overflow-y-auto animate-fade-in">
-          <div className="bg-white max-w-md w-full rounded-2xl shadow-xl overflow-hidden animate-zoom-in my-8 flex flex-col">
+          <div className="bg-white max-w-lg w-full rounded-2xl shadow-xl overflow-hidden animate-zoom-in my-8 flex flex-col">
             <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-rose-50">
               <div className="flex items-center space-x-2 text-slate-800">
                 <Truck className="w-5 h-5 text-rose-600" />
                 <h3 className="font-black text-slate-800 text-sm uppercase tracking-wide">Approve & Dispatch Shipment</h3>
               </div>
-              <button 
-                onClick={() => setShowDispatchModal(false)} 
-                className="text-slate-400 hover:text-slate-600 font-bold bg-white/80 hover:bg-white px-3 py-1.5 rounded-lg border border-slate-200 transition-colors cursor-pointer text-xs"
-              >
+              <button onClick={() => setShowDispatchModal(false)} className="text-slate-400 hover:text-slate-600 font-bold bg-white/80 hover:bg-white px-3 py-1.5 rounded-lg border border-slate-200 transition-colors cursor-pointer text-xs">
                 ✕ Cancel
               </button>
             </div>
-
-            <form onSubmit={handleDispatchRequest} className="p-6 space-y-4 text-xs">
+            <form onSubmit={handleDispatchRequest} className="p-6 space-y-4 text-xs overflow-y-auto max-h-[75vh]">
               <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl text-amber-800 space-y-1.5">
                 <p className="font-bold flex items-center space-x-1.5">
                   <AlertTriangle className="w-4 h-4 text-amber-600" />
                   <span>Before you confirm:</span>
                 </p>
                 <p className="leading-relaxed text-[11px]">
-                  Confirming this dispatch will instantly adjust the company's warehouse stock and automatically generate a tax invoice using configured margins.
+                  Confirming this dispatch will instantly adjust the company's warehouse stock and automatically generate a B2B tax invoice. Review and adjust margins below.
                 </p>
               </div>
-
+              <div className="space-y-2">
+                <span className="block text-[9px] font-black uppercase text-slate-400 tracking-wider">Configure Invoice Margins</span>
+                <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-200 text-[9px] font-black uppercase text-slate-400">
+                        <th className="p-3">Product</th>
+                        <th className="p-3 text-right">Qty</th>
+                        <th className="p-3 text-center">Margin %</th>
+                        <th className="p-3 text-right">Eff. Rate</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 text-slate-700">
+                      {dispatchItems.length === 0 ? (
+                        <tr><td colSpan="4" className="p-4 text-center text-slate-400 font-medium">Loading margins...</td></tr>
+                      ) : (
+                        dispatchItems.map((item, index) => {
+                          const effPrice = item.mrp * (1 - (item.marginPct || 0) / 100);
+                          return (
+                            <tr key={index} className="hover:bg-slate-50/30 transition-colors">
+                              <td className="p-3">
+                                <div className="font-bold text-slate-800">{item.productName || 'Unknown Product'}</div>
+                                <div className="text-[9px] text-slate-400">SKU: {item.sku || 'N/A'} · MRP: ₹{item.mrp}</div>
+                              </td>
+                              <td className="p-3 text-right font-black text-slate-800">{item.quantity} {item.unit || 'PCS'}</td>
+                              <td className="p-3 text-center">
+                                <div className="flex items-center justify-center gap-1">
+                                  <input
+                                    type="number" min="0" max="100" step="0.1"
+                                    value={item.marginPct}
+                                    onChange={e => handleDispatchMarginChange(item.productId, e.target.value)}
+                                    className="w-14 p-1 text-center bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-rose-500 font-bold"
+                                  />
+                                  <span className="text-[10px] text-slate-400 font-bold">%</span>
+                                </div>
+                              </td>
+                              <td className="p-3 text-right font-black text-rose-600">₹{effPrice.toFixed(2)}</td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
               <div>
                 <label className="block text-slate-500 font-bold mb-1.5">Logistics/Billing Notes (optional)</label>
                 <textarea
-                  value={dispatchNotes}
-                  onChange={(e) => setDispatchNotes(e.target.value)}
-                  rows="3"
-                  placeholder="e.g. Dispatched via Gati Cargo, Invoice linked."
+                  value={dispatchNotes} onChange={(e) => setDispatchNotes(e.target.value)}
+                  rows="3" placeholder="e.g. Dispatched via Gati Cargo, Invoice linked."
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none"
-                ></textarea>
+                />
               </div>
-
               <div className="pt-4 flex space-x-3">
-                <button
-                  type="button"
-                  onClick={() => setShowDispatchModal(false)}
-                  className="flex-1 bg-slate-150 hover:bg-slate-200 text-slate-700 font-bold py-2.5 rounded-xl text-center"
-                >
+                <button type="button" onClick={() => setShowDispatchModal(false)} className="flex-1 bg-slate-150 hover:bg-slate-200 text-slate-700 font-bold py-2.5 rounded-xl text-center cursor-pointer">
                   Go Back
                 </button>
                 <button
-                  type="submit"
-                  disabled={dispatching}
-                  className="flex-1 bg-rose-600 hover:bg-rose-700 disabled:bg-rose-400 text-white font-bold py-2.5 rounded-xl shadow-lg transition-all text-center flex items-center justify-center space-x-1.5"
+                  type="submit" disabled={dispatching || dispatchItems.length === 0}
+                  className="flex-1 bg-rose-600 hover:bg-rose-700 disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold py-2.5 rounded-xl shadow-lg transition-all text-center flex items-center justify-center space-x-1.5 cursor-pointer"
                 >
                   {dispatching ? 'Processing...' : 'Confirm Dispatch'}
                 </button>

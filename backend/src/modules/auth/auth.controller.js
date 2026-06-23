@@ -38,7 +38,8 @@ exports.registerDealer = async (req, res, next) => {
       dealerType,
       dealerCategory,
       initialDeposit,
-      categories  // array of category IDs
+      categories,  // array of category IDs
+      defaultMargin
     } = req.body;
 
     // Check if user already exists
@@ -91,6 +92,19 @@ exports.registerDealer = async (req, res, next) => {
           initialDeposit: initialDeposit ? parseFloat(initialDeposit) : 0,
           categories: categories || [],
           approvalStatus: 'PENDING' // Starts as PENDING
+        }
+      });
+
+      // Create default margin rule for new dealer
+      const marginPercentVal = defaultMargin !== undefined && defaultMargin !== null && defaultMargin !== ''
+        ? parseFloat(defaultMargin)
+        : 10.0;
+
+      await tx.margin.create({
+        data: {
+          dealerId: newDealer.id,
+          marginPercent: marginPercentVal,
+          isDefault: true
         }
       });
 

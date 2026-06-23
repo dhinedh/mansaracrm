@@ -38,7 +38,8 @@ const TAMIL_NADU_DISTRICTS = [
   { name: 'Ariyalur', coords: [11.1401, 79.0786] },
   { name: 'Perambalur', coords: [11.2342, 78.8820] },
   { name: 'Mayiladuthurai', coords: [11.1018, 79.6521] },
-  { name: 'The Nilgiris', coords: [11.4167, 76.7000] }
+  { name: 'The Nilgiris', coords: [11.4167, 76.7000] },
+  { name: 'Chengalpattu', coords: [12.6934, 79.9756] }
 ];
 
 const CHENNAI_ZONES = [

@@ -169,7 +169,7 @@ const ProductSchema = new Schema({
   category: { type: Schema.Types.ObjectId, ref: 'Category', required: true, alias: 'categoryId' },
   image: { type: String, alias: 'imageUrl' },
   unit: { type: String, default: 'PCS' },
-  cartonSize: { type: Number, default: 12 },
+  cartonSize: { type: Number, default: 24 },
   minOrderQty: { type: Number, default: 1 },
   isActive: { type: Boolean, default: true },
   stock: { type: Number, default: 0 },

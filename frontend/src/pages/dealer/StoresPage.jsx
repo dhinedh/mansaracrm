@@ -33,6 +33,7 @@ export default function StoresPage() {
   const [pincode, setPincode] = useState('');
   const [zone, setZone] = useState('');
   const [phone, setPhone] = useState('');
+  const [marginPercent, setMarginPercent] = useState('');
   const [pincodeSuggestions, setPincodeSuggestions] = useState([]);
 
   const handlePincodeChange = async (val) => {
@@ -80,7 +81,7 @@ export default function StoresPage() {
 
     try {
       await axios.post('/stores', {
-        name, gstNumber, address, city, state, pincode, zone, phone
+        name, gstNumber, address, city, state, pincode, zone, phone, marginPercent
       });
       setMessage({ text: 'Outlet added successfully!', type: 'success' });
       fetchStores();
@@ -97,7 +98,7 @@ export default function StoresPage() {
 
     try {
       await axios.put(`/stores/${currentStore.id}`, {
-        name, gstNumber, address, city, state, pincode, zone, phone
+        name, gstNumber, address, city, state, pincode, zone, phone, marginPercent
       });
       setMessage({ text: 'Outlet details updated successfully!', type: 'success' });
       fetchStores();
@@ -129,13 +130,14 @@ export default function StoresPage() {
     setPincode(s.pincode || '');
     setZone(s.zone || '');
     setPhone(s.phone || '');
+    setMarginPercent(s.marginPercent !== null && s.marginPercent !== undefined ? s.marginPercent : '');
     setPincodeSuggestions(s.zone ? [s.zone] : []);
     setShowEditModal(true);
   };
 
   const resetForm = () => {
     setName(''); setGstNumber(''); setAddress(''); setCity(''); setState('');
-    setPincode(''); setZone(''); setPhone(''); setCurrentStore(null);
+    setPincode(''); setZone(''); setPhone(''); setMarginPercent(''); setCurrentStore(null);
     setPincodeSuggestions([]);
   };
 
@@ -220,6 +222,10 @@ export default function StoresPage() {
                     <span>Zone: <strong className="text-slate-700">{store.zone}</strong></span>
                   </p>
                 )}
+                <p className="flex items-center space-x-2 border-t border-slate-100 pt-2.5">
+                  <span className="font-extrabold text-rose-600">Store Margin:</span>
+                  <span className="font-bold text-slate-800">{store.marginPercent !== null && store.marginPercent !== undefined ? `${store.marginPercent}%` : 'Default (10%)'}</span>
+                </p>
               </div>
             </div>
           ))}
@@ -278,6 +284,19 @@ export default function StoresPage() {
                       className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none"
                     />
                   )}
+                </div>
+                <div>
+                  <label className="block text-slate-500 font-bold mb-1">Store Margin (%) (optional)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.01"
+                    placeholder="Leave blank to use default"
+                    value={marginPercent}
+                    onChange={e => setMarginPercent(e.target.value)}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none"
+                  />
                 </div>
               </div>
 
@@ -363,6 +382,19 @@ export default function StoresPage() {
                       className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none"
                     />
                   )}
+                </div>
+                <div>
+                  <label className="block text-slate-500 font-bold mb-1">Store Margin (%) (optional)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.01"
+                    placeholder="Leave blank to use default"
+                    value={marginPercent}
+                    onChange={e => setMarginPercent(e.target.value)}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none"
+                  />
                 </div>
               </div>
 

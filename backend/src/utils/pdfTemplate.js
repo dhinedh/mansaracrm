@@ -82,15 +82,29 @@ const buildInvoiceHtml = (company, invoice) => {
   const itemsRows = invoice.items.map((item, idx) => {
     const productName = item.product?.name || 'Product';
     const hsn         = item.product?.hsnCode || '1904';
-    const netWtG      = item.product?.netWeightG || item.product?.weight || 250;
+    
+    // Parse weight safely from string/number
+    const parseWeightG = (wt) => {
+      if (!wt) return 250;
+      if (typeof wt === 'number') return wt;
+      const str = String(wt).toLowerCase().replace(/\s+/g, '');
+      const num = parseFloat(str);
+      if (isNaN(num)) return 250;
+      if (str.includes('kg') || str.includes('kilogram')) {
+        return num * 1000;
+      }
+      return num;
+    };
+    
+    const netWtG      = parseWeightG(item.product?.netWeightG || item.product?.weight);
     const mrp         = parseFloat(item.product?.mrp || item.product?.price || 0);
     const marginPct   = parseFloat(item.marginPct) || 0;
     // MRP-based: sellingPrice = MRP × (1 - margin/100)
     const rate        = parseFloat(item.sellingPrice) || (mrp * (1 - marginPct / 100));
-    const pac         = item.pac || item.product?.cartonSize || 5;       // pieces per carton
+    const pac         = item.pac || item.product?.cartonSize || 24;       // pieces per carton
     const wtPerCtn    = item.product?.wtPerCartonKg || ((netWtG * pac) / 1000).toFixed(2);
-    const ctns        = Math.floor(parseInt(item.quantity) / pac) || parseInt(item.quantity) || 0;
     const totQty      = parseInt(item.quantity) || 0;
+    const ctns        = parseFloat((totQty / pac).toFixed(2));
     const totalNtWtKg = (totQty * netWtG / 1000).toFixed(2);
     const lineTotal   = parseFloat(item.lineTotal) || (rate * totQty);
 
@@ -335,6 +349,265 @@ const buildInvoiceHtml = (company, invoice) => {
 
 
 /**
+ * Builds a simple retail/store invoice for dealer-to-store billing.
+ * Columns: S.No | Item | Net Wt (G) | Qty | Rate (Rs.) | Amount
+ * No carton/CTN columns — clean & simple for dealer store bills.
+ */
+const buildSimpleRetailInvoiceHtml = (company, invoice) => {
+  let logoBase64 = '';
+  try {
+    const logoPath = path.join(__dirname, '../../public/logo.png');
+    if (fs.existsSync(logoPath)) {
+      logoBase64 = fs.readFileSync(logoPath).toString('base64');
+    }
+  } catch (err) {
+    console.error('Logo read error:', err);
+  }
+
+  // Biller is always the dealer for retail store invoices
+  const dealer = invoice.dealer || {};
+  const store  = invoice.store  || {};
+
+  let logoHtml = '';
+  if (dealer.logoBase64) {
+    const src = dealer.logoBase64.startsWith('data:') ? dealer.logoBase64 : `data:image/png;base64,${dealer.logoBase64}`;
+    logoHtml = `<img src="${src}" style="height:55px;width:auto;object-fit:contain;" alt="${dealer.companyName}" />`;
+  } else if (logoBase64) {
+    logoHtml = `<img src="data:image/png;base64,${logoBase64}" style="height:55px;width:auto;object-fit:contain;" alt="Mansara Foods" />`;
+  } else {
+    logoHtml = `<div style="font-size:20px;font-weight:900;color:#D6295A;">${dealer.companyName || company.name}</div>`;
+  }
+
+  const billerName  = dealer.companyName  || company.name;
+  const billerAddr  = dealer.address      || company.address;
+  const billerPhone = dealer.phone        || company.phone;
+  const billerGst   = dealer.gstNumber    || 'N/A';
+
+  const shipToName  = store.name    || 'Walk-in Customer';
+  const shipToAddr  = store.address || '';
+  const shipToPhone = store.phone   || '';
+  const shipToGst   = store.gstNumber || '';
+
+  const invDate = new Date(invoice.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' });
+  const dueDate = invoice.dueDate
+    ? new Date(invoice.dueDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' })
+    : new Date(new Date(invoice.createdAt).setDate(new Date(invoice.createdAt).getDate() + 15))
+        .toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' });
+
+  // Build rows: S.No | Item (SKU) | Net Wt (G) | Qty | Rate | Amount
+  const parseWeightG = (wt) => {
+    if (!wt) return '';
+    if (typeof wt === 'number') return wt;
+    const str = String(wt).toLowerCase().replace(/\s+/g, '');
+    const num = parseFloat(str);
+    if (isNaN(num)) return '';
+    if (str.includes('kg')) return Math.round(num * 1000);
+    return num;
+  };
+
+  const itemsRows = invoice.items.map((item, idx) => {
+    const productName = item.product?.name || 'Product';
+    const sku         = item.product?.sku   || '';
+    const netWtG      = parseWeightG(item.product?.netWeightG || item.product?.weight) || '';
+    const mrp         = parseFloat(item.product?.mrp || item.product?.price || 0);
+    const marginPct   = parseFloat(item.marginPct) || 0;
+    const rate        = parseFloat(item.sellingPrice) || (mrp * (1 - marginPct / 100));
+    const totQty      = parseInt(item.quantity) || 0;
+    const lineTotal   = parseFloat(item.lineTotal) || (rate * totQty);
+    const totalWtKg   = netWtG ? (totQty * netWtG / 1000).toFixed(2) : '';
+
+    return `
+      <tr>
+        <td style="text-align:center;">${idx + 1}</td>
+        <td style="text-align:left;padding-left:6px;">
+          <div style="font-weight:700;">${productName}</div>
+          ${sku ? `<div style="font-size:8.5px;color:#888;">SKU: ${sku}</div>` : ''}
+        </td>
+        <td style="text-align:center;">${netWtG || '—'}</td>
+        <td style="text-align:center;font-weight:600;">${totQty} ${item.product?.unit || 'PCS'}</td>
+        ${totalWtKg ? `<td style="text-align:center;">${totalWtKg} Kg</td>` : '<td style="text-align:center;">—</td>'}
+        <td style="text-align:right;">₹${rate.toFixed(2)}</td>
+        <td style="text-align:right;font-weight:700;">₹${lineTotal.toFixed(2)}</td>
+      </tr>`;
+  }).join('');
+
+  const emptyRows = Array(Math.max(0, 6 - invoice.items.length)).fill(0).map(() =>
+    `<tr><td colspan="7" style="height:22px;">&nbsp;</td></tr>`).join('');
+
+  const subtotal   = parseFloat(invoice.subtotal)    || 0;
+  const cgst       = parseFloat(invoice.cgst)        || parseFloat(invoice.totalGst) / 2 || 0;
+  const sgst       = parseFloat(invoice.sgst)        || parseFloat(invoice.totalGst) / 2 || 0;
+  const shipping   = parseFloat(invoice.shippingCharges) || 0;
+  const grandTotal = parseFloat(invoice.totalAmount) || (subtotal + cgst + sgst + shipping);
+  const grandRounded = Math.round(grandTotal);
+
+  const bd = dealer.bankDetails || {};
+  const terms = dealer.invoiceTerms
+    ? dealer.invoiceTerms.split('\n').map((t, i) => `${i + 1}. ${t}`).join('<br>')
+    : `1. Payment within 15 days.<br>2. Interest @ 2% per month on delay.<br>3. Claims must be reported at delivery.`;
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Invoice ${invoice.invoiceNo}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Arial, Helvetica, sans-serif; font-size: 11px; color: #1a1a1a; background: #fff; padding: 20px 24px; }
+  .outer { max-width: 780px; margin: auto; border: 1.5px solid #ccc; }
+  .header-row { display: flex; align-items: stretch; border-bottom: 1.5px solid #ccc; }
+  .logo-cell { width: 200px; padding: 10px 14px; border-right: 1.5px solid #ccc; display: flex; flex-direction: column; justify-content: center; }
+  .company-cell { flex: 1; padding: 10px 14px; border-right: 1.5px solid #ccc; }
+  .inv-meta-cell { width: 200px; padding: 10px 14px; text-align: right; }
+  .company-name { font-size: 14px; font-weight: 900; color: #D6295A; text-transform: uppercase; margin-bottom: 3px; }
+  .company-addr { font-size: 9.5px; color: #333; line-height: 1.5; }
+  .gst-row { font-size: 10px; font-weight: 700; color: #1a1a1a; margin-top: 4px; }
+  .inv-title { font-size: 12px; font-weight: 700; color: #333; border-bottom: 1px solid #ccc; padding-bottom: 3px; margin-bottom: 6px; }
+  .meta-line { font-size: 10px; color: #333; display: flex; justify-content: space-between; margin-bottom: 2px; }
+  .meta-line strong { color: #1a1a1a; }
+  .bill-ship-row { display: flex; border-bottom: 1.5px solid #ccc; }
+  .bill-cell { flex: 1; padding: 8px 14px; border-right: 1.5px solid #ccc; }
+  .ship-cell { flex: 1; padding: 8px 14px; }
+  .section-hdr { font-size: 9px; font-weight: 900; text-transform: uppercase; background: #D6295A; color: #fff; padding: 3px 8px; margin-bottom: 6px; letter-spacing: 0.5px; }
+  .bill-name { font-size: 12px; font-weight: 700; margin-bottom: 3px; }
+  .bill-addr { font-size: 9.5px; color: #333; line-height: 1.5; }
+  .gstin-line { font-size: 9.5px; font-weight: 700; margin-top: 3px; }
+  .items-table { width: 100%; border-collapse: collapse; border-bottom: 1.5px solid #ccc; }
+  .items-table th { background: #D6295A; color: #fff; font-size: 9px; font-weight: 700; text-transform: uppercase; padding: 6px 5px; text-align: center; border-right: 1px solid rgba(255,255,255,0.3); letter-spacing: 0.3px; }
+  .items-table th:last-child { border-right: none; }
+  .items-table td { padding: 5px 5px; border-bottom: 1px solid #eee; font-size: 10px; }
+  .items-table tr:nth-child(even) { background: #fafafa; }
+  .footer-row { display: flex; border-bottom: 1.5px solid #ccc; }
+  .words-cell { flex: 1; padding: 8px 14px; border-right: 1.5px solid #ccc; }
+  .words-label { font-size: 9px; font-weight: 900; text-transform: uppercase; margin-bottom: 4px; }
+  .words-text { font-size: 10px; font-weight: 600; text-transform: uppercase; }
+  .totals-table { width: 100%; border-collapse: collapse; }
+  .totals-table td { padding: 3px 10px; font-size: 10px; }
+  .totals-table .t-label { text-align: right; color: #333; }
+  .totals-table .t-value { text-align: right; font-weight: 600; width: 80px; border-left: 1px solid #eee; }
+  .totals-table .grand-row td { background: #D6295A; color: #fff; font-weight: 700; font-size: 11px; padding: 5px 10px; }
+  .payment-sig-row { display: flex; border-bottom: 1.5px solid #ccc; }
+  .payment-cell { flex: 1; padding: 8px 14px; border-right: 1.5px solid #ccc; }
+  .pay-label { font-size: 9px; font-weight: 900; text-transform: uppercase; border-bottom: 1px solid #ccc; padding-bottom: 3px; margin-bottom: 5px; }
+  .bank-table td { font-size: 9.5px; padding: 1.5px 0; }
+  .bank-table td:first-child { font-weight: 700; padding-right: 8px; width: 80px; }
+  .footer-strip { padding: 6px 14px; text-align: center; font-size: 9px; color: #555; background: #f9f9f9; }
+</style>
+</head>
+<body>
+<div class="outer">
+
+  <!-- Header -->
+  <div class="header-row">
+    <div class="logo-cell">${logoHtml}</div>
+    <div class="company-cell">
+      <div class="company-name">${billerName}</div>
+      <div class="company-addr">
+        ${billerAddr}<br>
+        Phone: ${billerPhone}<br>
+        <span class="gst-row">GST No. ${billerGst}</span>
+      </div>
+    </div>
+    <div class="inv-meta-cell">
+      <div class="inv-title">TAX INVOICE</div>
+      <div class="meta-line"><span>Invoice #</span><strong>${invoice.invoiceNo}</strong></div>
+      <div class="meta-line"><span>Date :</span><strong>${invDate}</strong></div>
+      <div class="meta-line"><span>Due Date :</span><strong>${dueDate}</strong></div>
+      ${invoice.isCredit ? '<div style="margin-top:5px;font-size:9px;font-weight:700;color:#B45309;background:#FEF3C7;padding:2px 6px;border-radius:4px;display:inline-block;">CREDIT BILL</div>' : ''}
+    </div>
+  </div>
+
+  <!-- Bill To / Ship To -->
+  <div class="bill-ship-row">
+    <div class="bill-cell">
+      <div class="section-hdr">Bill To (From Dealer)</div>
+      <div class="bill-name">${billerName}</div>
+      <div class="bill-addr">${billerAddr}<br>${billerPhone ? 'PH. ' + billerPhone : ''}</div>
+      ${billerGst && billerGst !== 'N/A' ? `<div class="gstin-line">GSTIN: ${billerGst}</div>` : ''}
+    </div>
+    <div class="ship-cell">
+      <div class="section-hdr">Ship To (Store / Outlet)</div>
+      <div class="bill-name">${shipToName}</div>
+      <div class="bill-addr">${shipToAddr}${shipToPhone ? '<br>PH. ' + shipToPhone : ''}</div>
+      ${shipToGst ? `<div class="gstin-line">GSTIN: ${shipToGst}</div>` : ''}
+    </div>
+  </div>
+
+  <!-- Items Table: Simplified -->
+  <table class="items-table">
+    <thead>
+      <tr>
+        <th style="width:5%;">S.No</th>
+        <th style="width:32%;text-align:left;padding-left:6px;">Item</th>
+        <th style="width:9%;">NET WT (G)</th>
+        <th style="width:11%;">QTY</th>
+        <th style="width:11%;">TOTAL WT (Kg)</th>
+        <th style="width:12%;">Rate (Rs.)</th>
+        <th style="width:12%;">Amount</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${itemsRows}
+      ${emptyRows}
+    </tbody>
+  </table>
+
+  <!-- Totals & Words -->
+  <div class="footer-row">
+    <div class="words-cell">
+      <div class="words-label">Total Amount in Words:</div>
+      <div class="words-text">${numberToWords(grandRounded)}</div>
+    </div>
+    <div style="width:240px;border-left:1.5px solid #ccc;">
+      <table class="totals-table">
+        <tr><td class="t-label">Sub Total<br><span style="font-size:8px;color:#777;">(Without Tax)</span></td><td class="t-value">${subtotal.toFixed(2)}</td></tr>
+        ${invoice.isGstEnabled !== false ? `
+        <tr><td class="t-label">CGST (2.5%)</td><td class="t-value">${cgst.toFixed(2)}</td></tr>
+        <tr><td class="t-label">SGST (2.5%)</td><td class="t-value">${sgst.toFixed(2)}</td></tr>
+        ` : `<tr><td class="t-label">GST</td><td class="t-value">0.00</td></tr>`}
+        ${shipping > 0 ? `<tr><td class="t-label">Shipping</td><td class="t-value">${shipping.toFixed(0)}</td></tr>` : ''}
+        <tr class="grand-row"><td class="t-label" style="color:#fff;">Amount To Be Paid</td><td class="t-value" style="color:#fff;border-left:1px solid rgba(255,255,255,0.3);">${grandRounded}</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- Payment / Signature / Terms -->
+  <div class="payment-sig-row">
+    <div class="payment-cell" style="flex:1;border-right:1.5px solid #ccc;">
+      <div class="pay-label">Mode of Payment:</div>
+      ${bd.bankName || bd.accountNo ? `
+      <div style="font-weight:700;font-size:10px;text-decoration:underline;margin-bottom:4px;">Account Details</div>
+      <table class="bank-table">
+        ${billerName ? `<tr><td colspan="2" style="font-weight:700;padding-bottom:2px;">${billerName}</td></tr>` : ''}
+        ${bd.accountNo ? `<tr><td>A/C No.</td><td>${bd.accountNo}</td></tr>` : ''}
+        ${bd.ifscCode  ? `<tr><td>IFSC :</td><td style="font-weight:700;">${bd.ifscCode}</td></tr>` : ''}
+        ${bd.bankName  ? `<tr><td>Bank :</td><td>${bd.bankName}${bd.branch ? ', ' + bd.branch : ''}</td></tr>` : ''}
+        ${bd.upiId     ? `<tr><td>UPI ID:</td><td>${bd.upiId}</td></tr>` : ''}
+      </table>` : '<div style="font-size:10px;color:#777;font-style:italic;">Contact for payment details</div>'}
+    </div>
+    <div style="width:260px;padding:8px 14px;display:flex;flex-direction:column;justify-content:space-between;">
+      <div>
+        <div style="font-size:9px;font-weight:900;text-decoration:underline;margin-bottom:3px;">Terms & Conditions:</div>
+        <div style="font-size:9.5px;color:#333;line-height:1.6;">${terms}</div>
+      </div>
+      <div style="text-align:right;margin-top:8px;">
+        <div style="font-size:10px;font-weight:700;font-style:italic;color:#D6295A;">For ${billerName}.</div>
+        <div style="font-size:10px;font-style:italic;color:#333;margin-top:28px;margin-bottom:2px;">Authorised Signatory</div>
+        <div style="font-size:9px;font-weight:700;text-decoration:underline;">Authorised Signature</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer Strip -->
+  <div class="footer-strip">
+    Powered by Mansara Foods CRM &nbsp;|&nbsp; contact@mansarafoods.com &nbsp;|&nbsp; www.mansarafoods.com
+  </div>
+</div>
+</body>
+</html>`;
+};
+
+/**
  * Builds the Dealer Appointment Agreement HTML
  * Matches the Mansara Foods agreement format with bold/underlined key terms
  */
@@ -487,4 +760,4 @@ const buildAgreementHtml = (company, dealer) => {
 </html>`;
 };
 
-module.exports = { buildInvoiceHtml, buildAgreementHtml };
+module.exports = { buildInvoiceHtml, buildSimpleRetailInvoiceHtml, buildAgreementHtml };

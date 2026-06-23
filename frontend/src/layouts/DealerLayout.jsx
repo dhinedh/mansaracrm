@@ -56,15 +56,21 @@ export default function DealerLayout() {
   };
 
   const menuItems = [
-    { name: 'Dashboard', path: '/dealer/dashboard', icon: LayoutDashboard },
+    { 
+      name: 'Dashboard', 
+      path: '/dealer/dashboard', 
+      icon: LayoutDashboard,
+      children: [
+        { name: 'My Shop', path: '/dealer/stores', icon: Store },
+        { name: 'Browse Product', path: '/dealer/products', icon: ShoppingBag },
+        { name: 'Cart Builder', path: '/dealer/cart', icon: ShoppingCart, badge: items.length },
+      ]
+    },
     { name: 'Ledger', path: '/dealer/ledgers', icon: Wallet },
-    { name: 'Order Requests', path: '/dealer/requests', icon: FileText },
-    { name: 'Returns Log', path: '/dealer/returns', icon: RotateCcw },
-    { name: 'Complaints tickets', path: '/dealer/services', icon: HelpCircle },
-    { name: 'My Shops', path: '/dealer/stores', icon: Store },
-    { name: 'Browse Products', path: '/dealer/products', icon: ShoppingBag },
-    { name: 'Cart / Bill Builder', path: '/dealer/cart', icon: ShoppingCart, badge: items.length },
-    { name: 'My Analytics', path: '/dealer/analytics', icon: BarChart3 },
+    { name: 'Order Request', path: '/dealer/requests', icon: FileText },
+    { name: 'Return Log', path: '/dealer/returns', icon: RotateCcw },
+    { name: 'Complaint Log', path: '/dealer/services', icon: HelpCircle },
+    { name: 'Analytics', path: '/dealer/analytics', icon: BarChart3 },
     { name: 'Billing Profile', path: '/dealer/profile', icon: User },
     { name: 'Notifications', path: '/dealer/notifications', icon: Bell, badge: unreadNotifications },
   ];
@@ -88,26 +94,57 @@ export default function DealerLayout() {
             {menuItems.map((item) => {
               const Icon = item.icon;
               const isActive = location.pathname === item.path;
+              const hasChildren = item.children && item.children.length > 0;
               return (
-                <Link
-                  key={item.name}
-                  to={item.path}
-                  className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl font-medium text-sm transition-all duration-200 ${
-                    isActive
-                      ? 'bg-rose-50 text-rose-700 shadow-sm border border-rose-100/50'
-                      : 'text-slate-600 hover:bg-slate-55 hover:bg-slate-50 hover:text-slate-905 hover:text-slate-900'
-                  }`}
-                >
-                  <div className="flex items-center space-x-3">
-                    <Icon className={`w-4 h-4 flex-shrink-0 ${isActive ? 'text-rose-600' : 'text-slate-400'}`} />
-                    <span>{item.name}</span>
-                  </div>
-                  {item.badge > 0 && (
-                    <span className="bg-rose-600 text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold">
-                      {item.badge}
-                    </span>
+                <div key={item.name} className="space-y-1">
+                  <Link
+                    to={item.path}
+                    className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl font-medium text-sm transition-all duration-200 ${
+                      isActive
+                        ? 'bg-rose-50 text-rose-700 shadow-sm border border-rose-100/50 font-bold'
+                        : 'text-slate-650 text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                    }`}
+                  >
+                    <div className="flex items-center space-x-3">
+                      <Icon className={`w-4 h-4 flex-shrink-0 ${isActive ? 'text-rose-600' : 'text-slate-400'}`} />
+                      <span>{item.name}</span>
+                    </div>
+                    {item.badge > 0 && !hasChildren && (
+                      <span className="bg-rose-600 text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold">
+                        {item.badge}
+                      </span>
+                    )}
+                  </Link>
+                  {hasChildren && (
+                    <div className="pl-6 border-l border-slate-100 ml-5 space-y-1 mt-1">
+                      {item.children.map((child) => {
+                        const ChildIcon = child.icon;
+                        const isChildActive = location.pathname === child.path;
+                        return (
+                          <Link
+                            key={child.name}
+                            to={child.path}
+                            className={`flex items-center justify-between px-3.5 py-2 rounded-lg font-medium text-xs transition-all duration-200 ${
+                              isChildActive
+                                ? 'bg-rose-50/50 text-rose-700 font-bold'
+                                : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
+                            }`}
+                          >
+                            <div className="flex items-center space-x-2.5">
+                              <ChildIcon className={`w-3.5 h-3.5 flex-shrink-0 ${isChildActive ? 'text-rose-600' : 'text-slate-400'}`} />
+                              <span>{child.name}</span>
+                            </div>
+                            {child.badge > 0 && (
+                              <span className="bg-rose-600 text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold">
+                                {child.badge}
+                              </span>
+                            )}
+                          </Link>
+                        );
+                      })}
+                    </div>
                   )}
-                </Link>
+                </div>
               );
             })}
           </nav>
@@ -137,27 +174,59 @@ export default function DealerLayout() {
               {menuItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = location.pathname === item.path;
+                const hasChildren = item.children && item.children.length > 0;
                 return (
-                  <Link
-                    key={item.name}
-                    to={item.path}
-                    onClick={() => setMobileMenuOpen(false)}
-                    className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl font-medium text-sm transition-all duration-200 ${
-                      isActive
-                        ? 'bg-rose-50 text-rose-700 shadow-sm border border-rose-100/50'
-                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                    }`}
-                  >
-                    <div className="flex items-center space-x-3">
-                      <Icon className={`w-4 h-4 flex-shrink-0 ${isActive ? 'text-rose-600' : 'text-slate-400'}`} />
-                      <span>{item.name}</span>
-                    </div>
-                    {item.badge > 0 && (
-                      <span className="bg-rose-600 text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold">
-                        {item.badge}
-                      </span>
+                  <div key={item.name} className="space-y-1">
+                    <Link
+                      to={item.path}
+                      onClick={() => setMobileMenuOpen(false)}
+                      className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl font-medium text-sm transition-all duration-200 ${
+                        isActive
+                          ? 'bg-rose-50 text-rose-700 shadow-sm border border-rose-100/50 font-bold'
+                          : 'text-slate-600 hover:bg-slate-55 hover:bg-slate-50 hover:text-slate-905 hover:text-slate-900'
+                      }`}
+                    >
+                      <div className="flex items-center space-x-3">
+                        <Icon className={`w-4 h-4 flex-shrink-0 ${isActive ? 'text-rose-600' : 'text-slate-400'}`} />
+                        <span>{item.name}</span>
+                      </div>
+                      {item.badge > 0 && !hasChildren && (
+                        <span className="bg-rose-600 text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold">
+                          {item.badge}
+                        </span>
+                      )}
+                    </Link>
+                    {hasChildren && (
+                      <div className="pl-6 border-l border-slate-100 ml-5 space-y-1 mt-1">
+                        {item.children.map((child) => {
+                          const ChildIcon = child.icon;
+                          const isChildActive = location.pathname === child.path;
+                          return (
+                            <Link
+                              key={child.name}
+                              to={child.path}
+                              onClick={() => setMobileMenuOpen(false)}
+                              className={`flex items-center justify-between px-3.5 py-2 rounded-lg font-medium text-xs transition-all duration-200 ${
+                                isChildActive
+                                  ? 'bg-rose-50/50 text-rose-700 font-bold'
+                                  : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
+                              }`}
+                            >
+                              <div className="flex items-center space-x-2.5">
+                                <ChildIcon className={`w-3.5 h-3.5 flex-shrink-0 ${isChildActive ? 'text-rose-600' : 'text-slate-400'}`} />
+                                <span>{child.name}</span>
+                              </div>
+                              {child.badge > 0 && (
+                                <span className="bg-rose-600 text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold">
+                                  {child.badge}
+                                </span>
+                              )}
+                            </Link>
+                          );
+                        })}
+                      </div>
                     )}
-                  </Link>
+                  </div>
                 );
               })}
             </nav>
@@ -192,7 +261,16 @@ export default function DealerLayout() {
                   <LayoutDashboard className="w-4.5 h-4.5" />
                 </Link>
                 <h1 className="text-base font-bold text-slate-800 md:text-lg tracking-tight">
-                  {menuItems.find(item => item.path === location.pathname)?.name || 'Dealer Portal'}
+                  {(() => {
+                    for (const item of menuItems) {
+                      if (item.path === location.pathname) return item.name;
+                      if (item.children) {
+                        const child = item.children.find(c => c.path === location.pathname);
+                        if (child) return child.name;
+                      }
+                    }
+                    return 'Dealer Portal';
+                  })()}
                 </h1>
               </div>
             )}

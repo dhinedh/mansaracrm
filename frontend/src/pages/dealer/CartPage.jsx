@@ -17,7 +17,8 @@ import {
   PlusCircle,
   Truck,
   AlertCircle,
-  X
+  X,
+  Leaf
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -418,7 +419,12 @@ export default function CartPage() {
                   <div key={product.id} className="p-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-white hover:bg-slate-50/50 transition-colors">
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center space-x-2">
-                        <h4 className="font-bold text-slate-800 text-xs truncate">{product.name}</h4>
+                        <h4 className="font-bold text-slate-800 text-xs truncate flex items-center gap-1">
+                          {product.name.toLowerCase().includes('coriander') && (
+                            <Leaf className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                          )}
+                          <span>{product.name}</span>
+                        </h4>
                         <span className={`px-2 py-0.5 rounded text-[8px] font-black tracking-wide ${
                           maxStock <= 0 ? 'bg-rose-50 text-rose-700' :
                           maxStock <= 10 ? 'bg-amber-50 text-amber-700 animate-pulse' : 'bg-emerald-50 text-emerald-700'
@@ -544,7 +550,7 @@ export default function CartPage() {
                 const sellingPrice = mrp * (1 - (item.marginPct || 0) / 100);
                 
                 const unit = item.unit || 'PCS';
-                const cartonSize = item.product.cartonSize || 12;
+                const cartonSize = item.product.cartonSize || 24;
                 const qtyInPieces = unit === 'CTN' ? item.quantity * cartonSize : item.quantity;
                 const lineTotal = sellingPrice * qtyInPieces;
                 const maxStock = dealerInventory[item.productId] || 0;
@@ -552,7 +558,12 @@ export default function CartPage() {
                 return (
                   <div key={item.productId} className="grid grid-cols-12 items-center p-3 border-b border-slate-100 last:border-0 hover:bg-slate-50/20 text-xs">
                     <div className="col-span-5 pr-2">
-                      <p className="font-bold text-slate-800 truncate">{item.product.name}</p>
+                      <p className="font-bold text-slate-800 truncate flex items-center gap-1">
+                        {item.product.name.toLowerCase().includes('coriander') && (
+                          <Leaf className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                        )}
+                        <span>{item.product.name}</span>
+                      </p>
                       <span className="text-[9px] font-black text-rose-600 block">SKU: {item.product.sku}</span>
                       <span className="text-[9px] text-slate-450 block font-medium">MRP: ₹{mrp.toFixed(2)} · Stock: {maxStock} PCS</span>
                     </div>

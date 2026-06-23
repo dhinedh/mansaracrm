@@ -12,11 +12,13 @@ import {
   Check,
   ShoppingBag,
   ArrowRight,
-  X
+  X,
+  Leaf
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 export default function DealerProductsPage() {
+  const navigate = useNavigate();
   const [products, setProducts] = useState([]);
   const [dealerInventory, setDealerInventory] = useState({}); // { productId: qty }
   const [loading, setLoading] = useState(true);
@@ -192,7 +194,7 @@ export default function DealerProductsPage() {
     const detectedMargin = resolveMargin(product, currentStoreId);
 
     addToCart(product, qty, detectedMargin);
-    alert(`Added ${qty} ${product.unit} of ${product.name} to billing cart!`);
+    navigate('/dealer/cart');
   };
 
   // Get reactive cart totals for the sticky bottom bar
@@ -268,7 +270,12 @@ export default function DealerProductsPage() {
                 <div className="p-3 sm:p-5 space-y-3 sm:space-y-4">
                   <div className="space-y-1">
                     <span className="text-[9px] font-black text-rose-600 tracking-wider">SKU: {product.sku}</span>
-                    <h3 className="font-bold text-slate-800 text-xs truncate" title={product.name}>{product.name}</h3>
+                    <h3 className="font-bold text-slate-800 text-xs truncate flex items-center gap-1" title={product.name}>
+                      {product.name.toLowerCase().includes('coriander') && (
+                        <Leaf className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      )}
+                      <span>{product.name}</span>
+                    </h3>
                     <span className="inline-block bg-slate-50 border border-slate-100 text-[8px] font-black uppercase px-2 py-0.5 rounded-md text-slate-500">
                       {product.category?.name}
                     </span>

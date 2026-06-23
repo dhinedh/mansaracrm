@@ -25,7 +25,8 @@ import {
   EyeOff,
   Tag,
   X,
-  IndianRupee
+  IndianRupee,
+  Trash2
 } from 'lucide-react';
 import ZoneSelectionMap from '../../components/ZoneSelectionMap';
 
@@ -103,6 +104,18 @@ export default function DealersPage() {
   const [selectedCategories, setSelectedCategories] = useState([]);
   const [categoryList, setCategoryList] = useState([]);
   const [pincodeSuggestions, setPincodeSuggestions] = useState([]);
+  const [defaultMargin, setDefaultMargin] = useState(10);
+  const [margins, setMargins] = useState([]);
+  const [marginsLoading, setMarginsLoading] = useState(false);
+  const [productsList, setProductsList] = useState([]);
+  const [newMarginType, setNewMarginType] = useState('DEFAULT');
+  const [newMarginStoreId, setNewMarginStoreId] = useState('');
+  const [newMarginProductId, setNewMarginProductId] = useState('');
+  const [newMarginCategoryId, setNewMarginCategoryId] = useState('');
+  const [newMarginPercent, setNewMarginPercent] = useState('');
+  const [newMarginSubmitting, setNewMarginSubmitting] = useState(false);
+  const [newMarginError, setNewMarginError] = useState('');
+  const [newMarginSuccess, setNewMarginSuccess] = useState('');
 
   // Check conflicts for registration modal
   useEffect(() => {
@@ -301,6 +314,90 @@ export default function DealersPage() {
     }
   };
 
+  const fetchMargins = async () => {
+    if (!dealerDetail?.id) return;
+    setMarginsLoading(true);
+    try {
+      const res = await axios.get(`/margins?dealerId=${dealerDetail.id}`);
+      if (res.data.success) {
+        setMargins(res.data.data || []);
+      }
+    } catch (err) {
+      console.error('Failed to fetch margins', err);
+    } finally {
+      setMarginsLoading(false);
+    }
+  };
+
+  const fetchProducts = async () => {
+    try {
+      const res = await axios.get('/products');
+      setProductsList(res.data.data || []);
+    } catch (err) {
+      console.error('Failed to fetch products', err);
+    }
+  };
+
+  const handleDeleteMargin = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this margin rule?')) return;
+    try {
+      const res = await axios.delete(`/margins/${id}`);
+      if (res.data.success) {
+        fetchMargins();
+      }
+    } catch (err) {
+      console.error('Failed to delete margin', err);
+      alert(err.response?.data?.message || 'Failed to delete margin');
+    }
+  };
+
+  const handleAddMargin = async (e) => {
+    e.preventDefault();
+    setNewMarginError('');
+    setNewMarginSuccess('');
+    setNewMarginSubmitting(true);
+
+    try {
+      const payload = {
+        dealerId: dealerDetail.id,
+        marginPercent: parseFloat(newMarginPercent),
+        isDefault: newMarginType === 'DEFAULT'
+      };
+
+      if (newMarginType === 'STORE') {
+        payload.storeId = newMarginStoreId;
+      } else if (newMarginType === 'PRODUCT') {
+        payload.productId = newMarginProductId;
+      } else if (newMarginType === 'CATEGORY') {
+        payload.categoryId = newMarginCategoryId;
+      }
+
+      const res = await axios.post('/margins', payload);
+      if (res.data.success) {
+        setNewMarginSuccess('Margin rule saved successfully!');
+        setNewMarginPercent('');
+        setNewMarginStoreId('');
+        setNewMarginProductId('');
+        setNewMarginCategoryId('');
+        fetchMargins();
+        setTimeout(() => setNewMarginSuccess(''), 2000);
+      }
+    } catch (err) {
+      console.error('Failed to save margin', err);
+      setNewMarginError(err.response?.data?.message || 'Failed to save margin rule');
+    } finally {
+      setNewMarginSubmitting(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'margins' && dealerDetail?.id) {
+      fetchMargins();
+      fetchProducts();
+      fetchCategories();
+    }
+  }, [activeTab, dealerDetail]);
+
   const [formError, setFormError] = useState('');
   const [formSuccess, setFormSuccess] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -326,7 +423,8 @@ export default function DealersPage() {
         zones,     // send zones array
         area, phone, dealerType, dealerCategory,
         initialDeposit: initialDeposit ? parseFloat(initialDeposit) : 0,
-        categories: selectedCategories
+        categories: selectedCategories,
+        defaultMargin: parseFloat(defaultMargin)
       });
       
       setFormSuccess(true);
@@ -366,6 +464,7 @@ export default function DealersPage() {
     setEmail(''); setPassword(''); setName(''); setCompanyName(''); setGstNumber('');
     setAddress(''); setCity(''); setState(''); setPincode(''); setZones([]); setZoneInput(''); setArea('');
     setPhone(''); setDealerType('RETAIL'); setDealerCategory('STARTER'); setInitialDeposit(''); setSelectedCategories([]);
+    setDefaultMargin(10);
     setFormError(''); setFormSuccess(false); setSubmitting(false);
     setPincodeSuggestions([]);
     setShowMap(false);
@@ -749,6 +848,19 @@ export default function DealersPage() {
                     className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none"
                   />
                 </div>
+                <div>
+                  <label className="block text-slate-500 font-bold mb-1">Default Margin (%)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.1"
+                    value={defaultMargin}
+                    onChange={e => setDefaultMargin(e.target.value)}
+                    placeholder="e.g. 10"
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none"
+                  />
+                </div>
               </div>
 
               {/* Zones Tag Builder */}
@@ -999,6 +1111,17 @@ export default function DealersPage() {
                   >
                     <Package className="w-4 h-4" />
                     <span>Inventory Stock ({dealerDetail.inventory?.length || 0})</span>
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('margins')}
+                    className={`flex items-center space-x-2 px-4 py-3 text-xs font-bold border-b-2 -mb-px transition-all ${
+                      activeTab === 'margins'
+                        ? 'border-rose-600 text-rose-600'
+                        : 'border-transparent text-slate-500 hover:text-slate-700'
+                    }`}
+                  >
+                    <Tag className="w-4 h-4" />
+                    <span>Price Margins</span>
                   </button>
                 </div>
 
@@ -1580,6 +1703,203 @@ export default function DealersPage() {
                           </div>
                         </div>
                       )}
+                    </div>
+                  )}
+
+                  {/* Tab 4: Price Margins */}
+                  {activeTab === 'margins' && (
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fade-in text-xs">
+                      {/* Left Column: Margins List */}
+                      <div className="lg:col-span-2 space-y-4">
+                        <div className="bg-slate-50 border border-slate-200/60 rounded-xl p-5 space-y-4">
+                          <h4 className="font-black text-slate-800 text-xs flex items-center space-x-2 border-b border-slate-200/60 pb-2">
+                            <Tag className="w-4 h-4 text-rose-600" />
+                            <span>DEALER MARGIN RULES</span>
+                          </h4>
+
+                          {marginsLoading ? (
+                            <div className="flex items-center justify-center py-12">
+                              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-rose-600"></div>
+                            </div>
+                          ) : margins.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center py-12 text-slate-400 space-y-2 bg-white rounded-xl border border-dashed border-slate-200">
+                              <Tag className="w-8 h-8 text-slate-300" />
+                              <p className="font-semibold text-xs">No custom margin rules defined yet.</p>
+                            </div>
+                          ) : (
+                            <div className="space-y-3">
+                              {margins.map((rule) => {
+                                let typeLabel = 'Default Fallback';
+                                let targetName = 'Applies to all transactions';
+                                let badgeClass = 'bg-slate-100 text-slate-700 border-slate-200';
+
+                                if (rule.isDefault) {
+                                  typeLabel = 'Default Fallback';
+                                  badgeClass = 'bg-rose-50 text-rose-700 border-rose-100';
+                                } else if (rule.storeId) {
+                                  typeLabel = 'Store Specific';
+                                  targetName = rule.store?.name || 'Unknown Store';
+                                  badgeClass = 'bg-blue-50 text-blue-700 border-blue-100';
+                                } else if (rule.productId) {
+                                  typeLabel = 'Product Specific';
+                                  targetName = rule.product?.name || 'Unknown Product';
+                                  badgeClass = 'bg-amber-50 text-amber-700 border-amber-100';
+                                } else if (rule.categoryId) {
+                                  typeLabel = 'Category Specific';
+                                  const cat = categoryList.find(c => c.id === rule.categoryId);
+                                  targetName = cat?.name || 'Unknown Category';
+                                  badgeClass = 'bg-purple-50 text-purple-700 border-purple-100';
+                                }
+
+                                return (
+                                  <div key={rule.id} className="flex items-center justify-between p-4 bg-white border border-slate-150 rounded-2xl hover:shadow-sm transition-shadow">
+                                    <div className="space-y-1">
+                                      <div className="flex items-center space-x-2">
+                                        <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full border ${badgeClass}`}>
+                                          {typeLabel}
+                                        </span>
+                                        {!rule.isDefault && (
+                                          <span className="font-bold text-slate-800 text-xs">{targetName}</span>
+                                        )}
+                                      </div>
+                                      {rule.isDefault && (
+                                        <p className="text-slate-400 text-[10px]">{targetName}</p>
+                                      )}
+                                    </div>
+                                    <div className="flex items-center space-x-4">
+                                      <span className="text-sm font-black text-rose-600">{rule.marginPercent}%</span>
+                                      <button
+                                        onClick={() => handleDeleteMargin(rule.id)}
+                                        className="p-1.5 hover:bg-rose-50 rounded-lg text-rose-600 transition-colors"
+                                        title="Delete Rule"
+                                      >
+                                        <Trash2 className="w-4 h-4" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Right Column: Add Margin Form */}
+                      <div className="space-y-4">
+                        <form onSubmit={handleAddMargin} className="bg-slate-50 border border-slate-200/60 rounded-xl p-5 space-y-4">
+                          <h4 className="font-black text-slate-800 text-xs flex items-center space-x-2 border-b border-slate-200/60 pb-2">
+                            <Plus className="w-4 h-4 text-rose-600" />
+                            <span>ADD MARGIN RULE</span>
+                          </h4>
+
+                          {newMarginError && (
+                            <div className="px-3 py-2 bg-rose-50 border border-rose-200 text-rose-800 rounded-lg font-semibold text-[10px]">
+                              {newMarginError}
+                            </div>
+                          )}
+
+                          {newMarginSuccess && (
+                            <div className="px-3 py-2 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg font-semibold text-[10px]">
+                              {newMarginSuccess}
+                            </div>
+                          )}
+
+                          <div className="space-y-3">
+                            <div>
+                              <label className="block text-slate-500 font-bold mb-1">Rule Type</label>
+                              <select
+                                value={newMarginType}
+                                onChange={e => {
+                                  setNewMarginType(e.target.value);
+                                  setNewMarginStoreId('');
+                                  setNewMarginProductId('');
+                                  setNewMarginCategoryId('');
+                                }}
+                                className="w-full p-2.5 bg-white border border-slate-200 focus:border-rose-500 rounded-xl focus:outline-none cursor-pointer"
+                              >
+                                <option value="DEFAULT">Default Fallback</option>
+                                <option value="STORE">Store Specific</option>
+                                <option value="PRODUCT">Product Specific</option>
+                                <option value="CATEGORY">Category Specific</option>
+                              </select>
+                            </div>
+
+                            {newMarginType === 'STORE' && (
+                              <div>
+                                <label className="block text-slate-500 font-bold mb-1">Select Store / Outlet</label>
+                                <select
+                                  required
+                                  value={newMarginStoreId}
+                                  onChange={e => setNewMarginStoreId(e.target.value)}
+                                  className="w-full p-2.5 bg-white border border-slate-200 focus:border-rose-500 rounded-xl focus:outline-none cursor-pointer"
+                                >
+                                  <option value="">-- Select Store --</option>
+                                  {(dealerDetail.stores || []).map(store => (
+                                    <option key={store.id} value={store.id}>{store.name}</option>
+                                  ))}
+                                </select>
+                              </div>
+                            )}
+
+                            {newMarginType === 'PRODUCT' && (
+                              <div>
+                                <label className="block text-slate-500 font-bold mb-1">Select Product</label>
+                                <select
+                                  required
+                                  value={newMarginProductId}
+                                  onChange={e => setNewMarginProductId(e.target.value)}
+                                  className="w-full p-2.5 bg-white border border-slate-200 focus:border-rose-500 rounded-xl focus:outline-none cursor-pointer"
+                                >
+                                  <option value="">-- Select Product --</option>
+                                  {productsList.map(prod => (
+                                    <option key={prod.id} value={prod.id}>{prod.name} ({prod.sku})</option>
+                                  ))}
+                                </select>
+                              </div>
+                            )}
+
+                            {newMarginType === 'CATEGORY' && (
+                              <div>
+                                <label className="block text-slate-500 font-bold mb-1">Select Category</label>
+                                <select
+                                  required
+                                  value={newMarginCategoryId}
+                                  onChange={e => setNewMarginCategoryId(e.target.value)}
+                                  className="w-full p-2.5 bg-white border border-slate-200 focus:border-rose-500 rounded-xl focus:outline-none cursor-pointer"
+                                >
+                                  <option value="">-- Select Category --</option>
+                                  {categoryList.map(cat => (
+                                    <option key={cat.id} value={cat.id}>{cat.name}</option>
+                                  ))}
+                                </select>
+                              </div>
+                            )}
+
+                            <div>
+                              <label className="block text-slate-500 font-bold mb-1">Margin Percentage (%)</label>
+                              <input
+                                type="number"
+                                required
+                                min="0"
+                                max="100"
+                                step="0.01"
+                                value={newMarginPercent}
+                                onChange={e => setNewMarginPercent(e.target.value)}
+                                placeholder="e.g. 12.5"
+                                className="w-full p-2.5 bg-white border border-slate-200 focus:border-rose-500 rounded-xl focus:outline-none"
+                              />
+                            </div>
+
+                            <button
+                              type="submit"
+                              disabled={newMarginSubmitting}
+                              className="w-full bg-rose-600 hover:bg-rose-700 disabled:bg-rose-400 text-white font-bold py-2.5 rounded-xl transition-all shadow-md flex items-center justify-center space-x-2"
+                            >
+                              {newMarginSubmitting ? 'Saving Rule...' : 'Save Margin Rule'}
+                            </button>
+                          </div>
+                        </form>
+                      </div>
                     </div>
                   )}
 

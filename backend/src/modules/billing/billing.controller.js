@@ -1,7 +1,7 @@
 // src/modules/billing/billing.controller.js
 const prisma = require('../../config/database');
 const { generateInvoicePdf } = require('../../utils/pdfGenerator');
-const { buildInvoiceHtml, buildAgreementHtml } = require('../../utils/pdfTemplate');
+const { buildInvoiceHtml, buildSimpleRetailInvoiceHtml, buildAgreementHtml } = require('../../utils/pdfTemplate');
 
 // Helper to fetch company settings
 const getCompanyDetails = () => {
@@ -78,23 +78,35 @@ exports.createInvoice = async (req, res, next) => {
       // Determine margin percentage
       let marginPct = parseFloat(item.marginPct);
       if (isNaN(marginPct)) {
-        // If not specified, look for configured margin, fallback to 0
-        const configuredMargin = await prisma.margin.findFirst({
-          where: {
-            dealerId,
-            OR: [
-              { storeId: store.id },
-              { productId: item.productId },
-              { categoryId: product.categoryId }
-            ]
-          }
+        // Retrieve custom margins for this dealer
+        const marginRules = await prisma.margin.findMany({
+          where: { dealerId }
         });
-        marginPct = configuredMargin ? parseFloat(configuredMargin.marginPercent) : 0;
+        
+        let foundMargin = null;
+        
+        const catId = product.categoryId?.toString() || product.category?.toString();
+        const productRule = marginRules.find(r => r.productId?.toString() === item.productId?.toString() && !r.isDefault);
+        const categoryRule = marginRules.find(r => r.categoryId?.toString() === catId && !r.isDefault);
+        const storeRule = store ? marginRules.find(r => r.storeId?.toString() === store.id?.toString() && !r.isDefault) : null;
+        const defaultRule = marginRules.find(r => r.isDefault);
+        
+        if (productRule) {
+          foundMargin = parseFloat(productRule.marginPercent);
+        } else if (categoryRule) {
+          foundMargin = parseFloat(categoryRule.marginPercent);
+        } else if (storeRule) {
+          foundMargin = parseFloat(storeRule.marginPercent);
+        } else if (defaultRule) {
+          foundMargin = parseFloat(defaultRule.marginPercent);
+        }
+        
+        marginPct = foundMargin !== null ? foundMargin : 0;
       }
 
       // Determine unit and quantity normalization
       const unit = item.unit || 'PCS';
-      const cartonSize = product.cartonSize || 12;
+      const cartonSize = product.cartonSize || 24;
       const qtyInPieces = unit === 'CTN' ? (item.quantity * cartonSize) : item.quantity;
 
       // Calculations:
@@ -476,7 +488,10 @@ exports.downloadPdf = async (req, res, next) => {
     }
 
     const company = getCompanyDetails();
-    const html = buildInvoiceHtml(company, invoice);
+    // Use simple retail template for dealer→store invoices; full B2B template for warehouse→dealer invoices
+    const html = invoice.store
+      ? buildSimpleRetailInvoiceHtml(company, invoice)
+      : buildInvoiceHtml(company, invoice);
 
     try {
       const pdfBuffer = await generateInvoicePdf(html);

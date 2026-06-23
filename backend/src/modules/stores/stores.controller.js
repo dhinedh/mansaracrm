@@ -18,7 +18,23 @@ exports.getDealerStores = async (req, res, next) => {
       orderBy: { name: 'asc' }
     });
 
-    res.json({ success: true, data: stores });
+    const enriched = [];
+    for (const store of stores) {
+      const marginRule = await prisma.margin.findFirst({
+        where: {
+          dealerId,
+          storeId: store.id,
+          productId: null,
+          categoryId: null
+        }
+      });
+      enriched.push({
+        ...store,
+        marginPercent: marginRule ? marginRule.marginPercent : null
+      });
+    }
+
+    res.json({ success: true, data: enriched });
   } catch (error) {
     next(error);
   }
@@ -30,7 +46,7 @@ exports.createStore = async (req, res, next) => {
       return res.status(403).json({ success: false, message: 'Only dealers can manage stores' });
     }
 
-    const { name, gstNumber, address, city, state, pincode, zone, phone } = req.body;
+    const { name, gstNumber, address, city, state, pincode, zone, phone, marginPercent } = req.body;
     const dealerId = req.user.dealer.id;
 
     const store = await prisma.store.create({
@@ -47,6 +63,16 @@ exports.createStore = async (req, res, next) => {
       }
     });
 
+    if (marginPercent !== undefined && marginPercent !== null && marginPercent !== '') {
+      await prisma.margin.create({
+        data: {
+          dealerId,
+          storeId: store.id,
+          marginPercent: parseFloat(marginPercent)
+        }
+      });
+    }
+
     res.status(201).json({ success: true, message: 'Store created successfully', data: store });
   } catch (error) {
     next(error);
@@ -56,7 +82,7 @@ exports.createStore = async (req, res, next) => {
 exports.updateStore = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { name, gstNumber, address, city, state, pincode, zone, phone } = req.body;
+    const { name, gstNumber, address, city, state, pincode, zone, phone, marginPercent } = req.body;
 
     const store = await prisma.store.findUnique({ where: { id } });
     if (!store) {
@@ -81,6 +107,38 @@ exports.updateStore = async (req, res, next) => {
         phone: phone !== undefined ? phone : store.phone
       }
     });
+
+    if (marginPercent !== undefined && marginPercent !== null) {
+      const existingMargin = await prisma.margin.findFirst({
+        where: {
+          dealerId: store.dealerId,
+          storeId: id,
+          productId: null,
+          categoryId: null
+        }
+      });
+
+      if (marginPercent === '') {
+        if (existingMargin) {
+          await prisma.margin.delete({ where: { id: existingMargin.id } });
+        }
+      } else {
+        if (existingMargin) {
+          await prisma.margin.update({
+            where: { id: existingMargin.id },
+            data: { marginPercent: parseFloat(marginPercent) }
+          });
+        } else {
+          await prisma.margin.create({
+            data: {
+              dealerId: store.dealerId,
+              storeId: id,
+              marginPercent: parseFloat(marginPercent)
+            }
+          });
+        }
+      }
+    }
 
     res.json({ success: true, message: 'Store updated successfully', data: updatedStore });
   } catch (error) {
