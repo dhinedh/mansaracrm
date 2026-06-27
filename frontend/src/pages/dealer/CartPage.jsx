@@ -18,9 +18,11 @@ import {
   Truck,
   AlertCircle,
   X,
-  Leaf
+  Leaf,
+  ShoppingBag
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { BACKEND_URL } from '../../store/authStore';
 
 export default function CartPage() {
   const navigate = useNavigate();
@@ -110,7 +112,7 @@ export default function CartPage() {
   };
 
   const resolveMargin = (product, targetStoreId, rulesList = marginRules) => {
-    if (!rulesList || rulesList.length === 0) return 10; // Default fallback
+    if (!rulesList) rulesList = [];
 
     // 1. Check rule matching storeId AND productId
     let rule = rulesList.find(r => 
@@ -127,31 +129,41 @@ export default function CartPage() {
     );
     if (rule) return rule.marginPercent;
 
-    // 3. Check rule matching storeId only
+    // 3. Check rule matching storeId only in margin rules table
     rule = rulesList.find(r => 
       r.storeId && r.storeId.toString() === targetStoreId?.toString() && 
       !r.productId && !r.categoryId
     );
     if (rule) return rule.marginPercent;
 
-    // 4. Check rule matching productId only
+    // 4. Fallback check: store's direct marginPercent property
+    if (targetStoreId) {
+      const storeObj = stores.find(s => s.id === targetStoreId);
+      if (storeObj && storeObj.marginPercent !== undefined && storeObj.marginPercent !== null && storeObj.marginPercent !== '') {
+        return parseFloat(storeObj.marginPercent);
+      }
+    }
+
+    // 5. Check rule matching productId only
     rule = rulesList.find(r => 
       !r.storeId && r.productId && r.productId.toString() === product.id.toString()
     );
     if (rule) return rule.marginPercent;
 
-    // 5. Check rule matching categoryId only
+    // 6. Check rule matching categoryId only
     rule = rulesList.find(r => 
       !r.storeId && r.categoryId && r.categoryId.toString() === catId?.toString()
     );
     if (rule) return rule.marginPercent;
 
-    // 6. Check default margin rule
+    // 7. Check default margin rule
     rule = rulesList.find(r => r.isDefault);
     if (rule) return rule.marginPercent;
 
     return 10; // default margin fallback
   };
+
+  const location = useLocation();
 
   useEffect(() => {
     const init = async () => {
@@ -165,11 +177,28 @@ export default function CartPage() {
         setStores(storeData);
         
         let initialStoreId = useCartStore.getState().storeId;
-        if (storeData.length > 0 && !initialStoreId) {
+        
+        // Auto-select store from location state if passed
+        if (location.state?.storeId) {
+          initialStoreId = location.state.storeId;
+          setStoreId(initialStoreId);
+          const passedStore = storeData.find(s => s.id === initialStoreId);
+          if (passedStore) {
+            setStoreSearch(passedStore.name);
+          }
+        } else if (storeData.length > 0 && !initialStoreId) {
           initialStoreId = storeData[0].id;
           setStoreId(initialStoreId);
           setStoreSearch(storeData[0].name);
         }
+        
+        // Force-sync margins of existing items in cart to match this auto-selected store
+        const currentItems = useCartStore.getState().items || [];
+        currentItems.forEach(item => {
+          // Pass the freshly fetched rules list and the updated stores list
+          const newMargin = resolveMargin(item.product, initialStoreId, rules);
+          useCartStore.getState().updateMargin(item.productId, newMargin);
+        });
         
         setLoading(false);
         await fetchProductsAndInventory(rules, initialStoreId);
@@ -178,7 +207,7 @@ export default function CartPage() {
       }
     };
     init();
-  }, []);
+  }, [location.state]);
 
   useEffect(() => {
     fetchProductsAndInventory();
@@ -403,114 +432,153 @@ export default function CartPage() {
           </div>
 
           {/* Product grid / list */}
-          <div className="max-h-60 overflow-y-auto pr-1 divide-y divide-slate-100 border border-slate-150 rounded-xl bg-slate-50/20">
-            {catalogProducts.length === 0 ? (
-              <div className="text-center py-8 text-xs text-slate-400 font-medium">
-                No matching catalog items found.
-              </div>
-            ) : (
-              catalogProducts.map(product => {
-                const maxStock = dealerInventory[product.id] || 0;
-                const chosenQty = localQtys[product.id] || 1;
-                const chosenMargin = localMargins[product.id] || 10;
-                const inCart = items.some(it => it.productId === product.id);
+          <div className="overflow-x-auto border border-slate-150 rounded-xl bg-white max-h-80">
+            <table className="w-full text-xs text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-150 text-[9px] font-black uppercase tracking-wider text-slate-400 select-none">
+                  <th className="p-3">Product</th>
+                  <th className="p-3 text-center">In Stock</th>
+                  <th className="p-3 text-center">Qty</th>
+                  <th className="p-3 text-center">Margin %</th>
+                  <th className="p-3 text-right">Price</th>
+                  <th className="p-3 text-center">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {catalogProducts.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="text-center py-8 text-xs text-slate-400 font-medium bg-white">
+                      No matching catalog items found.
+                    </td>
+                  </tr>
+                ) : (
+                  catalogProducts.map(product => {
+                    const maxStock = dealerInventory[product.id] || 0;
+                    const chosenQty = localQtys[product.id] || 1;
+                    const chosenMargin = localMargins[product.id] || 10;
+                    const inCart = items.some(it => it.productId === product.id);
+                    const mrp = parseFloat(product.mrp || product.price || 0);
+                    const sellingPrice = mrp * (1 - chosenMargin / 100);
+                    const imageUrl = product.imageUrl ? `${BACKEND_URL}${product.imageUrl}` : null;
 
-                return (
-                  <div key={product.id} className="p-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-white hover:bg-slate-50/50 transition-colors">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center space-x-2">
-                        <h4 className="font-bold text-slate-800 text-xs truncate flex items-center gap-1">
-                          {product.name.toLowerCase().includes('coriander') && (
-                            <Leaf className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    return (
+                      <tr key={product.id} className="hover:bg-slate-50/20">
+                        <td className="p-3">
+                          <div className="flex items-center gap-2.5 min-w-[180px]">
+                            <div className="w-8 h-8 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center shrink-0 overflow-hidden">
+                              {imageUrl ? (
+                                <img src={imageUrl} alt={product.name} className="w-full h-full object-cover" onError={(e) => {
+                                  e.target.onerror = null;
+                                  e.target.style.display = 'none';
+                                  e.target.parentNode.innerHTML = `<div class="text-slate-350"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path></svg></div>`;
+                                }} />
+                              ) : (
+                                <ShoppingBag className="w-4 h-4 text-slate-350" />
+                              )}
+                            </div>
+                            <div className="min-w-0">
+                              <span className="font-bold text-slate-800 text-xs block truncate" title={product.name}>
+                                {product.name}
+                              </span>
+                              <span className="text-[9px] text-slate-400 font-mono">
+                                {product.sku}
+                              </span>
+                            </div>
+                          </div>
+                        </td>
+
+                        <td className="p-3 text-center select-none">
+                          <span className={`px-2 py-0.5 rounded text-[8.5px] font-black tracking-wide ${
+                            maxStock <= 0 ? 'bg-rose-50 text-rose-700' :
+                            maxStock <= 10 ? 'bg-amber-50 text-amber-700 animate-pulse' : 'bg-emerald-50 text-emerald-700'
+                          }`}>
+                            {maxStock} {product.unit}
+                          </span>
+                        </td>
+
+                        <td className="p-3 text-center">
+                          {maxStock > 0 ? (
+                            <div className="flex items-center bg-slate-50 border border-slate-200 rounded-lg p-0.5 mx-auto w-fit">
+                              <button
+                                type="button"
+                                onClick={() => handleLocalQtyChange(product.id, -1, maxStock)}
+                                className="p-1 hover:bg-white rounded text-slate-500 cursor-pointer"
+                              >
+                                <Minus className="w-2.5 h-2.5" />
+                              </button>
+                              <input
+                                type="number"
+                                min="1"
+                                max={maxStock}
+                                value={chosenQty}
+                                onChange={(e) => setLocalQtys({ ...localQtys, [product.id]: Math.min(maxStock, Math.max(1, parseInt(e.target.value) || 1)) })}
+                                className="w-8 border-0 bg-transparent text-center font-bold text-xs text-slate-800 focus:outline-none focus:ring-0 p-0"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => handleLocalQtyChange(product.id, 1, maxStock)}
+                                className="p-1 hover:bg-white rounded text-slate-500 cursor-pointer"
+                              >
+                                <Plus className="w-2.5 h-2.5" />
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-[10px] text-slate-400 font-semibold select-none">—</span>
                           )}
-                          <span>{product.name}</span>
-                        </h4>
-                        <span className={`px-2 py-0.5 rounded text-[8px] font-black tracking-wide ${
-                          maxStock <= 0 ? 'bg-rose-50 text-rose-700' :
-                          maxStock <= 10 ? 'bg-amber-50 text-amber-700 animate-pulse' : 'bg-emerald-50 text-emerald-700'
-                        }`}>
-                          {maxStock} {product.unit} In Stock
-                        </span>
-                      </div>
-                      <p className="text-[9px] text-slate-400 mt-0.5 font-medium">SKU: {product.sku} · Category: {product.category?.name || 'General'}</p>
-                    </div>
-                    {maxStock > 0 ? (
-                      <div className="flex items-center gap-3 self-end sm:self-auto shrink-0">
-                        {/* Margin field */}
-                        <div className="space-y-0.5">
-                          <span className="block text-[8px] font-bold text-slate-400 uppercase tracking-wide">Margin %</span>
-                          <div className="relative w-14">
-                            <input
-                              type="number"
-                              value={chosenMargin}
-                              onChange={(e) => setLocalMargins({ ...localMargins, [product.id]: parseFloat(e.target.value) || 0 })}
-                              className="w-full p-1.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:rounded-lg text-center font-bold text-slate-700 text-xs pr-4 focus:outline-none"
-                            />
-                            <span className="absolute right-1 top-1/2 -translate-y-1/2 text-[9px] text-slate-400">%</span>
-                          </div>
-                        </div>
+                        </td>
 
-                        {/* Qty selector */}
-                        <div className="space-y-0.5">
-                          <span className="block text-[8px] font-bold text-slate-400 uppercase tracking-wide">Qty</span>
-                          <div className="flex items-center bg-slate-50 border border-slate-200 rounded-lg p-0.5">
+                        <td className="p-3 text-center">
+                          {maxStock > 0 ? (
+                            <div className="relative w-14 mx-auto">
+                              <input
+                                type="number"
+                                value={chosenMargin}
+                                onChange={(e) => setLocalMargins({ ...localMargins, [product.id]: parseFloat(e.target.value) || 0 })}
+                                className="w-full p-1.5 bg-slate-50 border border-slate-200 focus:border-rose-500 rounded-lg text-center font-bold text-slate-700 text-xs pr-4 focus:outline-none"
+                              />
+                              <span className="absolute right-1 top-1/2 -translate-y-1/2 text-[9px] text-slate-400">%</span>
+                            </div>
+                          ) : (
+                            <span className="text-[10px] text-slate-400 font-semibold select-none">—</span>
+                          )}
+                        </td>
+
+                        <td className="p-3 text-right">
+                          <span className="block text-[10px] text-slate-400 font-medium line-through">₹{mrp.toFixed(2)}</span>
+                          <strong className="block text-slate-800 text-xs">₹{sellingPrice.toFixed(2)}</strong>
+                        </td>
+
+                        <td className="p-3 text-center">
+                          {maxStock > 0 ? (
                             <button
                               type="button"
-                              onClick={() => handleLocalQtyChange(product.id, -1, maxStock)}
-                              className="p-1 hover:bg-white rounded text-slate-500 cursor-pointer"
+                              onClick={() => handleAddOrUpdateItem(product)}
+                              className={`mx-auto px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wide flex items-center justify-center gap-1 cursor-pointer transition-all ${
+                                inCart 
+                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-100 hover:bg-emerald-100'
+                                  : 'bg-rose-600 text-white hover:bg-rose-700 shadow-sm shadow-rose-100'
+                              }`}
                             >
-                              <Minus className="w-2.5 h-2.5" />
+                              {inCart ? <Check className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
+                              <span>{inCart ? 'Sync' : 'Add'}</span>
                             </button>
-                            <input
-                              type="number"
-                              min="1"
-                              max={maxStock}
-                              value={chosenQty}
-                              onChange={(e) => setLocalQtys({ ...localQtys, [product.id]: Math.min(maxStock, Math.max(1, parseInt(e.target.value) || 1)) })}
-                              className="w-8 border-0 bg-transparent text-center font-bold text-xs text-slate-800 focus:outline-none focus:ring-0 p-0"
-                            />
+                          ) : (
                             <button
                               type="button"
-                              onClick={() => handleLocalQtyChange(product.id, 1, maxStock)}
-                              className="p-1 hover:bg-white rounded text-slate-500 cursor-pointer"
+                              onClick={() => openPoModal(product)}
+                              className="mx-auto px-2.5 py-1.5 bg-rose-50 border border-rose-150 hover:bg-rose-100 text-rose-700 rounded-lg text-[9px] font-black uppercase tracking-wide flex items-center justify-center gap-1 cursor-pointer transition-all"
                             >
-                              <Plus className="w-2.5 h-2.5" />
+                              <AlertCircle className="w-3 h-3 shrink-0" />
+                              <span>Ask Stock</span>
                             </button>
-                          </div>
-                        </div>
-
-                        {/* Add button */}
-                        <div className="pt-3.5">
-                          <button
-                            type="button"
-                            onClick={() => handleAddOrUpdateItem(product)}
-                            className={`px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wide flex items-center space-x-1 cursor-pointer transition-all ${
-                              inCart 
-                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-100 hover:bg-emerald-100/50'
-                                : 'bg-rose-600 text-white hover:bg-rose-700 shadow-md shadow-rose-100'
-                            }`}
-                          >
-                            {inCart ? <Check className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
-                            <span>{inCart ? 'Sync' : 'Add'}</span>
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex items-center pt-2">
-                        <button
-                          type="button"
-                          onClick={() => openPoModal(product)}
-                          className="px-3 py-2 bg-rose-50 border border-rose-200 hover:bg-rose-100/50 text-rose-700 rounded-xl text-[10px] font-black uppercase tracking-wide flex items-center space-x-1.5 cursor-pointer transition-all shadow-sm"
-                        >
-                          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                          <span>Ask Admin for stock</span>
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                );
-              })
-            )}
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
 
@@ -536,85 +604,108 @@ export default function CartPage() {
               No products added to this invoice yet. Use the product list above to search and add products.
             </div>
           ) : (
-            <div className="border border-slate-150 rounded-xl overflow-hidden bg-white">
-              <div className="grid grid-cols-12 bg-slate-50 border-b border-slate-100 p-3 text-[9px] font-black uppercase tracking-wider text-slate-400">
-                <div className="col-span-5">Product Details</div>
-                <div className="col-span-2 text-center">Billing Qty</div>
-                <div className="col-span-2 text-center">Margin %</div>
-                <div className="col-span-2 text-right">Selling Price</div>
-                <div className="col-span-1 text-center">Delete</div>
-              </div>
+            <div className="overflow-x-auto border border-slate-150 rounded-xl bg-white">
+              <table className="w-full text-xs text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-150 text-[9px] font-black uppercase tracking-wider text-slate-400 select-none">
+                    <th className="p-3">Product Details</th>
+                    <th className="p-3 text-center">Billing Qty</th>
+                    <th className="p-3 text-center">Margin %</th>
+                    <th className="p-3 text-right">Selling Price</th>
+                    <th className="p-3 text-center">Delete</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {items.map((item) => {
+                    const mrp = parseFloat(item.product.mrp || item.product.price || 0);
+                    const sellingPrice = mrp * (1 - (item.marginPct || 0) / 100);
+                    const unit = item.unit || 'PCS';
+                    const cartonSize = item.product.cartonSize || 24;
+                    const qtyInPieces = unit === 'CTN' ? item.quantity * cartonSize : item.quantity;
+                    const lineTotal = sellingPrice * qtyInPieces;
+                    const maxStock = dealerInventory[item.productId] || 0;
+                    const itemImageUrl = item.product.imageUrl ? `${BACKEND_URL}${item.product.imageUrl}` : null;
 
-              {items.map((item) => {
-                const mrp = parseFloat(item.product.mrp || item.product.price || 0);
-                const sellingPrice = mrp * (1 - (item.marginPct || 0) / 100);
-                
-                const unit = item.unit || 'PCS';
-                const cartonSize = item.product.cartonSize || 24;
-                const qtyInPieces = unit === 'CTN' ? item.quantity * cartonSize : item.quantity;
-                const lineTotal = sellingPrice * qtyInPieces;
-                const maxStock = dealerInventory[item.productId] || 0;
+                    return (
+                      <tr key={item.productId} className="hover:bg-slate-50/20">
+                        <td className="p-3">
+                          <div className="flex items-center gap-2.5 min-w-[200px]">
+                            <div className="w-8 h-8 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center shrink-0 overflow-hidden">
+                              {itemImageUrl ? (
+                                <img src={itemImageUrl} alt={item.product.name} className="w-full h-full object-cover" onError={(e) => {
+                                  e.target.onerror = null;
+                                  e.target.style.display = 'none';
+                                  e.target.parentNode.innerHTML = `<div class="text-slate-350"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path></svg></div>`;
+                                }} />
+                              ) : (
+                                <ShoppingBag className="w-4 h-4 text-slate-350" />
+                              )}
+                            </div>
+                            <div className="min-w-0">
+                              <span className="font-bold text-slate-800 text-xs block truncate" title={item.product.name}>
+                                {item.product.name}
+                              </span>
+                              <span className="text-[9px] font-black text-rose-600 block">
+                                SKU: {item.product.sku}
+                              </span>
+                              <span className="text-[9px] text-slate-400 font-medium block">
+                                MRP: ₹{mrp.toFixed(2)} · Stock: {maxStock} PCS
+                              </span>
+                            </div>
+                          </div>
+                        </td>
 
-                return (
-                  <div key={item.productId} className="grid grid-cols-12 items-center p-3 border-b border-slate-100 last:border-0 hover:bg-slate-50/20 text-xs">
-                    <div className="col-span-5 pr-2">
-                      <p className="font-bold text-slate-800 truncate flex items-center gap-1">
-                        {item.product.name.toLowerCase().includes('coriander') && (
-                          <Leaf className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                        )}
-                        <span>{item.product.name}</span>
-                      </p>
-                      <span className="text-[9px] font-black text-rose-600 block">SKU: {item.product.sku}</span>
-                      <span className="text-[9px] text-slate-450 block font-medium">MRP: ₹{mrp.toFixed(2)} · Stock: {maxStock} PCS</span>
-                    </div>
+                        <td className="p-3 text-center">
+                          <div className="flex flex-col items-center gap-1 mx-auto w-fit">
+                            <input
+                              type="number"
+                              min="1"
+                              max={unit === 'CTN' ? Math.floor(maxStock / cartonSize) : maxStock}
+                              value={item.quantity}
+                              onChange={(e) => updateQuantity(item.productId, Math.max(0, parseInt(e.target.value) || 0))}
+                              className="w-14 p-1 bg-slate-50 border border-slate-200 focus:border-rose-500 rounded-lg text-center font-bold text-slate-700 text-xs focus:outline-none"
+                            />
+                            <select
+                              value={unit}
+                              onChange={(e) => updateUnit(item.productId, e.target.value)}
+                              className="text-[9px] p-0.5 border border-slate-200 rounded bg-white text-slate-600 focus:outline-none focus:border-rose-500 font-semibold"
+                            >
+                              <option value="PCS">PCS</option>
+                              <option value="CTN">CTN ({cartonSize})</option>
+                            </select>
+                          </div>
+                        </td>
 
-                    <div className="col-span-2 flex flex-col items-center gap-1">
-                      <input
-                        type="number"
-                        min="1"
-                        max={unit === 'CTN' ? Math.floor(maxStock / cartonSize) : maxStock}
-                        value={item.quantity}
-                        onChange={(e) => updateQuantity(item.productId, Math.max(0, parseInt(e.target.value) || 0))}
-                        className="w-14 p-1 bg-slate-50 border border-slate-200 focus:border-rose-500 rounded-lg text-center font-bold text-slate-700 text-xs focus:outline-none"
-                      />
-                      <select
-                        value={unit}
-                        onChange={(e) => updateUnit(item.productId, e.target.value)}
-                        className="text-[9px] p-0.5 border border-slate-200 rounded bg-white text-slate-600 focus:outline-none focus:border-rose-500"
-                      >
-                        <option value="PCS">PCS</option>
-                        <option value="CTN">CTN ({cartonSize})</option>
-                      </select>
-                    </div>
+                        <td className="p-3 text-center">
+                          <div className="relative w-14 mx-auto">
+                            <input
+                              type="number"
+                              value={item.marginPct}
+                              onChange={(e) => updateMargin(item.productId, e.target.value)}
+                              className="w-full p-1 bg-slate-50 border border-slate-200 focus:border-rose-500 rounded-lg text-center font-bold text-slate-700 text-xs pr-4 focus:outline-none"
+                            />
+                            <span className="absolute right-1 top-1/2 -translate-y-1/2 text-[9px] text-slate-400">%</span>
+                          </div>
+                        </td>
 
-                    <div className="col-span-2 flex justify-center">
-                      <div className="relative w-14">
-                        <input
-                          type="number"
-                          value={item.marginPct}
-                          onChange={(e) => updateMargin(item.productId, e.target.value)}
-                          className="w-full p-1 bg-slate-50 border border-slate-200 focus:border-rose-500 rounded-lg text-center font-bold text-slate-700 text-xs pr-4 focus:outline-none"
-                        />
-                        <span className="absolute right-1 top-1/2 -translate-y-1/2 text-[9px] text-slate-400">%</span>
-                      </div>
-                    </div>
+                        <td className="p-3 text-right">
+                          <strong className="block text-slate-800 text-xs">₹{sellingPrice.toFixed(2)}</strong>
+                          <span className="text-[9px] text-slate-400 block font-medium">Tot: ₹{lineTotal.toFixed(2)}</span>
+                        </td>
 
-                    <div className="col-span-2 text-right">
-                      <p className="font-bold text-slate-800">₹{sellingPrice.toFixed(2)}</p>
-                      <span className="text-[9px] text-slate-400 block font-medium">Tot: ₹{lineTotal.toFixed(2)}</span>
-                    </div>
-
-                    <div className="col-span-1 flex justify-center">
-                      <button
-                        onClick={() => removeFromCart(item.productId)}
-                        className="text-rose-600 hover:text-rose-800 p-1 bg-rose-50 hover:bg-rose-100 rounded-lg cursor-pointer"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
+                        <td className="p-3 text-center">
+                          <button
+                            onClick={() => removeFromCart(item.productId)}
+                            className="text-rose-600 hover:text-rose-800 p-1.5 bg-rose-50 hover:bg-rose-100 rounded-lg cursor-pointer transition-colors"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           )}
         </div>

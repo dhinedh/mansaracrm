@@ -9,19 +9,24 @@ import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 
 const CATEGORIES = [
-  { id: 'ALL',     label: 'All',          icon: Bell },
-  { id: 'BILLING', label: 'Billing',      icon: TrendingUp },
-  { id: 'STOCK',   label: 'Stock',        icon: Package },
-  { id: 'ACCOUNT', label: 'Account',      icon: ShieldAlert },
-  { id: 'SYSTEM',  label: 'System',       icon: AlertCircle },
+  { id: 'ALL',      label: 'All',          icon: Bell },
+  { id: 'BILLING',  label: 'Billing',      icon: TrendingUp },
+  { id: 'STOCK',    label: 'Stock',        icon: Package },
+  { id: 'ACCOUNT',  label: 'Account',      icon: ShieldAlert },
+  { id: 'REQUESTS', label: 'Requests',     icon: Info },
+  { id: 'SYSTEM',   label: 'System',       icon: AlertCircle },
 ];
 
 const TYPE_META = {
-  STOCK_TRANSFER:    { label: 'Stock Transfer',   color: 'bg-emerald-100 text-emerald-700 border-emerald-200', icon: Package,      dot: 'bg-emerald-500' },
-  DELIVERY_UPDATE:   { label: 'Delivery Update',  color: 'bg-sky-100 text-sky-700 border-sky-200',             icon: Truck,        dot: 'bg-sky-500' },
-  INVOICE_GENERATED: { label: 'Billing / Invoice',color: 'bg-rose-100 text-rose-700 border-rose-200',          icon: TrendingUp,   dot: 'bg-rose-500' },
-  ACCOUNT_UPDATE:    { label: 'Account',          color: 'bg-amber-100 text-amber-700 border-amber-200',       icon: ShieldAlert,  dot: 'bg-amber-500' },
-  SYSTEM:            { label: 'System',           color: 'bg-violet-100 text-violet-700 border-violet-200',    icon: AlertCircle,  dot: 'bg-violet-500' },
+  STOCK_TRANSFER:    { label: 'Stock Transfer',    color: 'bg-emerald-100 text-emerald-700 border-emerald-200', icon: Package,      dot: 'bg-emerald-500' },
+  DELIVERY_UPDATE:   { label: 'Delivery Update',   color: 'bg-sky-100 text-sky-700 border-sky-200',             icon: Truck,        dot: 'bg-sky-500' },
+  INVOICE_GENERATED: { label: 'Billing / Invoice', color: 'bg-rose-100 text-rose-700 border-rose-200',          icon: TrendingUp,   dot: 'bg-rose-500' },
+  ACCOUNT_UPDATE:    { label: 'Account',           color: 'bg-amber-100 text-amber-700 border-amber-200',       icon: ShieldAlert,  dot: 'bg-amber-500' },
+  SYSTEM:            { label: 'System',            color: 'bg-violet-100 text-violet-700 border-violet-200',    icon: AlertCircle,  dot: 'bg-violet-500' },
+  // SYSTEM sub-types (differentiated by metadata)
+  REQUEST:           { label: 'Purchase Request',  color: 'bg-indigo-100 text-indigo-700 border-indigo-200',   icon: Info,         dot: 'bg-indigo-500' },
+  RETURN:            { label: 'Return',             color: 'bg-orange-100 text-orange-700 border-orange-200',   icon: AlertCircle,  dot: 'bg-orange-500' },
+  TICKET:            { label: 'Service Ticket',    color: 'bg-teal-100 text-teal-700 border-teal-200',         icon: Info,         dot: 'bg-teal-500' },
 };
 
 function groupByDate(list) {
@@ -38,6 +43,17 @@ function groupByDate(list) {
     groups[key].push(n);
   });
   return groups;
+}
+
+// Resolve effective sub-type for SYSTEM notifications
+function getEffectiveMeta(n) {
+  if (n.type === 'SYSTEM') {
+    const m = n.metadata || {};
+    if (m.requestId) return TYPE_META.REQUEST;
+    if (m.returnId)  return TYPE_META.RETURN;
+    if (m.ticketId)  return TYPE_META.TICKET;
+  }
+  return TYPE_META[n.type] || TYPE_META.SYSTEM;
 }
 
 export default function NotificationsPage() {
@@ -89,17 +105,42 @@ export default function NotificationsPage() {
         setNotifications(prev => prev.map(notif => notif.id === n.id ? { ...notif, isRead: true } : notif));
       } catch (err) { console.error(err); }
     }
+
     const role = user?.role;
-    const { transferId, invoiceId, dealerId } = n.metadata || {};
+    const { transferId, invoiceId, dealerId, requestId, returnId, ticketId } = n.metadata || {};
+
     if (role === 'ADMIN') {
-      if (n.type === 'STOCK_TRANSFER' || n.type === 'DELIVERY_UPDATE') navigate('/admin/transfers', { state: { activeTab: 'history', transferId } });
-      else if (n.type === 'INVOICE_GENERATED') navigate('/admin/dashboard', { state: { invoiceId } });
-      else if (n.type === 'ACCOUNT_UPDATE') navigate('/admin/dealers', { state: { dealerId } });
-      else navigate('/admin/dashboard');
+      if (n.type === 'STOCK_TRANSFER' || n.type === 'DELIVERY_UPDATE') {
+        navigate('/admin/transfers', { state: { activeTab: 'history', transferId } });
+      } else if (n.type === 'INVOICE_GENERATED') {
+        navigate('/admin/invoice-ledger', { state: { invoiceId } });
+      } else if (n.type === 'ACCOUNT_UPDATE') {
+        navigate('/admin/dealers', { state: { dealerId } });
+      } else if (n.type === 'SYSTEM') {
+        // Differentiate SYSTEM sub-types by metadata key
+        if (requestId)  navigate('/admin/requests',  { state: { requestId } });
+        else if (returnId)  navigate('/admin/returns',   { state: { returnId } });
+        else if (ticketId)  navigate('/admin/services',  { state: { ticketId } });
+        else navigate('/admin/notifications');
+      } else {
+        navigate('/admin/notifications');
+      }
     } else {
-      if (n.type === 'STOCK_TRANSFER' || n.type === 'DELIVERY_UPDATE') navigate('/dealer/ledgers', { state: { activeTab: 'transfers', transferId } });
-      else if (n.type === 'INVOICE_GENERATED') navigate('/dealer/ledgers', { state: { activeTab: 'invoices', invoiceId } });
-      else navigate('/dealer/dashboard');
+      // DEALER
+      if (n.type === 'STOCK_TRANSFER' || n.type === 'DELIVERY_UPDATE') {
+        navigate('/dealer/ledgers', { state: { activeTab: 'transfers', transferId } });
+      } else if (n.type === 'INVOICE_GENERATED') {
+        navigate('/dealer/ledgers', { state: { activeTab: 'invoices', invoiceId } });
+      } else if (n.type === 'ACCOUNT_UPDATE') {
+        navigate('/dealer/profile');
+      } else if (n.type === 'SYSTEM') {
+        if (requestId)  navigate('/dealer/requests',  { state: { requestId } });
+        else if (returnId)  navigate('/dealer/returns',   { state: { returnId } });
+        else if (ticketId)  navigate('/dealer/services',  { state: { ticketId } });
+        else navigate('/dealer/notifications');
+      } else {
+        navigate('/dealer/notifications');
+      }
     }
   };
 
@@ -107,22 +148,24 @@ export default function NotificationsPage() {
   const countFor = (tabId) => {
     return notifications.filter(n => {
       const unread = !n.isRead;
-      if (tabId === 'ALL') return unread;
-      if (tabId === 'BILLING') return unread && n.type === 'INVOICE_GENERATED';
-      if (tabId === 'STOCK') return unread && (n.type === 'STOCK_TRANSFER' || n.type === 'DELIVERY_UPDATE');
-      if (tabId === 'ACCOUNT') return unread && n.type === 'ACCOUNT_UPDATE';
-      if (tabId === 'SYSTEM') return unread && n.type === 'SYSTEM';
+      if (tabId === 'ALL')      return unread;
+      if (tabId === 'BILLING')  return unread && n.type === 'INVOICE_GENERATED';
+      if (tabId === 'STOCK')    return unread && (n.type === 'STOCK_TRANSFER' || n.type === 'DELIVERY_UPDATE');
+      if (tabId === 'ACCOUNT')  return unread && n.type === 'ACCOUNT_UPDATE';
+      if (tabId === 'REQUESTS') return unread && n.type === 'SYSTEM' && !!(n.metadata?.requestId || n.metadata?.returnId || n.metadata?.ticketId);
+      if (tabId === 'SYSTEM')   return unread && n.type === 'SYSTEM' && !(n.metadata?.requestId || n.metadata?.returnId || n.metadata?.ticketId);
       return false;
     }).length;
   };
 
   const filtered = notifications.filter(n => {
     if (showUnreadOnly && n.isRead) return false;
-    if (activeTab === 'ALL') return true;
-    if (activeTab === 'BILLING') return n.type === 'INVOICE_GENERATED';
-    if (activeTab === 'STOCK') return n.type === 'STOCK_TRANSFER' || n.type === 'DELIVERY_UPDATE';
-    if (activeTab === 'ACCOUNT') return n.type === 'ACCOUNT_UPDATE';
-    if (activeTab === 'SYSTEM') return n.type === 'SYSTEM';
+    if (activeTab === 'ALL')      return true;
+    if (activeTab === 'BILLING')  return n.type === 'INVOICE_GENERATED';
+    if (activeTab === 'STOCK')    return n.type === 'STOCK_TRANSFER' || n.type === 'DELIVERY_UPDATE';
+    if (activeTab === 'ACCOUNT')  return n.type === 'ACCOUNT_UPDATE';
+    if (activeTab === 'REQUESTS') return n.type === 'SYSTEM' && !!(n.metadata?.requestId || n.metadata?.returnId || n.metadata?.ticketId);
+    if (activeTab === 'SYSTEM')   return n.type === 'SYSTEM' && !(n.metadata?.requestId || n.metadata?.returnId || n.metadata?.ticketId);
     return true;
   });
 
@@ -253,8 +296,21 @@ export default function NotificationsPage() {
                   <span className="text-[9px] font-black uppercase text-slate-400 tracking-widest">{dateLabel}</span>
                 </div>
                 {items.map((n) => {
-                  const meta = TYPE_META[n.type] || TYPE_META.SYSTEM;
+                  const meta = getEffectiveMeta(n);
                   const Icon = meta.icon;
+
+                  // Compute a human-readable destination label
+                  const role = user?.role;
+                  const { requestId, returnId, ticketId, transferId, invoiceId } = n.metadata || {};
+                  let destLabel = null;
+                  if (n.type === 'STOCK_TRANSFER' || n.type === 'DELIVERY_UPDATE') destLabel = role === 'ADMIN' ? '→ Transfers' : '→ Ledger / Transfers';
+                  else if (n.type === 'INVOICE_GENERATED') destLabel = role === 'ADMIN' ? '→ Invoice Ledger' : '→ Ledger / Invoices';
+                  else if (n.type === 'ACCOUNT_UPDATE') destLabel = role === 'ADMIN' ? '→ Dealers' : '→ My Profile';
+                  else if (n.type === 'SYSTEM') {
+                    if (requestId) destLabel = role === 'ADMIN' ? '→ Purchase Orders' : '→ My Requests';
+                    else if (returnId) destLabel = '→ Returns';
+                    else if (ticketId) destLabel = '→ Service Tickets';
+                  }
                   return (
                     <div
                       key={n.id}
@@ -286,6 +342,11 @@ export default function NotificationsPage() {
                           {!n.isRead && (
                             <span className="text-[9px] bg-rose-600 text-white font-black px-1.5 py-0.5 rounded-full uppercase tracking-wider">
                               New
+                            </span>
+                          )}
+                          {destLabel && (
+                            <span className="text-[9px] font-bold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-md">
+                              {destLabel}
                             </span>
                           )}
                         </div>

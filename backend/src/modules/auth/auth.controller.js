@@ -39,7 +39,8 @@ exports.registerDealer = async (req, res, next) => {
       dealerCategory,
       initialDeposit,
       categories,  // array of category IDs
-      defaultMargin
+      defaultMargin,
+      billingProfile  // 'NORMAL' | 'ADVANCE'
     } = req.body;
 
     // Check if user already exists
@@ -91,6 +92,7 @@ exports.registerDealer = async (req, res, next) => {
           dealerCategory: dealerCategory || 'STARTER',
           initialDeposit: initialDeposit ? parseFloat(initialDeposit) : 0,
           categories: categories || [],
+          billingProfile: billingProfile || 'NORMAL',
           approvalStatus: 'PENDING' // Starts as PENDING
         }
       });

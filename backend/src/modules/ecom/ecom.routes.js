@@ -55,6 +55,10 @@ router.delete('/press/:id', ecomController.deletePressRelease);
 router.get('/customers', ecomController.getCustomers);
 router.get('/customers/:id', ecomController.getCustomerById);
 
+// B2C Channel Integration
+router.get('/b2c/customers', ecomController.getB2CCustomers);
+router.post('/b2c/customers/:id/promote', ecomController.promoteToDealer);
+
 // Website Settings
 router.get('/settings', ecomController.getSettings);
 router.put('/settings', ecomController.updateSettings);

@@ -103,10 +103,12 @@ exports.updateDealer = async (req, res, next) => {
       area,
       phone,
       dealerType,
+      dealerCategory,
       creditLimit,
       initialDeposit,
       categories,
-      notes
+      notes,
+      billingProfile
     } = req.body;
 
     const existingDealer = await prisma.dealer.findUnique({
@@ -144,7 +146,8 @@ exports.updateDealer = async (req, res, next) => {
           creditLimit: creditLimit !== undefined ? creditLimit : existingDealer.creditLimit,
           initialDeposit: initialDeposit !== undefined ? parseFloat(initialDeposit) : existingDealer.initialDeposit,
           categories: categories !== undefined ? categories : existingDealer.categories,
-          notes: notes !== undefined ? notes : existingDealer.notes
+          notes: notes !== undefined ? notes : existingDealer.notes,
+          billingProfile: billingProfile !== undefined ? billingProfile : existingDealer.billingProfile
         },
         include: {
           user: {

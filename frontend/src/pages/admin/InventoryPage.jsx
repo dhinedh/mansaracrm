@@ -1,5 +1,6 @@
 // src/pages/admin/InventoryPage.jsx
 import React, { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import axios from 'axios';
 import {
   Warehouse,
@@ -14,9 +15,11 @@ import {
 } from 'lucide-react';
 
 export default function InventoryPage() {
+  const location = useLocation();
   const [stocks, setStocks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [filterLowStock, setFilterLowStock] = useState(false);
   const [message, setMessage] = useState({ text: '', type: '' });
 
   // Edit modal
@@ -29,6 +32,12 @@ export default function InventoryPage() {
   useEffect(() => {
     fetchStocks();
   }, []);
+
+  useEffect(() => {
+    if (location.state?.filter === 'low_stock') {
+      setFilterLowStock(true);
+    }
+  }, [location.state]);
 
   const fetchStocks = async () => {
     setLoading(true);
@@ -72,6 +81,9 @@ export default function InventoryPage() {
   };
 
   const filteredStocks = stocks.filter(item => {
+    const isLow = item.quantity <= item.minQuantity;
+    if (filterLowStock && !isLow) return false;
+
     if (!search) return true;
     const q = search.toLowerCase();
     return (
@@ -131,6 +143,21 @@ export default function InventoryPage() {
         }`}>
           {message.type === 'success' ? <CheckCircle2 className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
           {message.text}
+        </div>
+      )}
+
+      {/* Active Filter Chips */}
+      {filterLowStock && (
+        <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-800 px-3 py-1.5 rounded-xl text-xs font-semibold w-fit animate-fade-in">
+          <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+          <span>Showing Low Stock Alerts Only</span>
+          <button
+            onClick={() => setFilterLowStock(false)}
+            className="text-amber-500 hover:text-amber-700 ml-1 cursor-pointer focus:outline-none flex items-center justify-center p-0.5 hover:bg-amber-100 rounded-lg transition-colors"
+            title="Clear filter"
+          >
+            <X className="w-3 h-3" />
+          </button>
         </div>
       )}
 

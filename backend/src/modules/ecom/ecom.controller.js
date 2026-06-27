@@ -1,5 +1,7 @@
 // src/modules/ecom/ecom.controller.js
 const mongoose = require('mongoose');
+const bcrypt = require('bcryptjs');
+const prisma = require('../../config/database');
 
 // Get Mongoose Models
 const Order = mongoose.model('Order');
@@ -540,6 +542,160 @@ exports.updateSettings = async (req, res, next) => {
       { new: true, upsert: true }
     );
     res.json({ success: true, message: 'Settings updated successfully', settings });
+  } catch (error) {
+    next(error);
+  }
+};
+// ======================================================
+// B2C → CRM DEALER CHANNEL INTEGRATION
+// ======================================================
+
+/**
+ * Promote a B2C ecom customer to a CRM Dealer account (channelSource: 'B2C').
+ * Creates a Prisma User + Dealer record linked to the ecom customer.
+ * Also patches the ecom User record with crmDealerId for bidirectional linking.
+ */
+exports.promoteToDealer = async (req, res, next) => {
+  try {
+    const { id } = req.params; // ecom Mongoose User ID
+    const {
+      companyName,
+      dealerType,
+      dealerCategory,
+      address,
+      city,
+      state,
+      pincode,
+      gstNumber,
+      zones,
+      defaultMargin,
+      billingProfile
+    } = req.body;
+
+    // Fetch B2C customer from ecom DB
+    const ecomUser = await User.findById(id).select('-password');
+    if (!ecomUser) {
+      return res.status(404).json({ success: false, message: 'B2C customer not found' });
+    }
+
+    // Check if already promoted
+    if (ecomUser.crmDealerId) {
+      return res.status(400).json({ success: false, message: 'This customer is already linked to a CRM dealer account.' });
+    }
+
+    // Check if a CRM user with this email already exists
+    const existingCrmUser = await prisma.user.findUnique({ where: { email: ecomUser.email } });
+    if (existingCrmUser) {
+      return res.status(400).json({ success: false, message: 'A CRM account with this email already exists.' });
+    }
+
+    const defaultPassword = `B2C@${(ecomUser.phone || '123456').slice(-6)}`;
+    const hashedPassword = await bcrypt.hash(defaultPassword, 12);
+
+    const resolvedAddress = address || ecomUser.address || 'Address not provided';
+    const resolvedPhone = ecomUser.phone || ecomUser.whatsapp || '0000000000';
+
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. Create CRM user
+      const crmUser = await tx.user.create({
+        data: {
+          email: ecomUser.email,
+          password: hashedPassword,
+          name: ecomUser.name,
+          role: 'DEALER',
+          isActive: true
+        }
+      });
+
+      // 2. Create Dealer
+      const dealer = await tx.dealer.create({
+        data: {
+          userId: crmUser.id,
+          companyName: companyName || ecomUser.name,
+          gstNumber: gstNumber || null,
+          address: resolvedAddress,
+          city: city || ecomUser.city || '',
+          state: state || ecomUser.state || '',
+          pincode: pincode || ecomUser.pincode || '',
+          zones: zones && zones.length > 0 ? zones : [],
+          phone: resolvedPhone,
+          dealerType: dealerType || 'RETAIL',
+          dealerCategory: dealerCategory || 'STARTER',
+          billingProfile: billingProfile || 'NORMAL',
+          channelSource: 'B2C',
+          approvalStatus: 'APPROVED'  // B2C promote = auto-approved
+        }
+      });
+
+      // 3. Create default margin
+      await tx.margin.create({
+        data: {
+          dealerId: dealer.id,
+          marginPercent: defaultMargin ? parseFloat(defaultMargin) : 0,
+          isDefault: true
+        }
+      });
+
+      // 4. Audit log
+      await tx.auditLog.create({
+        data: {
+          userId: req.user.id,
+          action: 'PROMOTE_B2C_TO_DEALER',
+          entity: 'Dealer',
+          entityId: dealer.id,
+          newValues: { ecomUserId: id, email: ecomUser.email, companyName: dealer.companyName }
+        }
+      });
+
+      return { crmUser, dealer };
+    });
+
+    // 5. Mark ecom user as promoted (bidirectional link)
+    await User.findByIdAndUpdate(id, {
+      crmDealerId: result.dealer.id,
+      channelSource: 'CRM_LINKED'
+    });
+
+    res.json({
+      success: true,
+      message: `B2C customer '${ecomUser.name}' promoted to CRM Dealer successfully.`,
+      data: {
+        dealerId: result.dealer.id,
+        crmUserId: result.crmUser.id,
+        email: ecomUser.email,
+        defaultPassword
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * List all B2C ecom customers, with a flag indicating if they've been promoted to CRM Dealer.
+ */
+exports.getB2CCustomers = async (req, res, next) => {
+  try {
+    const customers = await User.find({ role: { $ne: 'ADMIN' } })
+      .select('name email phone whatsapp address city state pincode joinedDate status totalSpent totalOrders lastLogin crmDealerId channelSource createdAt')
+      .sort({ createdAt: -1 });
+
+    // Enrich with order count
+    const enriched = await Promise.all(customers.map(async (c) => {
+      const orderCount = await Order.countDocuments({ user: c._id });
+      const totalSpent = await Order.aggregate([
+        { $match: { user: c._id, paymentStatus: 'Paid' } },
+        { $group: { _id: null, total: { $sum: '$total' } } }
+      ]);
+      return {
+        ...c.toObject(),
+        totalOrders: orderCount,
+        totalSpent: totalSpent[0]?.total || c.totalSpent || 0,
+        isPromoted: !!c.crmDealerId
+      };
+    }));
+
+    res.json({ success: true, customers: enriched });
   } catch (error) {
     next(error);
   }

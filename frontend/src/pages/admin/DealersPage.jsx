@@ -79,6 +79,7 @@ export default function DealersPage() {
   const [editNotes, setEditNotes] = useState('');
   const [editLoading, setEditLoading] = useState(false);
   const [editError, setEditError] = useState('');
+  const [editBillingProfile, setEditBillingProfile] = useState('NORMAL');
   const [zoneConflicts, setZoneConflicts] = useState([]);
   const [editZoneConflicts, setEditZoneConflicts] = useState([]);
   const [showMap, setShowMap] = useState(false);
@@ -105,6 +106,7 @@ export default function DealersPage() {
   const [categoryList, setCategoryList] = useState([]);
   const [pincodeSuggestions, setPincodeSuggestions] = useState([]);
   const [defaultMargin, setDefaultMargin] = useState(10);
+  const [billingProfile, setBillingProfile] = useState('NORMAL');
   const [margins, setMargins] = useState([]);
   const [marginsLoading, setMarginsLoading] = useState(false);
   const [productsList, setProductsList] = useState([]);
@@ -191,6 +193,7 @@ export default function DealersPage() {
     setEditInitialDeposit(dealerDetail.initialDeposit || '');
     setEditCategories(dealerDetail.categories || []);
     setEditNotes(dealerDetail.notes || '');
+    setEditBillingProfile(dealerDetail.billingProfile || 'NORMAL');
     setEditError('');
     setIsEditingProfile(true);
     fetchCategories();
@@ -227,7 +230,8 @@ export default function DealersPage() {
         creditLimit: editCreditLimit ? parseFloat(editCreditLimit) : null,
         initialDeposit: editInitialDeposit ? parseFloat(editInitialDeposit) : 0,
         categories: editCategories,
-        notes: editNotes
+        notes: editNotes,
+        billingProfile: editBillingProfile
       });
       if (res.data.success) {
         setDealerDetail(res.data.data);
@@ -424,7 +428,8 @@ export default function DealersPage() {
         area, phone, dealerType, dealerCategory,
         initialDeposit: initialDeposit ? parseFloat(initialDeposit) : 0,
         categories: selectedCategories,
-        defaultMargin: parseFloat(defaultMargin)
+        defaultMargin: parseFloat(defaultMargin),
+        billingProfile
       });
       
       setFormSuccess(true);
@@ -465,6 +470,7 @@ export default function DealersPage() {
     setAddress(''); setCity(''); setState(''); setPincode(''); setZones([]); setZoneInput(''); setArea('');
     setPhone(''); setDealerType('RETAIL'); setDealerCategory('STARTER'); setInitialDeposit(''); setSelectedCategories([]);
     setDefaultMargin(10);
+    setBillingProfile('NORMAL');
     setFormError(''); setFormSuccess(false); setSubmitting(false);
     setPincodeSuggestions([]);
     setShowMap(false);
@@ -861,6 +867,31 @@ export default function DealersPage() {
                     className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none"
                   />
                 </div>
+                <div>
+                  <label className="block text-slate-500 font-bold mb-2">Billing Profile</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { value: 'NORMAL', label: '📄 Normal', desc: 'Invoice on delivery' },
+                      { value: 'ADVANCE', label: '⚡ Advance', desc: 'Payment before dispatch' }
+                    ].map(opt => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setBillingProfile(opt.value)}
+                        className={`py-2.5 px-3 rounded-xl text-[11px] font-black border transition-all text-left ${
+                          billingProfile === opt.value
+                            ? opt.value === 'ADVANCE'
+                              ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                              : 'bg-slate-700 text-white border-slate-700 shadow-sm'
+                            : 'bg-white text-slate-500 border-slate-200 hover:border-rose-300'
+                        }`}
+                      >
+                        <div>{opt.label}</div>
+                        <div className={`text-[9px] font-medium mt-0.5 ${billingProfile === opt.value ? 'opacity-80' : 'text-slate-400'}`}>{opt.desc}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
 
               {/* Zones Tag Builder */}
@@ -1187,6 +1218,31 @@ export default function DealersPage() {
                               <label className="block text-slate-500 font-bold mb-1">Initial Deposit (₹)</label>
                               <input type="number" min="0" step="0.01" value={editInitialDeposit} onChange={e => setEditInitialDeposit(e.target.value)} className="w-full p-2.5 bg-white border border-slate-200 focus:border-rose-500 rounded-xl focus:outline-none" />
                             </div>
+                            <div>
+                              <label className="block text-slate-500 font-bold mb-2">Billing Profile</label>
+                              <div className="grid grid-cols-2 gap-2">
+                                {[
+                                  { value: 'NORMAL', label: '📄 Normal', desc: 'Invoice on delivery' },
+                                  { value: 'ADVANCE', label: '⚡ Advance', desc: 'Payment before dispatch' }
+                                ].map(opt => (
+                                  <button
+                                    key={opt.value}
+                                    type="button"
+                                    onClick={() => setEditBillingProfile(opt.value)}
+                                    className={`py-2.5 px-3 rounded-xl text-[11px] font-black border transition-all text-left cursor-pointer ${
+                                      editBillingProfile === opt.value
+                                        ? opt.value === 'ADVANCE'
+                                          ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                                          : 'bg-slate-700 text-white border-slate-700 shadow-sm'
+                                        : 'bg-white text-slate-500 border-slate-200 hover:border-rose-300'
+                                    }`}
+                                  >
+                                    <div>{opt.label}</div>
+                                    <div className={`text-[9px] font-medium mt-0.5 ${editBillingProfile === opt.value ? 'opacity-80' : 'text-slate-400'}`}>{opt.desc}</div>
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
                           </div>
 
                           {/* Zones Tag Builder */}
@@ -1433,6 +1489,19 @@ export default function DealersPage() {
                                   {dealerDetail.creditLimit !== undefined && dealerDetail.creditLimit !== null
                                     ? `₹${Number(dealerDetail.creditLimit).toLocaleString('en-IN')}` 
                                     : 'No Credit Limit Set'}
+                                </span>
+
+                                <span className="text-slate-400 font-medium">Billing Profile</span>
+                                <span className="col-span-2">
+                                  {dealerDetail.billingProfile === 'ADVANCE' ? (
+                                    <span className="inline-flex items-center gap-1 text-[10px] font-black px-2.5 py-1 rounded-lg bg-indigo-100 text-indigo-700 border border-indigo-200">
+                                      ⚡ ADVANCE — Payment before dispatch
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1 text-[10px] font-black px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600 border border-slate-200">
+                                      📄 NORMAL — Invoice on delivery
+                                    </span>
+                                  )}
                                 </span>
 
                                 <span className="text-slate-400 font-medium">Categories</span>

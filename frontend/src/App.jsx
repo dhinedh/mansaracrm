@@ -31,6 +31,7 @@ import RnDPage from './pages/admin/RnDPage';
 import InventoriesPage from './pages/admin/InventoriesPage';
 import AdminInvoiceLedger from './pages/admin/AdminInvoiceLedger';
 import UserManagement from './pages/admin/UserManagement';
+import ZoneMapPage from './pages/admin/ZoneMapPage';
 
 // E-Commerce Pages
 import EcomOrdersPage from './pages/admin/EcomOrdersPage';
@@ -195,6 +196,11 @@ export default function App() {
             </ProtectedRoute>
           } />
           <Route path="notifications" element={<NotificationsPage />} />
+          <Route path="zone-map" element={
+            <ProtectedRoute allowedStaffRoles={['ADMIN', 'B2B_MANAGER']}>
+              <ZoneMapPage />
+            </ProtectedRoute>
+          } />
           
           {/* E-Commerce Routes */}
           <Route path="ecom/orders" element={

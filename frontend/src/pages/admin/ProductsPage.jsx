@@ -48,6 +48,7 @@ export default function ProductsPage() {
   const [ingredients, setIngredients] = useState('');
   const [howToUse, setHowToUse] = useState('');
   const [storage, setStorage] = useState('');
+  const [pacQuantity, setPacQuantity] = useState('');
 
   useEffect(() => {
     fetchProducts();
@@ -108,6 +109,7 @@ export default function ProductsPage() {
     formData.append('howToUse', howToUse);
     formData.append('storage', storage);
     formData.append('weight', weight);
+    formData.append('pacQuantity', pacQuantity);
     if (imageFile) {
       formData.append('image', imageFile);
     }
@@ -148,6 +150,7 @@ export default function ProductsPage() {
     formData.append('howToUse', howToUse);
     formData.append('storage', storage);
     formData.append('weight', weight);
+    formData.append('pacQuantity', pacQuantity);
     if (imageFile) {
       formData.append('image', imageFile);
     }
@@ -196,6 +199,7 @@ export default function ProductsPage() {
     setIngredients(p.ingredients || '');
     setHowToUse(p.howToUse || '');
     setStorage(p.storage || '');
+    setPacQuantity(p.pacQuantity ? String(p.pacQuantity) : '');
     setShowEditModal(true);
   };
 
@@ -203,7 +207,7 @@ export default function ProductsPage() {
     setName(''); setSku(''); setDescription(''); setPrice(''); setMrp('');
     setGstPercent('5'); setHsnCode(''); setCategoryId(''); setUnit('KG');
     setInitialStock('100'); setImageFile(null); setCurrentProduct(null);
-    setSlug(''); setOfferPrice(''); setWeight('');
+    setSlug(''); setOfferPrice(''); setWeight(''); setPacQuantity('');
     setIsFeatured(false); setIsNewArrival(false); setIsOffer(false);
     setIngredients(''); setHowToUse(''); setStorage('');
   };
@@ -305,6 +309,12 @@ export default function ProductsPage() {
                       {product.companyStock?.quantity || 0} {product.unit}
                     </span>
                   </div>
+                  {product.pacQuantity && (
+                    <div className="flex justify-between items-center text-[10px]">
+                      <span className="text-slate-400 font-medium">PAC (pcs/carton):</span>
+                      <span className="font-bold text-indigo-600">📦 {product.pacQuantity}</span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex space-x-2 pt-2">
@@ -410,6 +420,24 @@ export default function ProductsPage() {
                   <div>
                     <label className="block text-slate-500 font-bold mb-1">Net Weight</label>
                     <input type="text" value={weight} onChange={e => setWeight(e.target.value)} placeholder="e.g. 250g, 500g, 1L" className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-slate-500 font-bold mb-1">
+                      PAC — Pcs / Carton
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={pacQuantity}
+                      onChange={e => setPacQuantity(e.target.value)}
+                      placeholder="e.g. 60 for 100g, 24 for 250g"
+                      className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none"
+                    />
+                    {pacQuantity && weight && (
+                      <p className="text-[10px] text-emerald-600 font-semibold mt-1">
+                        📦 1 carton = {pacQuantity} pcs × {weight}
+                      </p>
+                    )}
                   </div>
                   <div className="flex items-center space-x-4 pt-6">
                     <label className="flex items-center space-x-2 font-bold text-slate-600 cursor-pointer">
@@ -530,6 +558,24 @@ export default function ProductsPage() {
                   <div>
                     <label className="block text-slate-500 font-bold mb-1">Net Weight</label>
                     <input type="text" value={weight} onChange={e => setWeight(e.target.value)} placeholder="e.g. 250g, 500g, 1L" className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-slate-500 font-bold mb-1">
+                      PAC — Pcs / Carton
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={pacQuantity}
+                      onChange={e => setPacQuantity(e.target.value)}
+                      placeholder="e.g. 60 for 100g, 24 for 250g"
+                      className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none"
+                    />
+                    {pacQuantity && weight && (
+                      <p className="text-[10px] text-emerald-600 font-semibold mt-1">
+                        📦 1 carton = {pacQuantity} pcs × {weight}
+                      </p>
+                    )}
                   </div>
                   <div className="flex items-center space-x-4 pt-6">
                     <label className="flex items-center space-x-2 font-bold text-slate-600 cursor-pointer">

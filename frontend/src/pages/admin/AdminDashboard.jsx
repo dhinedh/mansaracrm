@@ -29,7 +29,7 @@ const crmModules = [
   { name: 'Notifications', path: '/admin/notifications',       icon: Bell,          color: '#dc2626', bg: '#fef2f2', desc: 'System alerts & messages' },
   { name: 'Channels',      path: '/admin/channel-integration', icon: Cable,         color: '#0891b2', bg: '#ecfeff', desc: 'Platform integrations' },
   { name: 'R&D Lab',       path: '/admin/rnd',                 icon: Microscope,    color: '#475569', bg: '#f8fafc', desc: 'Research & development' },
-  { name: 'Zone Map',      path: '/admin/dealers',             icon: MapPin,        color: '#16a34a', bg: '#f0fdf4', desc: 'Territory assignments' },
+  { name: 'Zone Map',      path: '/admin/zone-map',            icon: MapPin,        color: '#16a34a', bg: '#f0fdf4', desc: 'Territory assignments' },
   { name: 'Invoice Ledger', path: '/admin/invoice-ledger',      icon: FileText,      color: '#e11d48', bg: '#fff1f2', desc: 'B2B & B2C tax invoices ledger' },
   { name: 'Privileges',     path: '/admin/users',               icon: UserCog,       color: '#0f766e', bg: '#f0fdfa', desc: 'Manage access privileges & roles' },
 ];
@@ -146,35 +146,50 @@ export default function AdminDashboard() {
           ))
         ) : (
           <>
-            <div className="bg-white border border-slate-150 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-300 flex items-center gap-4 animate-fade-in">
-              <div className="p-3.5 bg-sky-50 rounded-2xl shrink-0">
+            <button
+              onClick={() => navigate('/admin/products')}
+              className="bg-white border border-slate-150 rounded-2xl p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 flex items-center gap-4 animate-fade-in cursor-pointer text-left w-full group"
+            >
+              <div className="p-3.5 bg-sky-50 rounded-2xl shrink-0 group-hover:scale-110 transition-transform duration-200">
                 <ShoppingBag className="w-6 h-6 text-sky-600" />
               </div>
               <div>
                 <span className="block text-[10px] font-black uppercase tracking-widest text-slate-400">Available Products</span>
                 <strong className="text-xl font-black text-slate-800 mt-1 block">{stats.productsCount} SKUs</strong>
+                <span className="text-[9px] text-sky-500 font-semibold mt-0.5 block opacity-0 group-hover:opacity-100 transition-opacity">View Products →</span>
               </div>
-            </div>
-            <div className="bg-white border border-slate-150 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-300 flex items-center gap-4 animate-fade-in">
-              <div className="p-3.5 bg-rose-50 rounded-2xl shrink-0">
+            </button>
+            <button
+              onClick={() => navigate('/admin/dealers')}
+              className="bg-white border border-slate-150 rounded-2xl p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 flex items-center gap-4 animate-fade-in cursor-pointer text-left w-full group"
+            >
+              <div className="p-3.5 bg-rose-50 rounded-2xl shrink-0 group-hover:scale-110 transition-transform duration-200">
                 <Users className="w-6 h-6 text-rose-600" />
               </div>
               <div>
                 <span className="block text-[10px] font-black uppercase tracking-widest text-slate-400">Active Dealers</span>
                 <strong className="text-xl font-black text-slate-800 mt-1 block">{stats.dealersCount} Partners</strong>
+                <span className="text-[9px] text-rose-500 font-semibold mt-0.5 block opacity-0 group-hover:opacity-100 transition-opacity">View Dealers →</span>
               </div>
-            </div>
-            <div className="bg-white border border-slate-150 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-300 flex items-center gap-4 animate-fade-in">
-              <div className="p-3.5 bg-emerald-50 rounded-2xl shrink-0">
+            </button>
+            <button
+              onClick={() => navigate('/admin/inventory')}
+              className="bg-white border border-slate-150 rounded-2xl p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 flex items-center gap-4 animate-fade-in cursor-pointer text-left w-full group"
+            >
+              <div className="p-3.5 bg-emerald-50 rounded-2xl shrink-0 group-hover:scale-110 transition-transform duration-200">
                 <Boxes className="w-6 h-6 text-emerald-600" />
               </div>
               <div>
                 <span className="block text-[10px] font-black uppercase tracking-widest text-slate-400">Total Stock Qty</span>
                 <strong className="text-xl font-black text-slate-800 mt-1 block">{stats.totalStock.toLocaleString()} Units</strong>
+                <span className="text-[9px] text-emerald-500 font-semibold mt-0.5 block opacity-0 group-hover:opacity-100 transition-opacity">View Inventory →</span>
               </div>
-            </div>
-            <div className="bg-white border border-slate-150 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-300 flex items-center gap-4 animate-fade-in">
-              <div className="p-3.5 bg-amber-50 rounded-2xl shrink-0">
+            </button>
+            <button
+              onClick={() => navigate('/admin/inventory', { state: { filter: 'low_stock' } })}
+              className="bg-white border border-slate-150 rounded-2xl p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 flex items-center gap-4 animate-fade-in cursor-pointer text-left w-full group"
+            >
+              <div className="p-3.5 bg-amber-50 rounded-2xl shrink-0 group-hover:scale-110 transition-transform duration-200">
                 <AlertCircle className="w-6 h-6 text-amber-600" />
               </div>
               <div>
@@ -182,8 +197,9 @@ export default function AdminDashboard() {
                 <strong className={`text-xl font-black mt-1 block ${stats.lowStockCount > 0 ? 'text-amber-600 animate-pulse' : 'text-slate-800'}`}>
                   {stats.lowStockCount} items
                 </strong>
+                <span className="text-[9px] text-amber-500 font-semibold mt-0.5 block opacity-0 group-hover:opacity-100 transition-opacity">View Low Stock →</span>
               </div>
-            </div>
+            </button>
           </>
         )}
       </div>

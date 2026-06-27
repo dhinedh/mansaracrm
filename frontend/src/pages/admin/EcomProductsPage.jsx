@@ -3,8 +3,9 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import {
   Package, Search, RefreshCw, Eye, EyeOff, Star,
-  Tag, AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight
+  Tag, AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, Upload
 } from 'lucide-react';
+import BulkUploadModal from '../../components/BulkUploadModal';
 
 // E-Commerce backend base URL
 const ECOM_API = import.meta.env.VITE_ECOM_API_URL || 'http://localhost:5000/api';
@@ -16,6 +17,7 @@ export default function EcomProductsPage() {
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState({ text: '', type: '' });
+  const [showBulkUpload, setShowBulkUpload] = useState(false);
 
   // Filters
   const [search, setSearch] = useState('');
@@ -102,12 +104,20 @@ export default function EcomProductsPage() {
             Manage products visible on the Mansara online store.
           </p>
         </div>
-        <button
-          onClick={fetchAll}
-          className="inline-flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 border border-slate-200 text-xs font-bold px-4 py-2.5 rounded-xl transition-all self-start sm:self-auto cursor-pointer"
-        >
-          <RefreshCw className="w-3.5 h-3.5" /> Refresh
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowBulkUpload(true)}
+            className="inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition-all self-start sm:self-auto cursor-pointer"
+          >
+            <Upload className="w-3.5 h-3.5" /> Bulk Upload
+          </button>
+          <button
+            onClick={fetchAll}
+            className="inline-flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 border border-slate-200 text-xs font-bold px-4 py-2.5 rounded-xl transition-all self-start sm:self-auto cursor-pointer"
+          >
+            <RefreshCw className="w-3.5 h-3.5" /> Refresh
+          </button>
+        </div>
       </div>
 
       {/* Message */}
@@ -173,6 +183,7 @@ export default function EcomProductsPage() {
                 <tr className="bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
                   <th className="p-3 px-4">Image</th>
                   <th className="p-3">Product Name</th>
+                  <th className="p-3">Variants / SKUs</th>
                   <th className="p-3">Category</th>
                   <th className="p-3 text-right">Price</th>
                   <th className="p-3 text-center">Stock</th>
@@ -202,6 +213,29 @@ export default function EcomProductsPage() {
                       <td className="p-3">
                         <div className="font-bold text-slate-800 max-w-[180px] truncate">{product.name}</div>
                         {product.sku && <div className="text-[10px] text-slate-400 font-mono">{product.sku}</div>}
+                      </td>
+                      {/* Variants / SKUs column */}
+                      <td className="p-3">
+                        {product.variants && product.variants.length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {product.variants.map((v, vi) => (
+                              <span
+                                key={vi}
+                                title={v.sku ? `SKU: ${v.sku}` : 'No SKU set'}
+                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border ${
+                                  v.sku
+                                    ? 'bg-blue-50 text-blue-700 border-blue-100'
+                                    : 'bg-amber-50 text-amber-700 border-amber-100'
+                                }`}
+                              >
+                                {v.weight || '?'}
+                                {v.sku ? <span className="font-mono font-normal opacity-75">#{v.sku}</span> : <span className="opacity-60">⚠ no SKU</span>}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-slate-300 text-[10px]">—</span>
+                        )}
                       </td>
                       <td className="p-3 text-slate-500 capitalize">{product.category || '—'}</td>
                       <td className="p-3 text-right">
@@ -263,6 +297,18 @@ export default function EcomProductsPage() {
           </div>
         )}
       </div>
+
+    {/* Bulk Upload Modal */}
+    {showBulkUpload && (
+      <BulkUploadModal
+        onClose={() => setShowBulkUpload(false)}
+        onSuccess={() => {
+          setShowBulkUpload(false);
+          fetchAll();
+          setMessage({ text: 'Bulk upload complete! Product list refreshed.', type: 'success' });
+        }}
+      />
+    )}
     </div>
   );
 }

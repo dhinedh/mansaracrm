@@ -140,6 +140,62 @@ export default function RequestsPage() {
     setRequestItems(requestItems.filter(item => item.productId !== prodId));
   };
 
+  const handleCsvUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target.result;
+      const lines = text.split('\n');
+      const newItems = [...requestItems];
+      let successCount = 0;
+      let errorCount = 0;
+      
+      // Loop starting from index 1 (assuming header row exists)
+      for (let i = 1; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) continue;
+        
+        const parts = line.split(',');
+        if (parts.length < 2) continue;
+        
+        const sku = parts[0].trim().replace(/^["']|["']$/g, '');
+        const qty = parseInt(parts[1].trim().replace(/^["']|["']$/g, ''));
+        
+        if (!sku || isNaN(qty) || qty <= 0) {
+          errorCount++;
+          continue;
+        }
+        
+        const prod = products.find(p => 
+          p.sku?.toLowerCase() === sku.toLowerCase() || 
+          p.name?.toLowerCase() === sku.toLowerCase()
+        );
+        
+        if (prod) {
+          const existingIdx = newItems.findIndex(it => it.productId === prod.id);
+          if (existingIdx > -1) {
+            newItems[existingIdx].quantity += qty;
+          } else {
+            newItems.push({ productId: prod.id, product: prod, quantity: qty });
+          }
+          successCount++;
+        } else {
+          errorCount++;
+        }
+      }
+      
+      setRequestItems(newItems);
+      setMessage({
+        text: `Bulk PO import complete: ${successCount} products added.${errorCount > 0 ? ` Skipped ${errorCount} invalid lines/SKUs.` : ''}`,
+        type: successCount > 0 ? 'success' : 'error'
+      });
+    };
+    reader.readAsText(file);
+    e.target.value = null; // reset
+  };
+
   const handleSubmitRequest = async (e) => {
     e.preventDefault();
     if (requestItems.length === 0) return;
@@ -603,89 +659,183 @@ export default function RequestsPage() {
 
       {/* ─── TAB 1: DEALER CREATE REQUEST ─── */}
       {!isAdmin && activeTab === 'create' && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-1 space-y-6">
-            <div className="bg-white border border-slate-150 p-6 rounded-2xl shadow-sm space-y-4">
-              <h3 className="font-black text-slate-800 text-xs uppercase tracking-wider flex items-center space-x-2">
-                <FileText className="w-4 h-4 text-rose-600" />
-                <span>New PO request</span>
-              </h3>
-              <div className="space-y-4 text-xs">
-                <div>
-                  <label className="block text-slate-500 font-bold mb-1">Select Product SKU</label>
-                  <select
-                    value={selectedProductId}
-                    onChange={(e) => setSelectedProductId(e.target.value)}
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none cursor-pointer"
-                  >
-                    <option value="">Choose Product...</option>
-                    {products.map(p => (
-                      <option key={p.id} value={p.id}>{p.name} (₹{p.price})</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-slate-500 font-bold mb-1">Required Quantity</label>
-                  <input
-                    type="number" min="1" value={selectedQty}
-                    onChange={(e) => setSelectedQty(e.target.value)}
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none font-bold"
-                  />
-                </div>
-                <button
-                  type="button" onClick={handleAddToRequestCart} disabled={!selectedProductId}
-                  className="w-full bg-slate-800 hover:bg-slate-900 disabled:bg-slate-200 text-white font-bold text-xs py-2.5 rounded-xl transition-all flex items-center justify-center space-x-1.5"
-                >
-                  <Plus className="w-4 h-4" /><span>Add to request</span>
-                </button>
+        <div className="space-y-6">
+          {/* 1. Logistics Flow & Guidelines on Top (Full Width, 3-Column Grid) */}
+          <div className="bg-white border border-slate-150 p-6 rounded-2xl shadow-sm space-y-3">
+            <h4 className="font-black text-slate-800 text-xs uppercase tracking-wider">Logistics Flow & Guidelines</h4>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-[12px] text-slate-600 leading-relaxed">
+              <div className="bg-slate-50/50 p-4 border border-slate-100 rounded-xl space-y-1">
+                <span className="font-black text-rose-600 text-xs uppercase tracking-wider block">1. Compile PO List</span>
+                <p className="text-slate-500 text-[11px]">Choose items and quantities from the dropdown select bar, or upload your SKU list using the CSV button.</p>
               </div>
-
-              {requestItems.length > 0 && (
-                <div className="space-y-3 pt-4 border-t border-slate-100 text-xs">
-                  <span className="block text-[10px] font-black uppercase text-slate-400 tracking-wider">Requested Items List</span>
-                  <div className="border border-slate-250 rounded-xl overflow-hidden bg-white">
-                    {requestItems.map(item => (
-                      <div key={item.productId} className="flex items-center justify-between p-3 border-b border-slate-100 last:border-0">
-                        <div>
-                          <p className="font-bold text-slate-800">{item.product.name}</p>
-                          <p className="text-[9px] font-black text-rose-600">Qty: {item.quantity} {item.product.unit}</p>
-                        </div>
-                        <button type="button" onClick={() => handleRemoveFromRequestCart(item.productId)} className="text-rose-600 hover:text-rose-800 p-1 rounded-lg hover:bg-rose-50">
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                  <form onSubmit={handleSubmitRequest} className="space-y-3 pt-2">
-                    <div>
-                      <label className="block text-slate-500 font-bold mb-1">Requester Notes / Comments</label>
-                      <textarea
-                        value={notes} onChange={(e) => setNotes(e.target.value)}
-                        rows="2" placeholder="Add special delivery remarks..."
-                        className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none"
-                      />
-                    </div>
-                    <button
-                      type="submit" disabled={submitting}
-                      className="w-full bg-rose-600 hover:bg-rose-700 disabled:bg-rose-400 text-white font-bold py-2.5 rounded-xl transition-all shadow-md flex items-center justify-center space-x-2"
-                    >
-                      {submitting ? 'Submitting...' : 'Submit Purchase Request'}
-                    </button>
-                  </form>
-                </div>
-              )}
+              <div className="bg-slate-50/50 p-4 border border-slate-100 rounded-xl space-y-1">
+                <span className="font-black text-rose-600 text-xs uppercase tracking-wider block">2. Submit to Warehouse</span>
+                <p className="text-slate-500 text-[11px]">Once ready, review estimated values, add special delivery remarks, and submit to company administrators.</p>
+              </div>
+              <div className="bg-slate-50/50 p-4 border border-slate-100 rounded-xl space-y-1">
+                <span className="font-black text-rose-600 text-xs uppercase tracking-wider block">3. Approval & Dispatch</span>
+                <p className="text-slate-500 text-[11px]">Admin dispatches the order, generating a tax invoice. Shipped stock is credited to your portal on confirmation.</p>
+              </div>
             </div>
           </div>
 
-          <div className="lg:col-span-2 space-y-6">
-            <div className="bg-white border border-slate-150 p-6 rounded-2xl shadow-sm space-y-3">
-              <h4 className="font-bold text-slate-800 text-xs uppercase tracking-wider">Logistics Flow & Guidelines</h4>
-              <div className="space-y-3 text-[12px] text-slate-600 leading-relaxed">
-                <p>1. **Compile PO List:** Choose items and required quantities from the catalog on the left to add them to your request list.</p>
-                <p>2. **Submit to Warehouse:** Once complete, provide delivery remarks and submit the order. The central warehouse administration will be notified immediately.</p>
-                <p>3. **Admin Dispatch & Auto-Billing:** The admin will review stock levels and dispatch the request. Approval automatically generates a B2B invoice for you and updates inventories.</p>
+          {/* 2. PO Builder Form (Full Width) */}
+          <div className="bg-white border border-slate-150 p-6 rounded-2xl shadow-sm space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-slate-100">
+              <h3 className="font-black text-slate-800 text-xs uppercase tracking-wider flex items-center space-x-2">
+                <FileText className="w-4 h-4 text-rose-600" />
+                <span>Build Purchase Order (PO)</span>
+              </h3>
+              
+              {/* CSV Upload & Template area */}
+              <div className="flex items-center space-x-3">
+                <label className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-1.5 px-3 rounded-lg text-[10px] cursor-pointer transition-colors flex items-center space-x-1 border border-slate-200">
+                  <Plus className="w-3.5 h-3.5 text-slate-550" />
+                  <span>Import PO SKU list (CSV)</span>
+                  <input
+                    type="file"
+                    accept=".csv"
+                    onChange={handleCsvUpload}
+                    className="hidden"
+                  />
+                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const headers = "SKU,Quantity\nMF-URAD-CLA-250,50\nMF-URAD-PRE-250,100";
+                    const blob = new Blob([headers], { type: 'text/csv' });
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.setAttribute('download', 'PO_Bulk_Template.csv');
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                  }}
+                  className="text-[10px] text-rose-600 hover:text-rose-700 underline font-bold"
+                >
+                  Download CSV Template
+                </button>
               </div>
             </div>
+
+            {/* Product Selector Horizontal Input Line */}
+            <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-end bg-slate-50 p-4 border border-slate-150 rounded-xl">
+              <div className="sm:col-span-7 text-xs">
+                <label className="block text-slate-500 font-bold mb-1">Select Product SKU</label>
+                <select
+                  value={selectedProductId}
+                  onChange={(e) => setSelectedProductId(e.target.value)}
+                  className="w-full p-2.5 bg-white border border-slate-200 focus:border-rose-500 rounded-xl focus:outline-none cursor-pointer font-bold text-slate-700 text-xs"
+                >
+                  <option value="">Choose Product...</option>
+                  {products.map(p => (
+                    <option key={p.id} value={p.id}>{p.name} (SKU: {p.sku} | Price: ₹{p.price})</option>
+                  ))}
+                </select>
+              </div>
+              <div className="sm:col-span-3 text-xs">
+                <label className="block text-slate-500 font-bold mb-1">Required Quantity</label>
+                <input
+                  type="number"
+                  min="1"
+                  value={selectedQty}
+                  onChange={(e) => setSelectedQty(e.target.value)}
+                  className="w-full p-2.5 bg-white border border-slate-200 focus:border-rose-500 rounded-xl focus:outline-none font-bold text-center text-xs"
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <button
+                  type="button"
+                  onClick={handleAddToRequestCart}
+                  disabled={!selectedProductId}
+                  className="w-full bg-rose-600 hover:bg-rose-700 disabled:bg-slate-200 text-white font-bold text-xs py-2.5 rounded-xl transition-all flex items-center justify-center space-x-1.5 cursor-pointer shadow-sm shadow-rose-100"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Add to list</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Billed/Requested Items Table List */}
+            {requestItems.length > 0 && (
+              <div className="space-y-4 pt-2">
+                <span className="block text-[10px] font-black uppercase text-slate-400 tracking-wider">Requested Items List</span>
+                
+                {/* Structured Single-Line Table for PO items */}
+                <div className="border border-slate-150 rounded-xl overflow-hidden bg-white shadow-sm">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-100 text-[9px] font-black uppercase tracking-wider text-slate-450 p-3">
+                        <th className="p-3">Product Name</th>
+                        <th className="p-3">SKU Code</th>
+                        <th className="p-3 text-center">Unit Price (MRP)</th>
+                        <th className="p-3 text-center">Quantity</th>
+                        <th className="p-3 text-right">Line Subtotal</th>
+                        <th className="p-3 text-center">Remove</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {requestItems.map(item => {
+                        const mrp = parseFloat(item.product.mrp || item.product.price || 0);
+                        const lineVal = mrp * item.quantity;
+                        return (
+                          <tr key={item.productId} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/20">
+                            <td className="p-3 font-bold text-slate-800">{item.product.name}</td>
+                            <td className="p-3 text-slate-500 font-mono text-[10px]">{item.product.sku}</td>
+                            <td className="p-3 text-center text-slate-650">₹{mrp.toFixed(2)}</td>
+                            <td className="p-3 text-center font-bold text-slate-700">{item.quantity} {item.product.unit || 'PCS'}</td>
+                            <td className="p-3 text-right font-black text-rose-600">₹{lineVal.toFixed(2)}</td>
+                            <td className="p-3 text-center">
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveFromRequestCart(item.productId)}
+                                className="text-rose-600 hover:text-rose-800 p-1.5 rounded-lg hover:bg-rose-50 cursor-pointer"
+                                title="Remove Item"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                <form onSubmit={handleSubmitRequest} className="space-y-4">
+                  <div>
+                    <label className="block text-slate-500 font-bold mb-1.5 text-xs">Requester Delivery Notes / Comments</label>
+                    <textarea
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                      rows="2"
+                      placeholder="Add special warehouse delivery instructions or comments..."
+                      className="w-full p-3 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none text-xs"
+                    />
+                  </div>
+
+                  {/* Summary dynamic totals banner */}
+                  <div className="flex justify-between items-center bg-rose-50/50 p-4 border border-rose-100/50 rounded-xl">
+                    <div>
+                      <span className="text-[9px] font-black text-rose-600 uppercase tracking-wider block">Estimated PO Value</span>
+                      <span className="text-[10px] text-slate-400 font-medium">Estimated cost before central margins &amp; GST taxes</span>
+                    </div>
+                    <span className="text-lg font-black text-rose-600">
+                      ₹{requestItems.reduce((acc, it) => acc + (parseFloat(it.product.mrp || it.product.price || 0) * it.quantity), 0).toFixed(2)}
+                    </span>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className="w-full bg-rose-600 hover:bg-rose-700 disabled:bg-rose-400 text-white font-bold py-3 rounded-xl transition-all shadow-lg shadow-rose-100 flex items-center justify-center space-x-2 cursor-pointer text-xs uppercase tracking-wider"
+                  >
+                    {submitting ? 'Submitting PO...' : 'Submit Purchase Order (PO)'}
+                  </button>
+                </form>
+              </div>
+            )}
           </div>
         </div>
       )}

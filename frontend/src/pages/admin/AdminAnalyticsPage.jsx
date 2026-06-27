@@ -47,7 +47,7 @@ const CurrencyTooltip = ({ active, payload, label }) => {
 };
 
 /* ─── stat card ──────────────────────────────────── */
-const StatCard = ({ label, value, sub, icon: Icon, accent = 'rose', className = '' }) => {
+const StatCard = ({ label, value, sub, icon: Icon, accent = 'rose', className = '', onClick }) => {
   const map = {
     rose:   { bg: 'bg-rose-50',   text: 'text-rose-600',   icon: 'text-rose-400' },
     teal:   { bg: 'bg-teal-50',   text: 'text-teal-600',   icon: 'text-teal-400' },
@@ -56,16 +56,24 @@ const StatCard = ({ label, value, sub, icon: Icon, accent = 'rose', className = 
   };
   const c = map[accent] || map.rose;
   return (
-    <div className={`bg-white border border-slate-100 rounded-2xl p-4 shadow-sm flex items-start gap-3 ${className}`}>
-      <div className={`${c.bg} p-2.5 rounded-xl`}>
+    <button
+      onClick={onClick}
+      disabled={!onClick}
+      className={`bg-white border border-slate-150 rounded-2xl p-4 shadow-sm flex items-start gap-3 text-left w-full transition-all duration-205 ${
+        onClick
+          ? 'hover:shadow-md hover:-translate-y-0.5 cursor-pointer focus:outline-none focus:ring-2 focus:ring-rose-300'
+          : ''
+      } ${className}`}
+    >
+      <div className={`${c.bg} p-2.5 rounded-xl shrink-0`}>
         <Icon className={`w-4 h-4 ${c.icon}`} />
       </div>
       <div className="min-w-0">
         <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">{label}</p>
-        <p className={`text-xl font-black ${c.text} leading-tight`}>{value}</p>
+        <p className={`text-xl font-black ${c.text} leading-tight mt-0.5`}>{value}</p>
         {sub && <p className="text-[10px] text-slate-400 mt-0.5">{sub}</p>}
       </div>
-    </div>
+    </button>
   );
 };
 
@@ -179,10 +187,10 @@ export default function AdminAnalyticsPage() {
         <div className="space-y-6">
           {/* KPI grid */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <StatCard label="Total Revenue" value={fmt(data?.kpis?.totalRevenue)} sub="All channels combined" icon={TrendingUp} accent="rose" />
-            <StatCard label="Active Dealers" value={data?.kpis?.activeDealers ?? 0} sub={`of ${data?.kpis?.totalDealers ?? 0} total`} icon={Building2} accent="teal" />
-            <StatCard label="Today's Sales" value={fmt(data?.kpis?.todaySales)} sub="Invoices generated today" icon={ShoppingBag} accent="indigo" />
-            <StatCard label="Dispatch Pending" value={data?.kpis?.dispatchPending ?? 0} sub="Awaiting shipment" icon={Truck} accent="amber" />
+            <StatCard label="Total Revenue" value={fmt(data?.kpis?.totalRevenue)} sub="All channels combined" icon={TrendingUp} accent="rose" onClick={() => setActiveSection('channel')} />
+            <StatCard label="Active Dealers" value={data?.kpis?.activeDealers ?? 0} sub={`of ${data?.kpis?.totalDealers ?? 0} total`} icon={Building2} accent="teal" onClick={() => setActiveSection('leaderboard')} />
+            <StatCard label="Today's Sales" value={fmt(data?.kpis?.todaySales)} sub="Invoices generated today" icon={ShoppingBag} accent="indigo" onClick={() => setActiveSection('zone')} />
+            <StatCard label="Dispatch Pending" value={data?.kpis?.dispatchPending ?? 0} sub="Awaiting shipment" icon={Truck} accent="amber" onClick={() => setActiveSection('products')} />
           </div>
 
           {/* Dual chart: territory + product movement */}

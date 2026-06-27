@@ -29,6 +29,7 @@ export default function ReturnsPage() {
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [products, setProducts]       = useState([]);
   const [stores, setStores]           = useState([]);
+  const [dealerInventory, setDealerInventory] = useState([]);
   const [message, setMessage]         = useState({ text: '', type: '' });
   const [expandedId, setExpandedId]   = useState(null);
 
@@ -51,7 +52,11 @@ export default function ReturnsPage() {
 
   useEffect(() => {
     fetchReturns();
-    if (!isAdmin) { fetchProducts(); fetchStores(); }
+    if (!isAdmin) { 
+      fetchProducts(); 
+      fetchStores(); 
+      fetchDealerInventory();
+    }
   }, [statusFilter, returnType]);
 
   const fetchReturns = async () => {
@@ -63,6 +68,15 @@ export default function ReturnsPage() {
       const res = await axios.get('/returns', { params });
       setReturns(res.data.data || []);
     } catch (err) { console.error(err); } finally { setLoading(false); }
+  };
+
+  const fetchDealerInventory = async () => {
+    try {
+      const res = await axios.get('/inventory/dealer');
+      setDealerInventory(res.data.data || []);
+    } catch (err) {
+      console.error('Error fetching dealer inventory:', err);
+    }
   };
 
   const fetchProducts = async () => {
@@ -210,10 +224,17 @@ export default function ReturnsPage() {
                   <div className="col-span-2">
                     <label className="block text-slate-500 font-bold mb-1">Product</label>
                     <select value={selectedProductId} onChange={e => setSelectedProductId(e.target.value)}
-                      className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 rounded-xl focus:outline-none cursor-pointer">
+                      className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 rounded-xl focus:outline-none cursor-pointer font-bold text-slate-700">
                       <option value="">Choose product...</option>
-                      {products.map(p => <option key={p.id} value={p.id}>{p.name} ({p.sku})</option>)}
+                      {products.filter(p => dealerInventory.some(inv => inv.productId === p.id)).map(p => (
+                        <option key={p.id} value={p.id}>{p.name} ({p.sku})</option>
+                      ))}
                     </select>
+                    {products.filter(p => dealerInventory.some(inv => inv.productId === p.id)).length === 0 && (
+                      <p className="text-[9px] text-rose-600 font-bold mt-1">
+                        ⚠️ No dispatched products found in your inventory
+                      </p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-slate-500 font-bold mb-1">Qty</label>

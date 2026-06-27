@@ -181,6 +181,8 @@ export default function DealerProductsPage() {
     setQuantities({ ...quantities, [productId]: next });
   };
 
+  const [addedFeedback, setAddedFeedback] = useState({}); // { productId: boolean }
+
   const handleAddToCart = (product) => {
     const qty = quantities[product.id] || 1;
     const max = dealerInventory[product.id] || 0;
@@ -194,7 +196,12 @@ export default function DealerProductsPage() {
     const detectedMargin = resolveMargin(product, currentStoreId);
 
     addToCart(product, qty, detectedMargin);
-    navigate('/dealer/cart');
+
+    // Show temporary feedback and stay on page
+    setAddedFeedback(prev => ({ ...prev, [product.id]: true }));
+    setTimeout(() => {
+      setAddedFeedback(prev => ({ ...prev, [product.id]: false }));
+    }, 2000);
   };
 
   // Get reactive cart totals for the sticky bottom bar
@@ -335,12 +342,17 @@ export default function DealerProductsPage() {
                       <button
                         onClick={() => handleAddToCart(product)}
                         className={`w-full text-white font-bold py-2 rounded-xl text-[10px] uppercase transition-all flex items-center justify-center space-x-1.5 ${
-                          inCart 
+                          addedFeedback[product.id] || inCart 
                             ? 'bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-100' 
                             : 'bg-rose-600 hover:bg-rose-700 shadow-lg shadow-rose-100'
                         }`}
                       >
-                        {inCart ? (
+                        {addedFeedback[product.id] ? (
+                          <>
+                            <Check className="w-3.5 h-3.5" />
+                            <span>Added to Bill!</span>
+                          </>
+                        ) : inCart ? (
                           <>
                             <Check className="w-3.5 h-3.5" />
                             <span>In Bill</span>

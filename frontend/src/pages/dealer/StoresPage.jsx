@@ -12,8 +12,10 @@ import {
   Layers 
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
+import { useNavigate } from 'react-router-dom';
 
 export default function StoresPage() {
+  const navigate = useNavigate();
   const [stores, setStores] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -226,6 +228,13 @@ export default function StoresPage() {
                   <span className="font-extrabold text-rose-600">Store Margin:</span>
                   <span className="font-bold text-slate-800">{store.marginPercent !== null && store.marginPercent !== undefined ? `${store.marginPercent}%` : 'Default (10%)'}</span>
                 </p>
+                <button
+                  onClick={() => navigate('/dealer/cart', { state: { storeId: store.id } })}
+                  className="w-full mt-3 inline-flex items-center justify-center gap-1.5 bg-rose-600 hover:bg-rose-700 text-white font-bold py-2 rounded-xl text-xs transition-colors cursor-pointer shadow-sm shadow-rose-100"
+                >
+                  <Store className="w-3.5 h-3.5" />
+                  <span>Build Invoice</span>
+                </button>
               </div>
             </div>
           ))}
@@ -286,13 +295,13 @@ export default function StoresPage() {
                   )}
                 </div>
                 <div>
-                  <label className="block text-slate-500 font-bold mb-1">Store Margin (%) (optional)</label>
+                  <label className="block text-slate-500 font-bold mb-1">Store Margin (%) (10% default)</label>
                   <input
                     type="number"
                     min="0"
                     max="100"
                     step="0.01"
-                    placeholder="Leave blank to use default"
+                    placeholder="10% default if left blank"
                     value={marginPercent}
                     onChange={e => setMarginPercent(e.target.value)}
                     className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none"
@@ -384,13 +393,13 @@ export default function StoresPage() {
                   )}
                 </div>
                 <div>
-                  <label className="block text-slate-500 font-bold mb-1">Store Margin (%) (optional)</label>
+                  <label className="block text-slate-500 font-bold mb-1">Store Margin (%) (10% default)</label>
                   <input
                     type="number"
                     min="0"
                     max="100"
                     step="0.01"
-                    placeholder="Leave blank to use default"
+                    placeholder="10% default if left blank"
                     value={marginPercent}
                     onChange={e => setMarginPercent(e.target.value)}
                     className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none"
