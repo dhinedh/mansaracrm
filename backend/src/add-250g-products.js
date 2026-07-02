@@ -1,5 +1,6 @@
-const { PrismaClient } = require('./config/database');
-const prisma = new PrismaClient();
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '../.env') });
+const prisma = require('./config/database');
 
 async function main() {
   console.log('🌱 Inserting 250g products into CRM...');
@@ -31,7 +32,9 @@ async function main() {
       unit: "250g",
       pacQuantity: 24,
       minOrderQty: 5,
-      image: "/products/urad-classic-front.jpg"
+      image: "/products/urad-classic-front.jpg",
+      slug: "urad-porridge-mix-classic-250g",
+      weight: "250g"
     },
     {
       name: "Urad Health Mix – Salt n Pepper 250g",
@@ -44,7 +47,9 @@ async function main() {
       unit: "250g",
       pacQuantity: 24,
       minOrderQty: 5,
-      image: "/products/urad-salt-pepper-front.jpg"
+      image: "/products/urad-salt-pepper-front.jpg",
+      slug: "urad-porridge-mix-salt-pepper-250g",
+      weight: "250g"
     },
     {
       name: "Urad Health Mix – Millet Magic 250g",
@@ -57,7 +62,9 @@ async function main() {
       unit: "250g",
       pacQuantity: 24,
       minOrderQty: 5,
-      image: "/products/urad-millet-magic-front.jpg"
+      image: "/products/urad-millet-magic-front.jpg",
+      slug: "urad-porridge-mix-millet-magic-250g",
+      weight: "250g"
     },
     {
       name: "Urad Health Mix – Premium 250g",
@@ -70,7 +77,9 @@ async function main() {
       unit: "250g",
       pacQuantity: 24,
       minOrderQty: 5,
-      image: "/products/urad-premium-front.jpg"
+      image: "/products/urad-premium-front.jpg",
+      slug: "urad-porridge-mix-premium-250g",
+      weight: "250g"
     },
     {
       name: "Health Mix – Black Rice Delight 250g",
@@ -83,7 +92,9 @@ async function main() {
       unit: "250g",
       pacQuantity: 24,
       minOrderQty: 5,
-      image: "/products/black-rice-delight-front.jpg"
+      image: "/products/black-rice-delight-front.jpg",
+      slug: "black-rice-delight-porridge-mix-250g",
+      weight: "250g"
     }
   ];
 
@@ -96,6 +107,8 @@ async function main() {
         image: prod.image,
         unit: prod.unit,
         pacQuantity: prod.pacQuantity,
+        slug: prod.slug,
+        weight: prod.weight
       },
       create: prod
     });

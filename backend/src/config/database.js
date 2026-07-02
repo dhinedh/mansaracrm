@@ -169,7 +169,7 @@ const ProductSchema = new Schema({
   category: { type: Schema.Types.ObjectId, ref: 'Category', required: true, alias: 'categoryId' },
   image: { type: String, alias: 'imageUrl' },
   unit: { type: String, default: 'PCS' },
-  cartonSize: { type: Number, default: 24 },
+  cartonSize: { type: Number, default: 24, alias: 'pacQuantity' },
   minOrderQty: { type: Number, default: 1 },
   isActive: { type: Boolean, default: true },
   stock: { type: Number, default: 0 },
@@ -852,6 +852,74 @@ const StockRequest = mongoose.model('StockRequest', StockRequestSchema, 'stock_r
 const ComplaintTicket = mongoose.model('ComplaintTicket', ComplaintTicketSchema, 'complaint_tickets');
 
 // ─────────────────────────────────────────────
+// AUTOMATIC DATABASE SCHEMA MIGRATION RUNNER
+// ─────────────────────────────────────────────
+
+async function runDatabaseMigrations() {
+  try {
+    const Dealer = mongoose.model('Dealer');
+    const Margin = mongoose.model('Margin');
+    
+    const dealers = await Dealer.find({});
+    console.log(`[Migration] Checking defaults and margin rules for ${dealers.length} dealers...`);
+    
+    for (const dealer of dealers) {
+      // 1. Ensure dealer has default margin rule (10%)
+      const hasDefaultMargin = await Margin.findOne({ dealerId: dealer._id, isDefault: true });
+      if (!hasDefaultMargin) {
+        await Margin.create({
+          dealerId: dealer._id,
+          marginPercent: 10.0,
+          isDefault: true
+        });
+        console.log(`[Migration] Created default margin rule (10%) for dealer: ${dealer.companyName}`);
+      }
+
+      // 2. Ensure all schema default fields (including any future fields) are present and persisted
+      let modified = false;
+      const schema = Dealer.schema;
+      
+      for (const path in schema.paths) {
+        if (['_id', '__v', 'createdAt', 'updatedAt'].includes(path)) continue;
+        
+        const schemaType = schema.paths[path];
+        
+        if (dealer._doc[path] === undefined) {
+          let defaultValue = undefined;
+          if (schemaType.defaultValue !== undefined) {
+            defaultValue = typeof schemaType.defaultValue === 'function'
+              ? schemaType.defaultValue()
+              : schemaType.defaultValue;
+          } else if (schemaType.instance === 'Array') {
+            defaultValue = [];
+          }
+          
+          if (defaultValue !== undefined) {
+            dealer.set(path, defaultValue);
+            modified = true;
+          }
+        }
+      }
+      
+      if (modified) {
+        await dealer.save();
+        console.log(`[Migration] Updated missing schema fields for dealer: ${dealer.companyName}`);
+      }
+    }
+    console.log('[Migration] Database migrations completed successfully.');
+  } catch (err) {
+    console.error('[Migration] Database migration error:', err);
+  }
+}
+
+// Trigger migrations after mongoose is connected
+if (mongoose.connection.readyState === 1) {
+  runDatabaseMigrations();
+} else {
+  mongoose.connection.once('connected', runDatabaseMigrations);
+}
+
+// ─────────────────────────────────────────────
 // PRISMA COMPATIBILITY WRAPPER LAYER
 // ─────────────────────────────────────────────
 
@@ -1030,6 +1098,9 @@ function translateCreateData(data) {
       cleaned[key] = val;
     }
   }
+  if (cleaned.pacQuantity !== undefined) {
+    cleaned.cartonSize = cleaned.pacQuantity ? parseInt(cleaned.pacQuantity) : 24;
+  }
   return cleaned;
 }
 
@@ -1054,6 +1125,9 @@ function translateUpdateData(data) {
     } else {
       cleaned[key] = val;
     }
+  }
+  if (cleaned.pacQuantity !== undefined) {
+    cleaned.cartonSize = cleaned.pacQuantity ? parseInt(cleaned.pacQuantity) : 24;
   }
   return cleaned;
 }

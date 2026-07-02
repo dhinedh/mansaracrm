@@ -78,30 +78,80 @@ exports.createInvoice = async (req, res, next) => {
       // Determine margin percentage
       let marginPct = parseFloat(item.marginPct);
       if (isNaN(marginPct)) {
-        // Retrieve custom margins for this dealer
+        // Retrieve custom margins for this dealer (including default rules)
         const marginRules = await prisma.margin.findMany({
-          where: { dealerId }
+          where: {
+            OR: [
+              { dealerId },
+              { isDefault: true }
+            ]
+          }
         });
         
         let foundMargin = null;
-        
         const catId = product.categoryId?.toString() || product.category?.toString();
-        const productRule = marginRules.find(r => r.productId?.toString() === item.productId?.toString() && !r.isDefault);
-        const categoryRule = marginRules.find(r => r.categoryId?.toString() === catId && !r.isDefault);
-        const storeRule = store ? marginRules.find(r => r.storeId?.toString() === store.id?.toString() && !r.isDefault) : null;
+        
+        // 1. Check rule matching storeId AND productId
+        const storeProductRule = store ? marginRules.find(r => 
+          r.storeId?.toString() === store.id?.toString() && 
+          r.productId?.toString() === product.id?.toString() && 
+          !r.isDefault
+        ) : null;
+        
+        // 2. Check rule matching storeId AND categoryId
+        const storeCategoryRule = store ? marginRules.find(r => 
+          r.storeId?.toString() === store.id?.toString() && 
+          r.categoryId?.toString() === catId && 
+          !r.isDefault
+        ) : null;
+        
+        // 3. Check rule matching storeId only in margin rules table
+        const storeOnlyRule = store ? marginRules.find(r => 
+          r.storeId?.toString() === store.id?.toString() && 
+          !r.productId && !r.categoryId && 
+          !r.isDefault
+        ) : null;
+        
+        // 4. Fallback check: store's direct marginPercent property
+        let storeDirectMargin = null;
+        if (store && store.marginPercent !== undefined && store.marginPercent !== null && store.marginPercent !== '') {
+          storeDirectMargin = parseFloat(store.marginPercent);
+        }
+        
+        // 5. Check rule matching productId only (dealer-wide, no storeId)
+        const productRule = marginRules.find(r => 
+          !r.storeId && 
+          r.productId?.toString() === product.id?.toString() && 
+          !r.isDefault
+        );
+        
+        // 6. Check rule matching categoryId only (dealer-wide, no storeId)
+        const categoryRule = marginRules.find(r => 
+          !r.storeId && 
+          r.categoryId?.toString() === catId && 
+          !r.isDefault
+        );
+        
+        // 7. Check default margin rule
         const defaultRule = marginRules.find(r => r.isDefault);
         
-        if (productRule) {
+        if (storeProductRule) {
+          foundMargin = parseFloat(storeProductRule.marginPercent);
+        } else if (storeCategoryRule) {
+          foundMargin = parseFloat(storeCategoryRule.marginPercent);
+        } else if (storeOnlyRule) {
+          foundMargin = parseFloat(storeOnlyRule.marginPercent);
+        } else if (storeDirectMargin !== null && !isNaN(storeDirectMargin)) {
+          foundMargin = storeDirectMargin;
+        } else if (productRule) {
           foundMargin = parseFloat(productRule.marginPercent);
         } else if (categoryRule) {
           foundMargin = parseFloat(categoryRule.marginPercent);
-        } else if (storeRule) {
-          foundMargin = parseFloat(storeRule.marginPercent);
         } else if (defaultRule) {
           foundMargin = parseFloat(defaultRule.marginPercent);
         }
         
-        marginPct = foundMargin !== null ? foundMargin : 0;
+        marginPct = foundMargin !== null ? foundMargin : 10; // default margin fallback
       }
 
       // Determine unit and quantity normalization

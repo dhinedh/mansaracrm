@@ -15,10 +15,12 @@ import {
   X,
   Leaf
 } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 
 export default function DealerProductsPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const [isLowStockFilter, setIsLowStockFilter] = useState(location.state?.filter === 'low_stock');
   const [products, setProducts] = useState([]);
   const [dealerInventory, setDealerInventory] = useState({}); // { productId: qty }
   const [loading, setLoading] = useState(true);
@@ -72,7 +74,7 @@ export default function DealerProductsPage() {
 
   useEffect(() => {
     fetchProductsAndInventory();
-  }, [search]);
+  }, [search, isLowStockFilter]);
 
   useEffect(() => {
     const fetchMargins = async () => {
@@ -144,13 +146,17 @@ export default function DealerProductsPage() {
       setDealerInventory(invMap);
 
       // 3. Sort: items dealer has in stock appear first
-      const sorted = [...prodRes.data.data].sort((a, b) => {
+      let sorted = [...prodRes.data.data].sort((a, b) => {
         const qtyA = invMap[a.id] || 0;
         const qtyB = invMap[b.id] || 0;
         if (qtyA > 0 && qtyB <= 0) return -1;
         if (qtyA <= 0 && qtyB > 0) return 1;
         return 0;
       });
+
+      if (isLowStockFilter) {
+        sorted = sorted.filter(p => (invMap[p.id] || 0) <= 20);
+      }
       setProducts(sorted);
 
       // Setup initial quantities for picker
@@ -237,6 +243,21 @@ export default function DealerProductsPage() {
           />
         </div>
       </div>
+
+      {isLowStockFilter && (
+        <div className="flex items-center justify-between bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-xs text-amber-800 animate-fade-in">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-amber-600 animate-pulse shrink-0" />
+            <span><strong>Filtering:</strong> Showing items with low inventory (20 units or less).</span>
+          </div>
+          <button
+            onClick={() => setIsLowStockFilter(false)}
+            className="text-[10px] font-black uppercase text-amber-700 hover:text-amber-900 bg-amber-100 hover:bg-amber-200 px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
+          >
+            Clear Filter
+          </button>
+        </div>
+      )}
 
       {loading ? (
         <div className="flex items-center justify-center h-48">

@@ -119,35 +119,50 @@ export default function DealerDashboard() {
           ))
         ) : (
           <>
-            <div className="bg-white border border-slate-150 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-300 flex items-center gap-4 animate-fade-in">
-              <div className="p-3.5 bg-emerald-50 rounded-2xl shrink-0">
+            <button
+              onClick={() => navigate('/dealer/products')}
+              className="bg-white border border-slate-150 rounded-2xl p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 flex items-center gap-4 animate-fade-in cursor-pointer text-left w-full group"
+            >
+              <div className="p-3.5 bg-emerald-50 rounded-2xl shrink-0 group-hover:scale-110 transition-transform duration-200">
                 <Boxes className="w-6 h-6 text-emerald-600" />
               </div>
               <div>
                 <span className="block text-[10px] font-black uppercase tracking-widest text-slate-400">Available Stock</span>
                 <strong className="text-xl font-black text-slate-800 mt-1 block">{stats.totalStock.toLocaleString()} Units</strong>
+                <span className="text-[9px] text-emerald-500 font-semibold mt-0.5 block opacity-0 group-hover:opacity-100 transition-opacity">Browse Stock →</span>
               </div>
-            </div>
-            <div className="bg-white border border-slate-150 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-300 flex items-center gap-4 animate-fade-in">
-              <div className="p-3.5 bg-rose-50 rounded-2xl shrink-0">
+            </button>
+            <button
+              onClick={() => navigate('/dealer/stores')}
+              className="bg-white border border-slate-150 rounded-2xl p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 flex items-center gap-4 animate-fade-in cursor-pointer text-left w-full group"
+            >
+              <div className="p-3.5 bg-rose-50 rounded-2xl shrink-0 group-hover:scale-110 transition-transform duration-200">
                 <Store className="w-6 h-6 text-rose-600" />
               </div>
               <div>
                 <span className="block text-[10px] font-black uppercase tracking-widest text-slate-400">Active Outlets</span>
                 <strong className="text-xl font-black text-slate-800 mt-1 block">{stats.storeCount} Shops</strong>
+                <span className="text-[9px] text-rose-500 font-semibold mt-0.5 block opacity-0 group-hover:opacity-100 transition-opacity">Manage Shops →</span>
               </div>
-            </div>
-            <div className="bg-white border border-slate-150 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-300 flex items-center gap-4 animate-fade-in">
-              <div className="p-3.5 bg-sky-50 rounded-2xl shrink-0">
+            </button>
+            <button
+              onClick={() => navigate('/dealer/transfers')}
+              className="bg-white border border-slate-150 rounded-2xl p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 flex items-center gap-4 animate-fade-in cursor-pointer text-left w-full group"
+            >
+              <div className="p-3.5 bg-sky-50 rounded-2xl shrink-0 group-hover:scale-110 transition-transform duration-200">
                 <Truck className="w-6 h-6 text-sky-600" />
               </div>
               <div>
                 <span className="block text-[10px] font-black uppercase tracking-widest text-slate-400">Incoming Shipments</span>
                 <strong className="text-xl font-black text-slate-800 mt-1 block">{stats.pendingShipments} Transfers</strong>
+                <span className="text-[9px] text-sky-500 font-semibold mt-0.5 block opacity-0 group-hover:opacity-100 transition-opacity">View Transfers →</span>
               </div>
-            </div>
-            <div className="bg-white border border-slate-150 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-300 flex items-center gap-4 animate-fade-in">
-              <div className="p-3.5 bg-amber-50 rounded-2xl shrink-0">
+            </button>
+            <button
+              onClick={() => navigate('/dealer/products', { state: { filter: 'low_stock' } })}
+              className="bg-white border border-slate-150 rounded-2xl p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 flex items-center gap-4 animate-fade-in cursor-pointer text-left w-full group"
+            >
+              <div className="p-3.5 bg-amber-50 rounded-2xl shrink-0 group-hover:scale-110 transition-transform duration-200">
                 <AlertCircle className="w-6 h-6 text-amber-600" />
               </div>
               <div>
@@ -155,8 +170,9 @@ export default function DealerDashboard() {
                 <strong className={`text-xl font-black mt-1 block ${stats.lowStockCount > 0 ? 'text-amber-600 animate-pulse' : 'text-slate-800'}`}>
                   {stats.lowStockCount} items
                 </strong>
+                <span className="text-[9px] text-amber-500 font-semibold mt-0.5 block opacity-0 group-hover:opacity-100 transition-opacity">View Low Stock →</span>
               </div>
-            </div>
+            </button>
           </>
         )}
       </div>

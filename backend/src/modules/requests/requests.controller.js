@@ -155,19 +155,7 @@ exports.dispatchRequest = async (req, res, next) => {
       return res.status(400).json({ success: false, message: `Request is already ${request.status}` });
     }
 
-    // 1. Verify warehouse stock availability
-    for (const item of request.items || []) {
-      const companyStock = await prisma.companyInventory.findUnique({ where: { productId: item.productId } });
-      if (!companyStock || companyStock.quantity < item.quantity) {
-        const prod = await prisma.product.findUnique({ where: { id: item.productId } });
-        return res.status(400).json({
-          success: false,
-          message: `Insufficient warehouse stock to dispatch: ${prod ? prod.name : 'Unknown Product'}. Available: ${companyStock ? companyStock.quantity : 0}`
-        });
-      }
-    }
-
-    // 2. Generate stock transfer inside Transaction
+    // 1. Generate stock transfer inside Transaction
     const transferNo = `TX-${Date.now()}`;
     const transfer = await prisma.$transaction(async (tx) => {
       // A. Calculate invoice details for the transfer (applying dealer custom categories or default 10% margin first)
@@ -184,14 +172,19 @@ exports.dispatchRequest = async (req, res, next) => {
         if (overrideItem && overrideItem.marginPct !== undefined && overrideItem.marginPct !== null) {
           marginPct = parseFloat(overrideItem.marginPct);
         } else {
-          // Retrieve custom margins for this dealer
+          // Retrieve custom margins for this dealer (including default rules)
           const marginRules = await tx.margin.findMany({
-            where: { dealerId: request.dealerId }
+            where: {
+              OR: [
+                { dealerId: request.dealerId },
+                { isDefault: true }
+              ]
+            }
           });
           
           const catId = product.categoryId?.toString() || product.category?.toString();
-          const productRule = marginRules.find(r => r.productId?.toString() === item.productId?.toString() && !r.isDefault);
-          const categoryRule = marginRules.find(r => r.categoryId?.toString() === catId && !r.isDefault);
+          const productRule = marginRules.find(r => !r.storeId && r.productId?.toString() === item.productId?.toString() && !r.isDefault);
+          const categoryRule = marginRules.find(r => !r.storeId && r.categoryId?.toString() === catId && !r.isDefault);
           const defaultRule = marginRules.find(r => r.isDefault);
           
           if (productRule) {
@@ -243,8 +236,7 @@ exports.dispatchRequest = async (req, res, next) => {
           sgst: calculatedGstTotal / 2,
           isGstEnabled: true,
           totalAmount: calculatedGrandTotal,
-          status: 'CLOSED',
-          paidAt: new Date(),
+          status: 'GENERATED',
           notes: `B2B Invoice generated automatically from Dealer Request ${request.requestNo}.`,
           channel: 'B2B',
           items: {
@@ -253,21 +245,19 @@ exports.dispatchRequest = async (req, res, next) => {
         }
       });
 
-      // C. Create StockTransfer linked to B2B Invoice (instantly DELIVERED on request dispatch approval)
+      // C. Create StockTransfer linked to B2B Invoice (Starts as PENDING)
       const stockTx = await tx.stockTransfer.create({
         data: {
           transferNo,
           dealerId: request.dealerId,
           invoiceId: inv.id,
-          status: 'DELIVERED',
-          shippedAt: new Date(),
-          deliveredAt: new Date(),
+          status: 'PENDING',
           notes: notes || `Dispatched from Dealer Request: ${request.requestNo}`,
           createdBy: req.user.id
         }
       });
 
-      // D. Create transfer items and adjust stock instantly
+      // D. Create transfer items (without altering stocks until delivery confirmation)
       for (const item of invoiceItemsDetails) {
         await tx.stockTransferItem.create({
           data: {
@@ -275,65 +265,7 @@ exports.dispatchRequest = async (req, res, next) => {
             productId: item.productId,
             quantity: item.quantity,
             unitPrice: item.sellingPrice,
-            marginPct: item.marginPct,
-            receivedQuantity: item.quantity,
-            hasDiscrepancy: false
-          }
-        });
-
-        // A. Decrement Company Stock
-        const compStock = await tx.companyInventory.findUnique({ where: { productId: item.productId } });
-        if (!compStock || compStock.quantity < item.quantity) {
-          const product = await tx.product.findUnique({ where: { id: item.productId } });
-          throw new Error(`Insufficient company stock to complete delivery for product SKU: ${product ? product.sku : 'Unknown'}. Requested: ${item.quantity}, Available: ${compStock ? compStock.quantity : 0}`);
-        }
-        await tx.companyInventory.update({
-          where: { productId: item.productId },
-          data: { quantity: compStock.quantity - item.quantity }
-        });
-
-        await tx.stockMovement.create({
-          data: {
-            productId: item.productId,
-            type: 'TRANSFER_OUT',
-            quantity: item.quantity,
-            referenceId: stockTx.id,
-            notes: `Stock Transfer Out to dealer: ${request.dealer.companyName}`
-          }
-        });
-
-        // B. Increment Dealer Stock
-        const dealerStock = await tx.dealerInventory.findUnique({
-          where: {
-            dealerId_productId: {
-              dealerId: request.dealerId,
-              productId: item.productId
-            }
-          }
-        });
-
-        if (dealerStock) {
-          await tx.dealerInventory.update({
-            where: { id: dealerStock.id },
-            data: { quantity: dealerStock.quantity + item.quantity }
-          });
-        } else {
-          await tx.dealerInventory.create({
-            data: {
-              dealerId: request.dealerId,
-              productId: item.productId,
-              quantity: item.quantity
-            }
-          });
-        }
-
-        await tx.stockMovement.create({
-          data: {
-            productId: item.productId,
-            type: 'TRANSFER_IN',
-            quantity: item.quantity,
-            referenceId: stockTx.id,
-            notes: `Stock Transfer In to dealer: ${request.dealer.companyName}`
+            marginPct: item.marginPct
           }
         });
       }
@@ -349,8 +281,8 @@ exports.dispatchRequest = async (req, res, next) => {
         data: {
           userId: request.dealer.userId,
           type: 'STOCK_TRANSFER',
-          title: '✅ Stock Request Dispatched & Inventory Updated',
-          message: `Your purchase request ${request.requestNo} has been dispatched and fulfilled. Stock transfer ${transferNo} and B2B Invoice ${invoiceNo} have been generated, and your dealer inventory has been updated.`,
+          title: '✅ Stock Request Approved',
+          message: `Your purchase request ${request.requestNo} has been approved. Stock transfer ${transferNo} and B2B Invoice ${invoiceNo} have been initiated. Your inventory will update upon delivery confirmation.`,
           metadata: { transferId: stockTx.id, invoiceId: inv.id }
         }
       });

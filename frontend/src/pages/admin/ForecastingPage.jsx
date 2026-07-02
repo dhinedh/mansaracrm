@@ -91,7 +91,8 @@ const getRecipeForProduct = (product) => {
 export default function ForecastingPage() {
   const [loading, setLoading] = useState(true);
   const [simulating, setSimulating] = useState(false);
-  const [activeChartTab, setActiveChartTab] = useState('aggregate'); // 'aggregate', 'breakdown', 'productwise'
+  const [activeChartTab, setActiveChartTab] = useState('productwise'); // 'productwise', 'breakdown', 'aggregate'
+  const [selectedProductId, setSelectedProductId] = useState('');
   const [productSearch, setProductSearch] = useState('');
 
   // Data states
@@ -130,6 +131,10 @@ export default function ForecastingPage() {
       setInvoices(loadedInvoices);
       setStocks(loadedStocks);
       setPendingRequests(loadedPending);
+
+      if (loadedProducts.length > 0) {
+        setSelectedProductId(loadedProducts[0].id);
+      }
 
       // Run initial simulator with loaded data
       runSimulation(loadedProducts, loadedInvoices, loadedStocks, loadedPending);
@@ -394,6 +399,97 @@ export default function ForecastingPage() {
     document.body.removeChild(link);
   };
 
+  const getProductChartData = (selectedProductDetail) => {
+    if (!selectedProductDetail) return [];
+
+    const months = simulatedData.trend.filter(t => !t.isForecast).map(t => t.name);
+
+    const data = months.map((month, idx) => {
+      const fulfilled = selectedProductDetail.historical[idx] || 0;
+      const isLatestMonth = idx === months.length - 1;
+      const totalRequests = fulfilled + (isLatestMonth ? selectedProductDetail.pendingOrderQty : 0);
+
+      return {
+        name: month,
+        'Quantity Fulfilled': fulfilled,
+        'Total Requests': totalRequests,
+        'Predicted Future Demand': isLatestMonth ? totalRequests : null
+      };
+    });
+
+    const nextMonthName = forecastHorizon === 90 ? 'Q3-Forecast' : 'Next Month';
+    data.push({
+      name: nextMonthName,
+      'Quantity Fulfilled': null,
+      'Total Requests': null,
+      'Predicted Future Demand': selectedProductDetail.predictedDemand
+    });
+
+    return data;
+  };
+
+  const getPredictionExplanation = (selectedProductDetail) => {
+    if (!selectedProductDetail) return null;
+
+    const prodName = selectedProductDetail.name;
+    const demand = selectedProductDetail.predictedDemand;
+    const stock = selectedProductDetail.currentStock;
+    const pending = selectedProductDetail.pendingOrderQty;
+    const shortfall = selectedProductDetail.shortfall;
+
+    const history = selectedProductDetail.historical;
+    const last3 = history.slice(-3);
+    const avg = Math.round(last3.reduce((a, b) => a + b, 0) / Math.max(1, last3.length));
+    const horizonFactor = forecastHorizon === 90 ? 3 : 1;
+    const baselineHorizon = avg * horizonFactor;
+    const bufferAmount = Math.round(baselineHorizon * (safetyBuffer / 100));
+
+    let algoText = '';
+    if (algorithm === 'rolling_average') {
+      algoText = `3-Month Moving Average (average monthly run rate of ${avg} units over the next ${forecastHorizon} days)`;
+    } else if (algorithm === 'linear_growth') {
+      algoText = `Linear Growth (+10% monthly increase over the next ${forecastHorizon} days)`;
+    } else if (algorithm === 'seasonal_buffer') {
+      algoText = `High-Season Buffer (+25% seasonal increase over the next ${forecastHorizon} days)`;
+    } else {
+      algoText = `Direct Previous Month run rate over the next ${forecastHorizon} days`;
+    }
+
+    return (
+      <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-4 h-full">
+        <h4 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider flex items-center gap-1.5 border-b border-slate-100 pb-2">
+          <HelpCircle className="w-4 h-4 text-rose-600" />
+          Why did the system predict a demand of {demand.toLocaleString()}?
+        </h4>
+        <div className="space-y-3 text-slate-650 leading-relaxed text-xs">
+          <p>
+            The predicted demand of <strong>{demand.toLocaleString()} units</strong> for <strong>{prodName}</strong> is computed step-by-step:
+          </p>
+          <ol className="list-decimal list-inside space-y-2.5 font-medium">
+            <li>
+              <strong>Projected Baseline:</strong> Utilizing the <em>{algoText}</em>, the raw projected sales volume is <strong>{Math.round(baselineHorizon).toLocaleString()} units</strong>.
+            </li>
+            <li>
+              <strong>Safety Buffer (+{safetyBuffer}%):</strong> An additional safety margin of <strong>+{bufferAmount.toLocaleString()} units</strong> is applied to cover expected seasonal demand spikes (10-20% buffer).
+            </li>
+            <li>
+              <strong>Total Predicted Demand:</strong> Baseline + Safety Buffer equals <strong>{demand.toLocaleString()} units</strong>.
+            </li>
+            <li>
+              <strong>Stock vs Demand Gap:</strong> The warehouse currently holds <strong>{stock.toLocaleString()} units</strong>. 
+              {pending > 0 && <span> There are also <strong>{pending.toLocaleString()} units</strong> in pending B2B dealer orders.</span>}
+              {shortfall > 0 ? (
+                <span> With a combined requirement of <strong>{(demand + pending).toLocaleString()} units</strong>, there is a net production shortfall of <strong className="text-rose-650">+{shortfall.toLocaleString()} units</strong> that needs to be manufactured.</span>
+              ) : (
+                <span> Since your current warehouse stock is sufficient to cover this demand and pending orders, no shortfall exists.</span>
+              )}
+            </li>
+          </ol>
+        </div>
+      </div>
+    );
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -531,236 +627,197 @@ export default function ForecastingPage() {
         {/* Dashboard Statistics & Visuals (Right) */}
         {simulatedData && (
           <div className="lg:col-span-3 space-y-6">
-            {/* KPI Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-              <div className="bg-white border border-slate-150 p-4 rounded-xl shadow-sm">
-                <span className="block text-[9px] font-black uppercase text-slate-400 tracking-wider">Predicted Sales Volume</span>
-                <strong className="text-lg font-black text-slate-800">{simulatedData.summary.predictedDemandUnits.toLocaleString()} units</strong>
-                <p className="text-[9px] text-slate-450 mt-1">Value: ₹{simulatedData.summary.predictedDemandValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
-              </div>
-
-              <div className="bg-white border border-slate-150 p-4 rounded-xl shadow-sm">
-                <span className="block text-[9px] font-black uppercase text-slate-400 tracking-wider">Pending Orders Buffer</span>
-                <strong className="text-lg font-black text-rose-650">{simulatedData.summary.pendingUnits.toLocaleString()} units</strong>
-                <p className="text-[9px] text-slate-450 mt-1">Awaiting warehouse dispatch</p>
-              </div>
-
-              <div className="bg-white border border-slate-150 p-4 rounded-xl shadow-sm bg-rose-50/20 border-rose-100">
-                <span className="block text-[9px] font-black uppercase text-rose-700 tracking-wider">Net Production Target</span>
-                <strong className="text-lg font-black text-rose-700">{simulatedData.summary.shortfallUnits.toLocaleString()} units</strong>
-                <p className="text-[9px] text-slate-500 mt-1">Shortfall required to produce</p>
-              </div>
-
-              <div className="bg-white border border-slate-150 p-4 rounded-xl shadow-sm">
-                <span className="block text-[9px] font-black uppercase text-slate-400 tracking-wider">Est. Ingredient Budget</span>
-                <strong className="text-lg font-black text-teal-700">₹{simulatedData.summary.materialsCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}</strong>
-                <p className="text-[9px] text-slate-450 mt-1">Cost to purchase raw materials</p>
+            
+            {/* Overall B2B Cockpit Aggregate Summaries */}
+            <div className="bg-slate-50 border border-slate-200/60 p-4 rounded-2xl flex flex-wrap gap-4 justify-between items-center text-xs shadow-sm">
+              <span className="font-bold text-slate-700 uppercase tracking-wide flex items-center gap-1.5 shrink-0">
+                <Boxes className="w-4 h-4 text-rose-600" />
+                Aggregate Cockpit Summary:
+              </span>
+              <div className="flex flex-wrap gap-4 sm:gap-6 font-bold text-slate-700">
+                <span>Predicted Sales: <strong className="text-slate-900">{simulatedData.summary.predictedDemandUnits.toLocaleString()} units</strong></span>
+                <span>Pending Orders Buffer: <strong className="text-orange-600">{simulatedData.summary.pendingUnits.toLocaleString()} units</strong></span>
+                <span>Production Targets: <strong className="text-rose-700">{simulatedData.summary.shortfallUnits.toLocaleString()} units</strong></span>
+                <span>Ingredient Budget: <strong className="text-teal-700 font-extrabold">₹{simulatedData.summary.materialsCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}</strong></span>
               </div>
             </div>
 
-            {/* Charts Tab Selector */}
-            <div className="bg-white border border-slate-150 p-5 rounded-2xl shadow-sm space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-3 gap-2">
-                <div className="flex items-center space-x-2">
-                  <TrendingUp className="w-4 h-4 text-rose-600" />
-                  <span className="text-xs font-black text-slate-800 uppercase tracking-wider">Simulated Planning Trends</span>
-                </div>
-                <div className="flex space-x-1.5">
-                  <button
-                    onClick={() => setActiveChartTab('aggregate')}
-                    className={`px-3 py-1 rounded-lg text-[10px] font-bold transition-all border ${
-                      activeChartTab === 'aggregate'
-                        ? 'bg-rose-50 text-rose-700 border-rose-100 font-black'
-                        : 'bg-white text-slate-505 border-slate-200 hover:bg-slate-50'
-                    }`}
-                  >
-                    Trend Analysis
-                  </button>
-                  <button
-                    onClick={() => setActiveChartTab('breakdown')}
-                    className={`px-3 py-1 rounded-lg text-[10px] font-bold transition-all border ${
-                      activeChartTab === 'breakdown'
-                        ? 'bg-rose-50 text-rose-700 border-rose-100 font-black'
-                        : 'bg-white text-slate-505 border-slate-200 hover:bg-slate-50'
-                    }`}
-                  >
-                    Stock vs Demand
-                  </button>
-                  <button
-                    onClick={() => setActiveChartTab('productwise')}
-                    className={`px-3 py-1 rounded-lg text-[10px] font-bold transition-all border ${
-                      activeChartTab === 'productwise'
-                        ? 'bg-indigo-50 text-indigo-700 border-indigo-100 font-black'
-                        : 'bg-white text-slate-505 border-slate-200 hover:bg-slate-50'
-                    }`}
-                  >
-                    📊 Product-Wise
-                  </button>
-                </div>
+            {/* Product Selector */}
+            <div className="bg-white border border-slate-150 p-5 rounded-2xl shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div className="space-y-1">
+                <span className="block text-[10px] font-black uppercase text-rose-700 tracking-wider flex items-center gap-1.5">
+                  <Package className="w-4 h-4 text-rose-600" />
+                  Product-Wise Simulation Focus
+                </span>
+                <p className="text-slate-500 text-xs font-medium">Select a SKU below to evaluate its specific Stock vs Demand prediction and recipes.</p>
               </div>
+              <select
+                value={selectedProductId}
+                onChange={e => setSelectedProductId(e.target.value)}
+                className="w-full sm:w-80 p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none font-bold text-slate-700 cursor-pointer"
+              >
+                {products.map(p => (
+                  <option key={p.id} value={p.id}>{p.name} ({p.sku || 'No SKU'})</option>
+                ))}
+              </select>
+            </div>
 
-              <div className={activeChartTab === 'productwise' ? '' : 'h-64'}>
-                {activeChartTab === 'aggregate' ? (
-                  <ResponsiveContainer width="100%" height={256}>
-                    <AreaChart data={simulatedData.trend} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                      <defs>
-                        <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#be123c" stopOpacity={0.2}/>
-                          <stop offset="95%" stopColor="#be123c" stopOpacity={0}/>
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                      <XAxis dataKey="name" tick={{ fontSize: 9, fontWeight: 700 }} />
-                      <YAxis tick={{ fontSize: 9 }} />
-                      <Tooltip formatter={(value, name) => [name === 'Revenue (₹)' ? `₹${value.toLocaleString()}` : `${value.toLocaleString()} units`, name]} />
-                      <Legend wrapperStyle={{ fontSize: '10px', fontWeight: 700 }} />
-                      <Area type="monotone" dataKey="Sales Volume" stroke="#be123c" strokeWidth={2.5} fillOpacity={1} fill="url(#colorValue)" />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                ) : activeChartTab === 'breakdown' ? (
-                  <ResponsiveContainer width="100%" height={256}>
-                    <BarChart data={simulatedData.details.slice(0, 8)} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                      <XAxis dataKey="sku" tick={{ fontSize: 9, fontWeight: 700 }} />
-                      <YAxis tick={{ fontSize: 9 }} />
-                      <Tooltip />
-                      <Legend wrapperStyle={{ fontSize: '10px', fontWeight: 700 }} />
-                      <Bar dataKey="currentStock" name="Warehouse Stock" fill="#94a3b8" radius={[2, 2, 0, 0]} />
-                      <Bar dataKey="pendingOrderQty" name="Pending Dealer POs" fill="#f97316" radius={[2, 2, 0, 0]} />
-                      <Bar dataKey="predictedDemand" name="Forecasted Demand" fill="#be123c" radius={[2, 2, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                ) : (
-                  // ── Product-Wise Simulation Charts ──
-                  <div>
-                    {/* Search */}
-                    <div className="mb-4">
-                      <input
-                        value={productSearch}
-                        onChange={e => setProductSearch(e.target.value)}
-                        placeholder="Filter products by name or SKU..."
-                        className="w-full sm:w-72 px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-rose-400"
-                      />
-                      <span className="ml-2 text-[10px] text-slate-400 font-semibold">
-                        {simulatedData.details.filter(p =>
-                          !productSearch || p.name.toLowerCase().includes(productSearch.toLowerCase()) || p.sku.toLowerCase().includes(productSearch.toLowerCase())
-                        ).length} products shown
-                      </span>
+            {(() => {
+              const selectedProductDetail = simulatedData?.details?.find(d => d.productId === selectedProductId) || simulatedData?.details?.[0];
+              if (!selectedProductDetail) return null;
+
+              const isDeficit = selectedProductDetail.shortfall > 0;
+
+              return (
+                <div className="space-y-6">
+                  {/* Product-Specific KPI Cards */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                    <div className="bg-white border border-slate-150 p-4 rounded-xl shadow-sm">
+                      <span className="block text-[9px] font-black uppercase text-slate-400 tracking-wider">Current Warehouse Stock</span>
+                      <strong className="text-lg font-black text-slate-800">{selectedProductDetail.currentStock.toLocaleString()} {selectedProductDetail.unit}</strong>
+                      <p className="text-[9px] text-slate-450 mt-1">Available in physical storage</p>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
-                      {simulatedData.details
-                        .filter(p =>
-                          !productSearch ||
-                          p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
-                          p.sku.toLowerCase().includes(productSearch.toLowerCase())
-                        )
-                        .map((prod, idx) => {
-                          // Build chart data: months + forecast bar
-                          const sortedMonths = simulatedData.trend
-                            .filter(t => !t.isForecast)
-                            .map(t => t.name);
+                    <div className="bg-white border border-slate-150 p-4 rounded-xl shadow-sm">
+                      <span className="block text-[9px] font-black uppercase text-slate-400 tracking-wider">Pending B2B Requests</span>
+                      <strong className="text-lg font-black text-orange-600">{selectedProductDetail.pendingOrderQty.toLocaleString()} {selectedProductDetail.unit}</strong>
+                      <p className="text-[9px] text-slate-450 mt-1">Awaiting dispatch/transfer</p>
+                    </div>
 
-                          const chartData = prod.historical.map((qty, i) => ({
-                            month: sortedMonths[i] || `M${i + 1}`,
-                            'Monthly Sales': qty,
-                          }));
-                          chartData.push({
-                            month: forecastHorizon === 90 ? 'Q3 Fcst' : 'Forecast',
-                            'Monthly Sales': null,
-                            'Predicted': prod.predictedDemand,
-                          });
+                    <div className="bg-white border border-slate-150 p-4 rounded-xl shadow-sm">
+                      <span className="block text-[9px] font-black uppercase text-slate-400 tracking-wider">Predicted Sales Demand</span>
+                      <strong className="text-lg font-black text-indigo-650">{selectedProductDetail.predictedDemand.toLocaleString()} {selectedProductDetail.unit}</strong>
+                      <p className="text-[9px] text-slate-450 mt-1">Projected sales horizon ({forecastHorizon} days)</p>
+                    </div>
 
-                          const coverageOk = prod.currentStock >= (prod.predictedDemand + prod.pendingOrderQty);
-                          const cardColors = idx % 5;
-                          const colorDot = ['bg-rose-500', 'bg-teal-500', 'bg-indigo-500', 'bg-amber-500', 'bg-violet-500'][cardColors];
-                          const lineColor = ['#be123c', '#0d9488', '#6366f1', '#f59e0b', '#7c3aed'][cardColors];
-
-                          return (
-                            <div key={prod.productId} className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden hover:shadow-md transition-shadow">
-                              {/* Card Header */}
-                              <div className="px-4 pt-4 pb-2">
-                                <div className="flex items-start justify-between gap-2">
-                                  <div className="flex items-center gap-2 min-w-0">
-                                    <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${colorDot}`} />
-                                    <div className="min-w-0">
-                                      <p className="text-xs font-black text-slate-800 truncate leading-tight" title={prod.name}>{prod.name}</p>
-                                      <p className="text-[9px] font-mono text-slate-400 mt-0.5">{prod.sku} · {prod.category}</p>
-                                    </div>
-                                  </div>
-                                  <span className={`shrink-0 text-[9px] font-black px-2 py-0.5 rounded-full ${
-                                    coverageOk ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'
-                                  }`}>
-                                    {coverageOk ? 'Adequate' : 'Deficit'}
-                                  </span>
-                                </div>
-
-                                {/* Mini KPI row */}
-                                <div className="mt-3 grid grid-cols-3 gap-1 text-center">
-                                  <div className="bg-slate-50 rounded-lg py-1.5">
-                                    <p className="text-[8px] text-slate-400 font-bold uppercase">Stock</p>
-                                    <p className="text-[11px] font-black text-slate-700">{prod.currentStock.toLocaleString()}</p>
-                                  </div>
-                                  <div className="bg-orange-50 rounded-lg py-1.5">
-                                    <p className="text-[8px] text-orange-400 font-bold uppercase">Pending</p>
-                                    <p className="text-[11px] font-black text-orange-700">{prod.pendingOrderQty.toLocaleString()}</p>
-                                  </div>
-                                  <div className={`rounded-lg py-1.5 ${prod.shortfall > 0 ? 'bg-rose-50' : 'bg-emerald-50'}`}>
-                                    <p className={`text-[8px] font-bold uppercase ${prod.shortfall > 0 ? 'text-rose-400' : 'text-emerald-400'}`}>Target</p>
-                                    <p className={`text-[11px] font-black ${prod.shortfall > 0 ? 'text-rose-700' : 'text-emerald-700'}`}>
-                                      {prod.shortfall > 0 ? `+${prod.shortfall.toLocaleString()}` : '0'}
-                                    </p>
-                                  </div>
-                                </div>
-                              </div>
-
-                              {/* Chart */}
-                              <div className="px-2 pb-3">
-                                <ResponsiveContainer width="100%" height={120}>
-                                  <ComposedChart data={chartData} margin={{ top: 5, right: 8, left: -20, bottom: 0 }}>
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                    <XAxis dataKey="month" tick={{ fontSize: 8, fontWeight: 600, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-                                    <YAxis tick={{ fontSize: 8, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-                                    <Tooltip
-                                      contentStyle={{ fontSize: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }}
-                                      formatter={(v, name) => [v !== null ? `${v.toLocaleString()} units` : '', name]}
-                                    />
-                                    {/* Stock reference line */}
-                                    <ReferenceLine
-                                      y={prod.currentStock}
-                                      stroke="#94a3b8"
-                                      strokeDasharray="4 2"
-                                      label={{ value: 'Stock', position: 'insideTopRight', fontSize: 7, fill: '#94a3b8' }}
-                                    />
-                                    {/* Historical monthly sales bars */}
-                                    <Bar dataKey="Monthly Sales" fill={lineColor} opacity={0.8} radius={[2, 2, 0, 0]} barSize={18} />
-                                    {/* Forecast bar */}
-                                    <Bar dataKey="Predicted" fill="#f97316" opacity={0.9} radius={[2, 2, 0, 0]} barSize={18} />
-                                  </ComposedChart>
-                                </ResponsiveContainer>
-                                <div className="flex items-center gap-3 px-2 mt-1">
-                                  <span className="flex items-center gap-1 text-[8px] text-slate-400 font-semibold">
-                                    <span className="inline-block w-2.5 h-2 rounded-sm" style={{ backgroundColor: lineColor }}></span>
-                                    Historical
-                                  </span>
-                                  <span className="flex items-center gap-1 text-[8px] text-slate-400 font-semibold">
-                                    <span className="inline-block w-2.5 h-2 rounded-sm bg-orange-400"></span>
-                                    Forecast ({forecastHorizon}d)
-                                  </span>
-                                  <span className="flex items-center gap-1 text-[8px] text-slate-400 font-semibold">
-                                    <span className="inline-block w-4 border-t-2 border-dashed border-slate-300"></span>
-                                    Current Stock
-                                  </span>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
+                    <div className={`p-4 rounded-xl border shadow-sm ${
+                      isDeficit ? 'bg-rose-50/20 border-rose-100' : 'bg-emerald-50/20 border-emerald-100'
+                    }`}>
+                      <span className={`block text-[9px] font-black uppercase tracking-wider ${
+                        isDeficit ? 'text-rose-700' : 'text-emerald-700'
+                      }`}>Net Production Target</span>
+                      <strong className={`text-lg font-black ${
+                        isDeficit ? 'text-rose-700' : 'text-emerald-700'
+                      }`}>
+                        {isDeficit ? `+${selectedProductDetail.shortfall.toLocaleString()}` : '0'} {selectedProductDetail.unit}
+                      </strong>
+                      <p className="text-[9px] text-slate-500 mt-1">
+                        {isDeficit ? 'Shortfall required to produce' : 'Stock level is adequate'}
+                      </p>
                     </div>
                   </div>
-                )}
-              </div>
-            </div>
+
+                  {/* Charts Tab Selector */}
+                  <div className="bg-white border border-slate-150 p-5 rounded-2xl shadow-sm space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-3 gap-2">
+                      <div className="flex items-center space-x-2">
+                        <TrendingUp className="w-4 h-4 text-rose-600" />
+                        <span className="text-xs font-black text-slate-800 uppercase tracking-wider">Simulated Planning Trends</span>
+                      </div>
+                      <div className="flex space-x-1.5">
+                        <button
+                          onClick={() => setActiveChartTab('productwise')}
+                          className={`px-3 py-1 rounded-lg text-[10px] font-bold transition-all border ${
+                            activeChartTab === 'productwise'
+                              ? 'bg-rose-50 text-rose-700 border-rose-100 font-black'
+                              : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'
+                          }`}
+                        >
+                          📈 Product-Wise Forecast (3 Curves)
+                        </button>
+                        <button
+                          onClick={() => setActiveChartTab('breakdown')}
+                          className={`px-3 py-1 rounded-lg text-[10px] font-bold transition-all border ${
+                            activeChartTab === 'breakdown'
+                              ? 'bg-rose-50 text-rose-700 border-rose-100 font-black'
+                              : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'
+                          }`}
+                        >
+                          Stock vs Demand (All SKUs)
+                        </button>
+                        <button
+                          onClick={() => setActiveChartTab('aggregate')}
+                          className={`px-3 py-1 rounded-lg text-[10px] font-bold transition-all border ${
+                            activeChartTab === 'aggregate'
+                              ? 'bg-rose-50 text-rose-700 border-rose-100 font-black'
+                              : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'
+                          }`}
+                        >
+                          Trend Analysis (Aggregate)
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      {activeChartTab === 'productwise' ? (
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                          {/* 3-Curve Chart */}
+                          <div className="lg:col-span-2 space-y-4">
+                            <div className="bg-slate-50/50 border border-slate-100 rounded-2xl p-4">
+                              <ResponsiveContainer width="100%" height={260}>
+                                <LineChart data={getProductChartData(selectedProductDetail)} margin={{ top: 10, right: 30, left: -10, bottom: 0 }}>
+                                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                                  <XAxis dataKey="name" tick={{ fontSize: 9, fontWeight: 700, fill: '#64748b' }} />
+                                  <YAxis tick={{ fontSize: 9, fill: '#64748b' }} />
+                                  <Tooltip formatter={(value, name) => [`${value?.toLocaleString()} units`, name]} />
+                                  <Legend wrapperStyle={{ fontSize: '10px', fontWeight: 700 }} />
+                                  <Line type="monotone" dataKey="Total Requests" stroke="#6366f1" strokeWidth={3} activeDot={{ r: 6 }} name="Total Customer Requests" />
+                                  <Line type="monotone" dataKey="Quantity Fulfilled" stroke="#10b981" strokeWidth={3} activeDot={{ r: 6 }} name="Quantity Fulfilled" />
+                                  <Line type="monotone" dataKey="Predicted Future Demand" stroke="#e11d48" strokeWidth={3} strokeDasharray="5 5" name="Predicted Future Demand" />
+                                </LineChart>
+                              </ResponsiveContainer>
+                            </div>
+                            <div className="bg-slate-50 border border-slate-150 p-3 rounded-xl flex flex-wrap gap-4 items-center text-[10px] text-slate-500 font-medium">
+                              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded bg-indigo-500 shrink-0"></span> Total Customer Requests (Fulfilled + Pending Requests)</span>
+                              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded bg-emerald-500 shrink-0"></span> Quantity Fulfilled (Invoiced Sales)</span>
+                              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded bg-rose-500 shrink-0"></span> Predicted Future Demand (Projected run rate + safety buffer)</span>
+                            </div>
+                          </div>
+                          {/* Prediction Insights text explanation */}
+                          <div className="lg:col-span-1">
+                            {getPredictionExplanation(selectedProductDetail)}
+                          </div>
+                        </div>
+                      ) : activeChartTab === 'breakdown' ? (
+                        <div className="h-72">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={simulatedData.details.slice(0, 8)} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                              <XAxis dataKey="sku" tick={{ fontSize: 9, fontWeight: 700 }} />
+                              <YAxis tick={{ fontSize: 9 }} />
+                              <Tooltip formatter={(v) => `${v.toLocaleString()} units`} />
+                              <Legend wrapperStyle={{ fontSize: '10px', fontWeight: 700 }} />
+                              <Bar dataKey="currentStock" name="Warehouse Stock" fill="#94a3b8" radius={[2, 2, 0, 0]} />
+                              <Bar dataKey="pendingOrderQty" name="Pending Dealer POs" fill="#f97316" radius={[2, 2, 0, 0]} />
+                              <Bar dataKey="predictedDemand" name="Forecasted Demand" fill="#be123c" radius={[2, 2, 0, 0]} />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </div>
+                      ) : (
+                        <div className="h-72">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart data={simulatedData.trend} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                              <defs>
+                                <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="5%" stopColor="#be123c" stopOpacity={0.2}/>
+                                  <stop offset="95%" stopColor="#be123c" stopOpacity={0}/>
+                                </linearGradient>
+                              </defs>
+                              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                              <XAxis dataKey="name" tick={{ fontSize: 9, fontWeight: 700 }} />
+                              <YAxis tick={{ fontSize: 9 }} />
+                              <Tooltip formatter={(value, name) => [name === 'Revenue (₹)' ? `₹${value.toLocaleString()}` : `${value.toLocaleString()} units`, name]} />
+                              <Legend wrapperStyle={{ fontSize: '10px', fontWeight: 700 }} />
+                              <Area type="monotone" dataKey="Sales Volume" stroke="#be123c" strokeWidth={2.5} fillOpacity={1} fill="url(#colorValue)" />
+                            </AreaChart>
+                          </ResponsiveContainer>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         )}
       </div>

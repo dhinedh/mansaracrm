@@ -29,6 +29,9 @@ const ecomRoutes = require('./modules/ecom/ecom.routes');
 
 const app = express();
 
+// Trust proxy (Render, Vercel, etc.)
+app.set('trust proxy', 1);
+
 // Security HTTP headers with relaxed configurations for static content serving
 app.use(helmet({
   crossOriginResourcePolicy: false,

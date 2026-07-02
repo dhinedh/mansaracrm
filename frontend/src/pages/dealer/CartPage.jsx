@@ -620,7 +620,7 @@ export default function CartPage() {
                     const mrp = parseFloat(item.product.mrp || item.product.price || 0);
                     const sellingPrice = mrp * (1 - (item.marginPct || 0) / 100);
                     const unit = item.unit || 'PCS';
-                    const cartonSize = item.product.cartonSize || 24;
+                    const cartonSize = item.product.cartonSize || item.product.pacQuantity || 24;
                     const qtyInPieces = unit === 'CTN' ? item.quantity * cartonSize : item.quantity;
                     const lineTotal = sellingPrice * qtyInPieces;
                     const maxStock = dealerInventory[item.productId] || 0;
