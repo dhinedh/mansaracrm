@@ -484,9 +484,16 @@ exports.deletePressRelease = async (req, res, next) => {
 exports.getCustomers = async (req, res, next) => {
   try {
     // Customers are stored in users collection, filter by role === 'user' or isAdmin === false
-    const customers = await User.find({ role: { $ne: 'ADMIN' } })
-      .select('name email phone whatsapp joinedDate status totalSpent totalOrders lastLogin')
-      .sort({ createdAt: -1 });
+    const rawCustomers = await User.find({ role: { $ne: 'ADMIN' } })
+      .select('name email phone whatsapp joinDate createdAt status totalSpent totalOrders lastLogin')
+      .sort({ createdAt: -1 })
+      .lean();
+    
+    const customers = rawCustomers.map(c => ({
+      ...c,
+      joinedDate: c.createdAt || c.joinDate
+    }));
+
     res.json({ success: true, customers });
   } catch (error) {
     next(error);
