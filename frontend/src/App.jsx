@@ -32,6 +32,9 @@ import InventoriesPage from './pages/admin/InventoriesPage';
 import AdminInvoiceLedger from './pages/admin/AdminInvoiceLedger';
 import UserManagement from './pages/admin/UserManagement';
 import ZoneMapPage from './pages/admin/ZoneMapPage';
+import StallsPage from './pages/admin/StallsPage';
+import StallBillingPage from './pages/admin/StallBillingPage';
+import StoreVisitsPage from './pages/admin/StoreVisitsPage';
 
 // E-Commerce Pages
 import EcomOrdersPage from './pages/admin/EcomOrdersPage';
@@ -199,6 +202,21 @@ export default function App() {
           <Route path="zone-map" element={
             <ProtectedRoute allowedStaffRoles={['ADMIN', 'B2B_MANAGER']}>
               <ZoneMapPage />
+            </ProtectedRoute>
+          } />
+          <Route path="stalls" element={
+            <ProtectedRoute allowedStaffRoles={['ADMIN', 'B2B_MANAGER']}>
+              <StallsPage />
+            </ProtectedRoute>
+          } />
+          <Route path="stall-billing" element={
+            <ProtectedRoute allowedStaffRoles={['ADMIN', 'B2B_MANAGER']}>
+              <StallBillingPage />
+            </ProtectedRoute>
+          } />
+          <Route path="store-visits" element={
+            <ProtectedRoute allowedStaffRoles={['ADMIN', 'B2B_MANAGER']}>
+              <StoreVisitsPage />
             </ProtectedRoute>
           } />
           

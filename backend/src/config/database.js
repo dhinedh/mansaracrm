@@ -485,6 +485,7 @@ const InvoiceItemSchema = new Schema({
   invoiceId: { type: Schema.Types.ObjectId, ref: 'Invoice', required: true },
   productId: { type: Schema.Types.ObjectId, ref: 'Product', required: true },
   quantity: { type: Number, required: true },
+  fulfilledQuantity: { type: Number, default: 0 },
   unit: { type: String, enum: ['PCS', 'CTN'], default: 'PCS' },
   unitPrice: { type: Number, required: true },
   marginPct: { type: Number, default: 0 },
@@ -584,10 +585,48 @@ const LeadSchema = new Schema({
 const VisitSchema = new Schema({
   leadId: { type: Schema.Types.ObjectId, ref: 'Lead' },
   dealerId: { type: Schema.Types.ObjectId, ref: 'Dealer' },
+  storeId: { type: Schema.Types.ObjectId, ref: 'Store' },
   visitorName: { type: String, required: true },
   purpose: { type: String, required: true },
-  outcome: { type: String, required: true },
+  outcome: { type: String },
+  latitude: { type: Number },
+  longitude: { type: Number },
+  checkInTime: { type: Date },
+  checkOutTime: { type: Date },
+  verified: { type: Boolean, default: false },
   date: { type: Date, default: Date.now }
+}, {
+  timestamps: true,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
+});
+
+// Stall Session (for location-based performance & investment tracking)
+const StallSessionSchema = new Schema({
+  name: { type: String, required: true },
+  location: { type: String, required: true },
+  operatorName: { type: String, required: true },
+  investment: { type: Number, required: true, default: 0 },
+  status: { type: String, enum: ['ACTIVE', 'CLOSED'], default: 'ACTIVE' },
+  startDate: { type: Date, default: Date.now },
+  endDate: { type: Date }
+}, {
+  timestamps: true,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
+});
+
+// Stall Sale (high-speed billing transactions)
+const StallSaleSchema = new Schema({
+  stallSessionId: { type: Schema.Types.ObjectId, ref: 'StallSession', required: true, index: true },
+  totalAmount: { type: Number, required: true },
+  paymentMethod: { type: String, enum: ['CASH', 'ONLINE'], required: true },
+  items: [{
+    productId: { type: Schema.Types.ObjectId, ref: 'Product', required: true },
+    productName: { type: String, required: true },
+    quantity: { type: Number, required: true, min: 1 },
+    price: { type: Number, required: true }
+  }]
 }, {
   timestamps: true,
   toJSON: { virtuals: true },
@@ -846,6 +885,8 @@ const AuditLog = mongoose.model('AuditLog', AuditLogSchema, 'audit_logs');
 const InvoiceSequence = mongoose.model('InvoiceSequence', InvoiceSequenceSchema, 'invoice_sequence');
 const Lead = mongoose.model('Lead', LeadSchema, 'leads');
 const Visit = mongoose.model('Visit', VisitSchema, 'visits');
+const StallSession = mongoose.model('StallSession', StallSessionSchema, 'stall_sessions');
+const StallSale = mongoose.model('StallSale', StallSaleSchema, 'stall_sales');
 const Sample = mongoose.model('Sample', SampleSchema, 'samples');
 const Return = mongoose.model('Return', ReturnSchema, 'returns');
 const StockRequest = mongoose.model('StockRequest', StockRequestSchema, 'stock_requests');
@@ -1570,6 +1611,8 @@ const prisma = {
   review: new PrismaCollectionWrapper('Review'),
   setting: new PrismaCollectionWrapper('Setting'),
   order: new PrismaCollectionWrapper('Order'),
+  stallSession: new PrismaCollectionWrapper('StallSession'),
+  stallSale: new PrismaCollectionWrapper('StallSale'),
 
   $transaction: async (fn) => {
     // Run transactions sequentially on standalone local MongoDB instances

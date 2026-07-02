@@ -30,7 +30,8 @@ import {
   Settings,
   PackageSearch,
   Boxes,
-  Package
+  Package,
+  Store
 } from 'lucide-react';
 import axios from 'axios';
 
@@ -59,6 +60,8 @@ const getCrmMenuItems = (unreadNotifications) => [
   { name: 'Reports',               path: '/admin/reports',             icon: BarChart3, allowedStaffRoles: ['ADMIN', 'FINANCE_OFFICER'] },
   { name: 'Forecasting',           path: '/admin/forecasting',         icon: TrendingUp, allowedStaffRoles: ['ADMIN', 'FINANCE_OFFICER'] },
   { name: 'Analytics',             path: '/admin/analytics',           icon: BarChart3, allowedStaffRoles: ['ADMIN', 'FINANCE_OFFICER'] },
+  { name: 'B2C Stalls',            path: '/admin/stalls',              icon: Store, allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'] },
+  { name: 'Store Visits',          path: '/admin/store-visits',        icon: Truck, allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'] },
   { name: 'Privilege Management',  path: '/admin/users',               icon: Settings, allowedStaffRoles: ['ADMIN'] },
   {
     name: 'Notifications',

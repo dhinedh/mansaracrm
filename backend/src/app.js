@@ -26,6 +26,7 @@ const requestsRoutes = require('./modules/requests/requests.routes');
 const ticketsRoutes = require('./modules/tickets/tickets.routes');
 const crmRoutes = require('./modules/crm/crm.routes');
 const ecomRoutes = require('./modules/ecom/ecom.routes');
+const stallRoutes = require('./modules/stall/stall.routes');
 
 const app = express();
 
@@ -104,6 +105,7 @@ app.use('/api/requests', requestsRoutes);
 app.use('/api/tickets', ticketsRoutes);
 app.use('/api/crm', crmRoutes);
 app.use('/api/ecom', ecomRoutes);
+app.use('/api/stalls', stallRoutes);
 
 // Base Health Check
 app.get('/api/health', (req, res) => {
