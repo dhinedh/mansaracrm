@@ -27,6 +27,8 @@ const ticketsRoutes = require('./modules/tickets/tickets.routes');
 const crmRoutes = require('./modules/crm/crm.routes');
 const ecomRoutes = require('./modules/ecom/ecom.routes');
 const stallRoutes = require('./modules/stall/stall.routes');
+const fieldSalesRoutes = require('./modules/field-sales/field-sales.routes');
+const { checkFeature } = require('./middleware/featureToggle');
 
 const app = express();
 
@@ -105,7 +107,8 @@ app.use('/api/requests', requestsRoutes);
 app.use('/api/tickets', ticketsRoutes);
 app.use('/api/crm', crmRoutes);
 app.use('/api/ecom', ecomRoutes);
-app.use('/api/stalls', stallRoutes);
+app.use('/api/stalls', checkFeature('enableB2cStall'), stallRoutes);
+app.use('/api/field-sales', checkFeature('enableFieldSales'), fieldSalesRoutes);
 
 // Base Health Check
 app.get('/api/health', (req, res) => {

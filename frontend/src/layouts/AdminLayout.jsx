@@ -60,8 +60,6 @@ const getCrmMenuItems = (unreadNotifications) => [
   { name: 'Reports',               path: '/admin/reports',             icon: BarChart3, allowedStaffRoles: ['ADMIN', 'FINANCE_OFFICER'] },
   { name: 'Forecasting',           path: '/admin/forecasting',         icon: TrendingUp, allowedStaffRoles: ['ADMIN', 'FINANCE_OFFICER'] },
   { name: 'Analytics',             path: '/admin/analytics',           icon: BarChart3, allowedStaffRoles: ['ADMIN', 'FINANCE_OFFICER'] },
-  { name: 'B2C Stalls',            path: '/admin/stalls',              icon: Store, allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'] },
-  { name: 'Store Visits',          path: '/admin/store-visits',        icon: Truck, allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'] },
   { name: 'Privilege Management',  path: '/admin/users',               icon: Settings, allowedStaffRoles: ['ADMIN'] },
   {
     name: 'Notifications',
@@ -70,6 +68,11 @@ const getCrmMenuItems = (unreadNotifications) => [
     badge: unreadNotifications,
     allowedStaffRoles: ['ADMIN', 'ECOM_MANAGER', 'B2B_MANAGER', 'SUPPORT_AGENT', 'FINANCE_OFFICER', 'VIEWER']
   },
+];
+
+const fieldMenuItems = [
+  { name: 'B2C Stalls',            path: '/admin/stalls',              icon: Store, allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'] },
+  { name: 'Store Visits',          path: '/admin/store-visits',        icon: Truck, allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'] },
 ];
 
 const ecomMenuItems = [
@@ -189,6 +192,7 @@ function SectionLabel({ label, color = 'slate' }) {
   const colorMap = {
     slate: 'text-slate-400 border-slate-200',
     blue:  'text-blue-400  border-blue-100',
+    rose:  'text-rose-500  border-rose-100',
   };
   return (
     <div className={`flex items-center gap-2 px-3 pt-2 pb-1`}>
@@ -200,13 +204,23 @@ function SectionLabel({ label, color = 'slate' }) {
   );
 }
 
-// ─── Full Sidebar Nav ─────────────────────────────────────────────────────────
-function SidebarNav({ submenusOpen, toggleSubmenu, onLinkClick, unreadNotifications, staffRole }) {
+function SidebarNav({ submenusOpen, toggleSubmenu, onLinkClick, unreadNotifications, staffRole, licensing = { enableB2cStall: true, enableFieldSales: true } }) {
   const crmItems = getCrmMenuItems(unreadNotifications);
   
   // Filter items based on staffRole
   const filteredCrmItems = crmItems.filter(item => {
     // If user's staffRole is ADMIN (super admin), allow all
+    if (staffRole === 'ADMIN') return true;
+    if (item.allowedStaffRoles && !item.allowedStaffRoles.includes(staffRole)) {
+      return false;
+    }
+    return true;
+  });
+
+  const filteredFieldItems = fieldMenuItems.filter(item => {
+    if (item.path === '/admin/stalls' && !licensing.enableB2cStall) return false;
+    if (item.path === '/admin/store-visits' && !licensing.enableFieldSales) return false;
+
     if (staffRole === 'ADMIN') return true;
     if (item.allowedStaffRoles && !item.allowedStaffRoles.includes(staffRole)) {
       return false;
@@ -244,6 +258,17 @@ function SidebarNav({ submenusOpen, toggleSubmenu, onLinkClick, unreadNotificati
         </>
       )}
 
+      {/* ── Stalls & Field Sales Section ── */}
+      {filteredFieldItems.length > 0 && (
+        <>
+          <div className="pt-3" />
+          <SectionLabel label="Stalls & Field Sales" color="rose" />
+          {filteredFieldItems.map((item) => (
+            <NavLink key={item.name} item={item} onLinkClick={onLinkClick} />
+          ))}
+        </>
+      )}
+
       {/* ── E-Commerce Section ── */}
       {filteredEcomItems.length > 0 && (
         <>
@@ -265,6 +290,7 @@ export default function AdminLayout() {
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const [licensing, setLicensing] = useState({ enableB2cStall: true, enableFieldSales: true });
   const isDashboard = location.pathname === '/admin/dashboard' || location.pathname === '/admin';
 
   const [submenusOpen, setSubmenusOpen] = useState({
@@ -279,7 +305,7 @@ export default function AdminLayout() {
 
   const getActivePageName = () => {
     const crmItems = getCrmMenuItems(0);
-    for (const item of [...crmItems, ...ecomMenuItems]) {
+    for (const item of [...crmItems, ...ecomMenuItems, ...fieldMenuItems]) {
       if (item.path === location.pathname) return item.name;
       if (item.subItems) {
         const sub = item.subItems.find(s => s.path === location.pathname);
@@ -292,9 +318,33 @@ export default function AdminLayout() {
   useEffect(() => {
     fetchCurrentUser();
     fetchNotificationsCount();
+    fetchLicensingSettings();
+
+    const handleStorageChange = () => {
+      fetchLicensingSettings();
+    };
+    window.addEventListener('storage', handleStorageChange);
+
     const interval = setInterval(fetchNotificationsCount, 30000);
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('storage', handleStorageChange);
+    };
   }, []);
+
+  const fetchLicensingSettings = async () => {
+    try {
+      const res = await axios.get('/ecom/settings');
+      if (res.data.success && res.data.settings) {
+        setLicensing({
+          enableB2cStall: res.data.settings.enableB2cStall !== false,
+          enableFieldSales: res.data.settings.enableFieldSales !== false
+        });
+      }
+    } catch {
+      // silent fail
+    }
+  };
 
   const fetchNotificationsCount = async () => {
     try {
@@ -329,6 +379,7 @@ export default function AdminLayout() {
             toggleSubmenu={toggleSubmenu}
             unreadNotifications={unreadNotifications}
             staffRole={user?.staffRole || 'ADMIN'}
+            licensing={licensing}
           />
         </aside>
       )}
@@ -358,6 +409,7 @@ export default function AdminLayout() {
               onLinkClick={() => setMobileMenuOpen(false)}
               unreadNotifications={unreadNotifications}
               staffRole={user?.staffRole || 'ADMIN'}
+              licensing={licensing}
             />
           </div>
         </div>

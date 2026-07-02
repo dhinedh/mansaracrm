@@ -145,7 +145,7 @@ export default function StoreVisitsPage() {
         try {
           const { latitude, longitude } = position.coords;
           
-          const res = await axios.post('/crm/visits/check-in', {
+          const res = await axios.post('/field-sales/visits/check-in', {
             dealerId: selectedDealerId,
             storeId: selectedStoreId,
             visitorName: user?.name || 'Sales Representative',
@@ -196,7 +196,7 @@ export default function StoreVisitsPage() {
 
     try {
       setLoading(true);
-      await axios.post(`/billing/${invoiceId}/fulfill`, { items: itemsToFulfill });
+      await axios.post(`/field-sales/invoices/${invoiceId}/fulfill`, { items: itemsToFulfill });
       alert('Delivery recorded successfully!');
       fetchOpenInvoices();
     } catch (err) {
@@ -259,7 +259,7 @@ export default function StoreVisitsPage() {
 
     try {
       setLoading(true);
-      await axios.put(`/billing/${adjustingInvoice.id}/adjust`, {
+      await axios.put(`/field-sales/invoices/${adjustingInvoice.id}/adjust`, {
         items: adjustedItems
       });
       alert('Invoice adjusted successfully!');
@@ -292,7 +292,7 @@ export default function StoreVisitsPage() {
 
     try {
       setLoading(true);
-      await axios.post(`/crm/visits/${activeVisit.id}/check-out`, {
+      await axios.post(`/field-sales/visits/${activeVisit.id}/check-out`, {
         outcome: checkoutOutcome
       });
 

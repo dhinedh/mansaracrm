@@ -8,7 +8,8 @@ import {
   AlertTriangle,
   Globe,
   Truck,
-  Share2
+  Share2,
+  Shield
 } from 'lucide-react';
 
 export default function EcomSettingsPage() {
@@ -22,12 +23,14 @@ export default function EcomSettingsPage() {
     twitter_url: '',
     whatsapp_number: '',
     freeShippingThreshold: 500,
-    defaultShippingCharge: 50
+    defaultShippingCharge: 50,
+    enableB2cStall: true,
+    enableFieldSales: true
   });
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState('store'); // store, shipping, social
+  const [activeTab, setActiveTab] = useState('store'); // store, shipping, social, licensing
   const [message, setMessage] = useState({ text: '', type: '' });
 
   useEffect(() => {
@@ -57,6 +60,14 @@ export default function EcomSettingsPage() {
     }));
   };
 
+  const handleCheckboxChange = (e) => {
+    const { name, checked } = e.target;
+    setSettings(prev => ({
+      ...prev,
+      [name]: checked
+    }));
+  };
+
   const handleNumericChange = (e) => {
     const { name, value } = e.target;
     setSettings(prev => ({
@@ -74,6 +85,8 @@ export default function EcomSettingsPage() {
       if (res.data.success) {
         setSettings(res.data.settings);
         setMessage({ text: 'Settings updated successfully!', type: 'success' });
+        // Force header update by dispatching storage event or reloading page
+        window.dispatchEvent(new Event('storage'));
       }
     } catch (err) {
       console.error(err);
@@ -121,10 +134,12 @@ export default function EcomSettingsPage() {
         {[
           { key: 'store', label: 'General Storefront', icon: Globe },
           { key: 'shipping', label: 'Shipping Charges', icon: Truck },
-          { key: 'social', label: 'Social & WhatsApp', icon: Share2 }
+          { key: 'social', label: 'Social & WhatsApp', icon: Share2 },
+          { key: 'licensing', label: 'Module Packages', icon: Shield }
         ].map(tab => (
           <button
             key={tab.key}
+            type="button"
             onClick={() => setActiveTab(tab.key)}
             className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
               activeTab === tab.key 
@@ -283,6 +298,80 @@ export default function EcomSettingsPage() {
                     placeholder="https://twitter.com/mansarafoods"
                     className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none text-slate-800"
                   />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Tab 4: Module Packages & Licensing */}
+          {activeTab === 'licensing' && (
+            <div className="space-y-6">
+              <div>
+                <h3 className="font-bold text-slate-800 text-xs border-b pb-2 uppercase tracking-wide">Software Module Packages</h3>
+                <p className="text-slate-500 text-[10px] mt-1.5">
+                  Manage active licensing packages for the distribution tenant. Toggling off modules dynamically disables client access and hides corresponding pages from the system dashboard & sidebar navigation.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Stall Card */}
+                <div className={`p-5 rounded-2xl border transition-all duration-200 ${
+                  settings.enableB2cStall 
+                    ? 'bg-rose-50/30 border-rose-100' 
+                    : 'bg-slate-50/50 border-slate-100'
+                }`}>
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="space-y-1">
+                      <strong className="text-[13px] font-bold text-slate-800">B2C Stall Module</strong>
+                      <p className="text-[10px] text-slate-400">High-speed cashier terminal, manual override pricing, event budgeting, and P&L statement report generation.</p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer select-none">
+                      <input 
+                        type="checkbox" 
+                        name="enableB2cStall"
+                        checked={!!settings.enableB2cStall} 
+                        onChange={handleCheckboxChange}
+                        className="sr-only peer" 
+                      />
+                      <div className="w-9 h-5 bg-slate-200 rounded-full peer peer-focus:ring-2 peer-focus:ring-rose-300 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-slate-350 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-rose-600"></div>
+                    </label>
+                  </div>
+                  <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[10px]">
+                    <span className="font-semibold text-slate-400">License Status:</span>
+                    <span className={`font-black uppercase tracking-wider ${settings.enableB2cStall ? 'text-rose-600 animate-pulse' : 'text-slate-400'}`}>
+                      {settings.enableB2cStall ? 'Licensed & Active' : 'Inactive'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Field Sales Card */}
+                <div className={`p-5 rounded-2xl border transition-all duration-200 ${
+                  settings.enableFieldSales 
+                    ? 'bg-emerald-50/20 border-emerald-100' 
+                    : 'bg-slate-50/50 border-slate-100'
+                }`}>
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="space-y-1">
+                      <strong className="text-[13px] font-bold text-slate-800">Field Sales & Store Visits</strong>
+                      <p className="text-[10px] text-slate-400">GPS verified store check-in/out, live partial delivery fulfillment logging, and on-site invoice revision requests.</p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer select-none">
+                      <input 
+                        type="checkbox" 
+                        name="enableFieldSales"
+                        checked={!!settings.enableFieldSales} 
+                        onChange={handleCheckboxChange}
+                        className="sr-only peer" 
+                      />
+                      <div className="w-9 h-5 bg-slate-200 rounded-full peer peer-focus:ring-2 peer-focus:ring-emerald-300 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-slate-350 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
+                    </label>
+                  </div>
+                  <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[10px]">
+                    <span className="font-semibold text-slate-400">License Status:</span>
+                    <span className={`font-black uppercase tracking-wider ${settings.enableFieldSales ? 'text-emerald-600 animate-pulse' : 'text-slate-400'}`}>
+                      {settings.enableFieldSales ? 'Licensed & Active' : 'Inactive'}
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>

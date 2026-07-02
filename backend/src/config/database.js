@@ -812,7 +812,9 @@ const SettingSchema = new Schema({
   twitter_url: String,
   whatsapp_number: String,
   freeShippingThreshold: { type: Number, default: 0 },
-  defaultShippingCharge: { type: Number, default: 0 }
+  defaultShippingCharge: { type: Number, default: 0 },
+  enableB2cStall: { type: Boolean, default: true },
+  enableFieldSales: { type: Boolean, default: true }
 }, { timestamps: true });
 
 // Order Schema

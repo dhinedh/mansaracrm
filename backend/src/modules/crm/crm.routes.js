@@ -15,8 +15,6 @@ router.patch('/leads/:id', crmController.updateLeadStatus);
 // Visits
 router.post('/visits', crmController.logVisit);
 router.get('/visits', crmController.getVisits);
-router.post('/visits/check-in', crmController.checkInVisit);
-router.post('/visits/:id/check-out', crmController.checkOutVisit);
 
 // Samples
 router.post('/samples', crmController.createSample);

@@ -104,68 +104,6 @@ exports.getVisits = async (req, res, next) => {
   }
 };
 
-exports.checkInVisit = async (req, res, next) => {
-  try {
-    const { leadId, dealerId, storeId, visitorName, purpose, latitude, longitude } = req.body;
-
-    if (!visitorName || !purpose) {
-      return res.status(400).json({ success: false, message: 'Visitor name and purpose are required.' });
-    }
-
-    if (!latitude || !longitude) {
-      return res.status(400).json({ success: false, message: 'Mandatory Check-In: GPS coordinates (latitude & longitude) are required.' });
-    }
-
-    const visit = await prisma.visit.create({
-      data: {
-        leadId,
-        dealerId,
-        storeId,
-        visitorName,
-        purpose,
-        latitude: parseFloat(latitude),
-        longitude: parseFloat(longitude),
-        checkInTime: new Date(),
-        verified: true,
-        date: new Date(),
-        outcome: 'Checked In - Visit Pending checkout'
-      }
-    });
-
-    res.status(201).json({ success: true, message: 'Checked in successfully', data: visit });
-  } catch (error) {
-    next(error);
-  }
-};
-
-exports.checkOutVisit = async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    const { outcome } = req.body;
-
-    if (!outcome) {
-      return res.status(400).json({ success: false, message: 'Outcome is required to checkout.' });
-    }
-
-    const visit = await prisma.visit.findUnique({ where: { id } });
-    if (!visit) {
-      return res.status(404).json({ success: false, message: 'Visit record not found' });
-    }
-
-    const updated = await prisma.visit.update({
-      where: { id },
-      data: {
-        outcome,
-        checkOutTime: new Date()
-      }
-    });
-
-    res.json({ success: true, message: 'Checked out successfully', data: updated });
-  } catch (error) {
-    next(error);
-  }
-};
-
 // SAMPLES
 exports.createSample = async (req, res, next) => {
   try {

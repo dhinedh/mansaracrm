@@ -7,7 +7,7 @@ import {
   HelpCircle, BarChart3, TrendingUp, Bell, Tag, Cable, Microscope,
   Globe, ShoppingCart, Image, MessageSquare, Settings, PackageSearch,
   Boxes, Package, DollarSign, AlertCircle, BookOpen, UserCog,
-  LayoutGrid, MapPin, X
+  LayoutGrid, MapPin, X, Store
 } from 'lucide-react';
 
 
@@ -32,6 +32,11 @@ const crmModules = [
   { name: 'Zone Map',      path: '/admin/zone-map',            icon: MapPin,        color: '#16a34a', bg: '#f0fdf4', desc: 'Territory assignments' },
   { name: 'Invoice Ledger', path: '/admin/invoice-ledger',      icon: FileText,      color: '#e11d48', bg: '#fff1f2', desc: 'B2B & B2C tax invoices ledger' },
   { name: 'Privileges',     path: '/admin/users',               icon: UserCog,       color: '#0f766e', bg: '#f0fdfa', desc: 'Manage access privileges & roles' },
+];
+
+const fieldModules = [
+  { name: 'B2C Stalls',    path: '/admin/stalls',       icon: Store,  color: '#e11d48', bg: '#fff1f2', desc: 'Direct-to-customer stall events & billing' },
+  { name: 'Store Visits',  path: '/admin/store-visits', icon: Truck,  color: '#16a34a', bg: '#f0fdf4', desc: 'Manage store check-ins & order fulfillment' }
 ];
 
 const ecomModules = [
@@ -93,6 +98,7 @@ function KpiPill({ icon: Icon, label, value, color }) {
 export default function AdminDashboard() {
   const navigate = useNavigate();
   const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const [licensing, setLicensing] = useState({ enableB2cStall: true, enableFieldSales: true });
   const [stats, setStats] = useState({
     productsCount: 0,
     dealersCount: 0,
@@ -104,10 +110,11 @@ export default function AdminDashboard() {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const [stockRes, dealersRes, notifRes] = await Promise.all([
+        const [stockRes, dealersRes, notifRes, settingsRes] = await Promise.all([
           axios.get('/inventory/company'),
           axios.get('/dealers'),
-          axios.get('/notifications')
+          axios.get('/notifications'),
+          axios.get('/ecom/settings')
         ]);
         const stocks = stockRes.data.data || [];
         const dealers = dealersRes.data.data || [];
@@ -116,6 +123,13 @@ export default function AdminDashboard() {
         const totalStock = stocks.reduce((acc, curr) => acc + (curr.quantity || 0), 0);
         const lowStockCount = stocks.filter(s => (s.quantity || 0) <= (s.minQuantity || 10)).length;
         const unreadCount = notifications.filter(n => !n.isRead).length;
+
+        if (settingsRes.data.success && settingsRes.data.settings) {
+          setLicensing({
+            enableB2cStall: settingsRes.data.settings.enableB2cStall !== false,
+            enableFieldSales: settingsRes.data.settings.enableFieldSales !== false
+          });
+        }
 
         setStats({
           productsCount: stocks.length,
@@ -233,6 +247,33 @@ export default function AdminDashboard() {
           ))}
         </div>
       </div>
+
+      {/* Stalls & Field Sales Section */}
+      {(() => {
+        const activeFieldModules = fieldModules.filter(m => {
+          if (m.path === '/admin/stalls' && !licensing.enableB2cStall) return false;
+          if (m.path === '/admin/store-visits' && !licensing.enableFieldSales) return false;
+          return true;
+        });
+
+        if (activeFieldModules.length === 0) return null;
+
+        return (
+          <div className="bg-white border border-slate-150 p-6 rounded-2xl shadow-sm space-y-4">
+            <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
+              <h2 className="text-xs font-black text-rose-700 uppercase tracking-widest flex items-center gap-2">
+                <LayoutGrid className="w-4 h-4" /> Stalls & Field Sales
+              </h2>
+              <span className="text-[10px] text-slate-400 font-semibold">{activeFieldModules.length} Modules</span>
+            </div>
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-4">
+              {activeFieldModules.map(m => (
+                <AppTile key={m.name} module={m} onClick={() => navigate(m.path)} />
+              ))}
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
