@@ -451,6 +451,16 @@ export default function WarehouseTransfersPage() {
                     <span className="font-bold text-slate-700">{fmt(selectedInvoice.shippingCharges)}</span>
                   </div>
                 )}
+                <div className="flex justify-between w-48 text-[11px] text-slate-500 border-t border-slate-100 pt-2">
+                  <span>Original Amount:</span>
+                  <span className="font-bold text-slate-700">{fmt((parseFloat(selectedInvoice.subtotal) || 0) + (parseFloat(selectedInvoice.totalGst) || 0) + (parseFloat(selectedInvoice.shippingCharges) || 0))}</span>
+                </div>
+                {selectedInvoice.totalDiscount && parseFloat(selectedInvoice.totalDiscount) > 0 && (
+                  <div className="flex justify-between w-48 text-[11px] text-red-600 font-bold">
+                    <span>Discount:</span>
+                    <span>-{fmt(selectedInvoice.totalDiscount)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between w-48 text-xs font-black text-slate-800 border-t border-slate-100 pt-2">
                   <span>Grand Total:</span>
                   <span className="text-rose-600">{fmt(selectedInvoice.totalAmount)}</span>

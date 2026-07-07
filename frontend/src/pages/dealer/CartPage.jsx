@@ -41,6 +41,7 @@ export default function CartPage() {
   const [localQtys, setLocalQtys] = useState({});
   const [localMargins, setLocalMargins] = useState({});
   const [shippingCharges, setShippingCharges] = useState(0);
+  const [totalDiscount, setTotalDiscount] = useState('');
   const [marginRules, setMarginRules] = useState([]);
 
   // PO Request Modal states
@@ -384,6 +385,7 @@ export default function CartPage() {
         isGstEnabled,
         isCredit,
         shippingCharges: parseFloat(shippingCharges || 0),
+        totalDiscount: parseFloat(totalDiscount || 0),
         items: items.map(item => ({
           productId: item.productId,
           quantity: item.quantity,
@@ -402,7 +404,7 @@ export default function CartPage() {
   };
 
   const { subtotal, gstTotal, grandTotal } = getTotals();
-  const finalGrandTotal = (isGstEnabled ? grandTotal : subtotal) + parseFloat(shippingCharges || 0);
+  const finalGrandTotal = Math.max(0, (isGstEnabled ? grandTotal : subtotal) + parseFloat(shippingCharges || 0) - (parseFloat(totalDiscount) || 0));
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -775,6 +777,22 @@ export default function CartPage() {
           </div>
         </div>
 
+        {/* Negotiated Discount */}
+        <div className="space-y-1.5">
+          <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">Negotiated Discount (₹)</label>
+          <div className="relative">
+            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">₹</span>
+            <input
+              type="number"
+              min="0"
+              value={totalDiscount}
+              onChange={(e) => setTotalDiscount(e.target.value)}
+              placeholder="0.00"
+              className="w-full pl-8 pr-4 py-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none font-bold text-slate-700 text-xs transition-all"
+            />
+          </div>
+        </div>
+
         {/* Invoice Summary Calculations */}
         <div className="space-y-3.5 text-xs text-slate-600 border-b border-slate-100 pb-4">
           <div className="flex justify-between items-center">
@@ -835,6 +853,18 @@ export default function CartPage() {
             <div className="flex justify-between items-center text-xs text-slate-600">
               <span>Shipping Charges:</span>
               <strong className="text-slate-800">₹{parseFloat(shippingCharges).toFixed(2)}</strong>
+            </div>
+          )}
+
+          <div className="flex justify-between items-center border-t border-slate-100 pt-2 text-[11px] text-slate-500">
+            <span>Original Total:</span>
+            <strong className="text-slate-700">₹{((isGstEnabled ? grandTotal : subtotal) + parseFloat(shippingCharges || 0)).toFixed(2)}</strong>
+          </div>
+
+          {parseFloat(totalDiscount) > 0 && (
+            <div className="flex justify-between items-center text-[11px] text-red-650 font-bold">
+              <span>Negotiation Discount:</span>
+              <span>-₹{parseFloat(totalDiscount).toFixed(2)}</span>
             </div>
           )}
 

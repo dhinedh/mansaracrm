@@ -43,7 +43,7 @@ exports.checkInVisit = async (req, res, next) => {
 exports.checkOutVisit = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { outcome } = req.body;
+    const { outcome, paymentsCollected = 0, paymentMethod = 'NONE', revisitDate, newInvoiceId } = req.body;
 
     if (!outcome) {
       return res.status(400).json({ success: false, message: 'Outcome is required to checkout.' });
@@ -54,15 +54,67 @@ exports.checkOutVisit = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Visit record not found' });
     }
 
-    const updated = await prisma.visit.update({
-      where: { id },
-      data: {
-        outcome,
-        checkOutTime: new Date()
+    const storeId = visit.storeId;
+
+    const updated = await prisma.$transaction(async (tx) => {
+      // A. Update visit record
+      const v = await tx.visit.update({
+        where: { id },
+        data: {
+          outcome,
+          paymentsCollected: parseFloat(paymentsCollected || 0),
+          paymentMethod: paymentMethod || 'NONE',
+          newInvoiceId: newInvoiceId || null,
+          revisitDate: revisitDate ? new Date(revisitDate) : null,
+          checkOutTime: new Date()
+        }
+      });
+
+      // B. Update store's revisitDate
+      if (revisitDate && storeId) {
+        await tx.store.update({
+          where: { id: storeId },
+          data: { revisitDate: new Date(revisitDate) }
+        });
       }
+
+      // C. FIFO Cascade collected payments to store's open invoices
+      let remainingPayment = parseFloat(paymentsCollected || 0);
+      if (remainingPayment > 0 && storeId) {
+        const openInvoices = await tx.invoice.findMany({
+          where: { storeId, status: 'OPEN' },
+          orderBy: { createdAt: 'asc' }
+        });
+        
+        for (const inv of openInvoices) {
+          if (remainingPayment <= 0) break;
+          
+          if (remainingPayment >= inv.totalAmount) {
+            remainingPayment -= inv.totalAmount;
+            await tx.invoice.update({
+              where: { id: inv.id },
+              data: { 
+                status: 'CLOSED', 
+                paidAt: new Date(),
+                totalAmount: 0 
+              }
+            });
+          } else {
+            await tx.invoice.update({
+              where: { id: inv.id },
+              data: { 
+                totalAmount: inv.totalAmount - remainingPayment 
+              }
+            });
+            remainingPayment = 0;
+          }
+        }
+      }
+
+      return v;
     });
 
-    res.json({ success: true, message: 'Checked out successfully', data: updated });
+    res.json({ success: true, message: 'Checked out successfully and payments processed', data: updated });
   } catch (error) {
     next(error);
   }
@@ -79,6 +131,7 @@ exports.getVisits = async (req, res, next) => {
       let lead = null;
       let dealer = null;
       let store = null;
+      let newInvoice = null;
       if (v.leadId) {
         lead = await prisma.lead.findUnique({ where: { id: v.leadId } });
       }
@@ -88,11 +141,15 @@ exports.getVisits = async (req, res, next) => {
       if (v.storeId) {
         store = await prisma.store.findUnique({ where: { id: v.storeId } });
       }
+      if (v.newInvoiceId) {
+        newInvoice = await prisma.invoice.findUnique({ where: { id: v.newInvoiceId } });
+      }
       enriched.push({
         ...v,
         lead,
         dealer,
-        store
+        store,
+        newInvoice
       });
     }
 

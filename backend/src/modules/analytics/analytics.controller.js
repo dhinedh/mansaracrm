@@ -1,5 +1,6 @@
 // src/modules/analytics/analytics.controller.js
 const prisma = require('../../config/database');
+const { generateInvoicePdf } = require('../../utils/pdfGenerator');
 
 exports.getAdminAnalytics = async (req, res, next) => {
   try {
@@ -346,6 +347,537 @@ exports.getDealerAnalytics = async (req, res, next) => {
         }))
       }
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.getConsolidatedReport = async (req, res, next) => {
+  try {
+    const { startDate, endDate } = req.query;
+    
+    let start = startDate ? new Date(startDate) : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    start.setHours(0, 0, 0, 0);
+
+    let end = endDate ? new Date(endDate) : new Date();
+    end.setHours(23, 59, 59, 999);
+
+    let dealerId = null;
+    if (req.user.role === 'DEALER') {
+      dealerId = req.user.dealer.id;
+    } else if (req.query.dealerId) {
+      dealerId = req.query.dealerId;
+    }
+
+    const invoiceWhere = {
+      createdAt: { gte: start, lte: end },
+      status: { in: ['GENERATED', 'PAID', 'CLOSED', 'OPEN'] }
+    };
+    if (dealerId) {
+      invoiceWhere.dealerId = dealerId;
+    }
+
+    const invoices = await prisma.invoice.findMany({
+      where: invoiceWhere,
+      include: { dealer: true, store: true }
+    });
+
+    let grossSales = 0;
+    let totalDiscount = 0;
+    let netSales = 0;
+    let totalGst = 0;
+    let shipping = 0;
+    
+    let cashSales = 0;
+    let onlineSales = 0;
+    let creditSales = 0;
+
+    invoices.forEach(inv => {
+      const sub = parseFloat(inv.subtotal || 0);
+      const gst = parseFloat(inv.totalGst || 0);
+      const ship = parseFloat(inv.shippingCharges || 0);
+      const disc = parseFloat(inv.totalDiscount || 0);
+      const original = sub + gst + ship;
+      const finalAmt = parseFloat(inv.totalAmount || 0);
+
+      grossSales += original;
+      totalDiscount += disc;
+      netSales += finalAmt;
+      totalGst += gst;
+      shipping += ship;
+
+      if (inv.status === 'OPEN') {
+        creditSales += finalAmt;
+      } else {
+        const method = inv.paymentMethod || 'CASH';
+        if (method === 'ONLINE') {
+          onlineSales += finalAmt;
+        } else {
+          cashSales += finalAmt;
+        }
+      }
+    });
+
+    const expenseWhere = {
+      date: { gte: start, lte: end }
+    };
+    if (dealerId) {
+      expenseWhere.dealerId = dealerId;
+    }
+
+    const expenses = await prisma.expense.findMany({
+      where: expenseWhere
+    });
+
+    let totalGeneralExpenses = 0;
+    const categoryExpenses = {};
+    expenses.forEach(exp => {
+      const amt = parseFloat(exp.amount || 0);
+      totalGeneralExpenses += amt;
+      categoryExpenses[exp.category] = (categoryExpenses[exp.category] || 0) + amt;
+    });
+
+    const promoWhere = {
+      createdAt: { gte: start, lte: end }
+    };
+    if (dealerId) {
+      const dealerStores = await prisma.store.findMany({
+        where: { dealerId, isActive: true }
+      });
+      const storeIds = dealerStores.map(s => s.id);
+      promoWhere.OR = [
+        { storeId: { in: storeIds } },
+        { distributedTo: 'STORE', storeId: { in: storeIds } }
+      ];
+    }
+    
+    const promoDistributions = await prisma.offerDistribution.findMany({
+      where: promoWhere,
+      include: { offerItem: true }
+    });
+
+    let totalPromoExpenses = 0;
+    promoDistributions.forEach(dist => {
+      const qty = parseInt(dist.quantity || 0);
+      const cost = parseFloat(dist.unitCost || (dist.offerItem ? dist.offerItem.unitCost : 0) || 0);
+      totalPromoExpenses += qty * cost;
+    });
+
+    const totalExpenses = totalGeneralExpenses + totalPromoExpenses;
+    const netProfit = netSales - totalExpenses;
+
+    res.json({
+      success: true,
+      data: {
+        dateRange: { startDate: start, endDate: end },
+        sales: {
+          grossSales,
+          totalDiscount,
+          netSales,
+          totalGst,
+          cgst: totalGst / 2,
+          sgst: totalGst / 2,
+          shipping,
+          invoiceCount: invoices.length,
+          breakdown: {
+            cashSales,
+            onlineSales,
+            creditSales
+          }
+        },
+        expenses: {
+          totalExpenses,
+          generalExpenses: totalGeneralExpenses,
+          promotionalExpenses: totalPromoExpenses,
+          categoryBreakdown: categoryExpenses
+        },
+        financials: {
+          totalIncome: netSales,
+          totalExpenses,
+          netProfit,
+          outcome: netProfit >= 0 ? 'PROFIT' : 'LOSS'
+        }
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const buildReportHtml = (data, user, startDate, endDate) => {
+  const { sales, expenses, financials } = data;
+  const formattedStart = new Date(startDate).toLocaleDateString('en-IN');
+  const formattedEnd = new Date(endDate).toLocaleDateString('en-IN');
+  const generatedAt = new Date().toLocaleString('en-IN');
+
+  const categoryRows = Object.entries(expenses.categoryBreakdown)
+    .map(([cat, amt]) => `
+      <tr style="border-bottom: 1px solid #f1f5f9;">
+        <td style="padding: 10px; font-weight: 550; color: #475569;">${cat}</td>
+        <td style="padding: 10px; text-align: right; font-weight: bold; color: #1e293b;">₹${amt.toFixed(2)}</td>
+      </tr>
+    `).join('') || `<tr><td colspan="2" style="padding: 12px; text-align: center; color: #94a3b8;">No general expenses recorded</td></tr>`;
+
+  return `
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8">
+      <title>Consolidated Financial Report</title>
+      <style>
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap');
+        body {
+          font-family: 'Outfit', sans-serif;
+          margin: 0;
+          padding: 0;
+          color: #1e293b;
+          font-size: 13px;
+        }
+        .header {
+          background-color: #fff1f2;
+          padding: 30px;
+          border-bottom: 2px solid #fda4af;
+          border-radius: 12px;
+          margin-bottom: 30px;
+        }
+        .header h1 {
+          margin: 0;
+          color: #e11d48;
+          font-size: 24px;
+          font-weight: 800;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+        }
+        .header p {
+          margin: 5px 0 0 0;
+          color: #4f46e5;
+          font-weight: 600;
+        }
+        .metadata {
+          display: flex;
+          justify-content: space-between;
+          margin-top: 15px;
+          font-size: 11px;
+          color: #64748b;
+        }
+        .grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 20px;
+          margin-bottom: 30px;
+        }
+        .card {
+          background: #ffffff;
+          border: 1px solid #e2e8f0;
+          border-radius: 12px;
+          padding: 20px;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+        }
+        .card h2 {
+          margin: 0 0 15px 0;
+          font-size: 14px;
+          font-weight: 800;
+          color: #0f172a;
+          border-bottom: 1.5px solid #f1f5f9;
+          padding-bottom: 8px;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+        }
+        table {
+          width: 100%;
+          border-collapse: collapse;
+        }
+        table th {
+          background-color: #f8fafc;
+          padding: 8px;
+          font-weight: 600;
+          color: #64748b;
+          text-align: left;
+          font-size: 10px;
+          text-transform: uppercase;
+        }
+        table td {
+          padding: 10px 8px;
+        }
+        .val-row {
+          display: flex;
+          justify-content: space-between;
+          padding: 10px 0;
+          border-bottom: 1px solid #f8fafc;
+        }
+        .val-label {
+          color: #475569;
+          font-weight: 500;
+        }
+        .val-value {
+          font-weight: bold;
+          color: #0f172a;
+        }
+        .pl-banner {
+          background-color: ${financials.netProfit >= 0 ? '#ecfdf5' : '#fef2f2'};
+          border: 1.5px solid ${financials.netProfit >= 0 ? '#10b981' : '#ef4444'};
+          color: ${financials.netProfit >= 0 ? '#065f46' : '#991b1b'};
+          padding: 20px;
+          border-radius: 12px;
+          text-align: center;
+          margin-bottom: 30px;
+        }
+        .pl-banner h3 {
+          margin: 0;
+          font-size: 13px;
+          text-transform: uppercase;
+          font-weight: 800;
+          letter-spacing: 1px;
+        }
+        .pl-banner .amount {
+          font-size: 28px;
+          font-weight: 800;
+          margin: 5px 0 0 0;
+        }
+        .footer {
+          margin-top: 50px;
+          text-align: center;
+          font-size: 10px;
+          color: #94a3b8;
+          border-top: 1px dashed #e2e8f0;
+          padding-top: 15px;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <h1>Consolidated Financial Report</h1>
+        <p>Mansara Foods Management Portal</p>
+        <div class="metadata">
+          <div><strong>Report Period:</strong> ${formattedStart} to ${formattedEnd}</div>
+          <div><strong>Generated At:</strong> ${generatedAt}</div>
+        </div>
+      </div>
+
+      <div class="pl-banner">
+        <h3>Net Profit / Loss Outcome</h3>
+        <div class="amount">₹${financials.netProfit.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+        <p style="margin: 5px 0 0 0; font-size: 11px; font-weight: bold; text-transform: uppercase;">
+          Status: ${financials.outcome}
+        </p>
+      </div>
+
+      <div class="grid">
+        <!-- Sales Card -->
+        <div class="card">
+          <h2>Sales Summary</h2>
+          <div class="val-row">
+            <span class="val-label">Total Gross Sales:</span>
+            <span class="val-value">₹${sales.grossSales.toFixed(2)}</span>
+          </div>
+          <div class="val-row">
+            <span class="val-label">Total Discounts Given:</span>
+            <span class="val-value" style="color: #ef4444;">-₹${sales.totalDiscount.toFixed(2)}</span>
+          </div>
+          <div class="val-row" style="background-color: #f8fafc; border-radius: 8px; padding: 10px 6px;">
+            <span class="val-label" style="font-weight: bold;">Net Revenue:</span>
+            <span class="val-value" style="color: #4f46e5;">₹${sales.netSales.toFixed(2)}</span>
+          </div>
+          <div class="val-row">
+            <span class="val-label">GST Tax Collected:</span>
+            <span class="val-value">₹${sales.totalGst.toFixed(2)}</span>
+          </div>
+          <div style="font-size: 10px; color: #64748b; margin-top: 10px; padding-left: 10px;">
+            CGST (50%): ₹${sales.cgst.toFixed(2)} | SGST (50%): ₹${sales.sgst.toFixed(2)}
+          </div>
+        </div>
+
+        <!-- Collections Card -->
+        <div class="card">
+          <h2>Payment Collections Breakdown</h2>
+          <div class="val-row">
+            <span class="val-label">Cash Payments:</span>
+            <span class="val-value">₹${sales.breakdown.cashSales.toFixed(2)}</span>
+          </div>
+          <div class="val-row">
+            <span class="val-label">Online / UPI Payments:</span>
+            <span class="val-value">₹${sales.breakdown.onlineSales.toFixed(2)}</span>
+          </div>
+          <div class="val-row" style="background-color: #f8fafc; border-radius: 8px; padding: 10px 6px;">
+            <span class="val-label" style="font-weight: bold;">Credit / Open Sales:</span>
+            <span class="val-value" style="color: #ea580c;">₹${sales.breakdown.creditSales.toFixed(2)}</span>
+          </div>
+          <div class="val-row">
+            <span class="val-label">Total Billed Invoices:</span>
+            <span class="val-value">${sales.invoiceCount} Invoices</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid">
+        <!-- Expenses Card -->
+        <div class="card">
+          <h2>Expenses Summary</h2>
+          <div class="val-row">
+            <span class="val-label">General Expenses:</span>
+            <span class="val-value">₹${expenses.generalExpenses.toFixed(2)}</span>
+          </div>
+          <div class="val-row">
+            <span class="val-label">Promotional Material Cost:</span>
+            <span class="val-value">₹${expenses.promotionalExpenses.toFixed(2)}</span>
+          </div>
+          <div class="val-row" style="background-color: #f8fafc; border-radius: 8px; padding: 10px 6px; margin-top: 10px;">
+            <span class="val-label" style="font-weight: bold;">Total Expenses:</span>
+            <span class="val-value" style="color: #ef4444;">₹${expenses.totalExpenses.toFixed(2)}</span>
+          </div>
+        </div>
+
+        <!-- Expenses Categories -->
+        <div class="card">
+          <h2>General Category Sums</h2>
+          <table style="font-size: 11px;">
+            <thead>
+              <tr style="border-bottom: 2px solid #e2e8f0;">
+                <th style="padding: 10px;">Category</th>
+                <th style="padding: 10px; text-align: right;">Amount (₹)</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${categoryRows}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="footer">
+        Consolidated Financial Report &copy; 2026 Mansara Foods Pvt. Ltd. | Confidential
+      </div>
+    </body>
+    </html>
+  `;
+};
+
+exports.exportConsolidatedReportPdf = async (req, res, next) => {
+  try {
+    const { startDate, endDate } = req.query;
+    
+    let start = startDate ? new Date(startDate) : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    start.setHours(0, 0, 0, 0);
+
+    let end = endDate ? new Date(endDate) : new Date();
+    end.setHours(23, 59, 59, 999);
+
+    let dealerId = null;
+    if (req.user.role === 'DEALER') {
+      dealerId = req.user.dealer.id;
+    } else if (req.query.dealerId) {
+      dealerId = req.query.dealerId;
+    }
+
+    const invoiceWhere = {
+      createdAt: { gte: start, lte: end },
+      status: { in: ['GENERATED', 'PAID', 'CLOSED', 'OPEN'] }
+    };
+    if (dealerId) {
+      invoiceWhere.dealerId = dealerId;
+    }
+
+    const invoices = await prisma.invoice.findMany({
+      where: invoiceWhere,
+      include: { dealer: true, store: true }
+    });
+
+    let grossSales = 0;
+    let totalDiscount = 0;
+    let netSales = 0;
+    let totalGst = 0;
+    let shipping = 0;
+    
+    let cashSales = 0;
+    let onlineSales = 0;
+    let creditSales = 0;
+
+    invoices.forEach(inv => {
+      const sub = parseFloat(inv.subtotal || 0);
+      const gst = parseFloat(inv.totalGst || 0);
+      const ship = parseFloat(inv.shippingCharges || 0);
+      const disc = parseFloat(inv.totalDiscount || 0);
+      const original = sub + gst + ship;
+      const finalAmt = parseFloat(inv.totalAmount || 0);
+
+      grossSales += original;
+      totalDiscount += disc;
+      netSales += finalAmt;
+      totalGst += gst;
+      shipping += ship;
+
+      if (inv.status === 'OPEN') {
+        creditSales += finalAmt;
+      } else {
+        const method = inv.paymentMethod || 'CASH';
+        if (method === 'ONLINE') {
+          onlineSales += finalAmt;
+        } else {
+          cashSales += finalAmt;
+        }
+      }
+    });
+
+    const expenseWhere = {
+      date: { gte: start, lte: end }
+    };
+    if (dealerId) {
+      expenseWhere.dealerId = dealerId;
+    }
+
+    const expenses = await prisma.expense.findMany({
+      where: expenseWhere
+    });
+
+    let totalGeneralExpenses = 0;
+    const categoryExpenses = {};
+    expenses.forEach(exp => {
+      const amt = parseFloat(exp.amount || 0);
+      totalGeneralExpenses += amt;
+      categoryExpenses[exp.category] = (categoryExpenses[exp.category] || 0) + amt;
+    });
+
+    const promoWhere = {
+      createdAt: { gte: start, lte: end }
+    };
+    if (dealerId) {
+      const dealerStores = await prisma.store.findMany({
+        where: { dealerId, isActive: true }
+      });
+      const storeIds = dealerStores.map(s => s.id);
+      promoWhere.OR = [
+        { storeId: { in: storeIds } },
+        { distributedTo: 'STORE', storeId: { in: storeIds } }
+      ];
+    }
+    
+    const promoDistributions = await prisma.offerDistribution.findMany({
+      where: promoWhere,
+      include: { offerItem: true }
+    });
+
+    let totalPromoExpenses = 0;
+    promoDistributions.forEach(dist => {
+      const qty = parseInt(dist.quantity || 0);
+      const cost = parseFloat(dist.unitCost || (dist.offerItem ? dist.offerItem.unitCost : 0) || 0);
+      totalPromoExpenses += qty * cost;
+    });
+
+    const totalExpenses = totalGeneralExpenses + totalPromoExpenses;
+    const netProfit = netSales - totalExpenses;
+
+    const data = {
+      sales: { grossSales, totalDiscount, netSales, totalGst, cgst: totalGst / 2, sgst: totalGst / 2, shipping, invoiceCount: invoices.length, breakdown: { cashSales, onlineSales, creditSales } },
+      expenses: { totalExpenses, generalExpenses: totalGeneralExpenses, promotionalExpenses: totalPromoExpenses, categoryBreakdown: categoryExpenses },
+      financials: { totalIncome: netSales, totalExpenses, netProfit, outcome: netProfit >= 0 ? 'PROFIT' : 'LOSS' }
+    };
+
+    const htmlContent = buildReportHtml(data, req.user, start, end);
+    const pdfBuffer = await generateInvoicePdf(htmlContent);
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename=financial-report-${startDate || 'current'}.pdf`);
+    res.send(pdfBuffer);
   } catch (error) {
     next(error);
   }

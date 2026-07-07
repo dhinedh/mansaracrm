@@ -90,26 +90,7 @@ exports.getDealerById = async (req, res, next) => {
 exports.updateDealer = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const {
-      name,
-      companyName,
-      gstNumber,
-      address,
-      city,
-      state,
-      pincode,
-      zones,
-      zone,  // legacy single string support
-      area,
-      phone,
-      dealerType,
-      dealerCategory,
-      creditLimit,
-      initialDeposit,
-      categories,
-      notes,
-      billingProfile
-    } = req.body;
+    const { name } = req.body;
 
     const existingDealer = await prisma.dealer.findUnique({
       where: { id },
@@ -129,26 +110,46 @@ exports.updateDealer = async (req, res, next) => {
         });
       }
 
+      // Gather all fields sent in request body that belong to the Dealer schema dynamically
+      const updateData = {};
+      const schemaPaths = prisma.dealer.model.schema.paths;
+      
+      for (const path in schemaPaths) {
+        if (['_id', '__v', 'userId', 'createdAt', 'updatedAt'].includes(path)) continue;
+        if (req.body[path] !== undefined) {
+          const schemaType = schemaPaths[path];
+          if (schemaType.instance === 'Number') {
+            if (req.body[path] === null || req.body[path] === '') {
+              updateData[path] = path === 'defaultMargin' ? 10 : null;
+            } else {
+              updateData[path] = parseFloat(req.body[path]);
+            }
+          } else {
+            updateData[path] = req.body[path];
+          }
+        }
+      }
+
+      // Handle legacy/fallback for zone/zones
+      if (req.body.zones === undefined && req.body.zone !== undefined) {
+        updateData.zones = req.body.zone ? [req.body.zone] : [];
+      }
+
+      // Sync defaultMargin to Margin collection if it was updated
+      if (updateData.defaultMargin !== undefined) {
+        const mongoose = require('mongoose');
+        const marginModel = mongoose.model('Margin');
+        await marginModel.findOneAndUpdate(
+          { dealerId: id, isDefault: true },
+          { marginPercent: updateData.defaultMargin },
+          { upsert: true }
+        );
+      }
+
       // Update Dealer Details
       return await tx.dealer.update({
         where: { id },
-        data: {
-          companyName: companyName || existingDealer.companyName,
-          gstNumber: gstNumber !== undefined ? gstNumber : existingDealer.gstNumber,
-          address: address || existingDealer.address,
-          city: city !== undefined ? city : existingDealer.city,
-          state: state !== undefined ? state : existingDealer.state,
-          pincode: pincode !== undefined ? pincode : existingDealer.pincode,
-          zones: zones !== undefined ? zones : (zone !== undefined ? (zone ? [zone] : []) : existingDealer.zones),
-          area: area !== undefined ? area : existingDealer.area,
-          phone: phone || existingDealer.phone,
-          dealerType: dealerType || existingDealer.dealerType,
-          creditLimit: creditLimit !== undefined ? creditLimit : existingDealer.creditLimit,
-          initialDeposit: initialDeposit !== undefined ? parseFloat(initialDeposit) : existingDealer.initialDeposit,
-          categories: categories !== undefined ? categories : existingDealer.categories,
-          notes: notes !== undefined ? notes : existingDealer.notes,
-          billingProfile: billingProfile !== undefined ? billingProfile : existingDealer.billingProfile
-        },
+        data: updateData,
         include: {
           user: {
             select: {

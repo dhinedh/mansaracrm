@@ -17,7 +17,9 @@ import {
   Loader2,
   HelpCircle,
   Truck,
-  FileEdit
+  FileEdit,
+  DollarSign,
+  PlusCircle
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 
@@ -53,6 +55,23 @@ export default function StoreVisitsPage() {
 
   // Checkout outcome
   const [checkoutOutcome, setCheckoutOutcome] = useState('');
+
+  // New Bill Generation States
+  const [billQuantities, setBillQuantities] = useState({}); // productId -> quantity
+  const [billMargins, setBillMargins] = useState({}); // productId -> margin
+  const [billNotes, setBillNotes] = useState('');
+  const [billShipping, setBillShipping] = useState('');
+  const [billDiscount, setBillDiscount] = useState('');
+  const [billIsGst, setBillIsGst] = useState(true);
+  const [generatedInvoiceId, setGeneratedInvoiceId] = useState(null);
+  const [billSuccess, setBillSuccess] = useState('');
+
+  // Payment Collection States
+  const [paymentAmount, setPaymentAmount] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState('CASH');
+  
+  // Revisit Date State
+  const [revisitDate, setRevisitDate] = useState('');
 
   useEffect(() => {
     fetchDealers();
@@ -274,6 +293,49 @@ export default function StoreVisitsPage() {
     }
   };
 
+  const handleCreateNewBill = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setBillSuccess('');
+    try {
+      const items = Object.entries(billQuantities)
+        .map(([productId, quantity]) => {
+          const qty = parseInt(quantity) || 0;
+          const margin = parseFloat(billMargins[productId]) || 10;
+          return { productId, quantity: qty, marginPct: margin };
+        })
+        .filter(item => item.quantity > 0);
+
+      if (items.length === 0) {
+        alert('Please specify quantity greater than 0 for at least one product.');
+        setLoading(false);
+        return;
+      }
+
+      const storeObj = stores.find(s => s.id === selectedStoreId);
+      const res = await axios.post('/billing', {
+        storeId: selectedStoreId,
+        storeName: storeObj ? storeObj.name : 'Store',
+        items,
+        notes: billNotes,
+        shippingCharges: parseFloat(billShipping) || 0,
+        totalDiscount: parseFloat(billDiscount) || 0,
+        isGstEnabled: billIsGst,
+        isCredit: true
+      });
+
+      if (res.data.success) {
+        setGeneratedInvoiceId(res.data.data.id || res.data.data._id);
+        setBillSuccess(`Invoice ${res.data.data.invoiceNo} generated successfully! It is linked to this visit and remains pending (OPEN) until payments are collected.`);
+        fetchOpenInvoices();
+      }
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to create bill');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Checkout Visit
   const handleCheckOut = async () => {
     if (!checkoutOutcome.trim()) {
@@ -293,12 +355,22 @@ export default function StoreVisitsPage() {
     try {
       setLoading(true);
       await axios.post(`/field-sales/visits/${activeVisit.id}/check-out`, {
-        outcome: checkoutOutcome
+        outcome: checkoutOutcome,
+        paymentsCollected: parseFloat(paymentAmount) || 0,
+        paymentMethod: paymentAmount && parseFloat(paymentAmount) > 0 ? paymentMethod : 'NONE',
+        revisitDate: revisitDate || null,
+        newInvoiceId: generatedInvoiceId || null
       });
 
       alert('Checked out successfully!');
       setActiveVisit(null);
       setCheckoutOutcome('');
+      setPaymentAmount('');
+      setPaymentMethod('CASH');
+      setRevisitDate('');
+      setGeneratedInvoiceId(null);
+      setBillQuantities({});
+      setBillSuccess('');
       localStorage.removeItem('mansara_active_visit');
     } catch (err) {
       alert(err.response?.data?.message || 'Checkout failed');
@@ -425,14 +497,38 @@ export default function StoreVisitsPage() {
           <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm h-fit space-y-1">
             <button
               onClick={() => { setAdjustingInvoice(null); setActiveTab('pending'); }}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all text-left ${
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all text-left cursor-pointer ${
                 activeTab === 'pending'
-                  ? 'bg-rose-50 text-rose-700 shadow-sm border border-rose-100/50'
-                  : 'text-slate-600 hover:bg-slate-50'
+                  ? 'bg-rose-50 text-rose-700 shadow-sm border border-rose-100/50 font-black'
+                  : 'text-slate-650 hover:bg-slate-50'
               }`}
             >
               <Truck className="w-4.5 h-4.5" />
               Pending Deliveries
+            </button>
+
+            <button
+              onClick={() => { setAdjustingInvoice(null); setActiveTab('new-bill'); }}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all text-left cursor-pointer ${
+                activeTab === 'new-bill'
+                  ? 'bg-rose-50 text-rose-700 shadow-sm border border-rose-100/50 font-black'
+                  : 'text-slate-650 hover:bg-slate-50'
+              }`}
+            >
+              <PlusCircle className="w-4.5 h-4.5" />
+              Create New Bill
+            </button>
+
+            <button
+              onClick={() => { setAdjustingInvoice(null); setActiveTab('payment'); }}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all text-left cursor-pointer ${
+                activeTab === 'payment'
+                  ? 'bg-rose-50 text-rose-700 shadow-sm border border-rose-100/50 font-black'
+                  : 'text-slate-650 hover:bg-slate-50'
+              }`}
+            >
+              <DollarSign className="w-4.5 h-4.5" />
+              Collect Payments
             </button>
 
             <button
@@ -444,10 +540,10 @@ export default function StoreVisitsPage() {
                 }
               }}
               disabled={openInvoices.length === 0}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all text-left ${
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all text-left cursor-pointer ${
                 activeTab === 'adjust'
-                  ? 'bg-rose-50 text-rose-700 shadow-sm border border-rose-100/50'
-                  : 'text-slate-600 hover:bg-slate-50 disabled:opacity-50'
+                  ? 'bg-rose-50 text-rose-700 shadow-sm border border-rose-100/50 font-black'
+                  : 'text-slate-650 hover:bg-slate-50 disabled:opacity-50'
               }`}
             >
               <FileEdit className="w-4.5 h-4.5" />
@@ -455,11 +551,11 @@ export default function StoreVisitsPage() {
             </button>
 
             <button
-              onClick={() => setActiveTab('checkout')}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all text-left ${
+              onClick={() => { setAdjustingInvoice(null); setActiveTab('checkout'); }}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all text-left cursor-pointer ${
                 activeTab === 'checkout'
-                  ? 'bg-rose-50 text-rose-700 shadow-sm border border-rose-100/50'
-                  : 'text-slate-600 hover:bg-slate-50'
+                  ? 'bg-rose-50 text-rose-700 shadow-sm border border-rose-100/50 font-black'
+                  : 'text-slate-650 hover:bg-slate-50'
               }`}
             >
               <CheckCircle className="w-4.5 h-4.5" />
@@ -707,6 +803,200 @@ export default function StoreVisitsPage() {
               </div>
             )}
 
+            {/* Panel: Create New Bill */}
+            {activeTab === 'new-bill' && (
+              <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6">
+                <div>
+                  <h3 className="font-black text-slate-800 text-lg">Create New Bill</h3>
+                  <p className="text-slate-500 text-xs mt-0.5">
+                    Generate a new credit bill for the store on the spot during this visit.
+                  </p>
+                </div>
+
+                {billSuccess && (
+                  <div className="bg-emerald-50 text-emerald-800 p-4 rounded-xl border border-emerald-100 font-medium text-xs">
+                    {billSuccess}
+                  </div>
+                )}
+
+                <form onSubmit={handleCreateNewBill} className="space-y-4">
+                  <div className="border border-slate-100 rounded-xl overflow-hidden text-xs max-h-[300px] overflow-y-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-slate-50 border-b border-slate-100 text-slate-500 font-bold uppercase text-[9px] tracking-wider">
+                          <th className="p-3">Product Name</th>
+                          <th className="p-3 text-center">MRP (₹)</th>
+                          <th className="p-3 text-center w-24">Quantity</th>
+                          <th className="p-3 text-center w-24">Margin %</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {products.map((p) => (
+                          <tr key={p.id} className="border-b border-slate-50 hover:bg-slate-50/40">
+                            <td className="p-3 font-semibold text-slate-700">{p.name} ({p.packSize || p.size || 'Standard'})</td>
+                            <td className="p-3 text-center text-slate-555">₹{p.mrp}</td>
+                            <td className="p-3 text-center">
+                              <input
+                                type="number"
+                                min="0"
+                                placeholder="0"
+                                value={billQuantities[p.id] || ''}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setBillQuantities(prev => ({ ...prev, [p.id]: val }));
+                                }}
+                                className="w-16 px-2 py-1 text-center border border-slate-200 rounded-lg text-xs font-bold focus:outline-none focus:ring-1 focus:ring-rose-500"
+                              />
+                            </td>
+                            <td className="p-3 text-center">
+                              <input
+                                type="number"
+                                min="0"
+                                max="100"
+                                step="0.1"
+                                placeholder="10"
+                                value={billMargins[p.id] || ''}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setBillMargins(prev => ({ ...prev, [p.id]: val }));
+                                }}
+                                className="w-16 px-2 py-1 text-center border border-slate-200 rounded-lg text-xs font-bold focus:outline-none focus:ring-1 focus:ring-rose-500"
+                              />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-550 mb-1">Shipping Charges (₹)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        placeholder="0"
+                        value={billShipping}
+                        onChange={e => setBillShipping(e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-550 mb-1">Negotiated Discount (₹)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        placeholder="0"
+                        value={billDiscount}
+                        onChange={e => setBillDiscount(e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none"
+                      />
+                    </div>
+                    <div className="flex items-center space-x-2 pt-5">
+                      <input
+                        type="checkbox"
+                        id="billIsGst"
+                        checked={billIsGst}
+                        onChange={e => setBillIsGst(e.target.checked)}
+                        className="w-4 h-4 text-rose-600 border-slate-300 rounded focus:ring-rose-500"
+                      />
+                      <label htmlFor="billIsGst" className="text-xs font-bold text-slate-700 cursor-pointer">Enable GST Billing</label>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-550 mb-1">Invoice Notes</label>
+                    <input
+                      type="text"
+                      placeholder="Special instructions or notes"
+                      value={billNotes}
+                      onChange={e => setBillNotes(e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="flex justify-end pt-4 border-t border-slate-100">
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="bg-rose-650 hover:bg-rose-700 disabled:opacity-50 text-white font-bold text-xs py-2.5 px-6 rounded-xl shadow-md transition active:scale-95 flex items-center gap-1.5 cursor-pointer"
+                    >
+                      {loading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                      Generate B2C Store Bill
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
+
+            {/* Panel: Collect Payments */}
+            {activeTab === 'payment' && (
+              <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6">
+                <div>
+                  <h3 className="font-black text-slate-800 text-lg">Collect Pending Payments</h3>
+                  <p className="text-slate-500 text-xs mt-0.5">
+                    Log payments collected during this visit. They will automatically be applied to clear the store's oldest open invoices first.
+                  </p>
+                </div>
+
+                {/* Open Invoices Outstanding Balances */}
+                <div className="bg-slate-50 border border-slate-150 p-4 rounded-xl space-y-3">
+                  <h4 className="text-xs font-black text-slate-800 uppercase tracking-wide">Outstanding Bills Summary</h4>
+                  {openInvoices.length === 0 ? (
+                    <p className="text-emerald-700 text-xs font-bold">✓ This store currently has no outstanding bills.</p>
+                  ) : (
+                    <div className="space-y-2 max-h-48 overflow-y-auto">
+                      {openInvoices.map((inv) => (
+                        <div key={inv.id} className="flex justify-between items-center text-xs text-slate-650 bg-white p-2 rounded-lg border border-slate-100">
+                          <span>{inv.invoiceNo} ({new Date(inv.createdAt).toLocaleDateString()})</span>
+                          <strong className="text-rose-600 font-extrabold">₹{parseFloat(inv.totalAmount || 0).toFixed(2)}</strong>
+                        </div>
+                      ))}
+                      <div className="flex justify-between items-center pt-2 border-t border-slate-200 font-black text-slate-800 text-xs">
+                        <span>Total Pending Balance:</span>
+                        <span className="text-rose-600 text-sm">
+                          ₹{openInvoices.reduce((sum, inv) => sum + (parseFloat(inv.totalAmount) || 0), 0).toFixed(2)}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Collected Amount (₹)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        placeholder="e.g. 500"
+                        value={paymentAmount}
+                        onChange={e => setPaymentAmount(e.target.value)}
+                        className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Payment Method</label>
+                      <select
+                        value={paymentMethod}
+                        onChange={e => setPaymentMethod(e.target.value)}
+                        className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 bg-white"
+                      >
+                        <option value="CASH">CASH</option>
+                        <option value="ONLINE">ONLINE / UPI</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {paymentAmount && parseFloat(paymentAmount) > 0 && (
+                    <div className="bg-emerald-50 border border-emerald-100 text-emerald-800 p-3.5 rounded-xl text-xs font-bold">
+                      ✓ ₹{parseFloat(paymentAmount).toFixed(2)} will be cleared from outstanding bills FIFO-style upon visit checkout.
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Panel 3: Checkout notes */}
             {activeTab === 'checkout' && (
               <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6">
@@ -718,6 +1008,27 @@ export default function StoreVisitsPage() {
                 </div>
 
                 <div className="space-y-4">
+                  {/* Summary of what has been configured during visit */}
+                  <div className="bg-slate-50 p-4 rounded-xl space-y-2 border border-slate-100 text-xs">
+                    <h4 className="font-bold text-slate-700 uppercase tracking-wider text-[10px]">Visit Configuration Summary</h4>
+                    <ul className="space-y-1 text-slate-650">
+                      <li>• Payments Logged: <strong className="text-slate-800">{paymentAmount ? `₹${parseFloat(paymentAmount).toFixed(2)} (${paymentMethod})` : 'None'}</strong></li>
+                      <li>• New Bill Created: <strong className="text-slate-800">{generatedInvoiceId ? 'Yes (Invoice ID Linked)' : 'No'}</strong></li>
+                    </ul>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Next Revisit Date</label>
+                      <input
+                        type="date"
+                        value={revisitDate}
+                        onChange={e => setRevisitDate(e.target.value)}
+                        className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
+                      />
+                    </div>
+                  </div>
+
                   <div>
                     <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Visit Outcome Notes</label>
                     <textarea

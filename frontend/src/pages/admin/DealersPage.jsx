@@ -30,6 +30,43 @@ import {
 } from 'lucide-react';
 import ZoneSelectionMap from '../../components/ZoneSelectionMap';
 
+const DEALER_FIELDS = [
+  // Contact details
+  { key: 'companyName', label: 'Company / Firm Name', type: 'text', section: 'contact', required: true },
+  { key: 'phone', label: 'Phone Number', type: 'text', section: 'contact', required: true },
+  
+  // Address details
+  { key: 'address', label: 'Street Address', type: 'textarea', section: 'address', required: true },
+  { key: 'city', label: 'City / Town', type: 'text', section: 'address' },
+  { key: 'state', label: 'State / Region', type: 'text', section: 'address' },
+  { key: 'pincode', label: 'Pincode', type: 'text', section: 'address' },
+  { key: 'area', label: 'Area / Landmark', type: 'text', section: 'address' },
+
+  // Financial details
+  { key: 'gstNumber', label: 'GST Identification', type: 'text', section: 'financial' },
+  { key: 'dealerType', label: 'Dealer Type', type: 'select', section: 'financial', options: [
+      { value: 'RETAIL', label: 'Retail' },
+      { value: 'WHOLESALE', label: 'Wholesale' },
+      { value: 'DISTRIBUTOR', label: 'Distributor' },
+      { value: 'SUPER_DISTRIBUTOR', label: 'Super Distributor' }
+    ]
+  },
+  { key: 'dealerCategory', label: 'Dealer Tier / Category', type: 'select', section: 'financial', options: [
+      { value: 'STARTER', label: 'Starter' },
+      { value: 'GROWTH', label: 'Growth' },
+      { value: 'PREMIUM', label: 'Premium' },
+      { value: 'SUPER', label: 'Super' }
+    ]
+  },
+  { key: 'initialDeposit', label: 'Initial Deposit (₹)', type: 'number', section: 'financial' },
+  { key: 'creditLimit', label: 'Credit Limit (₹)', type: 'number', section: 'financial' },
+  { key: 'billingProfile', label: 'Billing Profile', type: 'billingProfile', section: 'financial' },
+  { key: 'defaultMargin', label: 'Default Margin (%)', type: 'number', section: 'financial', defaultValue: 10 },
+  
+  // System / notes
+  { key: 'notes', label: 'Admin Remarks / Notes', type: 'textarea', section: 'notes' },
+];
+
 export default function DealersPage() {
   const location = useLocation();
   const [dealers, setDealers] = useState([]);
@@ -60,30 +97,100 @@ export default function DealersPage() {
 
   // Edit Profile States
   const [isEditingProfile, setIsEditingProfile] = useState(false);
-  const [editName, setEditName] = useState('');
-  const [editCompanyName, setEditCompanyName] = useState('');
-  const [editGstNumber, setEditGstNumber] = useState('');
-  const [editAddress, setEditAddress] = useState('');
-  const [editCity, setEditCity] = useState('');
-  const [editState, setEditState] = useState('');
-  const [editPincode, setEditPincode] = useState('');
-  const [editZones, setEditZones] = useState([]);
+  const [editForm, setEditForm] = useState({});
   const [editZoneInput, setEditZoneInput] = useState('');
-  const [editArea, setEditArea] = useState('');
-  const [editPhone, setEditPhone] = useState('');
-  const [editDealerType, setEditDealerType] = useState('RETAIL');
-  const [editDealerCategory, setEditDealerCategory] = useState('STARTER');
-  const [editCreditLimit, setEditCreditLimit] = useState('');
-  const [editInitialDeposit, setEditInitialDeposit] = useState('');
-  const [editCategories, setEditCategories] = useState([]);
-  const [editNotes, setEditNotes] = useState('');
   const [editLoading, setEditLoading] = useState(false);
   const [editError, setEditError] = useState('');
-  const [editBillingProfile, setEditBillingProfile] = useState('NORMAL');
   const [zoneConflicts, setZoneConflicts] = useState([]);
   const [editZoneConflicts, setEditZoneConflicts] = useState([]);
   const [showMap, setShowMap] = useState(false);
   const [showEditMap, setShowEditMap] = useState(false);
+
+  const handleFieldChange = (key, value) => {
+    setEditForm(prev => ({
+      ...prev,
+      [key]: value
+    }));
+  };
+
+  const renderEditField = (field) => {
+    const value = editForm[field.key] ?? '';
+    
+    if (field.type === 'billingProfile') {
+      return (
+        <div key={field.key} className="col-span-1 sm:col-span-2">
+          <label className="block text-slate-500 font-bold mb-2">{field.label}</label>
+          <div className="grid grid-cols-2 gap-2">
+            {[
+              { value: 'NORMAL', label: '📄 Normal', desc: 'Invoice on delivery' },
+              { value: 'ADVANCE', label: '⚡ Advance', desc: 'Payment before dispatch' }
+            ].map(opt => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => handleFieldChange('billingProfile', opt.value)}
+                className={`py-2.5 px-3 rounded-xl text-[11px] font-black border transition-all text-left cursor-pointer ${
+                  editForm.billingProfile === opt.value
+                    ? opt.value === 'ADVANCE'
+                      ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                      : 'bg-slate-700 text-white border-slate-700 shadow-sm'
+                    : 'bg-white text-slate-500 border-slate-200 hover:border-rose-300'
+                }`}
+              >
+                <div>{opt.label}</div>
+                <div className={`text-[9px] font-medium mt-0.5 ${editForm.billingProfile === opt.value ? 'opacity-80' : 'text-slate-400'}`}>{opt.desc}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    if (field.type === 'select') {
+      return (
+        <div key={field.key}>
+          <label className="block text-slate-500 font-bold mb-1">{field.label}</label>
+          <select
+            value={value}
+            onChange={e => handleFieldChange(field.key, e.target.value)}
+            className="w-full p-2.5 bg-white border border-slate-200 focus:border-rose-500 rounded-xl focus:outline-none cursor-pointer"
+          >
+            {field.options.map(opt => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+        </div>
+      );
+    }
+
+    if (field.type === 'textarea') {
+      return (
+        <div key={field.key} className="col-span-1 sm:col-span-2">
+          <label className="block text-slate-500 font-bold mb-1">{field.label}</label>
+          <textarea
+            required={field.required}
+            value={value}
+            onChange={e => handleFieldChange(field.key, e.target.value)}
+            rows="2"
+            className="w-full p-2.5 bg-white border border-slate-200 focus:border-rose-500 rounded-xl focus:outline-none"
+          />
+        </div>
+      );
+    }
+
+    return (
+      <div key={field.key}>
+        <label className="block text-slate-500 font-bold mb-1">{field.label}</label>
+        <input
+          type={field.type}
+          required={field.required}
+          value={value}
+          onChange={e => handleFieldChange(field.key, e.target.value)}
+          className="w-full p-2.5 bg-white border border-slate-200 focus:border-rose-500 rounded-xl focus:outline-none"
+        />
+      </div>
+    );
+  };
 
   // Form states
   const [email, setEmail] = useState('');
@@ -140,6 +247,7 @@ export default function DealersPage() {
 
   // Check conflicts for edit modal
   useEffect(() => {
+    const editZones = editForm.zones || [];
     if (editZones.length === 0) {
       setEditZoneConflicts([]);
       return;
@@ -156,7 +264,7 @@ export default function DealersPage() {
     };
     const debounce = setTimeout(checkConflicts, 400);
     return () => clearTimeout(debounce);
-  }, [editZones, dealerDetail]);
+  }, [editForm.zones, dealerDetail]);
 
   const downloadAgreement = async (dealerId, companyName) => {
     try {
@@ -176,24 +284,16 @@ export default function DealersPage() {
   };
 
   const startEditing = () => {
-    setEditName(dealerDetail.user?.name || '');
-    setEditCompanyName(dealerDetail.companyName || '');
-    setEditGstNumber(dealerDetail.gstNumber || '');
-    setEditAddress(dealerDetail.address || '');
-    setEditCity(dealerDetail.city || '');
-    setEditState(dealerDetail.state || '');
-    setEditPincode(dealerDetail.pincode || '');
-    setEditZones(dealerDetail.zones || []);
+    const initialForm = {};
+    DEALER_FIELDS.forEach(field => {
+      initialForm[field.key] = dealerDetail[field.key] ?? field.defaultValue ?? '';
+    });
+    // Special nested fields/arrays
+    initialForm.name = dealerDetail.user?.name || '';
+    initialForm.zones = dealerDetail.zones || [];
+    initialForm.categories = dealerDetail.categories || [];
+    setEditForm(initialForm);
     setEditZoneInput('');
-    setEditArea(dealerDetail.area || '');
-    setEditPhone(dealerDetail.phone || '');
-    setEditDealerType(dealerDetail.dealerType || 'RETAIL');
-    setEditDealerCategory(dealerDetail.dealerCategory || 'STARTER');
-    setEditCreditLimit(dealerDetail.creditLimit || '');
-    setEditInitialDeposit(dealerDetail.initialDeposit || '');
-    setEditCategories(dealerDetail.categories || []);
-    setEditNotes(dealerDetail.notes || '');
-    setEditBillingProfile(dealerDetail.billingProfile || 'NORMAL');
     setEditError('');
     setIsEditingProfile(true);
     fetchCategories();
@@ -214,25 +314,21 @@ export default function DealersPage() {
     }
 
     try {
-      const res = await axios.put(`/dealers/${dealerDetail.id}`, {
-        name: editName,
-        companyName: editCompanyName,
-        gstNumber: editGstNumber,
-        address: editAddress,
-        city: editCity,
-        state: editState,
-        pincode: editPincode,
-        zones: editZones,
-        area: editArea,
-        phone: editPhone,
-        dealerType: editDealerType,
-        dealerCategory: editDealerCategory,
-        creditLimit: editCreditLimit ? parseFloat(editCreditLimit) : null,
-        initialDeposit: editInitialDeposit ? parseFloat(editInitialDeposit) : 0,
-        categories: editCategories,
-        notes: editNotes,
-        billingProfile: editBillingProfile
+      const payload = {
+        name: editForm.name,
+        zones: editForm.zones,
+        categories: editForm.categories,
+      };
+
+      DEALER_FIELDS.forEach(field => {
+        let val = editForm[field.key];
+        if (field.type === 'number') {
+          val = val !== '' && val !== null && val !== undefined ? parseFloat(val) : null;
+        }
+        payload[field.key] = val;
       });
+
+      const res = await axios.put(`/dealers/${dealerDetail.id}`, payload);
       if (res.data.success) {
         setDealerDetail(res.data.data);
         setIsEditingProfile(false);
@@ -250,18 +346,31 @@ export default function DealersPage() {
 
   const addEditZone = (val) => {
     const trimmed = val.trim();
-    if (trimmed && !editZones.includes(trimmed)) {
-      setEditZones(prev => [...prev, trimmed]);
+    if (trimmed && !(editForm.zones || []).includes(trimmed)) {
+      setEditForm(prev => ({
+        ...prev,
+        zones: [...(prev.zones || []), trimmed]
+      }));
     }
     setEditZoneInput('');
   };
 
-  const removeEditZone = (z) => setEditZones(prev => prev.filter(x => x !== z));
+  const removeEditZone = (z) => {
+    setEditForm(prev => ({
+      ...prev,
+      zones: (prev.zones || []).filter(x => x !== z)
+    }));
+  };
 
   const toggleEditCategory = (id) => {
-    setEditCategories(prev =>
-      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
-    );
+    setEditForm(prev => {
+      const current = prev.categories || [];
+      const updated = current.includes(id) ? current.filter(x => x !== id) : [...current, id];
+      return {
+        ...prev,
+        categories: updated
+      };
+    });
   };
 
   const fetchDealerDetail = async (id) => {
@@ -1175,182 +1284,147 @@ export default function DealersPage() {
                             </div>
                           )}
 
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div>
-                              <label className="block text-slate-500 font-bold mb-1">Company / Firm Name *</label>
-                              <input type="text" required value={editCompanyName} onChange={e => setEditCompanyName(e.target.value)} className="w-full p-2.5 bg-white border border-slate-200 focus:border-rose-500 rounded-xl focus:outline-none" />
+                          {/* Dynamic fields layout */}
+                          <div className="space-y-4">
+                            {/* Group 1: Primary Identity & Contact */}
+                            <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-4">
+                              <h5 className="font-black text-slate-700 text-[10px] uppercase tracking-wider border-b border-slate-100 pb-1.5 flex items-center space-x-1.5">
+                                <User className="w-3.5 h-3.5 text-rose-600" />
+                                <span>Primary Contact & Company</span>
+                              </h5>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                  <label className="block text-slate-500 font-bold mb-1">Dealer Contact Name *</label>
+                                  <input
+                                    type="text"
+                                    required
+                                    value={editForm.name || ''}
+                                    onChange={e => handleFieldChange('name', e.target.value)}
+                                    className="w-full p-2.5 bg-white border border-slate-200 focus:border-rose-500 rounded-xl focus:outline-none"
+                                  />
+                                </div>
+                                {DEALER_FIELDS.filter(f => f.section === 'contact').map(field => renderEditField(field))}
+                              </div>
                             </div>
-                            <div>
-                              <label className="block text-slate-500 font-bold mb-1">GST Number</label>
-                              <input type="text" value={editGstNumber} onChange={e => setEditGstNumber(e.target.value)} className="w-full p-2.5 bg-white border border-slate-200 focus:border-rose-500 rounded-xl focus:outline-none" />
-                            </div>
-                            <div>
-                              <label className="block text-slate-500 font-bold mb-1">Dealer Contact Name *</label>
-                              <input type="text" required value={editName} onChange={e => setEditName(e.target.value)} className="w-full p-2.5 bg-white border border-slate-200 focus:border-rose-500 rounded-xl focus:outline-none" />
-                            </div>
-                            <div>
-                              <label className="block text-slate-500 font-bold mb-1">Phone Number *</label>
-                              <input type="text" required value={editPhone} onChange={e => setEditPhone(e.target.value)} className="w-full p-2.5 bg-white border border-slate-200 focus:border-rose-500 rounded-xl focus:outline-none" />
-                            </div>
-                            <div>
-                              <label className="block text-slate-500 font-bold mb-1">Dealer Type</label>
-                              <select value={editDealerType} onChange={e => setEditDealerType(e.target.value)} className="w-full p-2.5 bg-white border border-slate-200 focus:border-rose-500 rounded-xl focus:outline-none cursor-pointer">
-                                <option value="RETAIL">Retail</option>
-                                <option value="WHOLESALE">Wholesale</option>
-                                <option value="DISTRIBUTOR">Distributor</option>
-                                <option value="SUPER_DISTRIBUTOR">Super Distributor</option>
-                              </select>
-                            </div>
-                            <div>
-                              <label className="block text-slate-500 font-bold mb-1">Dealer Tier / Category *</label>
-                              <select value={editDealerCategory} onChange={e => setEditDealerCategory(e.target.value)} className="w-full p-2.5 bg-white border border-slate-200 focus:border-rose-500 rounded-xl focus:outline-none cursor-pointer">
-                                <option value="STARTER">Starter</option>
-                                <option value="GROWTH">Growth</option>
-                                <option value="PREMIUM">Premium</option>
-                                <option value="SUPER">Super</option>
-                              </select>
-                            </div>
-                            <div>
-                              <label className="block text-slate-500 font-bold mb-1">Credit Limit (₹)</label>
-                              <input type="number" min="0" step="0.01" value={editCreditLimit} onChange={e => setEditCreditLimit(e.target.value)} className="w-full p-2.5 bg-white border border-slate-200 focus:border-rose-500 rounded-xl focus:outline-none" placeholder="e.g. 50000" />
-                            </div>
-                            <div>
-                              <label className="block text-slate-500 font-bold mb-1">Initial Deposit (₹)</label>
-                              <input type="number" min="0" step="0.01" value={editInitialDeposit} onChange={e => setEditInitialDeposit(e.target.value)} className="w-full p-2.5 bg-white border border-slate-200 focus:border-rose-500 rounded-xl focus:outline-none" />
-                            </div>
-                            <div>
-                              <label className="block text-slate-500 font-bold mb-2">Billing Profile</label>
-                              <div className="grid grid-cols-2 gap-2">
-                                {[
-                                  { value: 'NORMAL', label: '📄 Normal', desc: 'Invoice on delivery' },
-                                  { value: 'ADVANCE', label: '⚡ Advance', desc: 'Payment before dispatch' }
-                                ].map(opt => (
+
+                            {/* Group 2: Office & Billing Location */}
+                            <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-4">
+                              <h5 className="font-black text-slate-700 text-[10px] uppercase tracking-wider border-b border-slate-100 pb-1.5 flex items-center space-x-1.5">
+                                <MapPin className="w-3.5 h-3.5 text-rose-600" />
+                                <span>Office / Billing Address</span>
+                              </h5>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                {DEALER_FIELDS.filter(f => f.section === 'address').map(field => renderEditField(field))}
+                              </div>
+
+                              {/* Zones Tag Builder */}
+                              <div>
+                                <div className="flex items-center justify-between mb-2">
+                                  <label className="block text-slate-500 font-bold">Zones / Territories (add multiple)</label>
                                   <button
-                                    key={opt.value}
                                     type="button"
-                                    onClick={() => setEditBillingProfile(opt.value)}
-                                    className={`py-2.5 px-3 rounded-xl text-[11px] font-black border transition-all text-left cursor-pointer ${
-                                      editBillingProfile === opt.value
-                                        ? opt.value === 'ADVANCE'
-                                          ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
-                                          : 'bg-slate-700 text-white border-slate-700 shadow-sm'
-                                        : 'bg-white text-slate-500 border-slate-200 hover:border-rose-300'
-                                    }`}
+                                    onClick={() => setShowEditMap(!showEditMap)}
+                                    className="text-[10px] font-bold text-rose-600 hover:text-rose-700 bg-rose-50 border border-rose-100 hover:bg-rose-100 px-2.5 py-1.5 rounded-xl transition-all"
                                   >
-                                    <div>{opt.label}</div>
-                                    <div className={`text-[9px] font-medium mt-0.5 ${editBillingProfile === opt.value ? 'opacity-80' : 'text-slate-400'}`}>{opt.desc}</div>
+                                    {showEditMap ? '🗺️ Hide Interactive Map' : '🗺️ Use Interactive Map'}
                                   </button>
-                                ))}
+                                </div>
+
+                                {showEditMap && (
+                                  <div className="mb-3 animate-fade-in">
+                                    <ZoneSelectionMap
+                                      selectedZones={editForm.zones || []}
+                                      onToggleZone={z => (editForm.zones || []).includes(z) ? removeEditZone(z) : addEditZone(z)}
+                                      zoneConflicts={editZoneConflicts}
+                                      isGrowthPartner={editForm.dealerCategory === 'GROWTH'}
+                                    />
+                                  </div>
+                                )}
+
+                                <div className="border border-slate-200 rounded-xl bg-white p-2.5 min-h-[42px] flex flex-wrap gap-1.5 items-center focus-within:border-rose-500 transition-all">
+                                  {(editForm.zones || []).map(z => (
+                                    <span key={z} className="inline-flex items-center space-x-1 bg-rose-100 text-rose-700 font-bold text-[10px] px-2.5 py-1 rounded-lg">
+                                      <span>{z}</span>
+                                      <button type="button" onClick={() => removeEditZone(z)} className="text-rose-500 hover:text-rose-700 ml-0.5">
+                                        <X className="w-2.5 h-2.5" />
+                                      </button>
+                                    </span>
+                                  ))}
+                                  <input
+                                    type="text"
+                                    value={editZoneInput}
+                                    onChange={e => setEditZoneInput(e.target.value)}
+                                    onKeyDown={e => {
+                                      if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addEditZone(editZoneInput); }
+                                    }}
+                                    onBlur={() => { if (editZoneInput.trim()) addEditZone(editZoneInput); }}
+                                    placeholder={(editForm.zones || []).length === 0 ? "Type zone name, press Enter..." : "Add zone..."}
+                                    className="flex-1 min-w-[140px] bg-transparent text-xs focus:outline-none text-slate-700 placeholder-slate-400"
+                                  />
+                                </div>
+                              </div>
+
+                              {editZoneConflicts.length > 0 && (
+                                <div className="bg-amber-50 border border-amber-200 text-amber-800 p-3 rounded-xl space-y-1">
+                                  <p className="font-bold text-[10px] flex items-center gap-1">
+                                    <span>⚠️ Warning: Zone Assignment Conflict</span>
+                                  </p>
+                                  <ul className="list-disc pl-4 text-[10px]">
+                                    {editZoneConflicts.map((c, idx) => (
+                                      <li key={idx}>
+                                        Zone <strong>{c.zones.join(', ')}</strong> is already assigned to active dealer <strong>{c.companyName}</strong>.
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Group 3: Financial & Dealer Configuration */}
+                            <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-4">
+                              <h5 className="font-black text-slate-700 text-[10px] uppercase tracking-wider border-b border-slate-100 pb-1.5 flex items-center space-x-1.5">
+                                <CreditCard className="w-3.5 h-3.5 text-rose-600" />
+                                <span>Financial & Margin Config</span>
+                              </h5>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                {DEALER_FIELDS.filter(f => f.section === 'financial').map(field => renderEditField(field))}
+                              </div>
+
+                              {/* Category Multi-select */}
+                              <div>
+                                <label className="block text-slate-500 font-bold mb-2">Dealer Product Categories</label>
+                                <div className="flex flex-wrap gap-2">
+                                  {categoryList.map(cat => {
+                                    const isSelected = (editForm.categories || []).includes(cat.id);
+                                    return (
+                                      <button
+                                        key={cat.id}
+                                        type="button"
+                                        onClick={() => toggleEditCategory(cat.id)}
+                                        className={`text-[11px] font-bold px-3 py-1.5 rounded-lg border transition-all ${
+                                          isSelected
+                                            ? 'bg-rose-600 text-white border-rose-600 shadow-sm'
+                                            : 'bg-white text-slate-600 border-slate-200 hover:border-rose-400 hover:text-rose-600'
+                                        }`}
+                                      >
+                                        {isSelected && '✓ '}{cat.name}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
                               </div>
                             </div>
-                          </div>
 
-                          {/* Zones Tag Builder */}
-                          <div>
-                            <div className="flex items-center justify-between mb-2">
-                              <label className="block text-slate-500 font-bold">Zones / Territories (add multiple)</label>
-                              <button
-                                type="button"
-                                onClick={() => setShowEditMap(!showEditMap)}
-                                className="text-[10px] font-bold text-rose-600 hover:text-rose-700 bg-rose-50 border border-rose-100 hover:bg-rose-100 px-2.5 py-1.5 rounded-xl transition-all"
-                              >
-                                {showEditMap ? '🗺️ Hide Interactive Map' : '🗺️ Use Interactive Map'}
-                              </button>
-                            </div>
-
-                            {showEditMap && (
-                              <div className="mb-3 animate-fade-in">
-                                <ZoneSelectionMap
-                                  selectedZones={editZones}
-                                  onToggleZone={z => editZones.includes(z) ? removeEditZone(z) : addEditZone(z)}
-                                  zoneConflicts={editZoneConflicts}
-                                  isGrowthPartner={editDealerCategory === 'GROWTH'}
-                                />
+                            {/* Group 4: Administrative Notes */}
+                            <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-4">
+                              <h5 className="font-black text-slate-700 text-[10px] uppercase tracking-wider border-b border-slate-100 pb-1.5 flex items-center space-x-1.5">
+                                <FileText className="w-3.5 h-3.5 text-rose-600" />
+                                <span>Remarks & Notes</span>
+                              </h5>
+                              <div className="grid grid-cols-1">
+                                {DEALER_FIELDS.filter(f => f.section === 'notes').map(field => renderEditField(field))}
                               </div>
-                            )}
-
-                            <div className="border border-slate-200 rounded-xl bg-white p-2.5 min-h-[42px] flex flex-wrap gap-1.5 items-center focus-within:border-rose-500 transition-all">
-                              {editZones.map(z => (
-                                <span key={z} className="inline-flex items-center space-x-1 bg-rose-100 text-rose-700 font-bold text-[10px] px-2.5 py-1 rounded-lg">
-                                  <span>{z}</span>
-                                  <button type="button" onClick={() => removeEditZone(z)} className="text-rose-500 hover:text-rose-700 ml-0.5">
-                                    <X className="w-2.5 h-2.5" />
-                                  </button>
-                                </span>
-                              ))}
-                              <input
-                                type="text"
-                                value={editZoneInput}
-                                onChange={e => setEditZoneInput(e.target.value)}
-                                onKeyDown={e => {
-                                  if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addEditZone(editZoneInput); }
-                                }}
-                                onBlur={() => { if (editZoneInput.trim()) addEditZone(editZoneInput); }}
-                                placeholder={editZones.length === 0 ? "Type zone name, press Enter..." : "Add zone..."}
-                                className="flex-1 min-w-[140px] bg-transparent text-xs focus:outline-none text-slate-700 placeholder-slate-400"
-                              />
                             </div>
-                          </div>
-
-                          {editZoneConflicts.length > 0 && (
-                            <div className="bg-amber-50 border border-amber-200 text-amber-800 p-3 rounded-xl space-y-1">
-                              <p className="font-bold text-[10px] flex items-center gap-1">
-                                <span>⚠️ Warning: Zone Assignment Conflict</span>
-                              </p>
-                              <ul className="list-disc pl-4 text-[10px]">
-                                {editZoneConflicts.map((c, idx) => (
-                                  <li key={idx}>
-                                    Zone <strong>{c.zones.join(', ')}</strong> is already assigned to active dealer <strong>{c.companyName}</strong>.
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
-
-                          {/* Category Multi-select */}
-                          <div>
-                            <label className="block text-slate-500 font-bold mb-2">Dealer Product Categories</label>
-                            <div className="flex flex-wrap gap-2">
-                              {categoryList.map(cat => (
-                                <button
-                                  key={cat.id}
-                                  type="button"
-                                  onClick={() => toggleEditCategory(cat.id)}
-                                  className={`text-[11px] font-bold px-3 py-1.5 rounded-lg border transition-all ${
-                                    editCategories.includes(cat.id)
-                                      ? 'bg-rose-600 text-white border-rose-600 shadow-sm'
-                                      : 'bg-white text-slate-600 border-slate-200 hover:border-rose-400 hover:text-rose-600'
-                                  }`}
-                                >
-                                  {editCategories.includes(cat.id) && '✓ '}{cat.name}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-
-                          <div>
-                            <label className="block text-slate-500 font-bold mb-1">Street Address *</label>
-                            <textarea required value={editAddress} onChange={e => setEditAddress(e.target.value)} rows="2" className="w-full p-2.5 bg-white border border-slate-200 focus:border-rose-500 rounded-xl focus:outline-none"></textarea>
-                          </div>
-
-                          <div className="grid grid-cols-3 gap-4">
-                            <div>
-                              <label className="block text-slate-500 font-bold mb-1">City</label>
-                              <input type="text" value={editCity} onChange={e => setEditCity(e.target.value)} className="w-full p-2.5 bg-white border border-slate-200 focus:border-rose-500 rounded-xl focus:outline-none" />
-                            </div>
-                            <div>
-                              <label className="block text-slate-500 font-bold mb-1">State</label>
-                              <input type="text" value={editState} onChange={e => setEditState(e.target.value)} className="w-full p-2.5 bg-white border border-slate-200 focus:border-rose-500 rounded-xl focus:outline-none" />
-                            </div>
-                            <div>
-                              <label className="block text-slate-500 font-bold mb-1">Pincode</label>
-                              <input type="text" value={editPincode} onChange={e => setEditPincode(e.target.value)} className="w-full p-2.5 bg-white border border-slate-200 focus:border-rose-500 rounded-xl focus:outline-none" />
-                            </div>
-                          </div>
-
-                          <div>
-                            <label className="block text-slate-500 font-bold mb-1">Admin Remarks / Notes</label>
-                            <textarea value={editNotes} onChange={e => setEditNotes(e.target.value)} rows="2" className="w-full p-2.5 bg-white border border-slate-200 focus:border-rose-500 rounded-xl focus:outline-none" placeholder="Add notes..."></textarea>
                           </div>
 
                           <div className="flex space-x-3 pt-4">
@@ -1400,14 +1474,18 @@ export default function DealersPage() {
                                 <span>PRIMARY CONTACT DETAILS</span>
                               </h4>
                               <div className="grid grid-cols-3 gap-y-3">
-                                <span className="text-slate-400 font-medium">Full Name</span>
+                                <span className="text-slate-400 font-medium">Dealer Contact Name</span>
                                 <span className="col-span-2 text-slate-800 font-semibold">{dealerDetail.user?.name || 'N/A'}</span>
+
+                                {DEALER_FIELDS.filter(f => f.section === 'contact').map(field => (
+                                  <React.Fragment key={field.key}>
+                                    <span className="text-slate-400 font-medium">{field.label}</span>
+                                    <span className="col-span-2 text-slate-800 font-semibold">{dealerDetail[field.key] || 'N/A'}</span>
+                                  </React.Fragment>
+                                ))}
 
                                 <span className="text-slate-400 font-medium">Email Address</span>
                                 <span className="col-span-2 text-slate-800 font-semibold truncate">{dealerDetail.user?.email || 'N/A'}</span>
-
-                                <span className="text-slate-400 font-medium">Phone Number</span>
-                                <span className="col-span-2 text-slate-800 font-semibold">{dealerDetail.phone || 'N/A'}</span>
                                 
                                 <span className="text-slate-400 font-medium">Last Login</span>
                                 <span className="col-span-2 text-slate-800 font-semibold">
@@ -1423,20 +1501,12 @@ export default function DealersPage() {
                                 <span>OFFICE / BILLING ADDRESS</span>
                               </h4>
                               <div className="grid grid-cols-3 gap-y-3">
-                                <span className="text-slate-400 font-medium">Street Address</span>
-                                <span className="col-span-2 text-slate-800 font-semibold">{dealerDetail.address || 'N/A'}</span>
-
-                                <span className="text-slate-400 font-medium">City / Town</span>
-                                <span className="col-span-2 text-slate-800 font-semibold">{dealerDetail.city || 'N/A'}</span>
-
-                                <span className="text-slate-400 font-medium">State / Region</span>
-                                <span className="col-span-2 text-slate-800 font-semibold">{dealerDetail.state || 'N/A'}</span>
-
-                                <span className="text-slate-400 font-medium">Pincode</span>
-                                <span className="col-span-2 text-slate-800 font-semibold">{dealerDetail.pincode || 'N/A'}</span>
-                                
-                                <span className="text-slate-400 font-medium">Area / Landmark</span>
-                                <span className="col-span-2 text-slate-800 font-semibold">{dealerDetail.area || 'N/A'}</span>
+                                {DEALER_FIELDS.filter(f => f.section === 'address').map(field => (
+                                  <React.Fragment key={field.key}>
+                                    <span className="text-slate-400 font-medium">{field.label}</span>
+                                    <span className="col-span-2 text-slate-800 font-semibold">{dealerDetail[field.key] || 'N/A'}</span>
+                                  </React.Fragment>
+                                ))}
 
                                 <span className="text-slate-400 font-medium">Zones</span>
                                 <span className="col-span-2">
@@ -1460,49 +1530,67 @@ export default function DealersPage() {
                                 <span>FINANCIAL & GST INFO</span>
                               </h4>
                               <div className="grid grid-cols-3 gap-y-3">
-                                <span className="text-slate-400 font-medium">GST Identification</span>
-                                <span className="col-span-2 text-slate-800 font-semibold">{dealerDetail.gstNumber || 'N/A'}</span>
+                                {DEALER_FIELDS.filter(f => f.section === 'financial').map(field => {
+                                  let value = dealerDetail[field.key];
+                                  
+                                  if (field.key === 'billingProfile') {
+                                    return (
+                                      <React.Fragment key={field.key}>
+                                        <span className="text-slate-400 font-medium">{field.label}</span>
+                                        <span className="col-span-2">
+                                          {value === 'ADVANCE' ? (
+                                            <span className="inline-flex items-center gap-1 text-[10px] font-black px-2.5 py-1 rounded-lg bg-indigo-100 text-indigo-700 border border-indigo-200">
+                                              ⚡ ADVANCE — Payment before dispatch
+                                            </span>
+                                          ) : (
+                                            <span className="inline-flex items-center gap-1 text-[10px] font-black px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600 border border-slate-200">
+                                              📄 NORMAL — Invoice on delivery
+                                            </span>
+                                          )}
+                                        </span>
+                                      </React.Fragment>
+                                    );
+                                  }
+                                  
+                                  if (field.key === 'dealerCategory') {
+                                    return (
+                                      <React.Fragment key={field.key}>
+                                        <span className="text-slate-400 font-medium">{field.label}</span>
+                                        <span className="col-span-2">
+                                          {value ? (
+                                            <span className={`text-[10px] font-black px-2.5 py-1 rounded-lg ${
+                                              value === 'SUPER' ? 'bg-purple-100 text-purple-700 border border-purple-200' :
+                                              value === 'PREMIUM' ? 'bg-amber-100 text-amber-700 border border-amber-200' :
+                                              value === 'GROWTH' ? 'bg-blue-100 text-blue-700 border border-blue-200' :
+                                              'bg-slate-100 text-slate-600 border border-slate-200'
+                                            }`}>
+                                              {value === 'SUPER' ? '⭐ SUPER' : value === 'PREMIUM' ? '🥇 PREMIUM' : value === 'GROWTH' ? '📈 GROWTH' : '🌱 STARTER'}
+                                            </span>
+                                          ) : <span className="text-slate-500 font-semibold">Not assigned</span>}
+                                        </span>
+                                      </React.Fragment>
+                                    );
+                                  }
 
-                                <span className="text-slate-400 font-medium">Dealer Tier</span>
-                                <span className="col-span-2">
-                                  {dealerDetail.dealerCategory ? (
-                                    <span className={`text-[10px] font-black px-2.5 py-1 rounded-lg ${
-                                      dealerDetail.dealerCategory === 'SUPER' ? 'bg-purple-100 text-purple-700 border border-purple-200' :
-                                      dealerDetail.dealerCategory === 'PREMIUM' ? 'bg-amber-100 text-amber-700 border border-amber-200' :
-                                      dealerDetail.dealerCategory === 'GROWTH' ? 'bg-blue-100 text-blue-700 border border-blue-200' :
-                                      'bg-slate-100 text-slate-600 border border-slate-200'
-                                    }`}>
-                                      {dealerDetail.dealerCategory === 'SUPER' ? '⭐ SUPER' : dealerDetail.dealerCategory === 'PREMIUM' ? '🥇 PREMIUM' : dealerDetail.dealerCategory === 'GROWTH' ? '📈 GROWTH' : '🌱 STARTER'}
-                                    </span>
-                                  ) : <span className="text-slate-500 font-semibold">Not assigned</span>}
-                                </span>
+                                  if (field.type === 'number') {
+                                    if (value !== undefined && value !== null && value !== '') {
+                                      if (field.key === 'defaultMargin') {
+                                        value = `${value}%`;
+                                      } else {
+                                        value = `₹${Number(value).toLocaleString('en-IN')}`;
+                                      }
+                                    } else {
+                                      value = field.key === 'creditLimit' ? 'No Credit Limit Set' : 'N/A';
+                                    }
+                                  }
 
-                                <span className="text-slate-400 font-medium">Initial Deposit</span>
-                                <span className="col-span-2 text-slate-800 font-semibold">
-                                  {dealerDetail.initialDeposit !== undefined && dealerDetail.initialDeposit !== null
-                                    ? `₹${Number(dealerDetail.initialDeposit).toLocaleString('en-IN')}`
-                                    : '₹0'}
-                                </span>
-
-                                <span className="text-slate-400 font-medium">Credit Limit</span>
-                                <span className="col-span-2 text-slate-800 font-semibold">
-                                  {dealerDetail.creditLimit !== undefined && dealerDetail.creditLimit !== null
-                                    ? `₹${Number(dealerDetail.creditLimit).toLocaleString('en-IN')}` 
-                                    : 'No Credit Limit Set'}
-                                </span>
-
-                                <span className="text-slate-400 font-medium">Billing Profile</span>
-                                <span className="col-span-2">
-                                  {dealerDetail.billingProfile === 'ADVANCE' ? (
-                                    <span className="inline-flex items-center gap-1 text-[10px] font-black px-2.5 py-1 rounded-lg bg-indigo-100 text-indigo-700 border border-indigo-200">
-                                      ⚡ ADVANCE — Payment before dispatch
-                                    </span>
-                                  ) : (
-                                    <span className="inline-flex items-center gap-1 text-[10px] font-black px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600 border border-slate-200">
-                                      📄 NORMAL — Invoice on delivery
-                                    </span>
-                                  )}
-                                </span>
+                                  return (
+                                    <React.Fragment key={field.key}>
+                                      <span className="text-slate-400 font-medium">{field.label}</span>
+                                      <span className="col-span-2 text-slate-800 font-semibold">{value ?? 'N/A'}</span>
+                                    </React.Fragment>
+                                  );
+                                })}
 
                                 <span className="text-slate-400 font-medium">Categories</span>
                                 <span className="col-span-2">

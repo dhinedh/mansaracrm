@@ -7,7 +7,7 @@ import {
   HelpCircle, BarChart3, TrendingUp, Bell, Tag, Cable, Microscope,
   Globe, ShoppingCart, Image, MessageSquare, Settings, PackageSearch,
   Boxes, Package, DollarSign, AlertCircle, BookOpen, UserCog,
-  LayoutGrid, MapPin, X, Store
+  LayoutGrid, MapPin, X, Store, Receipt, Gift
 } from 'lucide-react';
 
 
@@ -31,6 +31,8 @@ const crmModules = [
   { name: 'R&D Lab',       path: '/admin/rnd',                 icon: Microscope,    color: '#475569', bg: '#f8fafc', desc: 'Research & development' },
   { name: 'Zone Map',      path: '/admin/zone-map',            icon: MapPin,        color: '#16a34a', bg: '#f0fdf4', desc: 'Territory assignments' },
   { name: 'Invoice Ledger', path: '/admin/invoice-ledger',      icon: FileText,      color: '#e11d48', bg: '#fff1f2', desc: 'B2B & B2C tax invoices ledger' },
+  { name: 'Expenses',       path: '/admin/expenses',            icon: Receipt,       color: '#047857', bg: '#ecfdf5', desc: 'General business expense ledger' },
+  { name: 'Offer Exp',      path: '/admin/offers',              icon: Gift,          color: '#c2410c', bg: '#fff7ed', desc: 'Promotional gift tracking' },
   { name: 'Privileges',     path: '/admin/users',               icon: UserCog,       color: '#0f766e', bg: '#f0fdfa', desc: 'Manage access privileges & roles' },
 ];
 

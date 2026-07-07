@@ -45,6 +45,8 @@ export default function ReportsPage() {
   const [visits, setVisits] = useState([]);
   const [samples, setSamples] = useState([]);
   const [zonesList, setZonesList] = useState([]);
+  const [consolidatedReport, setConsolidatedReport] = useState(null);
+  const [consolidatedLoading, setConsolidatedLoading] = useState(false);
 
   useEffect(() => {
     fetchReportData();
@@ -89,6 +91,31 @@ export default function ReportsPage() {
       setLoading(false);
     }
   };
+
+  const fetchConsolidatedReport = async () => {
+    setConsolidatedLoading(true);
+    try {
+      const res = await axios.get('/analytics/consolidated-report', {
+        params: {
+          startDate: startDate || undefined,
+          endDate: endDate || undefined
+        }
+      });
+      if (res.data.success) {
+        setConsolidatedReport(res.data.data);
+      }
+    } catch (err) {
+      console.error('Failed to load consolidated report', err);
+    } finally {
+      setConsolidatedLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'consolidated') {
+      fetchConsolidatedReport();
+    }
+  }, [activeTab, startDate, endDate]);
 
   const resetFilters = () => {
     setStartDate('');
@@ -696,7 +723,8 @@ export default function ReportsPage() {
           { id: 'sales', label: 'Sales Report', icon: BarChart3 },
           { id: 'financial', label: 'Financial / Invoices', icon: DollarSign },
           { id: 'inventory', label: 'Inventory Aging', icon: Package },
-          { id: 'crm', label: 'CRM Funnel', icon: Activity }
+          { id: 'crm', label: 'CRM Funnel', icon: Activity },
+          { id: 'consolidated', label: 'Consolidated P&L', icon: TrendingUp }
         ].map(t => {
           const Icon = t.icon;
           return (
@@ -1557,6 +1585,145 @@ export default function ReportsPage() {
                   </table>
                 </div>
               </div>
+            </div>
+          )}
+          {/* 5. Consolidated P&L Report */}
+          {activeTab === 'consolidated' && (
+            <div className="space-y-6 text-xs animate-fade-in">
+              {/* PDF Download Trigger */}
+              <div className="bg-white border border-slate-150 p-5 rounded-2xl shadow-sm flex items-center justify-between">
+                <div>
+                  <h3 className="font-black text-slate-800 text-sm uppercase tracking-wide">Consolidated Financial Statements</h3>
+                  <p className="text-slate-500 text-xs">Gross/Net Sales, GST collections, promotional distributions, categories breakdown, and net profit margins.</p>
+                </div>
+                <button
+                  onClick={() => {
+                    const url = `/analytics/consolidated-report/pdf?startDate=${startDate || ''}&endDate=${endDate || ''}`;
+                    window.open(`/api${url}`, '_blank');
+                  }}
+                  className="inline-flex items-center space-x-2 bg-rose-600 hover:bg-rose-700 text-white font-bold px-4 py-2.5 rounded-xl text-xs shadow-lg shadow-rose-250 transition-all cursor-pointer"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Download Report (PDF)</span>
+                </button>
+              </div>
+
+              {consolidatedLoading || !consolidatedReport ? (
+                <div className="flex flex-col items-center justify-center py-20 bg-white border border-slate-150 rounded-2xl">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-rose-600"></div>
+                  <p className="text-slate-500 text-xs mt-2 font-bold">Compiling consolidated accounts...</p>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {/* Profit or Loss banner */}
+                  <div className={`p-6 rounded-2xl border text-center space-y-1.5 ${
+                    consolidatedReport.financials.netProfit >= 0 
+                      ? 'bg-emerald-50 border-emerald-200 text-emerald-800' 
+                      : 'bg-rose-50 border-rose-200 text-rose-800'
+                  }`}>
+                    <span className="text-[10px] font-black uppercase tracking-wider block">Net Financial Profit/Loss Outcome</span>
+                    <strong className="text-3xl font-black block">
+                      ₹{consolidatedReport.financials.netProfit.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    </strong>
+                    <span className="text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full bg-white/60 border w-fit mx-auto block">
+                      Status: {consolidatedReport.financials.outcome}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Sales breakdown */}
+                    <div className="bg-white border border-slate-150 p-6 rounded-2xl shadow-sm space-y-4">
+                      <h4 className="font-black text-slate-800 text-xs uppercase tracking-wide border-b border-slate-100 pb-2">Sales Summary</h4>
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-center">
+                          <span className="text-slate-500 font-medium">Gross Booked Sales:</span>
+                          <strong className="text-slate-800">₹{consolidatedReport.sales.grossSales.toFixed(2)}</strong>
+                        </div>
+                        <div className="flex justify-between items-center text-red-600">
+                          <span className="font-semibold">Trade Discounts Given:</span>
+                          <strong>-₹{consolidatedReport.sales.totalDiscount.toFixed(2)}</strong>
+                        </div>
+                        <div className="flex justify-between items-center pt-2 border-t border-slate-100 bg-slate-50/50 p-2 rounded-lg font-bold text-slate-800">
+                          <span>Net Revenue Income:</span>
+                          <span className="text-rose-600 font-black">₹{consolidatedReport.sales.netSales.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-slate-500 font-medium">GST Tax Collected:</span>
+                          <strong className="text-slate-800">₹{consolidatedReport.sales.totalGst.toFixed(2)}</strong>
+                        </div>
+                        <div className="text-[10px] text-slate-400 pl-4 border-l border-slate-200">
+                          CGST (50%): ₹{consolidatedReport.sales.cgst.toFixed(2)} | SGST (50%): ₹{consolidatedReport.sales.sgst.toFixed(2)}
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-slate-500 font-medium">Shipping Charges:</span>
+                          <strong className="text-slate-800">₹{consolidatedReport.sales.shipping.toFixed(2)}</strong>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Payment methods breakdown */}
+                    <div className="bg-white border border-slate-150 p-6 rounded-2xl shadow-sm space-y-4">
+                      <h4 className="font-black text-slate-800 text-xs uppercase tracking-wide border-b border-slate-100 pb-2">Payment Collections</h4>
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-center">
+                          <span className="text-slate-500 font-medium">Cash Collections:</span>
+                          <strong className="text-slate-850">₹{consolidatedReport.sales.breakdown.cashSales.toFixed(2)}</strong>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-slate-500 font-medium">Online / UPI Collections:</span>
+                          <strong className="text-slate-850">₹{consolidatedReport.sales.breakdown.onlineSales.toFixed(2)}</strong>
+                        </div>
+                        <div className="flex justify-between items-center pt-2 border-t border-slate-100 bg-orange-50/50 p-2 rounded-lg font-bold text-orange-850">
+                          <span>Outstanding Credit / Open:</span>
+                          <span className="font-black">₹{consolidatedReport.sales.breakdown.creditSales.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-slate-500 font-medium">Total Billed Invoices count:</span>
+                          <strong className="text-slate-800">{consolidatedReport.sales.invoiceCount} Invoices</strong>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Expenses breakdown */}
+                    <div className="bg-white border border-slate-150 p-6 rounded-2xl shadow-sm space-y-4">
+                      <h4 className="font-black text-slate-800 text-xs uppercase tracking-wide border-b border-slate-100 pb-2">Expenses Summary</h4>
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-center">
+                          <span className="text-slate-500 font-medium">General Operating Expenses:</span>
+                          <strong className="text-slate-800">₹{consolidatedReport.expenses.generalExpenses.toFixed(2)}</strong>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-slate-500 font-medium">Promotional Kits & Giveaways cost:</span>
+                          <strong className="text-slate-800">₹{consolidatedReport.expenses.promotionalExpenses.toFixed(2)}</strong>
+                        </div>
+                        <div className="flex justify-between items-center pt-2 border-t border-slate-100 bg-rose-50/50 p-2 rounded-lg font-bold text-rose-850">
+                          <span>Total Cash Expenses:</span>
+                          <span className="font-black">₹{consolidatedReport.expenses.totalExpenses.toFixed(2)}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Category operating sums */}
+                    <div className="bg-white border border-slate-150 p-6 rounded-2xl shadow-sm space-y-4">
+                      <h4 className="font-black text-slate-800 text-xs uppercase tracking-wide border-b border-slate-100 pb-2">General Categories Sums</h4>
+                      <div className="space-y-2.5 max-h-48 overflow-y-auto font-bold">
+                        {Object.entries(consolidatedReport.expenses.categoryBreakdown).length === 0 ? (
+                          <p className="text-slate-400 italic">No general expenses recorded in this period.</p>
+                        ) : (
+                          Object.entries(consolidatedReport.expenses.categoryBreakdown).map(([cat, amt]) => (
+                            <div key={cat} className="flex justify-between items-center">
+                              <span className="text-slate-650 font-medium">{cat}:</span>
+                              <strong className="text-slate-800">₹{amt.toFixed(2)}</strong>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

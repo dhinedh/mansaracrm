@@ -76,6 +76,11 @@ exports.registerDealer = async (req, res, next) => {
         }
       });
 
+      // Create default margin rule for new dealer
+      const marginPercentVal = defaultMargin !== undefined && defaultMargin !== null && defaultMargin !== ''
+        ? parseFloat(defaultMargin)
+        : 10.0;
+
       const newDealer = await tx.dealer.create({
         data: {
           userId: newUser.id,
@@ -93,14 +98,10 @@ exports.registerDealer = async (req, res, next) => {
           initialDeposit: initialDeposit ? parseFloat(initialDeposit) : 0,
           categories: categories || [],
           billingProfile: billingProfile || 'NORMAL',
-          approvalStatus: 'PENDING' // Starts as PENDING
+          approvalStatus: 'PENDING', // Starts as PENDING
+          defaultMargin: marginPercentVal
         }
       });
-
-      // Create default margin rule for new dealer
-      const marginPercentVal = defaultMargin !== undefined && defaultMargin !== null && defaultMargin !== ''
-        ? parseFloat(defaultMargin)
-        : 10.0;
 
       await tx.margin.create({
         data: {

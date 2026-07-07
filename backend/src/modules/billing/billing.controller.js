@@ -20,7 +20,7 @@ exports.createInvoice = async (req, res, next) => {
       return res.status(403).json({ success: false, message: 'Only dealers can generate invoices' });
     }
 
-    const { storeId, storeName, items, notes, isGstEnabled = true, shippingCharges = 0, isCredit = false } = req.body; // items: [{ productId, quantity, marginPct }]
+    const { storeId, storeName, items, notes, isGstEnabled = true, shippingCharges = 0, isCredit = false, totalDiscount = 0 } = req.body; // items: [{ productId, quantity, marginPct }]
     const dealerId = req.user.dealer.id;
 
     if (!items || items.length === 0) {
@@ -185,7 +185,8 @@ exports.createInvoice = async (req, res, next) => {
       });
     }
 
-    const calculatedGrandTotal = calculatedSubtotal + calculatedGstTotal + parseFloat(shippingCharges || 0);
+    const discount = parseFloat(totalDiscount || 0);
+    const calculatedGrandTotal = Math.max(0, calculatedSubtotal + calculatedGstTotal + parseFloat(shippingCharges || 0) - discount);
 
     const dealer = await prisma.dealer.findUnique({
       where: { id: dealerId }
@@ -236,6 +237,7 @@ exports.createInvoice = async (req, res, next) => {
           sgst: isGstEnabled ? (calculatedGstTotal / 2) : 0,
           isGstEnabled: !!isGstEnabled,
           totalAmount: calculatedGrandTotal,
+          totalDiscount: discount,
           shippingCharges: parseFloat(shippingCharges || 0),
           status: 'OPEN',
           notes,

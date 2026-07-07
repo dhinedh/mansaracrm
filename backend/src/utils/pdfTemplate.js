@@ -132,7 +132,9 @@ const buildInvoiceHtml = (company, invoice) => {
   const cgst        = parseFloat(invoice.cgst) || parseFloat(invoice.totalGst) / 2 || 0;
   const sgst        = parseFloat(invoice.sgst) || parseFloat(invoice.totalGst) / 2 || 0;
   const shipping    = parseFloat(invoice.shippingCharges) || 0;
-  const grandTotal  = parseFloat(invoice.totalAmount) || (subtotal + cgst + sgst + shipping);
+  const discount    = parseFloat(invoice.totalDiscount) || 0;
+  const originalTotal = subtotal + cgst + sgst + shipping;
+  const grandTotal  = invoice.totalAmount !== undefined && invoice.totalAmount !== null ? parseFloat(invoice.totalAmount) : (originalTotal - discount);
   const grandRounded = Math.round(grandTotal);
 
   const bd = invoice.dealer?.bankDetails || {};
@@ -302,8 +304,9 @@ const buildInvoiceHtml = (company, invoice) => {
         <tr><td class="t-label">CGST (2.5%)</td><td class="t-value">${cgst.toFixed(2)}</td></tr>
         <tr><td class="t-label">SGST (2.5%)</td><td class="t-value">${sgst.toFixed(2)}</td></tr>
         ` : `<tr><td class="t-label">GST</td><td class="t-value">0.00</td></tr>`}
-        <tr><td class="t-label">Total (Rounded)</td><td class="t-value">${grandRounded}</td></tr>
-        <tr><td class="t-label">Shipping</td><td class="t-value">${shipping.toFixed(0)}</td></tr>
+        ${shipping > 0 ? `<tr><td class="t-label">Shipping</td><td class="t-value">${shipping.toFixed(2)}</td></tr>` : ''}
+        <tr><td class="t-label">Original Amount</td><td class="t-value">${originalTotal.toFixed(2)}</td></tr>
+        ${discount > 0 ? `<tr><td class="t-label" style="color:#d97706;">Discount</td><td class="t-value" style="color:#d97706;">- ${discount.toFixed(2)}</td></tr>` : ''}
         <tr class="grand-row"><td class="t-label" style="color:#fff;">Amount To be Paid</td><td class="t-value" style="color:#fff;border-left:1px solid rgba(255,255,255,0.3);">${grandRounded}</td></tr>
       </table>
     </div>
@@ -438,7 +441,9 @@ const buildSimpleRetailInvoiceHtml = (company, invoice) => {
   const cgst       = parseFloat(invoice.cgst)        || parseFloat(invoice.totalGst) / 2 || 0;
   const sgst       = parseFloat(invoice.sgst)        || parseFloat(invoice.totalGst) / 2 || 0;
   const shipping   = parseFloat(invoice.shippingCharges) || 0;
-  const grandTotal = parseFloat(invoice.totalAmount) || (subtotal + cgst + sgst + shipping);
+  const discount   = parseFloat(invoice.totalDiscount) || 0;
+  const originalTotal = subtotal + cgst + sgst + shipping;
+  const grandTotal = invoice.totalAmount !== undefined && invoice.totalAmount !== null ? parseFloat(invoice.totalAmount) : (originalTotal - discount);
   const grandRounded = Math.round(grandTotal);
 
   const bd = dealer.bankDetails || {};
@@ -566,6 +571,8 @@ const buildSimpleRetailInvoiceHtml = (company, invoice) => {
         <tr><td class="t-label">SGST (2.5%)</td><td class="t-value">${sgst.toFixed(2)}</td></tr>
         ` : `<tr><td class="t-label">GST</td><td class="t-value">0.00</td></tr>`}
         ${shipping > 0 ? `<tr><td class="t-label">Shipping</td><td class="t-value">${shipping.toFixed(0)}</td></tr>` : ''}
+        <tr><td class="t-label">Original Amount</td><td class="t-value">${originalTotal.toFixed(2)}</td></tr>
+        ${discount > 0 ? `<tr><td class="t-label" style="color:#d97706;">Discount</td><td class="t-value" style="color:#d97706;">- ${discount.toFixed(2)}</td></tr>` : ''}
         <tr class="grand-row"><td class="t-label" style="color:#fff;">Amount To Be Paid</td><td class="t-value" style="color:#fff;border-left:1px solid rgba(255,255,255,0.3);">${grandRounded}</td></tr>
       </table>
     </div>

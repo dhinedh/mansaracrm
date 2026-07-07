@@ -9,5 +9,7 @@ router.use(verifyToken);
 
 router.get('/admin', requireRole('ADMIN'), analyticsController.getAdminAnalytics);
 router.get('/dealer', requireRole('DEALER'), analyticsController.getDealerAnalytics);
+router.get('/consolidated-report', analyticsController.getConsolidatedReport);
+router.get('/consolidated-report/pdf', analyticsController.exportConsolidatedReportPdf);
 
 module.exports = router;

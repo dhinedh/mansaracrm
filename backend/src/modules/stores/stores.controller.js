@@ -46,7 +46,7 @@ exports.createStore = async (req, res, next) => {
       return res.status(403).json({ success: false, message: 'Only dealers can manage stores' });
     }
 
-    const { name, gstNumber, address, city, state, pincode, zone, phone, marginPercent } = req.body;
+    const { name, gstNumber, address, city, state, pincode, zone, phone, marginPercent, classification, revisitDate } = req.body;
     const dealerId = req.user.dealer.id;
 
     const store = await prisma.store.create({
@@ -59,7 +59,9 @@ exports.createStore = async (req, res, next) => {
         state,
         pincode,
         zone,
-        phone
+        phone,
+        classification: classification || 'RETAIL',
+        revisitDate: revisitDate ? new Date(revisitDate) : null
       }
     });
 
@@ -82,7 +84,7 @@ exports.createStore = async (req, res, next) => {
 exports.updateStore = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { name, gstNumber, address, city, state, pincode, zone, phone, marginPercent } = req.body;
+    const { name, gstNumber, address, city, state, pincode, zone, phone, marginPercent, classification, revisitDate } = req.body;
 
     const store = await prisma.store.findUnique({ where: { id } });
     if (!store) {
@@ -104,7 +106,9 @@ exports.updateStore = async (req, res, next) => {
         state: state !== undefined ? state : store.state,
         pincode: pincode !== undefined ? pincode : store.pincode,
         zone: zone !== undefined ? zone : store.zone,
-        phone: phone !== undefined ? phone : store.phone
+        phone: phone !== undefined ? phone : store.phone,
+        classification: classification !== undefined ? classification : store.classification,
+        revisitDate: revisitDate !== undefined ? (revisitDate ? new Date(revisitDate) : null) : store.revisitDate
       }
     });
 

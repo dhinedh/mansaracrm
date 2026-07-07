@@ -1015,6 +1015,16 @@ export default function MyLedgersPage() {
                     <span className="font-bold text-slate-700">₹{parseFloat(selectedInvoice.shippingCharges).toFixed(2)}</span>
                   </div>
                 )}
+                <div className="flex justify-between items-center w-48 text-[11px] text-slate-500 border-t border-slate-100 pt-2">
+                  <span>Original Amount:</span>
+                  <span className="font-bold text-slate-700">₹{((parseFloat(selectedInvoice.subtotal) || 0) + (parseFloat(selectedInvoice.totalGst) || 0) + (parseFloat(selectedInvoice.shippingCharges) || 0)).toFixed(2)}</span>
+                </div>
+                {selectedInvoice.totalDiscount && parseFloat(selectedInvoice.totalDiscount) > 0 && (
+                  <div className="flex justify-between items-center w-48 text-[11px] text-red-600 font-bold">
+                    <span>Discount:</span>
+                    <span>-₹{parseFloat(selectedInvoice.totalDiscount).toFixed(2)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between items-center w-48 text-xs font-black text-slate-800 border-t border-slate-100 pt-2">
                   <span>Grand Total:</span>
                   <span className="text-rose-600">₹{parseFloat(selectedInvoice.totalAmount).toFixed(2)}</span>

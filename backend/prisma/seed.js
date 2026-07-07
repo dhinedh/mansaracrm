@@ -63,6 +63,7 @@ async function main() {
   ];
 
   for (const prod of productsList) {
+    const is250g = prod.unit === '250g';
     const productData = {
       name: prod.name,
       sku: prod.sku,
@@ -71,7 +72,9 @@ async function main() {
       gstPercent: 5.0, // Standard 5% GST on Spices/Cereals/Mixes
       hsnCode: prod.hsnCode,
       categoryId: categoryMap[prod.category],
-      unit: prod.unit,
+      unit: "PCS",
+      weight: prod.unit,
+      pacQuantity: is250g ? 24 : 60,
       minOrderQty: 5,
       image: prod.image
     };
@@ -81,7 +84,10 @@ async function main() {
       update: { 
         price: prod.price,
         mrp: prod.mrp,
-        image: prod.image 
+        image: prod.image,
+        unit: "PCS",
+        weight: prod.unit,
+        pacQuantity: is250g ? 24 : 60
       },
       create: productData,
     });

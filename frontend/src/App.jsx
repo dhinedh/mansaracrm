@@ -34,6 +34,8 @@ import UserManagement from './pages/admin/UserManagement';
 import ZoneMapPage from './pages/admin/ZoneMapPage';
 import StallsPage from './pages/admin/StallsPage';
 import StallBillingPage from './pages/admin/StallBillingPage';
+import ExpensesPage from './pages/admin/ExpensesPage';
+import OffersPage from './pages/admin/OffersPage';
 import StoreVisitsPage from './pages/admin/StoreVisitsPage';
 
 // E-Commerce Pages
@@ -207,6 +209,16 @@ export default function App() {
           <Route path="stalls" element={
             <ProtectedRoute allowedStaffRoles={['ADMIN', 'B2B_MANAGER']}>
               <StallsPage />
+            </ProtectedRoute>
+          } />
+          <Route path="expenses" element={
+            <ProtectedRoute allowedStaffRoles={['ADMIN', 'FINANCE_OFFICER', 'B2B_MANAGER']}>
+              <ExpensesPage />
+            </ProtectedRoute>
+          } />
+          <Route path="offers" element={
+            <ProtectedRoute allowedStaffRoles={['ADMIN', 'FINANCE_OFFICER', 'B2B_MANAGER']}>
+              <OffersPage />
             </ProtectedRoute>
           } />
           <Route path="stall-billing" element={

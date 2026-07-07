@@ -30,8 +30,9 @@ export default function StallBillingPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
 
-  // Cart State
+  // Cart & Discounts State
   const [cart, setCart] = useState([]);
+  const [discountAmount, setDiscountAmount] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
 
@@ -48,15 +49,32 @@ export default function StallBillingPage() {
       setLoading(true);
       // Fetch session info
       const sessRes = await axios.get(`/stalls/sessions/${sessionId}`);
-      setSession(sessRes.data.data);
+      const sessionData = sessRes.data.data;
+      setSession(sessionData);
 
-      // Fetch products
-      const prodRes = await axios.get('/products');
-      setProducts(prodRes.data.data);
+      if (sessionData.products && sessionData.products.length > 0) {
+        // Map session products to format expected by UI
+        const mappedProducts = sessionData.products.map(p => ({
+          id: p.productId,
+          name: p.productName,
+          price: p.price,
+          mrp: p.price,
+          stock: p.currentStock, // Enforce current stock as available stock
+          unit: 'PCS',
+          isActive: true
+        }));
+        setProducts(mappedProducts);
+        setCategories([{ id: 'session-configured', name: 'Stall Stock' }]);
+        setSelectedCategory('session-configured');
+      } else {
+        // Fetch products
+        const prodRes = await axios.get('/products');
+        setProducts(prodRes.data.data);
 
-      // Fetch categories
-      const catRes = await axios.get('/products/categories');
-      setCategories(catRes.data.data);
+        // Fetch categories
+        const catRes = await axios.get('/products/categories');
+        setCategories(catRes.data.data);
+      }
     } catch (err) {
       alert('Failed to load billing terminal. Verify active session.');
       navigate('/admin/stalls');
@@ -75,14 +93,25 @@ export default function StallBillingPage() {
 
   // Add to cart
   const addToCart = (product) => {
+    // Check stock limit if defined
+    if (product.stock !== undefined && product.stock <= 0) {
+      alert(`Product "${product.name}" is out of stock!`);
+      return;
+    }
+
     setCart(prev => {
       const existing = prev.find(item => item.productId === product.id);
       const defaultPrice = parseFloat(product.mrp || product.price || 0);
 
       if (existing) {
+        const nextQty = existing.quantity + 1;
+        if (product.stock !== undefined && nextQty > product.stock) {
+          alert(`Cannot add more. Insufficient stock (Available: ${product.stock})`);
+          return prev;
+        }
         return prev.map(item => 
           item.productId === product.id 
-            ? { ...item, quantity: item.quantity + 1 }
+            ? { ...item, quantity: nextQty }
             : item
         );
       } else {
@@ -102,6 +131,11 @@ export default function StallBillingPage() {
     setCart(prev => prev.map(item => {
       if (item.productId === productId) {
         const newQty = item.quantity + delta;
+        const prod = products.find(p => p.id === productId);
+        if (prod && prod.stock !== undefined && newQty > prod.stock) {
+          alert(`Cannot update quantity. Insufficient stock (Available: ${prod.stock})`);
+          return item;
+        }
         return newQty > 0 ? { ...item, quantity: newQty } : item;
       }
       return item;
@@ -123,10 +157,14 @@ export default function StallBillingPage() {
   };
 
   // Clear cart
-  const clearCart = () => setCart([]);
+  const clearCart = () => {
+    setCart([]);
+    setDiscountAmount('');
+  };
 
   // Calculate totals
   const totalAmount = cart.reduce((sum, item) => sum + (item.quantity * item.price), 0);
+  const finalPayable = Math.max(0, totalAmount - (parseFloat(discountAmount) || 0));
 
   // Submit sale
   const handleCheckout = async (paymentMethod) => {
@@ -135,10 +173,12 @@ export default function StallBillingPage() {
       setSubmitting(true);
       await axios.post(`/stalls/sessions/${sessionId}/sales`, {
         items: cart,
-        paymentMethod
+        paymentMethod,
+        discountAmount: parseFloat(discountAmount || 0)
       });
-      setSuccessMsg(`Sale of ₹${totalAmount.toLocaleString()} recorded via ${paymentMethod}!`);
+      setSuccessMsg(`Sale of ₹${finalPayable.toLocaleString()} recorded via ${paymentMethod}!`);
       clearCart();
+      fetchSessionAndProducts(); // Reload stock levels
       setTimeout(() => setSuccessMsg(''), 3000);
     } catch (err) {
       alert(err.response?.data?.message || 'Checkout failed');
@@ -171,7 +211,7 @@ export default function StallBillingPage() {
         <div className="flex items-center space-x-4">
           <button 
             onClick={() => navigate('/admin/stalls')}
-            className="p-2 hover:bg-slate-100 rounded-xl text-slate-600 transition"
+            className="p-2 hover:bg-slate-100 rounded-xl text-slate-600 transition cursor-pointer"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
@@ -234,7 +274,7 @@ export default function StallBillingPage() {
                   <button
                     key={p.id}
                     onClick={() => addToCart(p)}
-                    className="bg-white border border-slate-200/80 rounded-2xl p-3 text-left hover:border-rose-300 hover:shadow-sm active:scale-95 transition-all flex flex-col justify-between h-44 group overflow-hidden"
+                    className="bg-white border border-slate-200/80 rounded-2xl p-3 text-left hover:border-rose-300 hover:shadow-sm active:scale-95 transition-all flex flex-col justify-between h-44 group overflow-hidden cursor-pointer"
                   >
                     <div className="w-full h-24 rounded-xl bg-slate-50 flex items-center justify-center overflow-hidden mb-2 relative">
                       <img 
@@ -244,7 +284,7 @@ export default function StallBillingPage() {
                         onError={(e) => { e.target.src = '/placeholder.png'; }}
                       />
                       <span className="absolute bottom-1 right-1 bg-slate-900/70 text-white text-[9px] font-black px-1.5 py-0.5 rounded uppercase">
-                        {p.unit}
+                        {p.unit || 'PCS'}
                       </span>
                     </div>
 
@@ -252,7 +292,9 @@ export default function StallBillingPage() {
                       <h4 className="font-bold text-slate-800 text-xs truncate leading-tight">{p.name}</h4>
                       <div className="flex justify-between items-center mt-1">
                         <span className="text-rose-500 font-extrabold text-xs">₹{p.mrp || p.price}</span>
-                        {p.companyStock?.quantity > 0 ? (
+                        {p.stock !== undefined ? (
+                          <span className={`text-[9px] font-bold ${p.stock > 0 ? 'text-slate-400' : 'text-rose-500'}`}>Stock: {p.stock}</span>
+                        ) : p.companyStock?.quantity > 0 ? (
                           <span className="text-[9px] text-slate-400 font-medium">Stock: {p.companyStock.quantity}</span>
                         ) : (
                           <span className="text-[9px] text-rose-500 font-bold">Out of stock</span>
@@ -275,7 +317,7 @@ export default function StallBillingPage() {
             {cart.length > 0 && (
               <button 
                 onClick={clearCart} 
-                className="text-xs text-rose-500 hover:text-rose-600 font-bold"
+                className="text-xs text-rose-500 hover:text-rose-600 font-bold cursor-pointer"
               >
                 Clear Cart
               </button>
@@ -285,17 +327,17 @@ export default function StallBillingPage() {
           {/* Cart Items List */}
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
             {successMsg && (
-              <div className="bg-emerald-50 text-emerald-800 p-3 rounded-xl border border-emerald-100 flex items-center gap-2.5 text-xs font-semibold animate-in slide-in-from-top-4 duration-300">
-                <CheckCircle className="w-4 h-4 text-emerald-500" />
+              <div className="bg-emerald-50 text-emerald-800 border border-emerald-100 p-4 rounded-xl flex items-center gap-2 text-xs font-bold animate-bounce">
+                <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
                 <span>{successMsg}</span>
               </div>
             )}
 
             {cart.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center text-slate-400 py-20 text-center">
-                <ShoppingBag className="w-8 h-8 mb-2 text-slate-300" />
-                <p className="text-xs font-semibold">Cart is empty.</p>
-                <p className="text-[10px] mt-0.5">Click products on the left to add.</p>
+              <div className="flex flex-col items-center justify-center h-full text-slate-400 space-y-2 py-20">
+                <ShoppingBag className="w-8 h-8 text-slate-300" />
+                <p className="text-xs font-bold">Cart is empty.</p>
+                <p className="text-[10px] text-slate-400 text-center px-6">Click configured items on the catalog grid to build checkout invoice.</p>
               </div>
             ) : (
               cart.map((item) => (
@@ -304,7 +346,7 @@ export default function StallBillingPage() {
                     <h4 className="font-bold text-slate-800 text-xs pr-4 leading-tight">{item.productName}</h4>
                     <button 
                       onClick={() => removeFromCart(item.productId)}
-                      className="text-slate-400 hover:text-rose-500 transition"
+                      className="text-slate-400 hover:text-rose-500 transition cursor-pointer"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
@@ -315,14 +357,14 @@ export default function StallBillingPage() {
                     <div className="flex items-center space-x-2.5 bg-white border border-slate-200 rounded-lg p-0.5">
                       <button 
                         onClick={() => updateQty(item.productId, -1)}
-                        className="p-1 hover:bg-slate-50 text-slate-600 rounded"
+                        className="p-1 hover:bg-slate-50 text-slate-600 rounded cursor-pointer"
                       >
                         <Minus className="w-3 h-3" />
                       </button>
                       <span className="font-bold text-xs text-slate-800 w-4 text-center">{item.quantity}</span>
                       <button 
                         onClick={() => updateQty(item.productId, 1)}
-                        className="p-1 hover:bg-slate-50 text-slate-600 rounded"
+                        className="p-1 hover:bg-slate-50 text-slate-600 rounded cursor-pointer"
                       >
                         <Plus className="w-3 h-3" />
                       </button>
@@ -349,9 +391,22 @@ export default function StallBillingPage() {
 
           {/* Checkout Panel Footer */}
           <div className="p-4 border-t border-slate-200 bg-slate-50/50 space-y-4 shrink-0">
+            {/* Discount field */}
+            <div className="flex justify-between items-center text-xs font-bold text-slate-700">
+              <span>Discount Amount (₹)</span>
+              <input 
+                type="number"
+                min="0"
+                value={discountAmount}
+                onChange={(e) => setDiscountAmount(e.target.value)}
+                placeholder="0"
+                className="w-24 px-2.5 py-1.5 border border-slate-205 rounded-xl text-right font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-rose-500"
+              />
+            </div>
+
             <div className="flex justify-between items-center text-slate-850 font-black text-sm">
               <span>Total Amount</span>
-              <span className="text-rose-500 text-lg">₹{totalAmount.toLocaleString()}</span>
+              <span className="text-rose-500 text-lg">₹{finalPayable.toLocaleString()}</span>
             </div>
 
             <div className="grid grid-cols-2 gap-3">

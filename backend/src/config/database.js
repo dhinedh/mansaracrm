@@ -85,7 +85,8 @@ const DealerSchema = new Schema({
     accountType: { type: String, default: 'Current' }
   },
   invoiceTerms: { type: String, default: '' },
-  invoicePrefix: { type: String }
+  invoicePrefix: { type: String },
+  defaultMargin: { type: Number, default: 10 }
 }, {
   timestamps: true,
   toJSON: { virtuals: true },
@@ -373,6 +374,8 @@ const StoreSchema = new Schema({
   pincode: { type: String },
   zone: { type: String },
   phone: { type: String },
+  classification: { type: String, enum: ['RETAIL', 'KIRANA'], default: 'RETAIL' },
+  revisitDate: { type: Date },
   isActive: { type: Boolean, default: true }
 }, {
   timestamps: true,
@@ -594,7 +597,11 @@ const VisitSchema = new Schema({
   checkInTime: { type: Date },
   checkOutTime: { type: Date },
   verified: { type: Boolean, default: false },
-  date: { type: Date, default: Date.now }
+  date: { type: Date, default: Date.now },
+  paymentsCollected: { type: Number, default: 0 },
+  paymentMethod: { type: String, enum: ['CASH', 'ONLINE', 'NONE'], default: 'NONE' },
+  newInvoiceId: { type: Schema.Types.ObjectId, ref: 'Invoice' },
+  revisitDate: { type: Date }
 }, {
   timestamps: true,
   toJSON: { virtuals: true },
@@ -607,6 +614,24 @@ const StallSessionSchema = new Schema({
   location: { type: String, required: true },
   operatorName: { type: String, required: true },
   investment: { type: Number, required: true, default: 0 },
+  registrationAmount: { type: Number, default: 0 },
+  stage: { type: Number, enum: [1, 2, 3, 4, 5], default: 1 },
+  stockStatus: { type: String, enum: ['DRAFT', 'FROZEN'], default: 'DRAFT' },
+  products: [{
+    productId: { type: Schema.Types.ObjectId, ref: 'Product', required: true },
+    productName: { type: String, required: true },
+    initialStock: { type: Number, default: 0 },
+    currentStock: { type: Number, default: 0 },
+    price: { type: Number, default: 0 }
+  }],
+  expenses: {
+    store: { type: Number, default: 0 },
+    travel: { type: Number, default: 0 },
+    food: { type: Number, default: 0 },
+    hotel: { type: Number, default: 0 },
+    offer: { type: Number, default: 0 },
+    billUrl: { type: String }
+  },
   status: { type: String, enum: ['ACTIVE', 'CLOSED'], default: 'ACTIVE' },
   startDate: { type: Date, default: Date.now },
   endDate: { type: Date }
@@ -620,6 +645,7 @@ const StallSessionSchema = new Schema({
 const StallSaleSchema = new Schema({
   stallSessionId: { type: Schema.Types.ObjectId, ref: 'StallSession', required: true, index: true },
   totalAmount: { type: Number, required: true },
+  discountAmount: { type: Number, default: 0 },
   paymentMethod: { type: String, enum: ['CASH', 'ONLINE'], required: true },
   items: [{
     productId: { type: Schema.Types.ObjectId, ref: 'Product', required: true },
@@ -713,6 +739,86 @@ const ComplaintTicketSchema = new Schema({
     message: { type: String, required: true },
     createdAt: { type: Date, default: Date.now }
   }]
+});
+
+// Expense Schema
+const ExpenseSchema = new Schema({
+  title: { type: String, required: true },
+  amount: { type: Number, required: true, min: 0 },
+  date: { type: Date, default: Date.now, required: true },
+  category: { type: String, required: true },
+  dealerId: { type: Schema.Types.ObjectId, ref: 'Dealer', index: true },
+  storeId: { type: Schema.Types.ObjectId, ref: 'Store', index: true },
+  stallSessionId: { type: Schema.Types.ObjectId, ref: 'StallSession', index: true },
+  billUrl: String,
+  notes: String
+}, {
+  timestamps: true,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
+});
+
+ExpenseSchema.virtual('store', {
+  ref: 'Store',
+  localField: 'storeId',
+  foreignField: '_id',
+  justOne: true
+});
+
+ExpenseSchema.virtual('stallSession', {
+  ref: 'StallSession',
+  localField: 'stallSessionId',
+  foreignField: '_id',
+  justOne: true
+});
+
+// Offer Item Schema
+const OfferItemSchema = new Schema({
+  name: { type: String, required: true },
+  description: { type: String },
+  purchaseCost: { type: Number, required: true, min: 0 },
+  quantity: { type: Number, required: true, min: 0 },
+  initialQuantity: { type: Number, required: true, min: 0 }
+}, {
+  timestamps: true,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
+});
+
+// Offer Distribution Schema
+const OfferDistributionSchema = new Schema({
+  offerItemId: { type: Schema.Types.ObjectId, ref: 'OfferItem', required: true, index: true },
+  quantity: { type: Number, required: true, min: 1 },
+  date: { type: Date, default: Date.now, required: true },
+  distributedToType: { type: String, enum: ['STORE', 'EVENT', 'GENERAL'], required: true },
+  storeId: { type: Schema.Types.ObjectId, ref: 'Store', index: true },
+  stallSessionId: { type: Schema.Types.ObjectId, ref: 'StallSession', index: true },
+  notes: String
+}, {
+  timestamps: true,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
+});
+
+OfferDistributionSchema.virtual('offerItem', {
+  ref: 'OfferItem',
+  localField: 'offerItemId',
+  foreignField: '_id',
+  justOne: true
+});
+
+OfferDistributionSchema.virtual('store', {
+  ref: 'Store',
+  localField: 'storeId',
+  foreignField: '_id',
+  justOne: true
+});
+
+OfferDistributionSchema.virtual('stallSession', {
+  ref: 'StallSession',
+  localField: 'stallSessionId',
+  foreignField: '_id',
+  justOne: true
 });
 
 
@@ -893,6 +999,9 @@ const Sample = mongoose.model('Sample', SampleSchema, 'samples');
 const Return = mongoose.model('Return', ReturnSchema, 'returns');
 const StockRequest = mongoose.model('StockRequest', StockRequestSchema, 'stock_requests');
 const ComplaintTicket = mongoose.model('ComplaintTicket', ComplaintTicketSchema, 'complaint_tickets');
+const Expense = mongoose.model('Expense', ExpenseSchema, 'expenses');
+const OfferItem = mongoose.model('OfferItem', OfferItemSchema, 'offer_items');
+const OfferDistribution = mongoose.model('OfferDistribution', OfferDistributionSchema, 'offer_distributions');
 
 // ─────────────────────────────────────────────
 // AUTOMATIC DATABASE SCHEMA MIGRATION RUNNER
@@ -949,6 +1058,39 @@ async function runDatabaseMigrations() {
         console.log(`[Migration] Updated missing schema fields for dealer: ${dealer.companyName}`);
       }
     }
+    
+    // StallSession Migrations
+    const StallSession = mongoose.model('StallSession');
+    const sessions = await StallSession.find({});
+    for (const sess of sessions) {
+      let modified = false;
+      const schema = StallSession.schema;
+      for (const path in schema.paths) {
+        if (['_id', '__v', 'createdAt', 'updatedAt'].includes(path)) continue;
+        const schemaType = schema.paths[path];
+        if (sess._doc[path] === undefined) {
+          let defaultValue = undefined;
+          if (schemaType.defaultValue !== undefined) {
+            defaultValue = typeof schemaType.defaultValue === 'function'
+              ? schemaType.defaultValue()
+              : schemaType.defaultValue;
+          } else if (schemaType.instance === 'Array') {
+            defaultValue = [];
+          } else if (path === 'expenses') {
+            defaultValue = { store: 0, travel: 0, food: 0, hotel: 0, offer: 0, billUrl: '' };
+          }
+          if (defaultValue !== undefined) {
+            sess.set(path, defaultValue);
+            modified = true;
+          }
+        }
+      }
+      if (modified) {
+        await sess.save();
+        console.log(`[Migration] Updated missing schema fields for StallSession: ${sess.name}`);
+      }
+    }
+    
     console.log('[Migration] Database migrations completed successfully.');
   } catch (err) {
     console.error('[Migration] Database migration error:', err);
@@ -1615,6 +1757,9 @@ const prisma = {
   order: new PrismaCollectionWrapper('Order'),
   stallSession: new PrismaCollectionWrapper('StallSession'),
   stallSale: new PrismaCollectionWrapper('StallSale'),
+  expense: new PrismaCollectionWrapper('Expense'),
+  offerItem: new PrismaCollectionWrapper('OfferItem'),
+  offerDistribution: new PrismaCollectionWrapper('OfferDistribution'),
 
   $transaction: async (fn) => {
     // Run transactions sequentially on standalone local MongoDB instances
