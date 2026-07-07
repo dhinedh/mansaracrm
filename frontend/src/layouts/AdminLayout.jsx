@@ -33,7 +33,8 @@ import {
   Package,
   Store,
   Receipt,
-  Gift
+  Gift,
+  Building2
 } from 'lucide-react';
 import axios from 'axios';
 
@@ -75,9 +76,12 @@ const getCrmMenuItems = (unreadNotifications) => [
 ];
 
 const fieldMenuItems = [
-  { name: 'B2C Stalls',            path: '/admin/stalls',              icon: Store, allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'] },
-  { name: 'Store Visits',          path: '/admin/store-visits',        icon: Truck, allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'] },
+  { name: 'B2C Stalls',   path: '/admin/stalls',       icon: Store,       allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'] },
+  { name: 'Store Visits', path: '/admin/store-visits',  icon: Truck,       allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'] },
+  { name: 'B2C Stores',   path: '/admin/b2c-stores',    icon: ShoppingBag, allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'] },
 ];
+
+
 
 const ecomMenuItems = [
   { name: 'E-Com Products',  path: '/admin/ecom/products',  icon: Package, allowedStaffRoles: ['ADMIN', 'ECOM_MANAGER'] },

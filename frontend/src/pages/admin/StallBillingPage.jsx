@@ -404,10 +404,24 @@ export default function StallBillingPage() {
               />
             </div>
 
-            <div className="flex justify-between items-center text-slate-850 font-black text-sm">
-              <span>Total Amount</span>
-              <span className="text-rose-500 text-lg">₹{finalPayable.toLocaleString()}</span>
+            {/* Totals Breakdown */}
+            <div className="space-y-1.5 text-xs">
+              <div className="flex justify-between items-center text-slate-600">
+                <span className="font-semibold">Subtotal</span>
+                <span className="font-bold text-slate-800">₹{totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              </div>
+              {parseFloat(discountAmount) > 0 && (
+                <div className="flex justify-between items-center text-emerald-700">
+                  <span className="font-semibold">Discount Applied</span>
+                  <span className="font-bold">− ₹{parseFloat(discountAmount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                </div>
+              )}
+              <div className="flex justify-between items-center pt-1.5 border-t border-slate-200">
+                <span className="font-black text-slate-850 text-sm">Final Payable</span>
+                <span className="text-rose-500 text-xl font-black">₹{finalPayable.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              </div>
             </div>
+
 
             <div className="grid grid-cols-2 gap-3">
               <button

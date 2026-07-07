@@ -42,12 +42,21 @@ exports.getDealerStores = async (req, res, next) => {
 
 exports.createStore = async (req, res, next) => {
   try {
-    if (req.user.role !== 'DEALER') {
-      return res.status(403).json({ success: false, message: 'Only dealers can manage stores' });
+    // Allow both DEALER and ADMIN (for standalone B2C stores)
+    let dealerId;
+    if (req.user.role === 'DEALER') {
+      dealerId = req.user.dealer.id;
+    } else if (req.user.role === 'ADMIN') {
+      dealerId = req.body.dealerId || null; // optional for admin-created stores
+    } else {
+      return res.status(403).json({ success: false, message: 'Only dealers or admins can manage stores' });
     }
 
-    const { name, gstNumber, address, city, state, pincode, zone, phone, marginPercent, classification, revisitDate } = req.body;
-    const dealerId = req.user.dealer.id;
+    const {
+      name, gstNumber, address, city, state, pincode, zone, phone,
+      ownerName, ownerPhone, initialInvestment, notes,
+      marginPercent, classification, revisitDate
+    } = req.body;
 
     const store = await prisma.store.create({
       data: {
@@ -60,12 +69,16 @@ exports.createStore = async (req, res, next) => {
         pincode,
         zone,
         phone,
+        ownerName: ownerName || '',
+        ownerPhone: ownerPhone || '',
+        initialInvestment: parseFloat(initialInvestment || 0),
+        notes: notes || '',
         classification: classification || 'RETAIL',
         revisitDate: revisitDate ? new Date(revisitDate) : null
       }
     });
 
-    if (marginPercent !== undefined && marginPercent !== null && marginPercent !== '') {
+    if (dealerId && marginPercent !== undefined && marginPercent !== null && marginPercent !== '') {
       await prisma.margin.create({
         data: {
           dealerId,
@@ -84,14 +97,18 @@ exports.createStore = async (req, res, next) => {
 exports.updateStore = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { name, gstNumber, address, city, state, pincode, zone, phone, marginPercent, classification, revisitDate } = req.body;
+    const {
+      name, gstNumber, address, city, state, pincode, zone, phone,
+      ownerName, ownerPhone, initialInvestment, notes,
+      marginPercent, classification, revisitDate
+    } = req.body;
 
     const store = await prisma.store.findUnique({ where: { id } });
     if (!store) {
       return res.status(404).json({ success: false, message: 'Store not found' });
     }
 
-    // Auth validation: only owning dealer can edit
+    // Auth validation: only owning dealer or admin can edit
     if (req.user.role === 'DEALER' && store.dealerId !== req.user.dealer.id) {
       return res.status(403).json({ success: false, message: 'Unauthorized' });
     }
@@ -107,12 +124,16 @@ exports.updateStore = async (req, res, next) => {
         pincode: pincode !== undefined ? pincode : store.pincode,
         zone: zone !== undefined ? zone : store.zone,
         phone: phone !== undefined ? phone : store.phone,
+        ownerName: ownerName !== undefined ? ownerName : (store.ownerName || ''),
+        ownerPhone: ownerPhone !== undefined ? ownerPhone : (store.ownerPhone || ''),
+        initialInvestment: initialInvestment !== undefined ? parseFloat(initialInvestment) : (store.initialInvestment || 0),
+        notes: notes !== undefined ? notes : (store.notes || ''),
         classification: classification !== undefined ? classification : store.classification,
         revisitDate: revisitDate !== undefined ? (revisitDate ? new Date(revisitDate) : null) : store.revisitDate
       }
     });
 
-    if (marginPercent !== undefined && marginPercent !== null) {
+    if (store.dealerId && marginPercent !== undefined && marginPercent !== null) {
       const existingMargin = await prisma.margin.findFirst({
         where: {
           dealerId: store.dealerId,

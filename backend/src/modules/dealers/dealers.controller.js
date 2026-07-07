@@ -78,6 +78,19 @@ exports.getDealerById = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Dealer not found' });
     }
 
+    // Enrich with default margin rule — so edit forms always pre-populate this field
+    // even for dealers registered before this field was introduced
+    const defaultMarginRule = await prisma.margin.findFirst({
+      where: {
+        dealerId: id,
+        isDefault: true,
+        storeId: null,
+        productId: null,
+        categoryId: null
+      }
+    });
+    dealer.defaultMargin = defaultMarginRule?.marginPercent ?? 10;
+
     res.json({
       success: true,
       data: dealer
@@ -86,6 +99,7 @@ exports.getDealerById = async (req, res, next) => {
     next(error);
   }
 };
+
 
 exports.updateDealer = async (req, res, next) => {
   try {

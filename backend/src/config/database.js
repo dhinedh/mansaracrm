@@ -365,8 +365,10 @@ StockTransferItemSchema.virtual('product', {
 
 // Store
 const StoreSchema = new Schema({
-  dealerId: { type: Schema.Types.ObjectId, ref: 'Dealer', required: true },
+  dealerId: { type: Schema.Types.ObjectId, ref: 'Dealer' }, // optional for standalone B2C stores
   name: { type: String, required: true },
+  ownerName: { type: String },
+  ownerPhone: { type: String },
   gstNumber: { type: String },
   address: { type: String, required: true },
   city: { type: String },
@@ -375,8 +377,22 @@ const StoreSchema = new Schema({
   zone: { type: String },
   phone: { type: String },
   classification: { type: String, enum: ['RETAIL', 'KIRANA'], default: 'RETAIL' },
+  initialInvestment: { type: Number, default: 0 },
+  notes: { type: String, default: '' },
+  photos: [{ type: String }],
   revisitDate: { type: Date },
-  isActive: { type: Boolean, default: true }
+  lastVisitDate: { type: Date },
+  isActive: { type: Boolean, default: true },
+  // B2C Stock Configuration (freeze workflow)
+  stockStatus: { type: String, enum: ['DRAFT', 'FROZEN'], default: 'DRAFT' },
+  stockConfig: [{
+    productId: { type: Schema.Types.ObjectId, ref: 'Product', required: true },
+    productName: { type: String, required: true },
+    assignedStock: { type: Number, default: 0 },
+    currentStock: { type: Number, default: 0 },
+    price: { type: Number, default: 0 },
+    addedAt: { type: Date, default: Date.now }
+  }]
 }, {
   timestamps: true,
   toJSON: { virtuals: true },
@@ -398,6 +414,12 @@ StoreSchema.virtual('invoices', {
 
 StoreSchema.virtual('margins', {
   ref: 'Margin',
+  localField: '_id',
+  foreignField: 'storeId'
+});
+
+StoreSchema.virtual('visits', {
+  ref: 'Visit',
   localField: '_id',
   foreignField: 'storeId'
 });
@@ -592,6 +614,8 @@ const VisitSchema = new Schema({
   visitorName: { type: String, required: true },
   purpose: { type: String, required: true },
   outcome: { type: String },
+  remarks: { type: String, default: '' },
+  photos: [{ type: String }],
   latitude: { type: Number },
   longitude: { type: Number },
   checkInTime: { type: Date },

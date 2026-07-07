@@ -37,6 +37,8 @@ import StallBillingPage from './pages/admin/StallBillingPage';
 import ExpensesPage from './pages/admin/ExpensesPage';
 import OffersPage from './pages/admin/OffersPage';
 import StoreVisitsPage from './pages/admin/StoreVisitsPage';
+import RetailStoresPage from './pages/admin/RetailStoresPage';
+import B2CStorePage from './pages/admin/B2CStorePage';
 
 // E-Commerce Pages
 import EcomOrdersPage from './pages/admin/EcomOrdersPage';
@@ -229,6 +231,16 @@ export default function App() {
           <Route path="store-visits" element={
             <ProtectedRoute allowedStaffRoles={['ADMIN', 'B2B_MANAGER']}>
               <StoreVisitsPage />
+            </ProtectedRoute>
+          } />
+          <Route path="retail-stores" element={
+            <ProtectedRoute allowedStaffRoles={['ADMIN', 'B2B_MANAGER']}>
+              <RetailStoresPage />
+            </ProtectedRoute>
+          } />
+          <Route path="b2c-stores" element={
+            <ProtectedRoute allowedStaffRoles={['ADMIN', 'B2B_MANAGER']}>
+              <B2CStorePage />
             </ProtectedRoute>
           } />
           
