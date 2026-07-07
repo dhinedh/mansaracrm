@@ -240,8 +240,10 @@ exports.createSale = async (req, res, next) => {
       });
     }
 
-    // Apply flat discount to totalAmount
-    const finalAmount = Math.max(0, totalAmount - discount);
+    // Apply discount to totalAmount: since price is now actual price entered,
+    // the totalAmount (sum of quantity * price) is already the final payable amount.
+    // The discount is just saved for reporting/metadata.
+    const finalAmount = totalAmount;
 
     // Update session's product stock in database
     if (session.stockStatus === 'FROZEN') {

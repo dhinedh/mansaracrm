@@ -32,9 +32,10 @@ export default function StallBillingPage() {
 
   // Cart & Discounts State
   const [cart, setCart] = useState([]);
-  const [discountAmount, setDiscountAmount] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
+  // Flag: are products sourced from the frozen stall session (not full catalog)?
+  const [isSessionStock, setIsSessionStock] = useState(false);
 
   useEffect(() => {
     if (!sessionId) {
@@ -62,10 +63,12 @@ export default function StallBillingPage() {
           stock: p.currentStock, // Enforce current stock as available stock
           unit: 'PCS',
           isActive: true
+          // NOTE: no categoryId — these are stall-configured products only
         }));
         setProducts(mappedProducts);
-        setCategories([{ id: 'session-configured', name: 'Stall Stock' }]);
-        setSelectedCategory('session-configured');
+        setIsSessionStock(true);          // ← stall session mode
+        setCategories([]);                // ← no category filter needed
+        setSelectedCategory('');          // ← clear any stale filter
       } else {
         // Fetch products
         const prodRes = await axios.get('/products');
@@ -163,8 +166,11 @@ export default function StallBillingPage() {
   };
 
   // Calculate totals
-  const totalAmount = cart.reduce((sum, item) => sum + (item.quantity * item.price), 0);
-  const finalPayable = Math.max(0, totalAmount - (parseFloat(discountAmount) || 0));
+  // mrp = stall-configured price; price = actual price user entered (can be less = discount)
+  const mrpTotal      = cart.reduce((sum, item) => sum + (item.quantity * (item.mrp || item.price)), 0);
+  const actualTotal   = cart.reduce((sum, item) => sum + (item.quantity * item.price), 0);
+  const autoDiscount  = Math.max(0, mrpTotal - actualTotal); // auto-computed from price override
+  const finalPayable  = actualTotal;
 
   // Submit sale
   const handleCheckout = async (paymentMethod) => {
@@ -174,7 +180,7 @@ export default function StallBillingPage() {
       await axios.post(`/stalls/sessions/${sessionId}/sales`, {
         items: cart,
         paymentMethod,
-        discountAmount: parseFloat(discountAmount || 0)
+        discountAmount: autoDiscount   // auto-computed from actual price vs MRP
       });
       setSuccessMsg(`Sale of ₹${finalPayable.toLocaleString()} recorded via ${paymentMethod}!`);
       clearCart();
@@ -189,9 +195,10 @@ export default function StallBillingPage() {
 
   // Filters
   const filteredProducts = products.filter(p => {
-    const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                           (p.sku && p.sku.toLowerCase().includes(searchQuery.toLowerCase()));
-    const matchesCat = !selectedCategory || p.categoryId === selectedCategory;
+    // When in session-stock mode, ALL loaded products are stall products — skip category filter
+    const matchesCat = isSessionStock || !selectedCategory || p.categoryId === selectedCategory;
     return matchesSearch && matchesCat && p.isActive;
   });
 
@@ -250,16 +257,26 @@ export default function StallBillingPage() {
               />
             </div>
             
-            <select
-              value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
-              className="px-3.5 py-2 border border-slate-200 rounded-xl text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-rose-500/20"
-            >
-              <option value="">All Categories</option>
-              {categories.map(c => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
+            {/* Category filter — only show when NOT in session-stock mode */}
+            {!isSessionStock && (
+              <select
+                value={selectedCategory}
+                onChange={(e) => setSelectedCategory(e.target.value)}
+                className="px-3.5 py-2 border border-slate-200 rounded-xl text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-rose-500/20"
+              >
+                <option value="">All Categories</option>
+                {categories.map(c => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            )}
+            {/* Session-stock badge */}
+            {isSessionStock && (
+              <div className="flex items-center gap-1.5 bg-blue-50 text-blue-700 border border-blue-100 px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap">
+                <span className="w-1.5 h-1.5 bg-blue-500 rounded-full"></span>
+                Stall Stock Only
+              </div>
+            )}
           </div>
 
           {/* Product Grid */}
@@ -352,6 +369,7 @@ export default function StallBillingPage() {
                     </button>
                   </div>
 
+                  {/* Quantity + Actual Price row */}
                   <div className="flex items-center justify-between">
                     {/* Quantity Controls */}
                     <div className="flex items-center space-x-2.5 bg-white border border-slate-200 rounded-lg p-0.5">
@@ -370,18 +388,31 @@ export default function StallBillingPage() {
                       </button>
                     </div>
 
-                    {/* Price Override Input */}
-                    <div className="flex items-center space-x-1">
-                      <span className="text-[10px] text-slate-400 font-bold uppercase">Price:</span>
-                      <div className="relative">
-                        <span className="absolute left-1.5 top-1.5 text-[10px] font-bold text-slate-400">₹</span>
-                        <input 
-                          type="number"
-                          value={item.price}
-                          onChange={(e) => handlePriceChange(item.productId, e.target.value)}
-                          className="w-16 pl-4 pr-1 py-1 border border-slate-200 rounded-md text-xs font-bold text-slate-800 text-right focus:outline-none focus:ring-1 focus:ring-rose-500"
-                        />
+                    {/* Actual Price Input — user types selling price; MRP shown as reference */}
+                    <div className="flex flex-col items-end gap-0.5">
+                      {/* MRP reference (greyed out) */}
+                      {item.mrp !== undefined && item.mrp !== item.price && (
+                        <span className="text-[9px] text-slate-400 line-through">MRP ₹{item.mrp}</span>
+                      )}
+                      <div className="flex items-center space-x-1">
+                        <span className="text-[10px] text-slate-500 font-bold">Price:</span>
+                        <div className="relative">
+                          <span className="absolute left-1.5 top-1.5 text-[10px] font-bold text-slate-400">₹</span>
+                          <input 
+                            type="number"
+                            min="0"
+                            value={item.price}
+                            onChange={(e) => handlePriceChange(item.productId, e.target.value)}
+                            className="w-16 pl-4 pr-1 py-1 border border-rose-200 rounded-md text-xs font-bold text-rose-700 text-right focus:outline-none focus:ring-1 focus:ring-rose-500 bg-rose-50"
+                          />
+                        </div>
                       </div>
+                      {/* Per-item discount badge */}
+                      {item.mrp > item.price && (
+                        <span className="text-[9px] font-bold text-emerald-600">
+                          − ₹{((item.mrp - item.price) * item.quantity).toLocaleString()} off
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -391,29 +422,16 @@ export default function StallBillingPage() {
 
           {/* Checkout Panel Footer */}
           <div className="p-4 border-t border-slate-200 bg-slate-50/50 space-y-4 shrink-0">
-            {/* Discount field */}
-            <div className="flex justify-between items-center text-xs font-bold text-slate-700">
-              <span>Discount Amount (₹)</span>
-              <input 
-                type="number"
-                min="0"
-                value={discountAmount}
-                onChange={(e) => setDiscountAmount(e.target.value)}
-                placeholder="0"
-                className="w-24 px-2.5 py-1.5 border border-slate-205 rounded-xl text-right font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-rose-500"
-              />
-            </div>
-
-            {/* Totals Breakdown */}
+            {/* Totals Breakdown — discount is auto-computed from MRP vs actual price */}
             <div className="space-y-1.5 text-xs">
               <div className="flex justify-between items-center text-slate-600">
-                <span className="font-semibold">Subtotal</span>
-                <span className="font-bold text-slate-800">₹{totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                <span className="font-semibold">MRP Total</span>
+                <span className="font-bold text-slate-500">₹{mrpTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
               </div>
-              {parseFloat(discountAmount) > 0 && (
+              {autoDiscount > 0 && (
                 <div className="flex justify-between items-center text-emerald-700">
-                  <span className="font-semibold">Discount Applied</span>
-                  <span className="font-bold">− ₹{parseFloat(discountAmount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  <span className="font-semibold">Discount (auto)</span>
+                  <span className="font-bold">− ₹{autoDiscount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                 </div>
               )}
               <div className="flex justify-between items-center pt-1.5 border-t border-slate-200">
