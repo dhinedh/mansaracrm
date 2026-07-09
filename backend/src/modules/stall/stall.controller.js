@@ -96,7 +96,7 @@ exports.getSessionById = async (req, res, next) => {
   }
 };
 
-// Configure Products and Stock (Stage 2 Draft)
+// Configure Products and Stock (Stage 2 Draft & Live Updates)
 exports.updateSessionStock = async (req, res, next) => {
   try {
     const { id } = req.params;
@@ -106,23 +106,45 @@ exports.updateSessionStock = async (req, res, next) => {
     if (!session) {
       return res.status(404).json({ success: false, message: 'Stall session not found.' });
     }
-    if (session.stockStatus === 'FROZEN') {
-      return res.status(400).json({ success: false, message: 'Cannot edit stock. Stock list is frozen.' });
+    if (session.status === 'CLOSED') {
+      return res.status(400).json({ success: false, message: 'Cannot edit stock of a closed session.' });
     }
 
-    const mappedProducts = (products || []).map(p => ({
-      productId: p.productId,
-      productName: p.productName,
-      initialStock: parseInt(p.initialStock || 0),
-      currentStock: parseInt(p.initialStock || 0),
-      price: parseFloat(p.price || 0)
-    }));
+    const existingProducts = session.products || [];
+    const mappedProducts = (products || []).map(p => {
+      const existing = existingProducts.find(ep => ep.productId.toString() === p.productId.toString());
+      const initialStock = parseInt(p.initialStock || 0);
+      
+      let currentStock = initialStock;
+      if (existing) {
+        const diff = initialStock - existing.initialStock;
+        currentStock = Math.max(0, existing.currentStock + diff);
+      }
+      
+      return {
+        productId: p.productId,
+        productName: p.productName,
+        initialStock,
+        currentStock,
+        price: parseFloat(p.price || 0)
+      };
+    });
+
+    // Safety guard: Find any existing product that has sales (initialStock > currentStock)
+    // but is missing in the incoming products list, and preserve it.
+    existingProducts.forEach(ep => {
+      const isMissing = !mappedProducts.some(mp => mp.productId.toString() === ep.productId.toString());
+      const hasSales = ep.initialStock > ep.currentStock;
+      if (isMissing && hasSales) {
+        mappedProducts.push(ep);
+      }
+    });
 
     const updated = await prisma.stallSession.update({
       where: { id },
       data: {
         products: mappedProducts,
-        stage: 2
+        stage: session.stage || 2
       }
     });
 

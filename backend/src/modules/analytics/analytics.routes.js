@@ -12,4 +12,11 @@ router.get('/dealer', requireRole('DEALER'), analyticsController.getDealerAnalyt
 router.get('/consolidated-report', analyticsController.getConsolidatedReport);
 router.get('/consolidated-report/pdf', analyticsController.exportConsolidatedReportPdf);
 
+// Saved Reports endpoints
+router.post('/saved-reports',             analyticsController.createSavedReport);
+router.get('/saved-reports',              analyticsController.getSavedReports);
+router.get('/saved-reports/:id',          analyticsController.getSavedReportById);
+router.delete('/saved-reports/:id',       analyticsController.deleteSavedReport);
+router.get('/saved-reports/:id/pdf',      analyticsController.exportSavedReportPdf);
+
 module.exports = router;

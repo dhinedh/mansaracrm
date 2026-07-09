@@ -85,3 +85,38 @@ exports.uploadBill = async (req, res, next) => {
     next(error);
   }
 };
+
+// PUT /expenses/:id/status
+exports.updateExpenseStatus = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { status, remarks } = req.body;
+
+    if (!['APPROVED', 'REJECTED'].includes(status)) {
+      return res.status(400).json({ success: false, message: 'Invalid status. Must be APPROVED or REJECTED.' });
+    }
+
+    // Verify user role
+    const isStaff = req.user.role === 'ADMIN' || (req.user.role !== 'DEALER' && ['ADMIN', 'B2B_MANAGER', 'FINANCE_OFFICER'].includes(req.user.staffRole));
+    if (!isStaff) {
+      return res.status(403).json({ success: false, message: 'Forbidden. Insufficient permissions.' });
+    }
+
+    const expense = await prisma.expense.findUnique({ where: { id } });
+    if (!expense) return res.status(404).json({ success: false, message: 'Expense not found.' });
+
+    const updated = await prisma.expense.update({
+      where: { id },
+      data: {
+        status,
+        rejectionRemarks: status === 'REJECTED' ? (remarks || '') : '',
+        approvedBy: status === 'APPROVED' ? req.user.id : null,
+        approvedAt: status === 'APPROVED' ? new Date() : null
+      }
+    });
+
+    res.json({ success: true, message: `Expense request ${status.toLowerCase()} successfully.`, data: updated });
+  } catch (error) {
+    next(error);
+  }
+};

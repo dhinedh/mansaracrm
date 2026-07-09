@@ -25,7 +25,7 @@ import {
   CheckCircle,
   Briefcase
 } from 'lucide-react';
-import { BACKEND_URL } from '../../store/authStore';
+import { useAuthStore, BACKEND_URL } from '../../store/authStore';
 import axiosInstance from 'axios';
 
 // Category Styling Configuration
@@ -61,11 +61,17 @@ function StatCard({ title, value, sub, icon: Icon, color = 'emerald' }) {
 }
 
 export default function ExpensesPage() {
+  const { user } = useAuthStore();
   const [expenses, setExpenses] = useState([]);
   const [stores, setStores] = useState([]);
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  // Rejection modal states
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectingExpenseId, setRejectingExpenseId] = useState(null);
+  const [rejectionNotes, setRejectionNotes] = useState('');
 
   // Filters State
   const [search, setSearch] = useState('');
@@ -169,6 +175,18 @@ export default function ExpensesPage() {
       alert(err.response?.data?.message || 'Failed to record expense');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleUpdateStatus = async (id, status, remarks = '') => {
+    try {
+      await axiosInstance.put(`/expenses/${id}/status`, { status, remarks });
+      await fetchExpenses();
+      if (selectedExpense?.id === id) {
+        setSelectedExpense(prev => ({ ...prev, status, rejectionRemarks: status === 'REJECTED' ? remarks : '' }));
+      }
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to update status.');
     }
   };
 
@@ -437,12 +455,20 @@ export default function ExpensesPage() {
                       <th className="p-4">Category</th>
                       <th className="p-4 text-center">Date</th>
                       <th className="p-4">Reference</th>
+                      <th className="p-4 text-center">Status</th>
                       <th className="p-4 text-right">Amount</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filteredExpenses.map((exp) => {
                       const cfg = CATEGORY_MAP[exp.category] || CATEGORY_MAP.OTHERS;
+                      const statusVal = exp.status || 'SUBMITTED';
+                      const statusBadge = {
+                        SUBMITTED: 'bg-blue-50 text-blue-700 border-blue-100',
+                        APPROVED: 'bg-emerald-50 text-emerald-700 border-emerald-100',
+                        REJECTED: 'bg-rose-50 text-rose-700 border-rose-100'
+                      }[statusVal];
+
                       return (
                         <tr 
                           key={exp.id} 
@@ -477,6 +503,11 @@ export default function ExpensesPage() {
                             {!exp.store && !exp.stallSession && (
                               <span className="text-slate-455 italic text-[11px]">General Corporate</span>
                             )}
+                          </td>
+                          <td className="p-4 text-center">
+                            <span className={`inline-flex px-2.5 py-0.5 rounded-full font-black text-[9px] uppercase border ${statusBadge}`}>
+                              {statusVal}
+                            </span>
                           </td>
                           <td className="p-4 text-right font-black text-slate-800 text-sm">₹{exp.amount.toLocaleString()}</td>
                         </tr>
@@ -518,6 +549,25 @@ export default function ExpensesPage() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
+                  <span className="text-slate-400 font-bold block uppercase text-[9px]">Status</span>
+                  <span className={`inline-flex px-2 py-0.5 rounded-full font-black text-[9px] uppercase border mt-1 ${{
+                    SUBMITTED: 'bg-blue-50 text-blue-700 border-blue-100',
+                    APPROVED: 'bg-emerald-50 text-emerald-700 border-emerald-100',
+                    REJECTED: 'bg-rose-50 text-rose-700 border-rose-100'
+                  }[selectedExpense.status || 'SUBMITTED']}`}>
+                    {selectedExpense.status || 'SUBMITTED'}
+                  </span>
+                </div>
+                {selectedExpense.status === 'REJECTED' && (
+                  <div>
+                    <span className="text-slate-400 font-bold block uppercase text-[9px]">Rejection Reason</span>
+                    <strong className="text-rose-600 block mt-0.5">{selectedExpense.rejectionRemarks || 'No remarks provided'}</strong>
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
                   <span className="text-slate-400 font-bold block uppercase text-[9px]">Date</span>
                   <strong className="text-slate-700 block mt-0.5">{new Date(selectedExpense.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' })}</strong>
                 </div>
@@ -533,6 +583,30 @@ export default function ExpensesPage() {
                 <div>
                   <span className="text-slate-400 font-bold block uppercase text-[9px]">Notes</span>
                   <p className="text-slate-700 bg-slate-50 p-3 rounded-2xl border border-slate-100 mt-1 whitespace-pre-line leading-relaxed font-semibold">{selectedExpense.notes}</p>
+                </div>
+              )}
+
+              {/* Manager Actions */}
+              {['ADMIN', 'B2B_MANAGER', 'FINANCE_OFFICER'].includes(user?.staffRole || user?.role) && (selectedExpense.status || 'SUBMITTED') === 'SUBMITTED' && (
+                <div className="flex gap-2 pt-3 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => handleUpdateStatus(selectedExpense.id, 'APPROVED')}
+                    className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 rounded-xl text-center cursor-pointer transition text-[11px]"
+                  >
+                    Approve Claim
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRejectingExpenseId(selectedExpense.id);
+                      setRejectionNotes('');
+                      setShowRejectModal(true);
+                    }}
+                    className="flex-1 bg-rose-600 hover:bg-rose-700 text-white font-bold py-2 rounded-xl text-center cursor-pointer transition text-[11px]"
+                  >
+                    Reject Claim
+                  </button>
                 </div>
               )}
 
@@ -732,6 +806,52 @@ export default function ExpensesPage() {
               className="max-w-full max-h-[80vh] object-contain rounded-2xl"
               onClick={e => e.stopPropagation()} // Prevent closing
             />
+          </div>
+        </div>
+      )}
+
+      {/* Rejection Remarks Modal */}
+      {showRejectModal && (
+        <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-3xl w-full max-w-md p-6 shadow-xl border border-slate-150 relative">
+            <button 
+              onClick={() => setShowRejectModal(false)}
+              className="absolute right-4 top-4 p-1 text-slate-400 hover:text-slate-600 rounded-full transition"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider mb-3">Reject Expense Claim</h3>
+            <p className="text-xs text-slate-500 mb-4 font-medium">Please provide the remarks explaining why this expense claim is being rejected.</p>
+            <textarea
+              value={rejectionNotes}
+              onChange={e => setRejectionNotes(e.target.value)}
+              placeholder="Enter rejection remarks..."
+              rows={4}
+              className="w-full p-3 bg-slate-50 border border-slate-200 focus:border-rose-500 rounded-2xl focus:outline-none font-medium text-slate-700 text-xs mb-4"
+            />
+            <div className="flex gap-3 justify-end">
+              <button
+                type="button"
+                onClick={() => setShowRejectModal(false)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-xl text-xs transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!rejectionNotes.trim()) {
+                    alert('Rejection remarks are required.');
+                    return;
+                  }
+                  handleUpdateStatus(rejectingExpenseId, 'REJECTED', rejectionNotes);
+                  setShowRejectModal(false);
+                }}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-xs transition cursor-pointer"
+              >
+                Reject Claim
+              </button>
+            </div>
           </div>
         </div>
       )}

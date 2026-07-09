@@ -383,6 +383,10 @@ const StoreSchema = new Schema({
   revisitDate: { type: Date },
   lastVisitDate: { type: Date },
   isActive: { type: Boolean, default: true },
+  tabletopStands: { type: Number, default: 0 },
+  hangerStands: { type: Number, default: 0 },
+  kitNotes: { type: String, default: '' },
+  initialKitAllocated: { type: Boolean, default: false },
   // B2C Stock Configuration (freeze workflow)
   stockStatus: { type: String, enum: ['DRAFT', 'FROZEN'], default: 'DRAFT' },
   stockConfig: [{
@@ -625,7 +629,13 @@ const VisitSchema = new Schema({
   paymentsCollected: { type: Number, default: 0 },
   paymentMethod: { type: String, enum: ['CASH', 'ONLINE', 'NONE'], default: 'NONE' },
   newInvoiceId: { type: Schema.Types.ObjectId, ref: 'Invoice' },
-  revisitDate: { type: Date }
+  revisitDate: { type: Date },
+  returns: [{
+    productId: { type: Schema.Types.ObjectId, ref: 'Product' },
+    productName: { type: String },
+    quantity: { type: Number },
+    reason: { type: String }
+  }]
 }, {
   timestamps: true,
   toJSON: { virtuals: true },
@@ -775,7 +785,11 @@ const ExpenseSchema = new Schema({
   storeId: { type: Schema.Types.ObjectId, ref: 'Store', index: true },
   stallSessionId: { type: Schema.Types.ObjectId, ref: 'StallSession', index: true },
   billUrl: String,
-  notes: String
+  notes: String,
+  status: { type: String, enum: ['SUBMITTED', 'APPROVED', 'REJECTED'], default: 'SUBMITTED' },
+  rejectionRemarks: { type: String, default: '' },
+  approvedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+  approvedAt: { type: Date }
 }, {
   timestamps: true,
   toJSON: { virtuals: true },
@@ -1023,6 +1037,28 @@ const Sample = mongoose.model('Sample', SampleSchema, 'samples');
 const Return = mongoose.model('Return', ReturnSchema, 'returns');
 const StockRequest = mongoose.model('StockRequest', StockRequestSchema, 'stock_requests');
 const ComplaintTicket = mongoose.model('ComplaintTicket', ComplaintTicketSchema, 'complaint_tickets');
+// SavedReport Schema
+const SavedReportSchema = new Schema({
+  title: { type: String, required: true },
+  type: { type: String, required: true },
+  parameters: { type: Schema.Types.Mixed },
+  data: { type: Schema.Types.Mixed },
+  createdBy: { type: Schema.Types.ObjectId, ref: 'User' },
+  creatorName: { type: String, default: 'Admin' }
+}, {
+  timestamps: true,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
+});
+
+SavedReportSchema.virtual('creator', {
+  ref: 'User',
+  localField: 'createdBy',
+  foreignField: '_id',
+  justOne: true
+});
+
+const SavedReport = mongoose.model('SavedReport', SavedReportSchema, 'saved_reports');
 const Expense = mongoose.model('Expense', ExpenseSchema, 'expenses');
 const OfferItem = mongoose.model('OfferItem', OfferItemSchema, 'offer_items');
 const OfferDistribution = mongoose.model('OfferDistribution', OfferDistributionSchema, 'offer_distributions');
@@ -1784,6 +1820,7 @@ const prisma = {
   expense: new PrismaCollectionWrapper('Expense'),
   offerItem: new PrismaCollectionWrapper('OfferItem'),
   offerDistribution: new PrismaCollectionWrapper('OfferDistribution'),
+  savedReport: new PrismaCollectionWrapper('SavedReport'),
 
   $transaction: async (fn) => {
     // Run transactions sequentially on standalone local MongoDB instances

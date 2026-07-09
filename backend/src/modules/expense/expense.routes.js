@@ -12,5 +12,6 @@ router.use(verifyToken);
 router.post('/', expenseController.createExpense);
 router.get('/', expenseController.getExpenses);
 router.post('/upload-bill', upload.single('bill'), expenseController.uploadBill);
+router.put('/:id/status', expenseController.updateExpenseStatus);
 
 module.exports = router;

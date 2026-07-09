@@ -882,3 +882,140 @@ exports.exportConsolidatedReportPdf = async (req, res, next) => {
     next(error);
   }
 };
+
+// POST /analytics/saved-reports
+exports.createSavedReport = async (req, res, next) => {
+  try {
+    const { title, type, parameters, data } = req.body;
+    if (!title || !type || !data) {
+      return res.status(400).json({ success: false, message: 'Title, type, and data are required.' });
+    }
+    const saved = await prisma.savedReport.create({
+      data: {
+        title,
+        type,
+        parameters: parameters || {},
+        data,
+        createdBy: req.user.id,
+        creatorName: req.user.name || req.user.email || 'Admin'
+      }
+    });
+    res.status(201).json({ success: true, message: 'Report saved successfully.', data: saved });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// GET /analytics/saved-reports
+exports.getSavedReports = async (req, res, next) => {
+  try {
+    const { type } = req.query;
+    const where = {};
+    if (type) where.type = type;
+
+    const reports = await prisma.savedReport.findMany({
+      where,
+      orderBy: { createdAt: 'desc' }
+    });
+    res.json({ success: true, data: reports });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// GET /analytics/saved-reports/:id
+exports.getSavedReportById = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const report = await prisma.savedReport.findUnique({ where: { id } });
+    if (!report) return res.status(404).json({ success: false, message: 'Saved report not found.' });
+    res.json({ success: true, data: report });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// DELETE /analytics/saved-reports/:id
+exports.deleteSavedReport = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const report = await prisma.savedReport.findUnique({ where: { id } });
+    if (!report) return res.status(404).json({ success: false, message: 'Saved report not found.' });
+
+    await prisma.savedReport.delete({ where: { id } });
+    res.json({ success: true, message: 'Saved report deleted successfully.' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// GET /analytics/saved-reports/:id/pdf
+exports.exportSavedReportPdf = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const report = await prisma.savedReport.findUnique({ where: { id } });
+    if (!report) return res.status(404).json({ success: false, message: 'Saved report not found.' });
+
+    let htmlContent = '';
+    if (report.type === 'CONSOLIDATED') {
+      const startDate = report.parameters?.startDate || report.createdAt;
+      const endDate = report.parameters?.endDate || report.createdAt;
+      htmlContent = buildReportHtml(report.data, { name: report.creatorName }, startDate, endDate);
+    } else {
+      htmlContent = buildGenericPdfHtml(report);
+    }
+
+    const pdfBuffer = await generateInvoicePdf(htmlContent);
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename=saved-report-${id}.pdf`);
+    res.send(pdfBuffer);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Helper for generic tabular PDF rendering
+const buildGenericPdfHtml = (report) => {
+  const headers = report.data.headers || [];
+  const rows = report.data.rows || [];
+
+  const ths = headers.map(h => `<th style="text-align: left; padding: 10px; background: #f1f5f9; color: #475569; font-weight: bold; border-bottom: 2px solid #cbd5e1; font-size: 10px; text-transform: uppercase;">${h}</th>`).join('');
+  const trs = rows.map(row => `
+    <tr style="border-bottom: 1px solid #f1f5f9;">
+      ${row.map(val => `<td style="padding: 10px; color: #334155; font-size: 11px;">${val !== null && val !== undefined ? val : ''}</td>`).join('')}
+    </tr>
+  `).join('');
+
+  return `
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8">
+      <title>${report.title}</title>
+      <style>
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap');
+        body { font-family: 'Outfit', sans-serif; color: #1e293b; font-size: 11px; margin: 0; padding: 20px; }
+        .header { background: #f8fafc; border: 1px solid #e2e8f0; padding: 20px; border-radius: 12px; margin-bottom: 20px; }
+        .header h1 { margin: 0 0 5px 0; font-size: 18px; color: #0f172a; font-weight: 800; }
+        .header p { margin: 0; color: #64748b; font-size: 10px; font-weight: 600; }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <h1>${report.title}</h1>
+        <p>Report Type: ${report.type} | Date Generated: ${new Date(report.createdAt).toLocaleDateString('en-IN')} | Saved By: ${report.creatorName}</p>
+      </div>
+      <table>
+        <thead>
+          <tr>${ths}</tr>
+        </thead>
+        <tbody>
+          ${trs}
+        </tbody>
+      </table>
+    </body>
+    </html>
+  `;
+};

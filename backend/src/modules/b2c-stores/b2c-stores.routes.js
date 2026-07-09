@@ -36,6 +36,7 @@ router.put('/:id/stock',            ctrl.updateStoreStock);
 router.post('/:id/stock/freeze',    ctrl.freezeStoreStock);
 router.post('/:id/stock/unfreeze',  ctrl.unfreezeStoreStock);
 router.post('/:id/stock/add',       ctrl.addStoreStock);
+router.put('/:id/stock/audit',     ctrl.auditStoreStock);
 
 // ─── Visits ───────────────────────────────────────────────────────────────────
 router.get('/:id/visits',                   ctrl.getStoreVisits);

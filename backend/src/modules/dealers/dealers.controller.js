@@ -127,7 +127,7 @@ exports.updateDealer = async (req, res, next) => {
       // Gather all fields sent in request body that belong to the Dealer schema dynamically
       const updateData = {};
       const schemaPaths = prisma.dealer.model.schema.paths;
-      
+
       for (const path in schemaPaths) {
         if (['_id', '__v', 'userId', 'createdAt', 'updatedAt'].includes(path)) continue;
         if (req.body[path] !== undefined) {
@@ -222,7 +222,7 @@ exports.approveDealer = async (req, res, next) => {
           userId: dealer.userId,
           type: 'ACCOUNT_UPDATE',
           title: `Dealer Account ${status === 'APPROVED' ? 'Approved' : 'Rejected'}`,
-          message: status === 'APPROVED' 
+          message: status === 'APPROVED'
             ? `Congratulations! Your dealer account with Mansara Foods has been approved. You can now log in and build invoices.`
             : `Your dealer application status: Rejected. Reason: ${notes || 'No reason provided.'}`,
           metadata: { status }
@@ -455,7 +455,7 @@ exports.checkZoneConflicts = async (req, res, next) => {
     if (!zones) {
       return res.json({ success: true, conflicts: [] });
     }
-    
+
     // Normalize zones to array
     const queryZones = Array.isArray(zones) ? zones : [zones];
     if (queryZones.length === 0) {

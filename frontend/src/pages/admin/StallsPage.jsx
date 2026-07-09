@@ -23,7 +23,8 @@ import {
   Check,
   Image,
   CreditCard,
-  Search
+  Search,
+  Save
 } from 'lucide-react';
 import { BACKEND_URL } from '../../store/authStore';
 
@@ -132,13 +133,15 @@ export default function StallsPage() {
       setExpenses({ store: 0, travel: 0, food: 0, hotel: 0, offer: 0, billUrl: '' });
     }
 
-    // Initialize stock draft from existing configured products if in DRAFT mode
-    if (session.products && session.stockStatus !== 'FROZEN') {
+    // Initialize stock draft from existing configured products
+    if (session.products) {
       const draft = {};
       session.products.forEach(p => {
         draft[p.productId] = p.initialStock;
       });
       setStockDraft(draft);
+    } else {
+      setStockDraft({});
     }
   };
 
@@ -183,10 +186,17 @@ export default function StallsPage() {
       });
 
       setSelectedSession(res.data.data);
-      alert('Stock configuration draft saved successfully!');
+      if (res.data.data.products) {
+        const newDraft = {};
+        res.data.data.products.forEach(p => {
+          newDraft[p.productId] = p.initialStock;
+        });
+        setStockDraft(newDraft);
+      }
+      alert('Stock configuration updated successfully!');
       fetchSessions();
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to save stock draft');
+      alert(err.response?.data?.message || 'Failed to save stock');
     } finally {
       setSavingExpenses(false);
     }
@@ -215,6 +225,13 @@ export default function StallsPage() {
       // Then freeze
       const res = await axios.post(`/stalls/sessions/${selectedSession.id}/freeze`);
       setSelectedSession(res.data.data);
+      if (res.data.data.products) {
+        const newDraft = {};
+        res.data.data.products.forEach(p => {
+          newDraft[p.productId] = p.initialStock;
+        });
+        setStockDraft(newDraft);
+      }
       setWorkflowTab(3); // Advance to Stage 3 sales
       fetchSessions();
       alert('Stock list frozen successfully! Stall Billing Terminal is now active.');
@@ -603,9 +620,9 @@ export default function StallsPage() {
                       <p className="text-slate-500 text-xs mt-0.5">Configure which products are issued to the stall and freeze the list to activate billing.</p>
                     </div>
                     {selectedSession.stockStatus === 'FROZEN' ? (
-                      <span className="inline-flex items-center gap-1 text-xs font-bold text-rose-600 bg-rose-50 border border-rose-100 px-3 py-1.5 rounded-xl">
-                        <Lock className="w-3.5 h-3.5" />
-                        Stock Configuration Frozen
+                      <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-600 bg-emerald-50 border border-emerald-100 px-3 py-1.5 rounded-xl">
+                        <Activity className="w-3.5 h-3.5 animate-pulse" />
+                        Live Billing Active
                       </span>
                     ) : (
                       <span className="inline-flex items-center gap-1 text-xs font-bold text-yellow-600 bg-yellow-50 border border-yellow-100 px-3 py-1.5 rounded-xl">
@@ -615,143 +632,112 @@ export default function StallsPage() {
                     )}
                   </div>
 
-                  {selectedSession.stockStatus === 'FROZEN' ? (
-                    <div className="bg-slate-50 border border-slate-100 rounded-2xl p-5 space-y-4">
-                      <div className="flex justify-between items-center bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-rose-50 rounded-full flex items-center justify-center">
-                            <Lock className="w-5 h-5 text-rose-500" />
-                          </div>
-                          <div>
-                            <strong className="text-slate-800 text-sm font-bold block">Frozen Product Catalog</strong>
-                            <span className="text-slate-500 text-xs">Total Products Configured: {selectedSession.products?.length || 0}</span>
-                          </div>
-                        </div>
-                        {selectedSession.status === 'ACTIVE' && (
-                          <button
-                            onClick={handleUnfreezeStock}
-                            disabled={savingExpenses}
-                            className="bg-yellow-500 hover:bg-yellow-600 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1 transition shadow-sm cursor-pointer"
-                          >
-                            {savingExpenses ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Unlock className="w-3.5 h-3.5" />}
-                            Unfreeze to Edit Config
-                          </button>
-                        )}
+                  <div className="space-y-4">
+                    {/* Search and draft tools */}
+                    <div className="flex flex-col sm:flex-row gap-3 justify-between items-stretch sm:items-center bg-slate-50 border border-slate-100 rounded-xl p-3">
+                      <div className="relative flex-1">
+                        <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                        <input
+                          type="text"
+                          placeholder="Search products by name or SKU..."
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-rose-500 bg-white"
+                        />
                       </div>
-
-                      <div className="border border-slate-100 rounded-xl overflow-hidden bg-white shadow-sm">
-                        <table className="w-full text-left text-xs border-collapse">
-                          <thead>
-                            <tr className="bg-slate-50 text-slate-600 font-bold uppercase border-b border-slate-100">
-                              <th className="p-3">Product Name</th>
-                              <th className="p-3 text-center">Unit Price (₹)</th>
-                              <th className="p-3 text-center">Initial Issued Stock</th>
-                              <th className="p-3 text-center">Current Remaining Stock</th>
-                              <th className="p-3 text-right">Cost Value</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {(selectedSession.products || []).map((p) => (
-                              <tr key={p.productId} className="border-b border-slate-50 hover:bg-slate-50/50">
-                                <td className="p-3 font-semibold text-slate-700">{p.productName}</td>
-                                <td className="p-3 text-center font-bold text-slate-850">₹{p.price}</td>
-                                <td className="p-3 text-center font-bold text-slate-850">{p.initialStock}</td>
-                                <td className={`p-3 text-center font-bold ${p.currentStock <= 5 ? 'text-rose-600 bg-rose-50/50' : 'text-slate-850'}`}>{p.currentStock}</td>
-                                <td className="p-3 text-right font-bold text-slate-850">₹{(p.initialStock * p.price).toLocaleString()}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      {/* Search and draft tools */}
-                      <div className="flex flex-col sm:flex-row gap-3 justify-between items-stretch sm:items-center bg-slate-50 border border-slate-100 rounded-xl p-3">
-                        <div className="relative flex-1">
-                          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
-                          <input
-                            type="text"
-                            placeholder="Search products by name or SKU..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-rose-500 bg-white"
-                          />
-                        </div>
-                        <div className="flex gap-2 shrink-0">
+                      <div className="flex gap-2 shrink-0">
+                        {selectedSession.stockStatus === 'FROZEN' ? (
                           <button
                             onClick={handleSaveStockDraft}
                             disabled={savingExpenses}
-                            className="bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1 transition shadow-sm cursor-pointer"
+                            className="bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 transition shadow-sm cursor-pointer"
                           >
-                            {savingExpenses && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                            Save Draft
+                            {savingExpenses ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                            Update Live Stock
                           </button>
-                          <button
-                            onClick={handleFreezeStock}
-                            disabled={savingExpenses}
-                            className="bg-rose-500 hover:bg-rose-600 disabled:opacity-50 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1 transition shadow-sm cursor-pointer"
-                          >
-                            {savingExpenses && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                            Freeze & Activate Billing
-                          </button>
-                        </div>
+                        ) : (
+                          <>
+                            <button
+                              onClick={handleSaveStockDraft}
+                              disabled={savingExpenses}
+                              className="bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1 transition shadow-sm cursor-pointer"
+                            >
+                              {savingExpenses && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                              Save Draft
+                            </button>
+                            <button
+                              onClick={handleFreezeStock}
+                              disabled={savingExpenses}
+                              className="bg-rose-500 hover:bg-rose-600 disabled:opacity-50 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1 transition shadow-sm cursor-pointer"
+                            >
+                              {savingExpenses && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                              Freeze & Activate Billing
+                            </button>
+                          </>
+                        )}
                       </div>
-
-                      {/* Products setup list */}
-                      {productsLoading ? (
-                        <div className="flex justify-center items-center py-10">
-                          <Loader2 className="w-8 h-8 text-rose-500 animate-spin" />
-                        </div>
-                      ) : (
-                        <div className="border border-slate-200 rounded-xl overflow-hidden shadow-sm max-h-[350px] overflow-y-auto">
-                          <table className="w-full text-left text-xs border-collapse">
-                            <thead>
-                              <tr className="bg-slate-50 text-slate-600 font-bold uppercase border-b border-slate-200 sticky top-0 z-10">
-                                <th className="p-3">Product Name</th>
-                                <th className="p-3">SKU</th>
-                                <th className="p-3 text-center">Price / MRP</th>
-                                <th className="p-3 text-center w-36">Initial Stock Issued</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {filteredProducts.map((p) => {
-                                const val = stockDraft[p.id] || '';
-                                return (
-                                  <tr key={p.id} className="border-b border-slate-100 hover:bg-slate-50/50">
-                                    <td className="p-3 font-semibold text-slate-700">{p.name}</td>
-                                    <td className="p-3 text-slate-500 font-mono">{p.sku}</td>
-                                    <td className="p-3 text-center font-bold text-slate-750">₹{p.mrp || p.price}</td>
-                                    <td className="p-3 text-center">
-                                      <input
-                                        type="number"
-                                        min="0"
-                                        placeholder="0"
-                                        value={val}
-                                        onChange={(e) => {
-                                          const v = e.target.value;
-                                          setStockDraft(prev => {
-                                            const updated = { ...prev };
-                                            if (v === '' || parseInt(v) <= 0) {
-                                              delete updated[p.id];
-                                            } else {
-                                              updated[p.id] = parseInt(v);
-                                            }
-                                            return updated;
-                                          });
-                                        }}
-                                        className="w-24 text-center border border-slate-200 rounded-lg py-1 px-1.5 focus:outline-none focus:ring-1 focus:ring-rose-500 font-bold text-slate-800"
-                                      />
-                                    </td>
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
-                        </div>
-                      )}
                     </div>
-                  )}
+
+                    {/* Products setup list */}
+                    {productsLoading ? (
+                      <div className="flex justify-center items-center py-10">
+                        <Loader2 className="w-8 h-8 text-rose-500 animate-spin" />
+                      </div>
+                    ) : (
+                      <div className="border border-slate-200 rounded-xl overflow-hidden shadow-sm max-h-[350px] overflow-y-auto">
+                        <table className="w-full text-left text-xs border-collapse">
+                          <thead>
+                            <tr className="bg-slate-50 text-slate-600 font-bold uppercase border-b border-slate-200 sticky top-0 z-10">
+                              <th className="p-3">Product Name</th>
+                              <th className="p-3">SKU</th>
+                              <th className="p-3 text-center">Price / MRP</th>
+                              {selectedSession.stockStatus === 'FROZEN' && <th className="p-3 text-center">Remaining Stock</th>}
+                              <th className="p-3 text-center w-36">Initial Stock Issued</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {filteredProducts.map((p) => {
+                              const val = stockDraft[p.id] || '';
+                              const existing = selectedSession.products?.find(ep => ep.productId.toString() === p.id.toString());
+                              return (
+                                <tr key={p.id} className="border-b border-slate-100 hover:bg-slate-50/50">
+                                  <td className="p-3 font-semibold text-slate-700">{p.name}</td>
+                                  <td className="p-3 text-slate-500 font-mono">{p.sku}</td>
+                                  <td className="p-3 text-center font-bold text-slate-750">₹{p.mrp || p.price}</td>
+                                  {selectedSession.stockStatus === 'FROZEN' && (
+                                    <td className={`p-3 text-center font-bold ${existing && existing.currentStock <= 5 ? 'text-rose-600 bg-rose-50/50' : 'text-slate-500'}`}>
+                                      {existing ? existing.currentStock : '—'}
+                                    </td>
+                                  )}
+                                  <td className="p-3 text-center">
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      placeholder="0"
+                                      value={val}
+                                      onChange={(e) => {
+                                        const v = e.target.value;
+                                        setStockDraft(prev => {
+                                          const updated = { ...prev };
+                                          if (v === '' || parseInt(v) <= 0) {
+                                            delete updated[p.id];
+                                          } else {
+                                            updated[p.id] = parseInt(v);
+                                          }
+                                          return updated;
+                                        });
+                                      }}
+                                      className="w-24 text-center border border-slate-200 rounded-lg py-1 px-1.5 focus:outline-none focus:ring-1 focus:ring-rose-500 font-bold text-slate-800"
+                                    />
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
 

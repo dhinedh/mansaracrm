@@ -68,7 +68,8 @@ exports.createB2CStore = async (req, res, next) => {
     const {
       name, ownerName, ownerPhone, phone, gstNumber,
       address, city, state, pincode, zone,
-      classification, initialInvestment, notes
+      classification, initialInvestment, notes,
+      tabletopStands, hangerStands, kitNotes
     } = req.body;
 
     if (!name || !address) {
@@ -94,7 +95,11 @@ exports.createB2CStore = async (req, res, next) => {
         photos: [],
         stockStatus: 'DRAFT',
         stockConfig: [],
-        isActive: true
+        isActive: true,
+        tabletopStands: parseInt(tabletopStands || 0),
+        hangerStands: parseInt(hangerStands || 0),
+        kitNotes: kitNotes || '',
+        initialKitAllocated: (parseInt(tabletopStands || 0) > 0 || parseInt(hangerStands || 0) > 0)
       }
     });
 
@@ -150,7 +155,8 @@ exports.updateB2CStore = async (req, res, next) => {
     const {
       name, ownerName, ownerPhone, phone, gstNumber,
       address, city, state, pincode, zone,
-      classification, initialInvestment, notes, revisitDate
+      classification, initialInvestment, notes, revisitDate,
+      tabletopStands, hangerStands, kitNotes, initialKitAllocated
     } = req.body;
 
     const store = await prisma.store.findUnique({ where: { id } });
@@ -172,7 +178,11 @@ exports.updateB2CStore = async (req, res, next) => {
         classification: classification !== undefined ? classification : store.classification,
         initialInvestment: initialInvestment !== undefined ? parseFloat(initialInvestment) : store.initialInvestment,
         notes: notes !== undefined ? notes : store.notes,
-        revisitDate: revisitDate !== undefined ? (revisitDate ? new Date(revisitDate) : null) : store.revisitDate
+        revisitDate: revisitDate !== undefined ? (revisitDate ? new Date(revisitDate) : null) : store.revisitDate,
+        tabletopStands: tabletopStands !== undefined ? parseInt(tabletopStands || 0) : store.tabletopStands,
+        hangerStands: hangerStands !== undefined ? parseInt(hangerStands || 0) : store.hangerStands,
+        kitNotes: kitNotes !== undefined ? kitNotes : store.kitNotes,
+        initialKitAllocated: initialKitAllocated !== undefined ? initialKitAllocated : (tabletopStands !== undefined || hangerStands !== undefined ? (parseInt(tabletopStands || 0) > 0 || parseInt(hangerStands || 0) > 0) : store.initialKitAllocated)
       }
     });
 
@@ -278,31 +288,70 @@ exports.unfreezeStoreStock = async (req, res, next) => {
   }
 };
 
-// POST /b2c-stores/:id/stock/add — Add stock to existing product in config
+// POST /b2c-stores/:id/stock/add — Add stock for multiple products (including new ones)
 exports.addStoreStock = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { productId, quantity } = req.body;
+    const { products } = req.body; // products: [{ productId, productName, quantity, price }]
 
     const store = await prisma.store.findUnique({ where: { id } });
     if (!store) return res.status(404).json({ success: false, message: 'Store not found.' });
 
-    const addQty = parseInt(quantity || 0);
-    if (addQty <= 0) return res.status(400).json({ success: false, message: 'Quantity must be > 0.' });
+    const stockConfig = [...(store.stockConfig || [])];
+
+    for (const item of (products || [])) {
+      const addQty = parseInt(item.quantity || 0);
+      if (addQty <= 0) continue;
+
+      const existingIndex = stockConfig.findIndex(sc => sc.productId.toString() === item.productId.toString());
+      if (existingIndex !== -1) {
+        stockConfig[existingIndex] = {
+          ...stockConfig[existingIndex],
+          assignedStock: (stockConfig[existingIndex].assignedStock || 0) + addQty,
+          currentStock: (stockConfig[existingIndex].currentStock || 0) + addQty,
+          price: parseFloat(item.price || stockConfig[existingIndex].price || 0)
+        };
+      } else {
+        stockConfig.push({
+          productId: item.productId,
+          productName: item.productName || 'Product',
+          assignedStock: addQty,
+          currentStock: addQty,
+          price: parseFloat(item.price || 0),
+          addedAt: new Date()
+        });
+      }
+    }
+
+    const updated = await prisma.store.update({ where: { id }, data: { stockConfig } });
+    res.json({ success: true, message: 'Stock added successfully.', data: updated });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// PUT /b2c-stores/:id/stock/audit — Audit remaining stock levels during visit
+exports.auditStoreStock = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { products } = req.body; // [{ productId, currentStock }]
+
+    const store = await prisma.store.findUnique({ where: { id } });
+    if (!store) return res.status(404).json({ success: false, message: 'Store not found.' });
 
     const stockConfig = (store.stockConfig || []).map(item => {
-      if (item.productId.toString() === productId.toString()) {
+      const auditedItem = (products || []).find(p => p.productId.toString() === item.productId.toString());
+      if (auditedItem) {
         return {
           ...item,
-          assignedStock: (item.assignedStock || 0) + addQty,
-          currentStock: (item.currentStock || 0) + addQty
+          currentStock: Math.max(0, parseInt(auditedItem.currentStock || 0))
         };
       }
       return item;
     });
 
     const updated = await prisma.store.update({ where: { id }, data: { stockConfig } });
-    res.json({ success: true, message: 'Stock added successfully.', data: updated });
+    res.json({ success: true, message: 'Stock audited successfully.', data: updated });
   } catch (error) {
     next(error);
   }
@@ -371,7 +420,7 @@ exports.checkOutStoreVisit = async (req, res, next) => {
     const { visitId } = req.params;
     const {
       outcome, remarks, paymentsCollected, paymentMethod,
-      revisitDate, newInvoiceId
+      revisitDate, newInvoiceId, returns
     } = req.body;
 
     if (!outcome) {
@@ -393,6 +442,7 @@ exports.checkOutStoreVisit = async (req, res, next) => {
         paymentMethod: paymentMethod || 'NONE',
         newInvoiceId: newInvoiceId || null,
         revisitDate: revisitDate ? new Date(revisitDate) : null,
+        returns: returns || [],
         checkOutTime: new Date()
       }
     });
