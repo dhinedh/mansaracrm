@@ -36,6 +36,12 @@ export default function StallBillingPage() {
   const [successMsg, setSuccessMsg] = useState('');
   // Flag: are products sourced from the frozen stall session (not full catalog)?
   const [isSessionStock, setIsSessionStock] = useState(false);
+  const [amountPaidInput, setAmountPaidInput] = useState('');
+
+  // Automatically reset amount paid input when cart changes so it defaults back to new MRP Total
+  useEffect(() => {
+    setAmountPaidInput('');
+  }, [cart]);
 
   useEffect(() => {
     if (!sessionId) {
@@ -162,25 +168,53 @@ export default function StallBillingPage() {
   // Clear cart
   const clearCart = () => {
     setCart([]);
-    setDiscountAmount('');
+    setAmountPaidInput('');
   };
 
   // Calculate totals
   // mrp = stall-configured price; price = actual price user entered (can be less = discount)
   const mrpTotal      = cart.reduce((sum, item) => sum + (item.quantity * (item.mrp || item.price)), 0);
-  const actualTotal   = cart.reduce((sum, item) => sum + (item.quantity * item.price), 0);
-  const autoDiscount  = Math.max(0, mrpTotal - actualTotal); // auto-computed from price override
-  const finalPayable  = actualTotal;
+  const finalPayable  = amountPaidInput !== '' ? parseFloat(amountPaidInput) || 0 : mrpTotal;
+  const autoDiscount  = Math.max(0, mrpTotal - finalPayable);
 
   // Submit sale
   const handleCheckout = async (paymentMethod) => {
     if (cart.length === 0) return;
     try {
       setSubmitting(true);
+
+      const totalMRP = mrpTotal;
+      const discount = autoDiscount;
+
+      let distributedCart = cart;
+      if (totalMRP > 0 && discount > 0) {
+        let remainingDiscount = discount;
+        distributedCart = cart.map((item, idx) => {
+          const itemMRP = item.mrp || item.price;
+          const itemTotalMRP = itemMRP * item.quantity;
+
+          let itemDiscount = 0;
+          if (idx === cart.length - 1) {
+            // Last item gets the remainder to avoid rounding errors
+            itemDiscount = remainingDiscount;
+          } else {
+            // Proportional discount
+            itemDiscount = parseFloat(((itemTotalMRP / totalMRP) * discount).toFixed(2));
+            remainingDiscount -= itemDiscount;
+          }
+
+          const newPrice = Math.max(0, (itemTotalMRP - itemDiscount) / item.quantity);
+          return {
+            ...item,
+            price: newPrice
+          };
+        });
+      }
+
       await axios.post(`/stalls/sessions/${sessionId}/sales`, {
-        items: cart,
+        items: distributedCart,
         paymentMethod,
-        discountAmount: autoDiscount   // auto-computed from actual price vs MRP
+        discountAmount: discount
       });
       setSuccessMsg(`Sale of ₹${finalPayable.toLocaleString()} recorded via ${paymentMethod}!`);
       clearCart();
@@ -422,19 +456,36 @@ export default function StallBillingPage() {
 
           {/* Checkout Panel Footer */}
           <div className="p-4 border-t border-slate-200 bg-slate-50/50 space-y-4 shrink-0">
-            {/* Totals Breakdown — discount is auto-computed from MRP vs actual price */}
-            <div className="space-y-1.5 text-xs">
+            {/* Totals Breakdown */}
+            <div className="space-y-2 text-xs">
               <div className="flex justify-between items-center text-slate-600">
                 <span className="font-semibold">MRP Total</span>
                 <span className="font-bold text-slate-500">₹{mrpTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
               </div>
+
+              <div className="flex justify-between items-center text-slate-600 py-0.5">
+                <span className="font-semibold text-slate-700">Amount Paid</span>
+                <div className="relative">
+                  <span className="absolute left-2.5 top-1.5 text-xs font-bold text-slate-400">₹</span>
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder={mrpTotal}
+                    value={amountPaidInput}
+                    onChange={(e) => setAmountPaidInput(e.target.value)}
+                    className="w-28 pl-6 pr-2 py-1 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 text-right focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 bg-white"
+                  />
+                </div>
+              </div>
+
               {autoDiscount > 0 && (
-                <div className="flex justify-between items-center text-emerald-700">
+                <div className="flex justify-between items-center text-emerald-700 bg-emerald-50/50 p-2 rounded-lg border border-emerald-100/50">
                   <span className="font-semibold">Discount (auto)</span>
                   <span className="font-bold">− ₹{autoDiscount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                 </div>
               )}
-              <div className="flex justify-between items-center pt-1.5 border-t border-slate-200">
+
+              <div className="flex justify-between items-center pt-2 border-t border-slate-200">
                 <span className="font-black text-slate-850 text-sm">Final Payable</span>
                 <span className="text-rose-500 text-xl font-black">₹{finalPayable.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
               </div>
