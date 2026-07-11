@@ -71,6 +71,10 @@ export default function TransfersPage() {
         document.getElementById(`transfer-${location.state.transferId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }, 300);
     }
+    if (location.state?.dealerId) {
+      setSelectedDealerId(location.state.dealerId);
+      setActiveTab('dispatch');
+    }
   }, [location.state]);
 
   useEffect(() => {

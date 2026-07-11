@@ -1,6 +1,6 @@
 // src/pages/admin/DealersPage.jsx
 import React, { useEffect, useState, useRef } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { 
   Plus, 
@@ -26,7 +26,8 @@ import {
   Tag,
   X,
   IndianRupee,
-  Trash2
+  Trash2,
+  Truck
 } from 'lucide-react';
 import ZoneSelectionMap from '../../components/ZoneSelectionMap';
 
@@ -69,6 +70,7 @@ const DEALER_FIELDS = [
 
 export default function DealersPage() {
   const location = useLocation();
+  const navigate = useNavigate();
   const [dealers, setDealers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -810,17 +812,37 @@ export default function DealersPage() {
                 )}
                 
                 {dealer.approvalStatus === 'APPROVED' && (
-                  <button
-                    onClick={(e) => { e.stopPropagation(); handleToggleActive(dealer.id, dealer.user?.isActive); }}
-                    className={`inline-flex items-center space-x-1.5 text-[10px] font-bold px-2.5 py-1.5 rounded-lg border ${
-                      dealer.user?.isActive 
-                        ? 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
-                        : 'bg-rose-600 border-rose-600 text-white hover:bg-rose-700'
-                    }`}
-                  >
-                    <Power className="w-3.5 h-3.5" />
-                    <span>{dealer.user?.isActive ? 'Deactivate' : 'Activate'}</span>
-                  </button>
+                  <div className="flex items-center space-x-2">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleToggleActive(dealer.id, dealer.user?.isActive); }}
+                      className={`inline-flex items-center space-x-1.5 text-[10px] font-bold px-2.5 py-1.5 rounded-lg border ${
+                        dealer.user?.isActive 
+                          ? 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                          : 'bg-rose-600 border-rose-600 text-white hover:bg-rose-700'
+                      }`}
+                    >
+                      <Power className="w-3.5 h-3.5" />
+                      <span>{dealer.user?.isActive ? 'Deactivate' : 'Activate'}</span>
+                    </button>
+
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (dealer.user?.isActive) {
+                          navigate('/admin/transfers', { state: { dealerId: dealer.id } });
+                        }
+                      }}
+                      disabled={!dealer.user?.isActive}
+                      className={`inline-flex items-center space-x-1.5 text-[10px] font-bold px-2.5 py-1.5 rounded-lg border transition ${
+                        dealer.user?.isActive
+                          ? 'bg-rose-50 border-rose-200 text-rose-700 hover:bg-rose-100 cursor-pointer'
+                          : 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed opacity-50'
+                      }`}
+                    >
+                      <Truck className="w-3.5 h-3.5" />
+                      <span>Transfer Request</span>
+                    </button>
+                  </div>
                 )}
 
                 <span className="text-[10px] font-bold text-rose-600 group-hover:underline ml-auto flex items-center space-x-1">
