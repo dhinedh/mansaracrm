@@ -44,11 +44,27 @@ app.use(helmet({
 }));
 
 // CORS Configuration
-const allowedOrigins = [
-  process.env.FRONTEND_URL || 'http://localhost:5173',
+const rawOrigins = [
+  process.env.FRONTEND_URL,
+  'https://crm.mansarafoods.com',
+  'http://localhost:5173',
   'http://localhost:3000',
   'http://localhost:5000'
 ];
+
+const allowedOrigins = [];
+rawOrigins.forEach(originStr => {
+  if (originStr) {
+    const parts = originStr.split(',');
+    parts.forEach(part => {
+      const trimmed = part.trim();
+      if (trimmed) {
+        allowedOrigins.push(trimmed);
+        allowedOrigins.push(trimmed.replace(/\/$/, ''));
+      }
+    });
+  }
+});
 
 app.use(cors({
   origin: (origin, callback) => {
