@@ -17,7 +17,7 @@ const getEcomApiUrl = () => {
 
 const ECOM_API = getEcomApiUrl();
 
-const getEcomToken = () => localStorage.getItem('mansara-token') || '';
+const getEcomToken = () => localStorage.getItem('mansara_token') || localStorage.getItem('mansara-token') || '';
 
 export default function EcomProductsPage() {
   const [products, setProducts] = useState([]);

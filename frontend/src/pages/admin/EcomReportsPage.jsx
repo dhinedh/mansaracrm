@@ -15,7 +15,7 @@ const getEcomApiUrl = () => {
 };
 
 const ECOM_API = getEcomApiUrl();
-const getEcomToken = () => localStorage.getItem('mansara-token') || '';
+const getEcomToken = () => localStorage.getItem('mansara_token') || localStorage.getItem('mansara-token') || '';
 
 const downloadCsv = (headers, rows, fileName) => {
   let csv = 'data:text/csv;charset=utf-8,' + headers.join(',') + '\n';

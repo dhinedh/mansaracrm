@@ -14,7 +14,7 @@ const getEcomApiUrl = () => {
 };
 
 const ECOM_API = getEcomApiUrl();
-const getEcomToken = () => localStorage.getItem('mansara-token') || '';
+const getEcomToken = () => localStorage.getItem('mansara_token') || localStorage.getItem('mansara-token') || '';
 
 // Minimal bar chart using pure CSS/SVG
 function MiniBar({ data, valueKey, labelKey, color = '#3b82f6' }) {
