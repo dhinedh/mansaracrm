@@ -148,7 +148,7 @@ exports.getDealerInventory = async (req, res, next) => {
 // Create a stock transfer to dealer (Admin only)
 exports.createStockTransfer = async (req, res, next) => {
   try {
-    const { dealerId, items, notes } = req.body; // items: [{ productId, quantity, marginPct }]
+    const { dealerId, items, notes, invoiceType } = req.body; // items: [{ productId, quantity, marginPct }]
 
     if (!items || items.length === 0) {
       return res.status(400).json({ success: false, message: 'Transfer must contain at least one item' });
@@ -232,6 +232,7 @@ exports.createStockTransfer = async (req, res, next) => {
           status: 'GENERATED',
           notes: `Auto-generated B2B Invoice for Transfer ${transferNo}. ${notes || ''}`,
           channel: 'B2B',
+          invoiceType: invoiceType || 'NORMAL',
           items: {
             create: invoiceItemsDetails
           }

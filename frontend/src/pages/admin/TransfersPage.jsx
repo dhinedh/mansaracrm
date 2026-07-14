@@ -51,6 +51,7 @@ export default function TransfersPage() {
   const [currentQty, setCurrentQty] = useState('10');
   const [transferItems, setTransferItems] = useState([]);
   const [transferNotes, setTransferNotes] = useState('');
+  const [invoiceType, setInvoiceType] = useState('NORMAL');
 
   /* ── invoice preview modal ── */
   const [showInvoicePreview, setShowInvoicePreview] = useState(false);
@@ -203,13 +204,15 @@ export default function TransfersPage() {
       await axios.post('/inventory/transfers', {
         dealerId: selectedDealerId,
         items: transferItems.map(i => ({ productId: i.productId, quantity: i.quantity, marginPct: i.marginPct || 0 })),
-        notes: transferNotes
+        notes: transferNotes,
+        invoiceType
       });
 
       setMessage({ text: 'Dispatch initiated! B2B invoice auto-generated and transfer is now PENDING shipment.', type: 'success' });
       setTransferItems([]);
       setSelectedDealerId('');
       setTransferNotes('');
+      setInvoiceType('NORMAL');
       setShowInvoicePreview(false);
       fetchAll();
       setActiveTab('history');
@@ -336,6 +339,35 @@ export default function TransfersPage() {
                   )}
                 </div>
               )}
+
+              {/* Invoice Type selection */}
+              <div className="pt-2 border-t border-slate-100">
+                <label className="block text-[10px] font-black uppercase text-slate-400 mb-2 tracking-wider">Invoice Type</label>
+                <div className="flex gap-6">
+                  <label className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer select-none">
+                    <input
+                      type="radio"
+                      name="invoiceType"
+                      value="NORMAL"
+                      checked={invoiceType === 'NORMAL'}
+                      onChange={() => setInvoiceType('NORMAL')}
+                      className="w-4 h-4 text-rose-600 focus:ring-rose-500 border-slate-300"
+                    />
+                    Normal Invoice
+                  </label>
+                  <label className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer select-none">
+                    <input
+                      type="radio"
+                      name="invoiceType"
+                      value="ADVANCE"
+                      checked={invoiceType === 'ADVANCE'}
+                      onChange={() => setInvoiceType('ADVANCE')}
+                      className="w-4 h-4 text-rose-600 focus:ring-rose-500 border-slate-300"
+                    />
+                    Advance Invoice
+                  </label>
+                </div>
+              </div>
             </div>
 
             {/* Step 2: Products */}
@@ -658,7 +690,9 @@ export default function TransfersPage() {
             {/* Modal Header */}
             <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-rose-50 to-orange-50">
               <div>
-                <p className="text-[10px] font-black text-rose-600 uppercase tracking-wider">Invoice Preview</p>
+                <p className="text-[10px] font-black text-rose-600 uppercase tracking-wider">
+                  {invoiceType === 'ADVANCE' ? 'Advance Invoice Preview' : 'Invoice Preview'}
+                </p>
                 <h3 className="font-black text-slate-800 text-sm">Review Before Dispatch</h3>
               </div>
               <button
@@ -743,7 +777,7 @@ export default function TransfersPage() {
 
               <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 text-[10px] text-amber-800 font-semibold flex gap-2">
                 <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
-                The B2B invoice will be auto-generated on confirmation. Stock will be deducted only when delivery is confirmed.
+                The B2B {invoiceType === 'ADVANCE' ? 'Advance' : 'Tax'} invoice will be auto-generated on confirmation. Stock will be deducted only when delivery is confirmed.
               </div>
             </div>
 
@@ -777,8 +811,15 @@ export default function TransfersPage() {
           <div className="bg-white max-w-2xl w-full rounded-2xl shadow-xl overflow-hidden my-8 max-h-[90vh] flex flex-col animate-zoom-in">
             <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-rose-50">
               <div>
-                <h3 className="font-black text-slate-800 text-sm uppercase tracking-wide">GST Tax Invoice Breakdown</h3>
+                <h3 className="font-black text-slate-800 text-sm uppercase tracking-wide">
+                  {selectedInvoice.invoiceType === 'ADVANCE' ? 'GST Advance Invoice Breakdown' : 'GST Tax Invoice Breakdown'}
+                </h3>
                 <span className="text-[10px] text-slate-400 block font-mono mt-0.5">{selectedInvoice.invoiceNo}</span>
+                {selectedInvoice.invoiceType === 'ADVANCE' && (
+                  <div className="flex items-center gap-2 mt-1.5">
+                    <span className="text-[8px] font-black text-rose-700 bg-rose-50 border border-rose-100 px-1.5 py-0.5 rounded uppercase">Advance</span>
+                  </div>
+                )}
               </div>
               <button onClick={() => setShowInvoiceDetailModal(false)} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 cursor-pointer">
                 <X className="w-5 h-5" />

@@ -482,7 +482,8 @@ const InvoiceSchema = new Schema({
   notes: { type: String },
   isCredit: { type: Boolean, default: false },
   dueDate: { type: Date },
-  paidAt: { type: Date }
+  paidAt: { type: Date },
+  invoiceType: { type: String, enum: ['NORMAL', 'ADVANCE'], default: 'NORMAL' }
 }, {
   timestamps: true,
   toJSON: { virtuals: true },

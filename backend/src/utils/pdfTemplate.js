@@ -237,7 +237,7 @@ const buildInvoiceHtml = (company, invoice) => {
       </div>
     </div>
     <div class="inv-meta-cell">
-      <div class="inv-title">TAX INVOICE</div>
+      <div class="inv-title">${invoice.invoiceType === 'ADVANCE' ? 'ADVANCE INVOICE' : 'TAX INVOICE'}</div>
       <div class="meta-line"><span>Invoice #</span><strong>${invoice.invoiceNo}</strong></div>
       <div class="meta-line"><span>Invoice Date :</span><strong>${invDate}</strong></div>
       <div class="meta-line"><span>Due Date :</span><strong>${dueDate}</strong></div>

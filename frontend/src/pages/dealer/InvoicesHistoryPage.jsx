@@ -244,6 +244,11 @@ export default function InvoicesHistoryPage() {
                       <div>
                         <div className="flex items-center flex-wrap gap-1">
                           <span className="font-black text-slate-800 text-xs">{inv.invoiceNo}</span>
+                          {inv.invoiceType === 'ADVANCE' && (
+                            <span className="text-[8px] font-black text-rose-700 bg-rose-50 border border-rose-100 px-1.5 py-0.5 rounded uppercase tracking-wide">
+                              Advance
+                            </span>
+                          )}
                           {inv.isCredit && (
                             <span className="text-[8px] font-black text-indigo-700 bg-indigo-50 border border-indigo-100 px-1.5 py-0.5 rounded uppercase tracking-wide">
                               Credit
@@ -332,8 +337,17 @@ export default function InvoicesHistoryPage() {
             {/* Modal header */}
             <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-rose-50">
               <div>
-                <h3 className="font-black text-slate-800 text-sm uppercase tracking-wide">GST Tax Invoice Breakdown</h3>
-                <span className="text-[10px] text-slate-400 block font-bold mt-0.5">Bill: {selectedInvoice.invoiceNo}</span>
+                <h3 className="font-black text-slate-800 text-sm uppercase tracking-wide">
+                  {selectedInvoice.invoiceType === 'ADVANCE' ? 'GST Advance Invoice Breakdown' : 'GST Tax Invoice Breakdown'}
+                </h3>
+                <span className="text-[10px] text-slate-400 block font-bold mt-0.5">
+                  Bill: {selectedInvoice.invoiceNo}
+                  {selectedInvoice.invoiceType === 'ADVANCE' && (
+                    <span className="ml-2 text-[8px] font-black text-rose-700 bg-rose-50 border border-rose-100 px-1.5 py-0.5 rounded uppercase">
+                      Advance
+                    </span>
+                  )}
+                </span>
               </div>
               <button
                 onClick={() => setShowDetailModal(false)}

@@ -369,6 +369,9 @@ export default function AdminInvoiceLedger() {
                           <div>
                             <div className="flex items-center flex-wrap gap-1">
                               <span className="font-black text-slate-800 text-xs font-mono">{inv.invoiceNo}</span>
+                              {inv.invoiceType === 'ADVANCE' && (
+                                <span className="text-[8px] font-black text-rose-700 bg-rose-50 border border-rose-100 px-1.5 py-0.5 rounded uppercase">Advance</span>
+                              )}
                               {inv.isCredit && (
                                 <span className="text-[8px] font-black text-indigo-700 bg-indigo-50 border border-indigo-100 px-1.5 py-0.5 rounded uppercase">Credit</span>
                               )}
@@ -653,10 +656,15 @@ export default function AdminInvoiceLedger() {
           <div className="bg-white max-w-2xl w-full rounded-2xl shadow-xl overflow-hidden my-8 max-h-[90vh] flex flex-col">
             <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-rose-50">
               <div>
-                <h3 className="font-black text-slate-800 text-sm uppercase tracking-wide">GST Tax Invoice Breakdown</h3>
+                <h3 className="font-black text-slate-800 text-sm uppercase tracking-wide">
+                  {selectedInvoice.invoiceType === 'ADVANCE' ? 'GST Advance Invoice Breakdown' : 'GST Tax Invoice Breakdown'}
+                </h3>
                 <span className="text-[10px] text-slate-400 block font-mono mt-0.5">{selectedInvoice.invoiceNo}</span>
                 <div className="flex items-center gap-2 mt-1.5">
                   <ChannelBadge channel={selectedInvoice.channel || 'B2B'} />
+                  {selectedInvoice.invoiceType === 'ADVANCE' && (
+                    <span className="text-[8px] font-black text-rose-700 bg-rose-50 border border-rose-100 px-1.5 py-0.5 rounded uppercase">Advance</span>
+                  )}
                   {selectedInvoice.isCredit && (
                     <span className="text-[8px] font-black text-indigo-700 bg-indigo-50 border border-indigo-100 px-1.5 py-0.5 rounded uppercase">Credit</span>
                   )}
