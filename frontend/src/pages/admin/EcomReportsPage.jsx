@@ -7,7 +7,14 @@ import {
   Calendar, Filter, AlertTriangle
 } from 'lucide-react';
 
-const ECOM_API = import.meta.env.VITE_ECOM_API_URL || 'http://localhost:5000/api';
+const getEcomApiUrl = () => {
+  const envUrl = import.meta.env.VITE_ECOM_API_URL;
+  if (envUrl) return envUrl;
+  const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+  return isLocal ? 'http://localhost:5001/api' : 'https://mansara-backend.onrender.com/api';
+};
+
+const ECOM_API = getEcomApiUrl();
 const getEcomToken = () => localStorage.getItem('mansara-token') || '';
 
 const downloadCsv = (headers, rows, fileName) => {
