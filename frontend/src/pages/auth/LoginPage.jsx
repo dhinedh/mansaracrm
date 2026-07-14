@@ -126,13 +126,6 @@ export default function LoginPage() {
             )}
           </button>
         </form>
-
-        <div className="mt-8 text-center border-t border-slate-100 pt-6">
-          <p className="text-xs text-slate-400">
-            For testing: Use admin credentials <br/>
-            <span className="font-bold text-slate-600">admin@mansarafoods.com / Admin@123</span>
-          </p>
-        </div>
       </div>
     </div>
   );
