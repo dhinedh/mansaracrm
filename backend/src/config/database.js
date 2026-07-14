@@ -252,8 +252,8 @@ CompanyInventorySchema.virtual('product', {
 
 // DealerInventory
 const DealerInventorySchema = new Schema({
-  dealerId: { type: Schema.Types.ObjectId, ref: 'Dealer', required: true },
-  productId: { type: Schema.Types.ObjectId, ref: 'Product', required: true },
+  dealerId: { type: Schema.Types.ObjectId, ref: 'Dealer', required: true, index: true },
+  productId: { type: Schema.Types.ObjectId, ref: 'Product', required: true, index: true },
   quantity: { type: Number, default: 0 }
 }, {
   timestamps: { createdAt: false, updatedAt: true },
@@ -279,7 +279,7 @@ DealerInventorySchema.virtual('product', {
 
 // StockMovement
 const StockMovementSchema = new Schema({
-  productId: { type: Schema.Types.ObjectId, ref: 'Product', required: true },
+  productId: { type: Schema.Types.ObjectId, ref: 'Product', required: true, index: true },
   type: { type: String, enum: ['IN', 'OUT', 'TRANSFER_OUT', 'TRANSFER_IN', 'ADJUSTMENT'], required: true },
   quantity: { type: Number, required: true },
   referenceId: { type: String },
@@ -300,8 +300,8 @@ StockMovementSchema.virtual('product', {
 // StockTransfer
 const StockTransferSchema = new Schema({
   transferNo: { type: String, unique: true, required: true },
-  dealerId: { type: Schema.Types.ObjectId, ref: 'Dealer', required: true },
-  invoiceId: { type: Schema.Types.ObjectId, ref: 'Invoice' },
+  dealerId: { type: Schema.Types.ObjectId, ref: 'Dealer', required: true, index: true },
+  invoiceId: { type: Schema.Types.ObjectId, ref: 'Invoice', index: true },
   status: { type: String, enum: ['PENDING', 'IN_TRANSIT', 'DELIVERED', 'CANCELLED', 'DISCREPANCY'], default: 'PENDING' },
   notes: { type: String },
   shippedAt: { type: Date },
@@ -335,8 +335,8 @@ StockTransferSchema.virtual('items', {
 
 // StockTransferItem
 const StockTransferItemSchema = new Schema({
-  transferId: { type: Schema.Types.ObjectId, ref: 'StockTransfer', required: true },
-  productId: { type: Schema.Types.ObjectId, ref: 'Product', required: true },
+  transferId: { type: Schema.Types.ObjectId, ref: 'StockTransfer', required: true, index: true },
+  productId: { type: Schema.Types.ObjectId, ref: 'Product', required: true, index: true },
   quantity: { type: Number, required: true },
   unitPrice: { type: Number, required: true },
   marginPct: { type: Number, default: 0 },
@@ -465,9 +465,9 @@ MarginSchema.virtual('product', {
 
 // Invoice
 const InvoiceSchema = new Schema({
-  invoiceNo: { type: String, unique: true, required: true },
-  dealerId: { type: Schema.Types.ObjectId, ref: 'Dealer', required: true },
-  storeId: { type: Schema.Types.ObjectId, ref: 'Store' },
+  invoiceNo: { type: String, unique: true, required: true, index: true },
+  dealerId: { type: Schema.Types.ObjectId, ref: 'Dealer', required: true, index: true },
+  storeId: { type: Schema.Types.ObjectId, ref: 'Store', index: true },
   channel: { type: String, enum: ['B2B', 'WEBSITE', 'E_COMMERCE'], default: 'B2B' },
   subtotal: { type: Number, required: true },
   totalDiscount: { type: Number, default: 0 },
@@ -512,8 +512,8 @@ InvoiceSchema.virtual('items', {
 
 // InvoiceItem
 const InvoiceItemSchema = new Schema({
-  invoiceId: { type: Schema.Types.ObjectId, ref: 'Invoice', required: true },
-  productId: { type: Schema.Types.ObjectId, ref: 'Product', required: true },
+  invoiceId: { type: Schema.Types.ObjectId, ref: 'Invoice', required: true, index: true },
+  productId: { type: Schema.Types.ObjectId, ref: 'Product', required: true, index: true },
   quantity: { type: Number, required: true },
   fulfilledQuantity: { type: Number, default: 0 },
   unit: { type: String, enum: ['PCS', 'CTN'], default: 'PCS' },
