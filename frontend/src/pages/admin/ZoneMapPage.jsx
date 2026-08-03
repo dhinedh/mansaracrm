@@ -81,7 +81,7 @@ export default function ZoneMapPage() {
 
   const [leafletLoaded, setLeafletLoaded] = useState(false);
   const [dealers, setDealers] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [selectedDistrict, setSelectedDistrict] = useState(null);
   const [selectedRegion, setSelectedRegion] = useState('All');

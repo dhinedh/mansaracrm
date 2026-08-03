@@ -25,7 +25,7 @@ export default function ReturnsPage() {
   const isAdmin = user?.role === 'ADMIN';
 
   const [returns, setReturns]         = useState([]);
-  const [loading, setLoading]         = useState(true);
+  const [loading, setLoading]         = useState(false);
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [products, setProducts]       = useState([]);
   const [stores, setStores]           = useState([]);

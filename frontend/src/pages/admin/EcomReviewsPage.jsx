@@ -16,7 +16,7 @@ import { BACKEND_URL } from '../../store/authStore';
 
 export default function EcomReviewsPage() {
   const [reviews, setReviews] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('all'); // all, approved, pending
   const [message, setMessage] = useState({ text: '', type: '' });
 

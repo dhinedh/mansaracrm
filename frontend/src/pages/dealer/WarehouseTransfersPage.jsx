@@ -18,7 +18,7 @@ const fmt = (n) => `₹${parseFloat(n || 0).toFixed(2)}`;
 export default function WarehouseTransfersPage() {
   const location = useLocation();
   const [transfers, setTransfers] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [highlightedId, setHighlightedId] = useState(null);
 
   // Invoice detailed modal states

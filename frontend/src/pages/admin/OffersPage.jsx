@@ -27,7 +27,7 @@ export default function OffersPage() {
   const [distributions, setDistributions] = useState([]);
   const [stores, setStores] = useState([]);
   const [sessions, setSessions] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
   // Add Item Form State

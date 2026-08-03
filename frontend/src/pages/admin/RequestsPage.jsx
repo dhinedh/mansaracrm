@@ -30,7 +30,7 @@ export default function RequestsPage() {
 
   const [activeTab, setActiveTab] = useState(isAdmin ? 'pending' : 'create');
   const [requests, setRequests] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState(isAdmin ? 'PENDING' : '');
   const [products, setProducts] = useState([]);
   const [message, setMessage] = useState({ text: '', type: '' });

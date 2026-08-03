@@ -5,7 +5,7 @@ import { Tag, Plus, Search, RefreshCw, FolderPlus, CheckCircle2, AlertTriangle }
 
 export default function CategoriesPage() {
   const [categories, setCategories] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [name, setName] = useState('');

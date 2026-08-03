@@ -31,7 +31,7 @@ export default function ReportsPage() {
   const [inventorySubTab, setInventorySubTab] = useState('aging'); // 'aging', 'expiry'
   const [financialSubTab, setFinancialSubTab] = useState('outstanding'); // 'outstanding', 'collection'
   const [crmSubTab, setCrmSubTab] = useState('lead'); // 'lead', 'visit', 'sample'
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
 
   // Global filters

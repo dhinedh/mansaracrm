@@ -14,7 +14,7 @@ import { TrendingUp, RefreshCw, Store, AlertTriangle, AlertCircle } from 'lucide
 
 export default function DealerAnalyticsPage() {
   const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     fetchAnalytics();

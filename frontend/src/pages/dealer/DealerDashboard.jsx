@@ -67,7 +67,7 @@ export default function DealerDashboard() {
     pendingShipments: 0,
     lowStockCount: 0
   });
-  const [statsLoading, setStatsLoading] = useState(true);
+  const [statsLoading, setStatsLoading] = useState(false);
 
   useEffect(() => {
     const fetchStats = async () => {

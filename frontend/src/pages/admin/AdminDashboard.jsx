@@ -107,7 +107,7 @@ export default function AdminDashboard() {
     totalStock: 0,
     lowStockCount: 0
   });
-  const [statsLoading, setStatsLoading] = useState(true);
+  const [statsLoading, setStatsLoading] = useState(false);
 
   useEffect(() => {
     const fetchStats = async () => {

@@ -17,7 +17,7 @@ import {
 export default function InventoryPage() {
   const location = useLocation();
   const [stocks, setStocks] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [filterLowStock, setFilterLowStock] = useState(false);
   const [message, setMessage] = useState({ text: '', type: '' });

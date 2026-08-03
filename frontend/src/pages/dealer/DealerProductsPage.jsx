@@ -23,7 +23,7 @@ export default function DealerProductsPage() {
   const [isLowStockFilter, setIsLowStockFilter] = useState(location.state?.filter === 'low_stock');
   const [products, setProducts] = useState([]);
   const [dealerInventory, setDealerInventory] = useState({}); // { productId: qty }
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const { addToCart, items } = useCartStore();
   const [quantities, setQuantities] = useState({}); // local input states for quantity picker { productId: number }

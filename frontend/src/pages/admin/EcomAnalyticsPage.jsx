@@ -83,7 +83,7 @@ function DonutChart({ data, valueKey, nameKey }) {
 }
 
 export default function EcomAnalyticsPage() {
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [timeRange, setTimeRange] = useState('30');
   const [stats, setStats] = useState({ totalRevenue: 0, totalOrders: 0, avgOrderValue: 0, totalCustomers: 0 });
   const [salesData, setSalesData] = useState([]);

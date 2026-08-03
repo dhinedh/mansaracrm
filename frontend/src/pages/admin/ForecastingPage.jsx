@@ -89,7 +89,7 @@ const getRecipeForProduct = (product) => {
 };
 
 export default function ForecastingPage() {
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [simulating, setSimulating] = useState(false);
   const [activeChartTab, setActiveChartTab] = useState('productwise'); // 'productwise', 'breakdown', 'aggregate'
   const [selectedProductId, setSelectedProductId] = useState('');

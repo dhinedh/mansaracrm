@@ -21,7 +21,7 @@ export default function TicketsPage() {
   const isAdmin = user?.role === 'ADMIN';
 
   const [tickets, setTickets] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState('');
   const [message, setMessage] = useState({ text: '', type: '' });
 

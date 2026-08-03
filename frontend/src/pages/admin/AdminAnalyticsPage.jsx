@@ -80,7 +80,7 @@ const StatCard = ({ label, value, sub, icon: Icon, accent = 'rose', className = 
 /* ════════════════════════════════════════════════════ */
 export default function AdminAnalyticsPage() {
   const [data, setData]       = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [zoneFilter, setZoneFilter] = useState('ALL');
   const [activeSection, setActiveSection] = useState('overview');
 

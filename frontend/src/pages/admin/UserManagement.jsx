@@ -19,7 +19,7 @@ import {
 
 export default function UserManagement() {
   const [staff, setStaff] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [message, setMessage] = useState({ text: '', type: '' });
 

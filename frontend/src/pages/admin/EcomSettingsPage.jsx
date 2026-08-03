@@ -28,7 +28,7 @@ export default function EcomSettingsPage() {
     enableFieldSales: true
   });
 
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState('store'); // store, shipping, social, licensing
   const [message, setMessage] = useState({ text: '', type: '' });

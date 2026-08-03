@@ -65,7 +65,7 @@ export default function ExpensesPage() {
   const [expenses, setExpenses] = useState([]);
   const [stores, setStores] = useState([]);
   const [sessions, setSessions] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
   // Rejection modal states

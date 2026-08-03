@@ -26,7 +26,7 @@ export default function MyLedgersPage() {
 
   // Invoices state
   const [invoices, setInvoices] = useState([]);
-  const [invoicesLoading, setInvoicesLoading] = useState(true);
+  const [invoicesLoading, setInvoicesLoading] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
@@ -34,7 +34,7 @@ export default function MyLedgersPage() {
 
   // Transfers/Shipments state
   const [transfers, setTransfers] = useState([]);
-  const [transfersLoading, setTransfersLoading] = useState(true);
+  const [transfersLoading, setTransfersLoading] = useState(false);
   const [highlightedId, setHighlightedId] = useState(null);
   const [showVerifyModal, setShowVerifyModal] = useState(false);
   const [verifyTransfer, setVerifyTransfer] = useState(null);

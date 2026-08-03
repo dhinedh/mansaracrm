@@ -19,7 +19,7 @@ import { BACKEND_URL } from '../../store/authStore';
 export default function EcomCombosPage() {
   const [combos, setCombos] = useState([]);
   const [products, setProducts] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [showFormModal, setShowFormModal] = useState(false);
   const [editingCombo, setEditingCombo] = useState(null);

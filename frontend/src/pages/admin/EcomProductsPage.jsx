@@ -22,7 +22,7 @@ const getEcomToken = () => localStorage.getItem('mansara_token') || localStorage
 export default function EcomProductsPage() {
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ text: '', type: '' });
   const [showBulkUpload, setShowBulkUpload] = useState(false);
 

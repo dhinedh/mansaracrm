@@ -58,7 +58,7 @@ function getEffectiveMeta(n) {
 
 export default function NotificationsPage() {
   const [notifications, setNotifications] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('ALL');
   const [showUnreadOnly, setShowUnreadOnly] = useState(false);
   const navigate = useNavigate();

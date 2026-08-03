@@ -29,7 +29,7 @@ const downloadCsv = (headers, rows, fileName) => {
 };
 
 export default function EcomReportsPage() {
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('orders'); // orders | products | customers
   const [timeRange, setTimeRange] = useState('30');
   const [stats, setStats] = useState({ totalRevenue: 0, totalOrders: 0, avgOrderValue: 0, totalCustomers: 0 });

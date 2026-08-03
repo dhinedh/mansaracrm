@@ -72,7 +72,7 @@ export default function DealersPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const [dealers, setDealers] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);

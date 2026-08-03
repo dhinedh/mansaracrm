@@ -81,7 +81,7 @@ export default function AdminInvoiceLedger() {
   // ── Invoice State ─────────────────────────────────────────────────────────
   const [invoices, setInvoices] = useState([]);
   const [dealers, setDealers] = useState([]);
-  const [invoicesLoading, setInvoicesLoading] = useState(true);
+  const [invoicesLoading, setInvoicesLoading] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
@@ -97,7 +97,7 @@ export default function AdminInvoiceLedger() {
 
   // ── Transfer Log State ────────────────────────────────────────────────────
   const [transfers, setTransfers] = useState([]);
-  const [transfersLoading, setTransfersLoading] = useState(true);
+  const [transfersLoading, setTransfersLoading] = useState(false);
   const [expandedTransfer, setExpandedTransfer] = useState(null);
   const [txStatusLoading, setTxStatusLoading] = useState(null); // transferId being updated
   const [txDealer, setTxDealer] = useState('');

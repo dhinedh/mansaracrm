@@ -41,7 +41,7 @@ export default function TransfersPage() {
   const [dealers, setDealers] = useState([]);
   const [transfers, setTransfers] = useState([]);
   const [dealerMargins, setDealerMargins] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState({ text: '', type: '' });
 

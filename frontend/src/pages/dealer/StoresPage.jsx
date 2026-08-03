@@ -20,7 +20,7 @@ import { useNavigate } from 'react-router-dom';
 export default function StoresPage() {
   const navigate = useNavigate();
   const [stores, setStores] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [currentStore, setCurrentStore] = useState(null);

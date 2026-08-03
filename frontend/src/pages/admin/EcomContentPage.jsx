@@ -18,7 +18,7 @@ import { BACKEND_URL } from '../../store/authStore';
 
 export default function EcomContentPage() {
   const [activeTab, setActiveTab] = useState('blog'); // blog, careers, press
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ text: '', type: '' });
 
   // Data lists

@@ -31,7 +31,7 @@ import { BACKEND_URL } from '../../store/authStore';
 export default function StallsPage() {
   const navigate = useNavigate();
   const [sessions, setSessions] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
   // Form State (Stage 1 Register)

@@ -27,7 +27,7 @@ import { BACKEND_URL } from '../../store/authStore';
 export default function CartPage() {
   const navigate = useNavigate();
   const [stores, setStores] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [isGstEnabled, setIsGstEnabled] = useState(true);
   const [isCredit, setIsCredit] = useState(false);
   const [storeSearch, setStoreSearch] = useState('');

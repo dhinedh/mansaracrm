@@ -17,7 +17,7 @@ import { BACKEND_URL } from '../../store/authStore';
 
 export default function EcomBannersPage() {
   const [banners, setBanners] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('all'); // all, home, products, about, contact
   const [showFormModal, setShowFormModal] = useState(false);
   const [editingBanner, setEditingBanner] = useState(null);

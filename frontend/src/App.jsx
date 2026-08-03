@@ -69,20 +69,11 @@ const PageSpinner = () => (
 );
 
 // Simple Route Protection wrapper
-const ProtectedRoute = ({ children, allowedRole, allowedStaffRoles }) => {
-  const { isAuthenticated, token, user, loading } = useAuthStore();
+const ProtectedRoute = ({ children, allowedRole }) => {
+  const { isAuthenticated, token, user } = useAuthStore();
 
   if (!isAuthenticated || !token) {
     return <Navigate to="/login" replace />;
-  }
-
-  // If loading user profile, show a loading indicator to prevent flash/wrong redirects
-  if (loading && !user) {
-    return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-rose-500 border-t-transparent rounded-full animate-spin"></div>
-      </div>
-    );
   }
 
   // Primary Role Check
@@ -104,7 +95,7 @@ export default function App() {
 
   return (
     <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-      <Suspense fallback={<PageSpinner />}>
+      <Suspense fallback={null}>
         <Routes>
         {/* Public Routes */}
         <Route path="/login" element={<LoginPage />} />
