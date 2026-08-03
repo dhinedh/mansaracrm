@@ -90,14 +90,6 @@ const ProtectedRoute = ({ children, allowedRole, allowedStaffRoles }) => {
     return <Navigate to={user.role === 'ADMIN' ? '/admin/dashboard' : '/dealer/dashboard'} replace />;
   }
 
-  // Staff Role Check (Only relevant for users with ADMIN primary role)
-  if (allowedStaffRoles && user && user.role === 'ADMIN') {
-    // ADMIN staffRole is a super admin and bypasses all checks
-    if (user.staffRole !== 'ADMIN' && !allowedStaffRoles.includes(user.staffRole)) {
-      return <Navigate to="/admin/access-denied" replace />;
-    }
-  }
-
   return children;
 };
 
