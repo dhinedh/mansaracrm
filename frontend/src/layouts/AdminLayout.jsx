@@ -215,34 +215,16 @@ function SectionLabel({ label, color = 'slate' }) {
 function SidebarNav({ submenusOpen, toggleSubmenu, onLinkClick, unreadNotifications, staffRole, licensing = { enableB2cStall: true, enableFieldSales: true } }) {
   const crmItems = getCrmMenuItems(unreadNotifications);
   
-  // Filter items based on staffRole
-  const filteredCrmItems = crmItems.filter(item => {
-    // If user's staffRole is ADMIN (super admin), allow all
-    if (staffRole === 'ADMIN') return true;
-    if (item.allowedStaffRoles && !item.allowedStaffRoles.includes(staffRole)) {
-      return false;
-    }
-    return true;
-  });
+  // All menu items available to admin users
+  const filteredCrmItems = crmItems;
 
   const filteredFieldItems = fieldMenuItems.filter(item => {
     if (item.path === '/admin/stalls' && !licensing.enableB2cStall) return false;
     if (item.path === '/admin/store-visits' && !licensing.enableFieldSales) return false;
-
-    if (staffRole === 'ADMIN') return true;
-    if (item.allowedStaffRoles && !item.allowedStaffRoles.includes(staffRole)) {
-      return false;
-    }
     return true;
   });
 
-  const filteredEcomItems = ecomMenuItems.filter(item => {
-    if (staffRole === 'ADMIN') return true;
-    if (item.allowedStaffRoles && !item.allowedStaffRoles.includes(staffRole)) {
-      return false;
-    }
-    return true;
-  });
+  const filteredEcomItems = ecomMenuItems;
 
   return (
     <nav className="flex-1 px-4 py-4 space-y-0.5 overflow-y-auto">
