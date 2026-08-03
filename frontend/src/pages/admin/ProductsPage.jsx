@@ -334,6 +334,8 @@ export default function ProductsPage() {
                   <img
                     src={product.imageUrl.startsWith('http') || product.imageUrl.startsWith('data:') ? product.imageUrl : `${BACKEND_URL}${product.imageUrl.startsWith('/') ? '' : '/'}${product.imageUrl}`}
                     alt={product.name}
+                    loading="lazy"
+                    decoding="async"
                     className="object-cover h-full w-full group-hover:scale-105 transition-transform duration-300"
                   />
                 ) : (
