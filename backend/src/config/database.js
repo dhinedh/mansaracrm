@@ -1506,7 +1506,9 @@ class PrismaCollectionWrapper {
         minQuantity: prod.minQuantity || 10,
         product: formatResult(prod)
       }));
-      return { data: formatted, total };
+      formatted.data = formatted;
+      formatted.total = total;
+      return formatted;
     }
 
     const query = await resolveRelationFilters(args.where, this.modelName);
@@ -1528,7 +1530,11 @@ class PrismaCollectionWrapper {
       q = q.populate(translateInclude(args.include));
     }
     const docs = await q.exec();
-    return { data: formatResult(docs), total };
+    const formattedDocs = formatResult(docs);
+    const resArray = Array.isArray(formattedDocs) ? formattedDocs : [formattedDocs];
+    resArray.data = resArray;
+    resArray.total = total;
+    return resArray;
   }
 
   async create(args) {
