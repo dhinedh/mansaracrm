@@ -48,6 +48,10 @@ exports.createTicket = async (req, res, next) => {
 
 exports.getTickets = async (req, res, next) => {
   try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 25;
+    const skip = (page - 1) * limit;
+
     const where = {};
     if (req.user.role === 'DEALER') {
       where.userId = req.user.id;
@@ -60,25 +64,29 @@ exports.getTickets = async (req, res, next) => {
       where.category = req.query.category;
     }
 
-    const tickets = await prisma.complaintTicket.findMany({
+    const { data: tickets, total } = await prisma.complaintTicket.findMany({
       where,
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
+      skip,
+      take: limit
     });
 
     // Populate userName if tickets belong to dealers
-    const enrichedTickets = [];
-    for (const t of tickets) {
-      const creatorUser = await prisma.user.findUnique({
-        where: { id: t.userId },
-        include: { dealer: true }
-      });
-      enrichedTickets.push({
+    const userIds = [...new Set(tickets.map(t => t.userId).filter(Boolean))];
+    const usersRes = userIds.length > 0
+      ? await prisma.user.findMany({ where: { id: { in: userIds } }, include: { dealer: true }, take: userIds.length })
+      : { data: [] };
+    const userMap = new Map((usersRes.data || usersRes).map(u => [u.id, u]));
+
+    const enrichedTickets = tickets.map(t => {
+      const creatorUser = userMap.get(t.userId);
+      return {
         ...t,
         creatorName: creatorUser ? (creatorUser.dealer?.companyName || creatorUser.name) : 'Unknown Partner'
-      });
-    }
+      };
+    });
 
-    res.json({ success: true, data: enrichedTickets });
+    res.json({ success: true, data: enrichedTickets, total, page, limit });
   } catch (error) {
     next(error);
   }

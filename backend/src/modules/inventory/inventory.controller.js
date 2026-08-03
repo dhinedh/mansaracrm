@@ -4,16 +4,22 @@ const prisma = require('../../config/database');
 // Get company inventory (Admin only)
 exports.getCompanyInventory = async (req, res, next) => {
   try {
-    const inventory = await prisma.companyInventory.findMany({
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 25;
+    const skip = (page - 1) * limit;
+
+    const { data: inventory, total } = await prisma.companyInventory.findMany({
       include: {
         product: {
           include: { category: true }
         }
       },
-      orderBy: { product: { name: 'asc' } }
+      orderBy: { product: { name: 'asc' } },
+      skip,
+      take: limit
     });
 
-    res.json({ success: true, data: inventory });
+    res.json({ success: true, data: inventory, total, page, limit });
   } catch (error) {
     next(error);
   }
@@ -118,6 +124,10 @@ exports.updateCompanyInventory = async (req, res, next) => {
 // Get current dealer's inventory
 exports.getDealerInventory = async (req, res, next) => {
   try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 25;
+    const skip = (page - 1) * limit;
+
     // If Admin looks it up, require dealerId query param. If Dealer looks it up, use their own.
     let dealerId;
     if (req.user.role === 'ADMIN') {
@@ -129,17 +139,19 @@ exports.getDealerInventory = async (req, res, next) => {
       dealerId = req.user.dealer.id;
     }
 
-    const inventory = await prisma.dealerInventory.findMany({
+    const { data: inventory, total } = await prisma.dealerInventory.findMany({
       where: { dealerId },
       include: {
         product: {
           include: { category: true }
         }
       },
-      orderBy: { product: { name: 'asc' } }
+      orderBy: { product: { name: 'asc' } },
+      skip,
+      take: limit
     });
 
-    res.json({ success: true, data: inventory });
+    res.json({ success: true, data: inventory, total, page, limit });
   } catch (error) {
     next(error);
   }
@@ -520,6 +532,10 @@ exports.updateTransferStatus = async (req, res, next) => {
 // List stock transfers
 exports.getStockTransfers = async (req, res, next) => {
   try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 25;
+    const skip = (page - 1) * limit;
+
     const where = {};
     
     // If dealer, filter by dealerId
@@ -533,7 +549,7 @@ exports.getStockTransfers = async (req, res, next) => {
       where.status = req.query.status;
     }
 
-    const transfers = await prisma.stockTransfer.findMany({
+    const { data: transfers, total } = await prisma.stockTransfer.findMany({
       where,
       include: {
         dealer: true,
@@ -553,10 +569,12 @@ exports.getStockTransfers = async (req, res, next) => {
           }
         }
       },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
+      skip,
+      take: limit
     });
 
-    res.json({ success: true, data: transfers });
+    res.json({ success: true, data: transfers, total, page, limit });
   } catch (error) {
     next(error);
   }

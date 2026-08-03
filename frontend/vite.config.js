@@ -7,5 +7,16 @@ export default defineConfig({
   server: {
     port: 5173,
     host: true,
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom'],
+          'vendor-recharts': ['recharts'],
+          'vendor-pdf': ['@react-pdf/renderer']
+        }
+      }
+    }
   }
 })

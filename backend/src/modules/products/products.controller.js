@@ -9,11 +9,17 @@ const readline = require('readline');
 
 exports.getCategories = async (req, res, next) => {
   try {
-    const categories = await prisma.category.findMany({
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 25;
+    const skip = (page - 1) * limit;
+
+    const { data: categories, total } = await prisma.category.findMany({
       where: { isActive: true },
-      orderBy: { name: 'asc' }
+      orderBy: { name: 'asc' },
+      skip,
+      take: limit
     });
-    res.json({ success: true, data: categories });
+    res.json({ success: true, data: categories, total, page, limit });
   } catch (error) {
     next(error);
   }
@@ -45,6 +51,9 @@ exports.createCategory = async (req, res, next) => {
 exports.getProducts = async (req, res, next) => {
   try {
     const { categoryId, search, minStock } = req.query;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 25;
+    const skip = (page - 1) * limit;
 
     const where = { isActive: true };
     if (categoryId) {
@@ -58,16 +67,18 @@ exports.getProducts = async (req, res, next) => {
       ];
     }
 
-    const products = await prisma.product.findMany({
+    const { data: products, total } = await prisma.product.findMany({
       where,
       include: {
         category: true,
         companyStock: true
       },
-      orderBy: { name: 'asc' }
+      orderBy: { name: 'asc' },
+      skip,
+      take: limit
     });
 
-    res.json({ success: true, data: products });
+    res.json({ success: true, data: products, total, page, limit });
   } catch (error) {
     next(error);
   }

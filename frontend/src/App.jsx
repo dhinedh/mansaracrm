@@ -1,5 +1,5 @@
 // src/App.jsx
-import React, { useEffect } from 'react';
+import React, { useEffect, lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './store/authStore';
 
@@ -8,58 +8,65 @@ import AdminLayout from './layouts/AdminLayout';
 import DealerLayout from './layouts/DealerLayout';
 
 // Auth Pages
-import LoginPage from './pages/auth/LoginPage';
-import ForgotPasswordPage from './pages/auth/ForgotPasswordPage';
-import AccessDeniedPage from './pages/auth/AccessDeniedPage';
+const LoginPage = lazy(() => import('./pages/auth/LoginPage'));
+const ForgotPasswordPage = lazy(() => import('./pages/auth/ForgotPasswordPage'));
+const AccessDeniedPage = lazy(() => import('./pages/auth/AccessDeniedPage'));
 
 // Admin Pages
-import AdminDashboard from './pages/admin/AdminDashboard';
-import DealersPage from './pages/admin/DealersPage';
-import ProductsPage from './pages/admin/ProductsPage';
-import InventoryPage from './pages/admin/InventoryPage';
-import TransfersPage from './pages/admin/TransfersPage';
-import AdminAnalyticsPage from './pages/admin/AdminAnalyticsPage';
-import NotificationsPage from './pages/admin/NotificationsPage';
-import RequestsPage from './pages/admin/RequestsPage';
-import ReturnsPage from './pages/admin/ReturnsPage';
-import TicketsPage from './pages/admin/TicketsPage';
-import ReportsPage from './pages/admin/ReportsPage';
-import ForecastingPage from './pages/admin/ForecastingPage';
-import CategoriesPage from './pages/admin/CategoriesPage';
-import ChannelIntegrationPage from './pages/admin/ChannelIntegrationPage';
-import RnDPage from './pages/admin/RnDPage';
-import InventoriesPage from './pages/admin/InventoriesPage';
-import AdminInvoiceLedger from './pages/admin/AdminInvoiceLedger';
-import UserManagement from './pages/admin/UserManagement';
-import ZoneMapPage from './pages/admin/ZoneMapPage';
-import StallsPage from './pages/admin/StallsPage';
-import StallBillingPage from './pages/admin/StallBillingPage';
-import ExpensesPage from './pages/admin/ExpensesPage';
-import OffersPage from './pages/admin/OffersPage';
-import StoreVisitsPage from './pages/admin/StoreVisitsPage';
-import RetailStoresPage from './pages/admin/RetailStoresPage';
-import B2CStorePage from './pages/admin/B2CStorePage';
+const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard'));
+const DealersPage = lazy(() => import('./pages/admin/DealersPage'));
+const ProductsPage = lazy(() => import('./pages/admin/ProductsPage'));
+const InventoryPage = lazy(() => import('./pages/admin/InventoryPage'));
+const TransfersPage = lazy(() => import('./pages/admin/TransfersPage'));
+const AdminAnalyticsPage = lazy(() => import('./pages/admin/AdminAnalyticsPage'));
+const NotificationsPage = lazy(() => import('./pages/admin/NotificationsPage'));
+const RequestsPage = lazy(() => import('./pages/admin/RequestsPage'));
+const ReturnsPage = lazy(() => import('./pages/admin/ReturnsPage'));
+const TicketsPage = lazy(() => import('./pages/admin/TicketsPage'));
+const ReportsPage = lazy(() => import('./pages/admin/ReportsPage'));
+const ForecastingPage = lazy(() => import('./pages/admin/ForecastingPage'));
+const CategoriesPage = lazy(() => import('./pages/admin/CategoriesPage'));
+const ChannelIntegrationPage = lazy(() => import('./pages/admin/ChannelIntegrationPage'));
+const RnDPage = lazy(() => import('./pages/admin/RnDPage'));
+const InventoriesPage = lazy(() => import('./pages/admin/InventoriesPage'));
+const AdminInvoiceLedger = lazy(() => import('./pages/admin/AdminInvoiceLedger'));
+const UserManagement = lazy(() => import('./pages/admin/UserManagement'));
+const ZoneMapPage = lazy(() => import('./pages/admin/ZoneMapPage'));
+const StallsPage = lazy(() => import('./pages/admin/StallsPage'));
+const StallBillingPage = lazy(() => import('./pages/admin/StallBillingPage'));
+const ExpensesPage = lazy(() => import('./pages/admin/ExpensesPage'));
+const OffersPage = lazy(() => import('./pages/admin/OffersPage'));
+const StoreVisitsPage = lazy(() => import('./pages/admin/StoreVisitsPage'));
+const RetailStoresPage = lazy(() => import('./pages/admin/RetailStoresPage'));
+const B2CStorePage = lazy(() => import('./pages/admin/B2CStorePage'));
 
 // E-Commerce Pages
-import EcomOrdersPage from './pages/admin/EcomOrdersPage';
-import EcomCustomersPage from './pages/admin/EcomCustomersPage';
-import EcomCombosPage from './pages/admin/EcomCombosPage';
-import EcomBannersPage from './pages/admin/EcomBannersPage';
-import EcomReviewsPage from './pages/admin/EcomReviewsPage';
-import EcomContentPage from './pages/admin/EcomContentPage';
-import EcomSettingsPage from './pages/admin/EcomSettingsPage';
-import EcomProductsPage from './pages/admin/EcomProductsPage';
-import EcomReportsPage from './pages/admin/EcomReportsPage';
-import EcomAnalyticsPage from './pages/admin/EcomAnalyticsPage';
+const EcomOrdersPage = lazy(() => import('./pages/admin/EcomOrdersPage'));
+const EcomCustomersPage = lazy(() => import('./pages/admin/EcomCustomersPage'));
+const EcomCombosPage = lazy(() => import('./pages/admin/EcomCombosPage'));
+const EcomBannersPage = lazy(() => import('./pages/admin/EcomBannersPage'));
+const EcomReviewsPage = lazy(() => import('./pages/admin/EcomReviewsPage'));
+const EcomContentPage = lazy(() => import('./pages/admin/EcomContentPage'));
+const EcomSettingsPage = lazy(() => import('./pages/admin/EcomSettingsPage'));
+const EcomProductsPage = lazy(() => import('./pages/admin/EcomProductsPage'));
+const EcomReportsPage = lazy(() => import('./pages/admin/EcomReportsPage'));
+const EcomAnalyticsPage = lazy(() => import('./pages/admin/EcomAnalyticsPage'));
 
 // Dealer Pages
-import DealerDashboard from './pages/dealer/DealerDashboard';
-import StoresPage from './pages/dealer/StoresPage';
-import DealerProductsPage from './pages/dealer/DealerProductsPage';
-import CartPage from './pages/dealer/CartPage';
-import MyLedgersPage from './pages/dealer/MyLedgersPage';
-import DealerAnalyticsPage from './pages/dealer/DealerAnalyticsPage';
-import ProfilePage from './pages/dealer/ProfilePage';
+const DealerDashboard = lazy(() => import('./pages/dealer/DealerDashboard'));
+const StoresPage = lazy(() => import('./pages/dealer/StoresPage'));
+const DealerProductsPage = lazy(() => import('./pages/dealer/DealerProductsPage'));
+const CartPage = lazy(() => import('./pages/dealer/CartPage'));
+const MyLedgersPage = lazy(() => import('./pages/dealer/MyLedgersPage'));
+const DealerAnalyticsPage = lazy(() => import('./pages/dealer/DealerAnalyticsPage'));
+const ProfilePage = lazy(() => import('./pages/dealer/ProfilePage'));
+
+// Loading spinner fallback component
+const PageSpinner = () => (
+  <div className="min-h-[60vh] flex items-center justify-center">
+    <div className="w-8 h-8 border-4 border-rose-500 border-t-transparent rounded-full animate-spin"></div>
+  </div>
+);
 
 // Simple Route Protection wrapper
 const ProtectedRoute = ({ children, allowedRole, allowedStaffRoles }) => {
@@ -105,7 +112,8 @@ export default function App() {
 
   return (
     <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-      <Routes>
+      <Suspense fallback={<PageSpinner />}>
+        <Routes>
         {/* Public Routes */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
@@ -325,6 +333,7 @@ export default function App() {
         {/* Wildcard Fallback redirects to Login */}
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
+      </Suspense>
     </BrowserRouter>
   );
 }

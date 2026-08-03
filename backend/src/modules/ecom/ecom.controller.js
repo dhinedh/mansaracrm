@@ -24,7 +24,8 @@ exports.getOrders = async (req, res, next) => {
     const orders = await Order.find()
       .populate('user', 'name email phone whatsapp')
       .populate('items.product', 'name price imageUrl sku')
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .lean();
     res.json({ success: true, orders });
   } catch (error) {
     next(error);
@@ -35,7 +36,8 @@ exports.getOrderById = async (req, res, next) => {
   try {
     const order = await Order.findById(req.params.id)
       .populate('user', 'name email phone whatsapp')
-      .populate('items.product', 'name price imageUrl sku');
+      .populate('items.product', 'name price imageUrl sku')
+      .lean();
     if (!order) {
       return res.status(404).json({ success: false, message: 'Order not found' });
     }
@@ -99,7 +101,7 @@ exports.deleteOrder = async (req, res, next) => {
 
 exports.getCombos = async (req, res, next) => {
   try {
-    const combos = await Combo.find().populate('products', 'name price sku imageUrl');
+    const combos = await Combo.find().populate('products', 'name price sku imageUrl').lean();
     res.json({ success: true, combos });
   } catch (error) {
     next(error);
@@ -179,7 +181,7 @@ exports.deleteCombo = async (req, res, next) => {
 
 exports.getBanners = async (req, res, next) => {
   try {
-    const banners = await Banner.find().sort({ order: 1 });
+    const banners = await Banner.find().sort({ order: 1 }).lean();
     res.json({ success: true, banners });
   } catch (error) {
     next(error);
@@ -228,7 +230,8 @@ exports.getReviews = async (req, res, next) => {
     const reviews = await Review.find()
       .populate('user', 'name email')
       .populate('product', 'name sku imageUrl')
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .lean();
     res.json({ success: true, reviews });
   } catch (error) {
     next(error);
@@ -268,7 +271,7 @@ exports.deleteReview = async (req, res, next) => {
 
 exports.getBlogPosts = async (req, res, next) => {
   try {
-    const posts = await BlogPost.find().sort({ createdAt: -1 });
+    const posts = await BlogPost.find().sort({ createdAt: -1 }).lean();
     res.json({ success: true, posts });
   } catch (error) {
     next(error);
@@ -343,7 +346,7 @@ exports.deleteBlogPost = async (req, res, next) => {
 
 exports.getCareers = async (req, res, next) => {
   try {
-    const careers = await Career.find().sort({ createdAt: -1 });
+    const careers = await Career.find().sort({ createdAt: -1 }).lean();
     res.json({ success: true, careers });
   } catch (error) {
     next(error);
@@ -429,7 +432,7 @@ exports.deleteCareer = async (req, res, next) => {
 
 exports.getPressReleases = async (req, res, next) => {
   try {
-    const releases = await PressRelease.find().sort({ date: -1 });
+    const releases = await PressRelease.find().sort({ date: -1 }).lean();
     res.json({ success: true, releases });
   } catch (error) {
     next(error);

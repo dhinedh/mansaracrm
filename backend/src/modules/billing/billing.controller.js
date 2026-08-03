@@ -451,6 +451,10 @@ exports.deleteInvoice = async (req, res, next) => {
 
 exports.getInvoices = async (req, res, next) => {
   try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 25;
+    const skip = (page - 1) * limit;
+
     const where = {};
     if (req.user.role === 'DEALER') {
       where.dealerId = req.user.dealer.id;
@@ -462,7 +466,7 @@ exports.getInvoices = async (req, res, next) => {
       where.storeId = req.query.storeId;
     }
 
-    const invoices = await prisma.invoice.findMany({
+    const { data: invoices, total } = await prisma.invoice.findMany({
       where,
       include: {
         store: true,
@@ -473,10 +477,12 @@ exports.getInvoices = async (req, res, next) => {
           include: { product: true }
         }
       },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
+      skip,
+      take: limit
     });
 
-    res.json({ success: true, data: invoices });
+    res.json({ success: true, data: invoices, total, page, limit });
   } catch (error) {
     next(error);
   }

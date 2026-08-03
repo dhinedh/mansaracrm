@@ -17,17 +17,26 @@ const getNextInvoiceNo = async () => {
 exports.getAllB2CStores = async (req, res, next) => {
   try {
     const { classification, zone, search, city } = req.query;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 25;
+    const skip = (page - 1) * limit;
 
     const where = { isActive: true, dealerId: null };
     if (classification) where.classification = classification;
     if (zone) where.zone = zone;
     if (city) where.city = { $regex: city, $options: 'i' };
 
-    let stores = await prisma.store.findMany({ where, orderBy: { createdAt: 'desc' } });
+    const { data: stores, total } = await prisma.store.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      skip,
+      take: limit
+    });
 
+    let filteredStores = stores;
     if (search) {
       const q = search.toLowerCase();
-      stores = stores.filter(s =>
+      filteredStores = stores.filter(s =>
         s.name?.toLowerCase().includes(q) ||
         s.ownerName?.toLowerCase().includes(q) ||
         s.ownerPhone?.includes(q) ||
@@ -37,26 +46,41 @@ exports.getAllB2CStores = async (req, res, next) => {
       );
     }
 
-    // Enrich with last visit info
-    const enriched = await Promise.all(stores.map(async (store) => {
-      const visits = await prisma.visit.findMany({
-        where: { storeId: store.id },
-        orderBy: { date: 'desc' },
-      });
-      const lastVisit = visits[0] || null;
-      const openInvoices = await prisma.invoice.findMany({
-        where: { storeId: store.id, status: 'OPEN' }
-      });
-      const pendingAmount = openInvoices.reduce((sum, inv) => sum + (inv.totalAmount || 0), 0);
+    const storeIds = filteredStores.map(s => s.id);
+    const [visitsRes, openInvoicesRes] = await Promise.all([
+      storeIds.length > 0 ? prisma.visit.findMany({ where: { storeId: { in: storeIds } }, orderBy: { date: 'desc' }, take: 1000 }) : { data: [] },
+      storeIds.length > 0 ? prisma.invoice.findMany({ where: { storeId: { in: storeIds }, status: 'OPEN' }, take: 1000 }) : { data: [] }
+    ]);
+
+    const visits = visitsRes.data || visitsRes;
+    const openInvoices = openInvoicesRes.data || openInvoicesRes;
+
+    const visitsByStore = new Map();
+    visits.forEach(v => {
+      if (!visitsByStore.has(v.storeId)) visitsByStore.set(v.storeId, []);
+      visitsByStore.get(v.storeId).push(v);
+    });
+
+    const openInvoicesByStore = new Map();
+    openInvoices.forEach(inv => {
+      if (!openInvoicesByStore.has(inv.storeId)) openInvoicesByStore.set(inv.storeId, []);
+      openInvoicesByStore.get(inv.storeId).push(inv);
+    });
+
+    const enriched = filteredStores.map(store => {
+      const storeVisits = visitsByStore.get(store.id) || [];
+      const lastVisit = storeVisits[0] || null;
+      const storeOpenInvoices = openInvoicesByStore.get(store.id) || [];
+      const pendingAmount = storeOpenInvoices.reduce((sum, inv) => sum + (inv.totalAmount || 0), 0);
       return {
         ...store,
-        visitCount: visits.length,
+        visitCount: storeVisits.length,
         lastVisitDate: lastVisit?.date || store.lastVisitDate || null,
         pendingAmount
       };
-    }));
+    });
 
-    res.json({ success: true, data: enriched });
+    res.json({ success: true, data: enriched, total, page, limit });
   } catch (error) {
     next(error);
   }

@@ -5,6 +5,9 @@ const bcrypt = require('bcryptjs');
 exports.getAllDealers = async (req, res, next) => {
   try {
     const { status, zone, search } = req.query;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 25;
+    const skip = (page - 1) * limit;
 
     const where = {};
     if (status) {
@@ -22,7 +25,7 @@ exports.getAllDealers = async (req, res, next) => {
       ];
     }
 
-    const dealers = await prisma.dealer.findMany({
+    const { data: dealers, total } = await prisma.dealer.findMany({
       where,
       include: {
         user: {
@@ -36,12 +39,17 @@ exports.getAllDealers = async (req, res, next) => {
         },
         categoryDetails: true
       },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
+      skip,
+      take: limit
     });
 
     res.json({
       success: true,
-      data: dealers
+      data: dealers,
+      total,
+      page,
+      limit
     });
   } catch (error) {
     next(error);

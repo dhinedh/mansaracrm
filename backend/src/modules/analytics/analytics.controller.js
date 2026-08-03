@@ -118,8 +118,14 @@ exports.getAdminAnalytics = async (req, res, next) => {
     const dealerPerformance = [];
     const distributorPerformance = [];
 
+    const uniqueDealerIds = [...new Set(dealerPerformanceRaw.map(i => i.dealerId).filter(Boolean))];
+    const dealersRes = uniqueDealerIds.length > 0
+      ? await prisma.dealer.findMany({ where: { id: { in: uniqueDealerIds } }, take: uniqueDealerIds.length })
+      : { data: [] };
+    const dealerMap = new Map((dealersRes.data || dealersRes).map(d => [d.id, d]));
+
     for (const item of dealerPerformanceRaw) {
-      const dealer = await prisma.dealer.findUnique({ where: { id: item.dealerId } });
+      const dealer = dealerMap.get(item.dealerId);
       if (dealer) {
         const perfData = {
           dealerId: item.dealerId,
@@ -143,8 +149,14 @@ exports.getAdminAnalytics = async (req, res, next) => {
     });
 
     const productMovement = [];
+    const uniqueTransferProductIds = [...new Set(productTransfers.map(i => i.productId).filter(Boolean))];
+    const productsRes = uniqueTransferProductIds.length > 0
+      ? await prisma.product.findMany({ where: { id: { in: uniqueTransferProductIds } }, take: uniqueTransferProductIds.length })
+      : { data: [] };
+    const productMap = new Map((productsRes.data || productsRes).map(p => [p.id, p]));
+
     for (const item of productTransfers) {
-      const product = await prisma.product.findUnique({ where: { id: item.productId } });
+      const product = productMap.get(item.productId);
       if (product) {
         productMovement.push({
           productId: item.productId,
@@ -157,7 +169,8 @@ exports.getAdminAnalytics = async (req, res, next) => {
 
     // If no transfers yet, fallback to all active products with 0
     if (productMovement.length === 0) {
-      const allProds = await prisma.product.findMany({ where: { isActive: true }, take: 10 });
+      const allProdsRes = await prisma.product.findMany({ where: { isActive: true }, take: 10 });
+      const allProds = allProdsRes.data || allProdsRes;
       allProds.forEach(p => {
         productMovement.push({
           productId: p.id,
@@ -268,10 +281,16 @@ exports.getDealerAnalytics = async (req, res, next) => {
     const fastMovers = [];
     const slowMovers = [];
 
+    const uniqueDealerProductIds = [...new Set(invoiceItemsGrouped.map(i => i.productId).filter(Boolean))];
+    const dealerProdsRes = uniqueDealerProductIds.length > 0
+      ? await prisma.product.findMany({ where: { id: { in: uniqueDealerProductIds } }, take: uniqueDealerProductIds.length })
+      : { data: [] };
+    const dealerProductMap = new Map((dealerProdsRes.data || dealerProdsRes).map(p => [p.id, p]));
+
     // Let's split into fast (> 50 qty) or slow (< 10 qty) or simple top 5 vs bottom 5
     for (let i = 0; i < invoiceItemsGrouped.length; i++) {
       const item = invoiceItemsGrouped[i];
-      const product = await prisma.product.findUnique({ where: { id: item.productId } });
+      const product = dealerProductMap.get(item.productId);
       if (product) {
         const productStats = {
           productId: item.productId,
@@ -306,8 +325,14 @@ exports.getDealerAnalytics = async (req, res, next) => {
     });
 
     const storeSales = [];
+    const uniqueStoreIds = [...new Set(storeSalesRaw.map(i => i.storeId).filter(Boolean))];
+    const storesRes = uniqueStoreIds.length > 0
+      ? await prisma.store.findMany({ where: { id: { in: uniqueStoreIds } }, take: uniqueStoreIds.length })
+      : { data: [] };
+    const storeMap = new Map((storesRes.data || storesRes).map(s => [s.id, s]));
+
     for (const item of storeSalesRaw) {
-      const store = await prisma.store.findUnique({ where: { id: item.storeId } });
+      const store = storeMap.get(item.storeId);
       if (store) {
         storeSales.push({
           storeId: item.storeId,
@@ -318,7 +343,7 @@ exports.getDealerAnalytics = async (req, res, next) => {
     }
 
     // 4. Stock alert level (products running low in dealer's inventory)
-    const lowStockAlerts = await prisma.dealerInventory.findMany({
+    const lowStockAlertsRes = await prisma.dealerInventory.findMany({
       where: {
         dealerId,
         quantity: { lte: 10 } // Alert threshold
@@ -328,6 +353,7 @@ exports.getDealerAnalytics = async (req, res, next) => {
       },
       orderBy: { quantity: 'asc' }
     });
+    const lowStockAlerts = lowStockAlertsRes.data || lowStockAlertsRes;
 
     res.json({
       success: true,

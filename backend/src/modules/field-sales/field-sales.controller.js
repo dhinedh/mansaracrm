@@ -122,38 +122,42 @@ exports.checkOutVisit = async (req, res, next) => {
 
 exports.getVisits = async (req, res, next) => {
   try {
-    const visits = await prisma.visit.findMany({
-      orderBy: { date: 'desc' }
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 25;
+    const skip = (page - 1) * limit;
+
+    const { data: visits, total } = await prisma.visit.findMany({
+      orderBy: { date: 'desc' },
+      skip,
+      take: limit
     });
 
-    const enriched = [];
-    for (const v of visits) {
-      let lead = null;
-      let dealer = null;
-      let store = null;
-      let newInvoice = null;
-      if (v.leadId) {
-        lead = await prisma.lead.findUnique({ where: { id: v.leadId } });
-      }
-      if (v.dealerId) {
-        dealer = await prisma.dealer.findUnique({ where: { id: v.dealerId } });
-      }
-      if (v.storeId) {
-        store = await prisma.store.findUnique({ where: { id: v.storeId } });
-      }
-      if (v.newInvoiceId) {
-        newInvoice = await prisma.invoice.findUnique({ where: { id: v.newInvoiceId } });
-      }
-      enriched.push({
-        ...v,
-        lead,
-        dealer,
-        store,
-        newInvoice
-      });
-    }
+    const leadIds = [...new Set(visits.map(v => v.leadId).filter(Boolean))];
+    const dealerIds = [...new Set(visits.map(v => v.dealerId).filter(Boolean))];
+    const storeIds = [...new Set(visits.map(v => v.storeId).filter(Boolean))];
+    const invoiceIds = [...new Set(visits.map(v => v.newInvoiceId).filter(Boolean))];
 
-    res.json({ success: true, data: enriched });
+    const [leadsRes, dealersRes, storesRes, invoicesRes] = await Promise.all([
+      leadIds.length > 0 ? prisma.lead.findMany({ where: { id: { in: leadIds } }, take: leadIds.length }) : { data: [] },
+      dealerIds.length > 0 ? prisma.dealer.findMany({ where: { id: { in: dealerIds } }, take: dealerIds.length }) : { data: [] },
+      storeIds.length > 0 ? prisma.store.findMany({ where: { id: { in: storeIds } }, take: storeIds.length }) : { data: [] },
+      invoiceIds.length > 0 ? prisma.invoice.findMany({ where: { id: { in: invoiceIds } }, take: invoiceIds.length }) : { data: [] }
+    ]);
+
+    const leadMap = new Map((leadsRes.data || leadsRes).map(l => [l.id, l]));
+    const dealerMap = new Map((dealersRes.data || dealersRes).map(d => [d.id, d]));
+    const storeMap = new Map((storesRes.data || storesRes).map(s => [s.id, s]));
+    const invoiceMap = new Map((invoicesRes.data || invoicesRes).map(i => [i.id, i]));
+
+    const enriched = visits.map(v => ({
+      ...v,
+      lead: v.leadId ? leadMap.get(v.leadId) || null : null,
+      dealer: v.dealerId ? dealerMap.get(v.dealerId) || null : null,
+      store: v.storeId ? storeMap.get(v.storeId) || null : null,
+      newInvoice: v.newInvoiceId ? invoiceMap.get(v.newInvoiceId) || null : null
+    }));
+
+    res.json({ success: true, data: enriched, total, page, limit });
   } catch (error) {
     next(error);
   }

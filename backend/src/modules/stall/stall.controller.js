@@ -73,10 +73,16 @@ exports.closeSession = async (req, res, next) => {
 // Get all Stall Sessions
 exports.getSessions = async (req, res, next) => {
   try {
-    const sessions = await prisma.stallSession.findMany({
-      orderBy: { createdAt: 'desc' }
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 25;
+    const skip = (page - 1) * limit;
+
+    const { data: sessions, total } = await prisma.stallSession.findMany({
+      orderBy: { createdAt: 'desc' },
+      skip,
+      take: limit
     });
-    res.json({ success: true, data: sessions });
+    res.json({ success: true, data: sessions, total, page, limit });
   } catch (error) {
     next(error);
   }

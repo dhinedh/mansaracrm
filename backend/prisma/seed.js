@@ -51,15 +51,15 @@ async function main() {
     { name: "Urad Health Mix – Millet Magic", category: "Urad Porridge Mix", price: 60, mrp: 60, unit: "100g", sku: "MF-URAD-MIL-100", hsnCode: "1901", image: "/products/urad-millet-magic-front.jpg" },
     { name: "Urad Health Mix – Premium", category: "Urad Porridge Mix", price: 65, mrp: 65, unit: "100g", sku: "MF-URAD-PRE-100", hsnCode: "1901", image: "/products/urad-premium-front.jpg" },
     { name: "Health Mix – Black Rice Delight", category: "Black Rice mix", price: 70, mrp: 70, unit: "100g", sku: "MF-BLAC-DEL-100", hsnCode: "1901", image: "/products/black-rice-delight-front.jpg" },
-    { name: "Ragi Choco Malt", category: "Health drink mix", price: 250, mrp: 250, unit: "250g", sku: "MF-RAGI-CHO-250", hsnCode: "1901", image: "/products/RagiChocoMalt.PNG" },
-    { name: "Nutriminix – Multi Grain Health Mix", category: "Health drink mix", price: 200, mrp: 200, unit: "250g", sku: "MF-NUTR-MGM-250", hsnCode: "1901", image: "/products/NutriMix.PNG" },
-    { name: "Idly Podi – Traditional", category: "Idly Podi", price: 75, mrp: 75, unit: "100g", sku: "MF-IDLY-TRA-100", hsnCode: "2103", image: "/products/TraditionalIdlyPodi.PNG" },
-    { name: "Idly Podi – Millet Fusion", category: "Idly Podi", price: 75, mrp: 75, unit: "100g", sku: "MF-IDLY-MIL-100", hsnCode: "2103", image: "/products/MilletFusionIdlyPodi.PNG" },
-    { name: "Rice Podi Mix", category: "Rice Mixes", price: 85, mrp: 85, unit: "100g", sku: "MF-RICE-POD-100", hsnCode: "2103", image: "/products/HomeStyleParuppu.PNG" },
-    { name: "Curry Leaves Rice Podi Mix", category: "Rice Mixes", price: 85, mrp: 85, unit: "100g", sku: "MF-RICE-CUR-100", hsnCode: "2103", image: "/products/KaruveppillaiSpecial.PNG" },
-    { name: "Coriander Rice Podi Mix", category: "Rice Mixes", price: 75, mrp: 85, unit: "100g", sku: "MF-RICE-COR-100", hsnCode: "2103", image: "/products/KothamalliAroma.PNG" },
-    { name: "Moringa Rice Podi Mix", category: "Rice Mixes", price: 85, mrp: 85, unit: "100g", sku: "MF-RICE-MOR-100", hsnCode: "2103", image: "/products/MurungaiVital.PNG" },
-    { name: "Pirandai Rice Podi Mix", category: "Rice Mixes", price: 85, mrp: 85, unit: "100g", sku: "MF-RICE-PIR-100", hsnCode: "2103", image: "/products/PirandaiPower.PNG" }
+    { name: "Ragi Choco Malt", category: "Health drink mix", price: 250, mrp: 250, unit: "250g", sku: "MF-RAGI-CHO-250", hsnCode: "1901", image: "/products/RagiChocoMalt.webp" },
+    { name: "Nutriminix – Multi Grain Health Mix", category: "Health drink mix", price: 200, mrp: 200, unit: "250g", sku: "MF-NUTR-MGM-250", hsnCode: "1901", image: "/products/NutriMix.webp" },
+    { name: "Idly Podi – Traditional", category: "Idly Podi", price: 75, mrp: 75, unit: "100g", sku: "MF-IDLY-TRA-100", hsnCode: "2103", image: "/products/TraditionalIdlyPodi.webp" },
+    { name: "Idly Podi – Millet Fusion", category: "Idly Podi", price: 75, mrp: 75, unit: "100g", sku: "MF-IDLY-MIL-100", hsnCode: "2103", image: "/products/MilletFusionIdlyPodi.webp" },
+    { name: "Rice Podi Mix", category: "Rice Mixes", price: 85, mrp: 85, unit: "100g", sku: "MF-RICE-POD-100", hsnCode: "2103", image: "/products/HomeStyleParuppu.webp" },
+    { name: "Curry Leaves Rice Podi Mix", category: "Rice Mixes", price: 85, mrp: 85, unit: "100g", sku: "MF-RICE-CUR-100", hsnCode: "2103", image: "/products/KaruveppillaiSpecial.webp" },
+    { name: "Coriander Rice Podi Mix", category: "Rice Mixes", price: 75, mrp: 85, unit: "100g", sku: "MF-RICE-COR-100", hsnCode: "2103", image: "/products/KothamalliAroma.webp" },
+    { name: "Moringa Rice Podi Mix", category: "Rice Mixes", price: 85, mrp: 85, unit: "100g", sku: "MF-RICE-MOR-100", hsnCode: "2103", image: "/products/MurungaiVital.webp" },
+    { name: "Pirandai Rice Podi Mix", category: "Rice Mixes", price: 85, mrp: 85, unit: "100g", sku: "MF-RICE-PIR-100", hsnCode: "2103", image: "/products/PirandaiPower.webp" }
   ];
 
   for (const prod of productsList) {

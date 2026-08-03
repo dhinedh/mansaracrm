@@ -53,6 +53,10 @@ exports.createRequest = async (req, res, next) => {
 
 exports.getRequests = async (req, res, next) => {
   try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 25;
+    const skip = (page - 1) * limit;
+
     const where = {};
     if (req.user.role === 'DEALER') {
       where.dealerId = req.user.dealer.id;
@@ -64,7 +68,7 @@ exports.getRequests = async (req, res, next) => {
       where.status = req.query.status;
     }
 
-    const requests = await prisma.stockRequest.findMany({
+    const { data: requests, total } = await prisma.stockRequest.findMany({
       where,
       include: {
         dealer: {
@@ -75,27 +79,28 @@ exports.getRequests = async (req, res, next) => {
           }
         }
       },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
+      skip,
+      take: limit
     });
 
-    // Enrich items with product details
-    const enriched = [];
-    for (const r of requests) {
-      const itemsList = [];
-      for (const item of r.items || []) {
-        const prod = await prisma.product.findUnique({ where: { id: item.productId } });
-        itemsList.push({
-          ...item,
-          product: prod
-        });
-      }
-      enriched.push({
-        ...r,
-        items: itemsList
-      });
-    }
+    // Collect all unique product IDs across requests to batch query
+    const allProdIds = [...new Set(requests.flatMap(r => (r.items || []).map(i => i.productId)).filter(Boolean))];
+    const prodsRes = allProdIds.length > 0
+      ? await prisma.product.findMany({ where: { id: { in: allProdIds } }, take: allProdIds.length })
+      : { data: [] };
+    const prodMap = new Map((prodsRes.data || prodsRes).map(p => [p.id, p]));
 
-    res.json({ success: true, data: enriched });
+    // Enrich items with product details
+    const enriched = requests.map(r => ({
+      ...r,
+      items: (r.items || []).map(item => ({
+        ...item,
+        product: prodMap.get(item.productId) || null
+      }))
+    }));
+
+    res.json({ success: true, data: enriched, total, page, limit });
   } catch (error) {
     next(error);
   }

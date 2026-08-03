@@ -1429,7 +1429,7 @@ class PrismaCollectionWrapper {
     if (this.modelName === 'CompanyInventory') {
       const prodId = args.where.productId || args.where.id;
       const productModel = mongoose.model('Product');
-      let q = productModel.findById(prodId);
+      let q = productModel.findById(prodId).lean();
       if (args.include && args.include.product) {
         if (args.include.product.include) {
           q = q.populate(translateInclude(args.include.product.include));
@@ -1446,7 +1446,7 @@ class PrismaCollectionWrapper {
       };
     }
     const query = await resolveRelationFilters(args.where, this.modelName);
-    let q = this.model.findOne(query);
+    let q = this.model.findOne(query).lean();
     if (args.include) {
       q = q.populate(translateInclude(args.include));
     }
@@ -1458,7 +1458,7 @@ class PrismaCollectionWrapper {
     if (this.modelName === 'CompanyInventory') {
       const prodId = args.where.productId || args.where.id;
       const productModel = mongoose.model('Product');
-      let q = productModel.findOne({ _id: prodId });
+      let q = productModel.findOne({ _id: prodId }).lean();
       if (args.include && args.include.product) {
         if (args.include.product.include) {
           q = q.populate(translateInclude(args.include.product.include));
@@ -1475,7 +1475,7 @@ class PrismaCollectionWrapper {
       };
     }
     const query = await resolveRelationFilters(args.where, this.modelName);
-    let q = this.model.findOne(query);
+    let q = this.model.findOne(query).lean();
     if (args.orderBy) {
       q = q.sort(translateOrderBy(args.orderBy));
     }
@@ -1487,32 +1487,40 @@ class PrismaCollectionWrapper {
   }
 
   async findMany(args = {}) {
+    const take = args.take ? Math.min(args.take, 200) : 50;
+    const skip = args.skip || 0;
+
     if (this.modelName === 'CompanyInventory') {
       const productModel = mongoose.model('Product');
-      let q = productModel.find({ isActive: true });
+      const total = await productModel.countDocuments({ isActive: true });
+      let q = productModel.find({ isActive: true }).lean();
       if (args.orderBy) {
         q = q.sort({ name: 1 });
       }
+      q = q.skip(skip).limit(take);
       const products = await q.exec();
-      return products.map(prod => ({
+      const formatted = products.map(prod => ({
         id: prod._id.toString(),
         productId: prod._id.toString(),
         quantity: prod.stock || 0,
         minQuantity: prod.minQuantity || 10,
         product: formatResult(prod)
       }));
+      return { data: formatted, total };
     }
+
     const query = await resolveRelationFilters(args.where, this.modelName);
-    let q = this.model.find(query);
+    const total = await this.model.countDocuments(query);
+    let q = this.model.find(query).lean();
+
     if (args.orderBy) {
       q = q.sort(translateOrderBy(args.orderBy));
     }
-    if (args.skip) {
-      q = q.skip(args.skip);
+    if (skip) {
+      q = q.skip(skip);
     }
-    if (args.take) {
-      q = q.limit(args.take);
-    }
+    q = q.limit(take);
+
     if (args.select) {
       q = q.select(translateSelect(args.select));
     }
@@ -1520,7 +1528,7 @@ class PrismaCollectionWrapper {
       q = q.populate(translateInclude(args.include));
     }
     const docs = await q.exec();
-    return formatResult(docs);
+    return { data: formatResult(docs), total };
   }
 
   async create(args) {
@@ -1713,24 +1721,70 @@ class PrismaCollectionWrapper {
     return await this.model.countDocuments(query);
   }
 
-  async aggregate(args) {
-    const docs = await this.findMany({ where: args.where });
+  async aggregate(args = {}) {
+    const query = await resolveRelationFilters(args.where, this.modelName);
+    const pipeline = [];
+    if (Object.keys(query).length > 0) {
+      pipeline.push({ $match: query });
+    }
+
+    const groupStage = { _id: null };
     const result = { _sum: {}, _count: {} };
+
     if (args._sum) {
       for (let k in args._sum) {
-        result._sum[k] = docs.reduce((acc, doc) => acc + (parseFloat(doc[k]) || 0), 0);
+        if (args._sum[k]) {
+          groupStage[`_sum_${k}`] = { $sum: `$${k}` };
+          result._sum[k] = 0;
+        }
       }
     }
+
     if (args._count) {
-      for (let k in args._count) {
-        result._count[k] = docs.length;
+      if (typeof args._count === 'object') {
+        for (let k in args._count) {
+          if (args._count[k]) {
+            groupStage[`_count_${k}`] = { $sum: 1 };
+            result._count[k] = 0;
+          }
+        }
+      } else if (args._count === true) {
+        groupStage[`_count__all`] = { $sum: 1 };
+        result._count['_all'] = 0;
       }
     }
+
+    if (Object.keys(groupStage).length > 1) {
+      pipeline.push({ $group: groupStage });
+      const aggResult = await this.model.aggregate(pipeline);
+      if (aggResult && aggResult.length > 0) {
+        const row = aggResult[0];
+        if (args._sum) {
+          for (let k in args._sum) {
+            if (args._sum[k]) {
+              result._sum[k] = row[`_sum_${k}`] || 0;
+            }
+          }
+        }
+        if (args._count) {
+          if (typeof args._count === 'object') {
+            for (let k in args._count) {
+              if (args._count[k]) {
+                result._count[k] = row[`_count_${k}`] || 0;
+              }
+            }
+          } else if (args._count === true) {
+            result._count['_all'] = row[`_count__all`] || 0;
+          }
+        }
+      }
+    }
+
     return result;
   }
 
   async groupBy(args) {
-    const docs = await this.findMany({ where: args.where });
+    const { data: docs } = await this.findMany({ where: args.where, take: 1000 });
     const groups = {};
     docs.forEach(doc => {
       const groupKey = args.by.map(k => doc[k]).join('|');
