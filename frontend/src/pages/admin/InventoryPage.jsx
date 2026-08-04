@@ -486,13 +486,12 @@ export default function InventoryPage() {
             <AlertTriangle className="w-3.5 h-3.5" />
             <span>Low Stock Only</span>
           </button>
-
           <button onClick={fetchStocks} className="p-2 border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 cursor-pointer" title="Refresh Data">
             <RefreshCw className="w-4 h-4" />
           </button>
         </div>
       </div>
-
+      ut7tfv
       {/* Stock Items Multi-Batch Grouped Table */}
       <div className="bg-white border border-slate-200 rounded-3xl shadow-sm overflow-hidden">
         {loading ? (
