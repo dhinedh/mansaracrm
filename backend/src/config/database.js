@@ -8,10 +8,22 @@ if (process.env.NODE_ENV === 'development') {
   dbUrl = dbUrl.replace(/[?&]replicaSet=[^&]*/, '');
 }
 
-// Connect to MongoDB
-mongoose.connect(dbUrl)
+const mongooseOptions = {
+  serverSelectionTimeoutMS: 5000,
+  socketTimeoutMS: 45000,
+  family: 4
+};
+
+// Connect to MongoDB with robust fallback handling
+mongoose.connect(dbUrl, mongooseOptions)
   .then(() => console.log('🔌 Connected to MongoDB via Mongoose'))
-  .catch(err => console.error('❌ MongoDB Connection Error:', err));
+  .catch(err => {
+    console.error('❌ MongoDB Atlas Connection Error:', err.message);
+    console.log('🔄 Attempting fallback connection to local MongoDB...');
+    mongoose.connect('mongodb://127.0.0.1:27017/mansara_crm', mongooseOptions)
+      .then(() => console.log('🔌 Connected to Local MongoDB'))
+      .catch(localErr => console.error('❌ Local MongoDB Fallback Error:', localErr.message));
+  });
 
 const Schema = mongoose.Schema;
 
@@ -234,11 +246,32 @@ ProductSchema.virtual('stockMovements', {
 
 // CompanyInventory
 const CompanyInventorySchema = new Schema({
-  productId: { type: Schema.Types.ObjectId, ref: 'Product', unique: true, required: true },
+  stockId: { type: String, index: true },
+  batchId: { type: String, index: true },
+  productId: { type: Schema.Types.ObjectId, ref: 'Product' },
+  itemName: { type: String, required: true },
+  category: { 
+    type: String, 
+    enum: ['Raw Material', 'WIP', 'Finished Goods', 'Packaging'], 
+    default: 'Raw Material' 
+  },
   quantity: { type: Number, default: 0 },
-  minQuantity: { type: Number, default: 10 }
+  unit: { type: String, default: 'kg' },
+  packagingBreakdown: { type: String, default: '' },
+  mfgDate: { type: Date, default: Date.now },
+  expiryDate: { type: Date },
+  storageLocation: { type: String, default: 'Warehouse 1, Main Rack' },
+  status: { 
+    type: String, 
+    enum: ['Available', 'In Inspection', 'Reserved', 'In Production', 'Low Stock'], 
+    default: 'Available' 
+  },
+  minQuantity: { type: Number, default: 50 },
+  grnNumber: { type: String, default: '' },
+  vendorName: { type: String, default: '' },
+  notes: { type: String, default: '' }
 }, {
-  timestamps: { createdAt: false, updatedAt: true },
+  timestamps: true,
   toJSON: { virtuals: true },
   toObject: { virtuals: true }
 });
@@ -860,6 +893,62 @@ OfferDistributionSchema.virtual('stallSession', {
   justOne: true
 });
 
+// Vendor Schema for Vendor Registration & Onboarding
+const VendorSchema = new Schema({
+  legalName: { type: String, required: true, trim: true, index: true },
+  tradeName: { type: String, trim: true },
+  companyType: { 
+    type: String, 
+    default: 'Proprietorship',
+    index: true 
+  },
+  primaryContactPerson: { type: String, required: true, trim: true },
+  phone: { type: String, required: true, trim: true, index: true },
+  email: { type: String, required: true, trim: true, lowercase: true, index: true },
+  officeAddress: { type: String, required: true },
+  gstin: { type: String, trim: true, uppercase: true, index: true },
+  pan: { type: String, trim: true, uppercase: true, index: true },
+  bankDetails: {
+    accountNumber: { type: String, trim: true },
+    ifscCode: { type: String, trim: true, uppercase: true },
+    bankName: { type: String, trim: true },
+    branchName: { type: String, trim: true }
+  },
+  supplyCategory: { 
+    type: String, 
+    required: true,
+    index: true 
+  },
+  status: { 
+    type: String, 
+    enum: ['ACTIVE', 'INACTIVE', 'PENDING_APPROVAL'], 
+    default: 'ACTIVE',
+    index: true 
+  },
+  agreementStatus: {
+    type: String,
+    enum: ['NOT_GENERATED', 'GENERATED', 'SIGNED_DIGITALLY', 'SIGNED_PHYSICALLY'],
+    default: 'NOT_GENERATED',
+    index: true
+  },
+  agreementDetails: {
+    agreementNumber: { type: String },
+    generatedAt: { type: Date },
+    signedAt: { type: Date },
+    signerName: { type: String },
+    signerTitle: { type: String },
+    signatureData: { type: String },
+    signingMethod: { type: String },
+    customPreamble: { type: String },
+    customTerms: [{ type: String }]
+  },
+  notes: { type: String }
+}, {
+  timestamps: true,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
+});
+
 
 // ======================================================
 // E-COMMERCE SCHEMAS
@@ -1059,10 +1148,129 @@ SavedReportSchema.virtual('creator', {
   justOne: true
 });
 
+// Purchase Request Schema (PR & Quote Selection)
+const PurchaseRequestSchema = new Schema({
+  prNumber: { type: String, required: true, unique: true, index: true },
+  items: [{
+    itemName: { type: String, required: true },
+    category: { type: String, default: 'Raw Materials' },
+    requiredQuantity: { type: Number, required: true },
+    unit: { type: String, default: 'kg' },
+    targetDeliveryDate: { type: Date }
+  }],
+  requestedBy: { type: String, default: 'Inventory Automation System' },
+  status: {
+    type: String,
+    enum: ['OPEN', 'QUOTES_RECEIVED', 'PO_CREATED', 'CLOSED'],
+    default: 'OPEN',
+    index: true
+  },
+  quotes: [{
+    vendorId: { type: Schema.Types.ObjectId, ref: 'Vendor' },
+    vendorName: { type: String },
+    vendorInvoiceNumber: { type: String },
+    quotedUnitPrice: { type: Number },
+    totalQuoteAmount: { type: Number },
+    paymentTerms: { type: String, default: 'Net 30 Days' },
+    leadTimeDays: { type: Number },
+    validUntil: { type: Date },
+    itemizedPrices: [{
+      itemName: { type: String },
+      unitPrice: { type: Number },
+      totalPrice: { type: Number }
+    }],
+    notes: { type: String },
+    status: { type: String, enum: ['PENDING', 'ACCEPTED', 'REJECTED'], default: 'PENDING' }
+  }],
+  selectedVendorId: { type: Schema.Types.ObjectId, ref: 'Vendor' },
+  selectedVendorName: { type: String },
+  selectedInvoiceNumber: { type: String },
+  notes: { type: String }
+}, { timestamps: true, toJSON: { virtuals: true }, toObject: { virtuals: true } });
+
+// Purchase Order Schema (PO Generation)
+const PurchaseOrderSchema = new Schema({
+  poNumber: { type: String, required: true, unique: true, index: true },
+  prId: { type: Schema.Types.ObjectId, ref: 'PurchaseRequest' },
+  prNumber: { type: String },
+  vendorId: { type: Schema.Types.ObjectId, ref: 'Vendor', required: true, index: true },
+  vendorName: { type: String, required: true },
+  vendorInvoiceNumber: { type: String },
+  vendorEmail: { type: String },
+  vendorPhone: { type: String },
+  vendorAddress: { type: String },
+  vendorGstin: { type: String },
+  items: [{
+    itemName: { type: String, required: true },
+    category: { type: String, default: 'Raw Materials' },
+    orderedQuantity: { type: Number, required: true },
+    unitPrice: { type: Number, required: true },
+    totalPrice: { type: Number, required: true },
+    unit: { type: String, default: 'kg' }
+  }],
+  totalAmount: { type: Number, required: true },
+  paymentTerms: { type: String, default: 'Net 30 Days' },
+  expectedDeliveryDate: { type: Date },
+  status: {
+    type: String,
+    enum: ['SENT_TO_VENDOR', 'CONFIRMED', 'PARTIALLY_DELIVERED', 'DELIVERED', 'CANCELLED'],
+    default: 'SENT_TO_VENDOR',
+    index: true
+  },
+  notes: { type: String }
+}, { timestamps: true, toJSON: { virtuals: true }, toObject: { virtuals: true } });
+
+// Goods Receipt Note Schema (GRN, Batch ID & Quality Check)
+const GoodsReceiptNoteSchema = new Schema({
+  grnNumber: { type: String, required: true, unique: true, index: true },
+  poId: { type: Schema.Types.ObjectId, ref: 'PurchaseOrder', required: true, index: true },
+  poNumber: { type: String, required: true },
+  vendorId: { type: Schema.Types.ObjectId, ref: 'Vendor', required: true, index: true },
+  vendorName: { type: String, required: true },
+  invoiceNumber: { type: String },
+  challanNumber: { type: String },
+  items: [{
+    itemName: { type: String, required: true },
+    category: { type: String, default: 'Raw Materials' },
+    orderedQuantity: { type: Number, required: true },
+    receivedQuantity: { type: Number, required: true },
+    acceptedQuantity: { type: Number, required: true },
+    rejectedQuantity: { type: Number, default: 0 },
+    unitPrice: { type: Number, required: true },
+    acceptedAmount: { type: Number, required: true },
+    unit: { type: String, default: 'kg' },
+    batchId: { type: String, required: true },
+    expiryDate: { type: Date },
+    qualityStatus: { type: String, enum: ['PASS', 'FAIL', 'CONDITIONAL_PASS'], default: 'PASS' },
+    qualityNotes: { type: String }
+  }],
+  totalAcceptedAmount: { type: Number, required: true },
+  inspectedBy: { type: String, default: 'Quality Assurance Lead' },
+  receivedDate: { type: Date, default: Date.now },
+  inventoryUpdated: { type: Boolean, default: true },
+  paymentStatus: {
+    type: String,
+    enum: ['PENDING_PAYMENT', 'PARTIALLY_PAID', 'PAID'],
+    default: 'PENDING_PAYMENT',
+    index: true
+  },
+  paymentDetails: {
+    paidAmount: { type: Number, default: 0 },
+    paidAt: { type: Date },
+    paymentReference: { type: String },
+    paymentMode: { type: String }
+  },
+  notes: { type: String }
+}, { timestamps: true, toJSON: { virtuals: true }, toObject: { virtuals: true } });
+
 const SavedReport = mongoose.model('SavedReport', SavedReportSchema, 'saved_reports');
 const Expense = mongoose.model('Expense', ExpenseSchema, 'expenses');
 const OfferItem = mongoose.model('OfferItem', OfferItemSchema, 'offer_items');
 const OfferDistribution = mongoose.model('OfferDistribution', OfferDistributionSchema, 'offer_distributions');
+const Vendor = mongoose.model('Vendor', VendorSchema, 'vendors');
+const PurchaseRequest = mongoose.model('PurchaseRequest', PurchaseRequestSchema, 'purchase_requests');
+const PurchaseOrder = mongoose.model('PurchaseOrder', PurchaseOrderSchema, 'purchase_orders');
+const GoodsReceiptNote = mongoose.model('GoodsReceiptNote', GoodsReceiptNoteSchema, 'goods_receipt_notes');
 
 // ─────────────────────────────────────────────
 // AUTOMATIC DATABASE SCHEMA MIGRATION RUNNER
@@ -1882,6 +2090,10 @@ const prisma = {
   offerItem: new PrismaCollectionWrapper('OfferItem'),
   offerDistribution: new PrismaCollectionWrapper('OfferDistribution'),
   savedReport: new PrismaCollectionWrapper('SavedReport'),
+  vendor: new PrismaCollectionWrapper('Vendor'),
+  purchaseRequest: new PrismaCollectionWrapper('PurchaseRequest'),
+  purchaseOrder: new PrismaCollectionWrapper('PurchaseOrder'),
+  goodsReceiptNote: new PrismaCollectionWrapper('GoodsReceiptNote'),
 
   $transaction: async (fn) => {
     // Run transactions sequentially on standalone local MongoDB instances

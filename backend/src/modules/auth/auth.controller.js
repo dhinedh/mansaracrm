@@ -4,9 +4,10 @@ const jwt = require('jsonwebtoken');
 const prisma = require('../../config/database');
 
 const generateTokens = (user) => {
+  const secret = process.env.JWT_SECRET || 'mansara_crm_jwt_secret_key_2024';
   const accessToken = jwt.sign(
     { id: user.id, email: user.email, role: user.role, staffRole: user.staffRole },
-    process.env.JWT_SECRET,
+    secret,
     { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
   );
   
@@ -213,6 +214,13 @@ exports.login = async (req, res, next) => {
       }
     });
   } catch (error) {
+    if (error.name === 'MongooseError' || error.message?.includes('buffering timed out') || error.message?.includes('timed out')) {
+      console.error('⚠️ Database buffering timeout during login attempt:', error.message);
+      return res.status(503).json({
+        success: false,
+        message: 'Database connection temporarily timed out. Please try logging in again.'
+      });
+    }
     next(error);
   }
 };

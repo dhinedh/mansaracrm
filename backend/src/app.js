@@ -31,6 +31,8 @@ const fieldSalesRoutes = require('./modules/field-sales/field-sales.routes');
 const expenseRoutes = require('./modules/expense/expense.routes');
 const offerRoutes = require('./modules/offer/offer.routes');
 const b2cStoresRoutes = require('./modules/b2c-stores/b2c-stores.routes');
+const vendorsRoutes = require('./modules/vendors/vendors.routes');
+const procurementRoutes = require('./modules/procurement/procurement.routes');
 const { checkFeature } = require('./middleware/featureToggle');
 
 const app = express();
@@ -131,6 +133,8 @@ app.use('/api/field-sales', checkFeature('enableFieldSales'), fieldSalesRoutes);
 app.use('/api/expenses', expenseRoutes);
 app.use('/api/offers', offerRoutes);
 app.use('/api/b2c-stores', b2cStoresRoutes);
+app.use('/api/vendors', vendorsRoutes);
+app.use('/api/procurement', procurementRoutes);
 
 // Base Health Check
 app.get('/api/health', (req, res) => {

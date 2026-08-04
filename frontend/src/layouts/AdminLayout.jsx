@@ -42,6 +42,8 @@ import axios from 'axios';
 const getCrmMenuItems = (unreadNotifications) => [
   { name: 'Dashboard',             path: '/admin/dashboard',           icon: LayoutDashboard, allowedStaffRoles: ['ADMIN', 'ECOM_MANAGER', 'B2B_MANAGER', 'SUPPORT_AGENT', 'FINANCE_OFFICER', 'VIEWER'] },
   { name: 'Dealers',               path: '/admin/dealers',             icon: Users, allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'] },
+  { name: 'Vendors',               path: '/admin/vendors',             icon: Building2, allowedStaffRoles: ['ADMIN', 'B2B_MANAGER', 'FINANCE_OFFICER'] },
+  { name: 'Procurement & POs',     path: '/admin/procurement',         icon: Package, allowedStaffRoles: ['ADMIN', 'B2B_MANAGER', 'FINANCE_OFFICER'] },
   {
     name: 'Products',
     icon: ShoppingBag,

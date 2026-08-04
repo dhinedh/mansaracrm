@@ -4,22 +4,245 @@ const prisma = require('../../config/database');
 // Get company inventory (Admin only)
 exports.getCompanyInventory = async (req, res, next) => {
   try {
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 25;
-    const skip = (page - 1) * limit;
+    const { category, search, lowStock } = req.query;
 
-    const { data: inventory, total } = await prisma.companyInventory.findMany({
+    let inventory = await prisma.companyInventory.findMany({
       include: {
         product: {
           include: { category: true }
         }
       },
-      orderBy: { product: { name: 'asc' } },
-      skip,
-      take: limit
+      orderBy: { updatedAt: 'desc' }
     });
 
-    res.json({ success: true, data: inventory, total, page, limit });
+    // Populate default fields for items missing batchId / stockId
+    inventory = inventory.map((item, idx) => ({
+      ...item.toObject ? item.toObject() : item,
+      stockId: item.stockId || `STK-2026-${String(idx + 1).padStart(3, '0')}`,
+      batchId: item.batchId || `BATCH-RM-${Date.now().toString().slice(-4)}-${idx + 1}`,
+      category: item.category || (item.product?.category?.name || 'Raw Material'),
+      unit: item.unit || 'kg',
+      storageLocation: item.storageLocation || 'Warehouse 1, Rack A',
+      status: item.quantity <= (item.minQuantity || 10) ? 'Low Stock' : (item.status || 'Available'),
+      mfgDate: item.mfgDate || item.createdAt || new Date(),
+      expiryDate: item.expiryDate || new Date(Date.now() + 180 * 24 * 60 * 60 * 1000)
+    }));
+
+    if (category && category !== 'All') {
+      inventory = inventory.filter(i => i.category === category);
+    }
+
+    if (lowStock === 'true') {
+      inventory = inventory.filter(i => i.quantity <= i.minQuantity);
+    }
+
+    res.json({ success: true, data: inventory, total: inventory.length });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Manual Stock Entry & Multi-Batch Assignment
+exports.createStockEntry = async (req, res, next) => {
+  try {
+    const {
+      stockId: customStockId,
+      batchId: customBatchId,
+      itemName,
+      category,
+      quantity,
+      unit,
+      packagingBreakdown,
+      mfgDate,
+      expiryDate,
+      storageLocation,
+      status: customStatus,
+      minQuantity,
+      grnNumber,
+      vendorName,
+      notes,
+      batches
+    } = req.body;
+
+    if (!itemName) {
+      return res.status(400).json({ success: false, message: 'Item Name is required.' });
+    }
+
+    const stockId = customStockId || `STK-2026-${Math.floor(100 + Math.random() * 900)}`;
+
+    const batchList = (batches && Array.isArray(batches) && batches.length > 0) ? batches : [
+      {
+        batchId: customBatchId || `BATCH-${category === 'Finished Goods' ? 'FG' : (category === 'WIP' ? 'WIP' : 'RM')}-${Date.now().toString().slice(-4)}`,
+        quantity: Number(quantity) || 0,
+        packagingBreakdown: packagingBreakdown || '',
+        mfgDate: mfgDate ? new Date(mfgDate) : new Date(),
+        expiryDate: expiryDate ? new Date(expiryDate) : new Date(Date.now() + 180 * 24 * 60 * 60 * 1000),
+        storageLocation: storageLocation || 'Warehouse 1, Rack A',
+        status: customStatus || ((Number(quantity) || 0) <= (Number(minQuantity) || 50) ? 'Low Stock' : 'Available')
+      }
+    ];
+
+    const createdEntries = [];
+    for (const b of batchList) {
+      const entry = await prisma.companyInventory.create({
+        data: {
+          stockId,
+          batchId: b.batchId || `BATCH-RM-${Date.now().toString().slice(-4)}`,
+          itemName,
+          category: category || 'Raw Material',
+          quantity: Number(b.quantity) || 0,
+          unit: unit || 'kg',
+          packagingBreakdown: b.packagingBreakdown || '',
+          mfgDate: b.mfgDate ? new Date(b.mfgDate) : new Date(),
+          expiryDate: b.expiryDate ? new Date(b.expiryDate) : new Date(Date.now() + 180 * 24 * 60 * 60 * 1000),
+          storageLocation: b.storageLocation || 'Warehouse 1, Rack A',
+          status: b.status || 'Available',
+          minQuantity: Number(minQuantity) || 50,
+          grnNumber: grnNumber || '',
+          vendorName: vendorName || '',
+          notes: notes || ''
+        }
+      });
+      createdEntries.push(entry);
+    }
+
+    res.status(201).json({
+      success: true,
+      message: `Successfully saved ${createdEntries.length} batch(es) for Stock ${stockId} (${itemName})!`,
+      data: createdEntries
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Issue Stock to Production (Operations) & Yield/Scrap Entry
+exports.issueToProduction = async (req, res, next) => {
+  try {
+    const { stockId, issueQuantity, targetProcess, yieldQuantity, scrapQuantity, notes } = req.body;
+
+    const stockItem = await prisma.companyInventory.findFirst({
+      where: { OR: [{ id: stockId }, { stockId }] }
+    });
+
+    if (!stockItem) {
+      return res.status(404).json({ success: false, message: 'Stock entry not found.' });
+    }
+
+    const issueQty = Number(issueQuantity) || 0;
+    if (stockItem.quantity < issueQty) {
+      return res.status(400).json({ success: false, message: `Insufficient stock available (${stockItem.quantity} ${stockItem.unit} remaining).` });
+    }
+
+    const newQuantity = stockItem.quantity - issueQty;
+
+    await prisma.companyInventory.update({
+      where: { id: stockItem.id },
+      data: {
+        quantity: newQuantity,
+        status: newQuantity <= stockItem.minQuantity ? 'Low Stock' : 'Available'
+      }
+    });
+
+    // Create WIP Stock Entry for operations if yield or target process specified
+    if (targetProcess || yieldQuantity) {
+      const wipBatchId = `BATCH-WIP-${Date.now().toString().slice(-4)}`;
+      const yieldQty = Number(yieldQuantity) || Math.round(issueQty * 0.95);
+
+      await prisma.companyInventory.create({
+        data: {
+          stockId: `STK-WIP-${Math.floor(100 + Math.random() * 900)}`,
+          batchId: wipBatchId,
+          itemName: `${stockItem.itemName} (${targetProcess || 'In Production'})`,
+          category: 'WIP',
+          quantity: yieldQty,
+          unit: stockItem.unit,
+          storageLocation: 'Processing Floor, Unit 1',
+          status: 'In Production',
+          notes: `Issued from ${stockItem.batchId}. Scrap/Wastage: ${scrapQuantity || (issueQty - yieldQty)} ${stockItem.unit}. ${notes || ''}`
+        }
+      });
+    }
+
+    res.json({
+      success: true,
+      message: `${issueQty} ${stockItem.unit} issued to ${targetProcess || 'Production'}. Stock updated successfully!`,
+      data: { remainingQuantity: newQuantity }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Create Finished Goods Batch ID & Packaging Breakdown
+exports.createFinishedGoodsBatch = async (req, res, next) => {
+  try {
+    const { itemName, quantity, unit, cartonsCount, packetsPerCarton, storageLocation, expiryDate, notes } = req.body;
+
+    const fgBatchId = `BATCH-FG-${Date.now().toString().slice(-4)}`;
+    const stockId = `STK-FG-${Math.floor(100 + Math.random() * 900)}`;
+
+    const totalPackets = (Number(cartonsCount) || 0) * (Number(packetsPerCarton) || 0);
+    const breakdownStr = cartonsCount ? `1 Batch = ${cartonsCount} Cartons (${totalPackets} Packets)` : '';
+
+    const fgStock = await prisma.companyInventory.create({
+      data: {
+        stockId,
+        batchId: fgBatchId,
+        itemName,
+        category: 'Finished Goods',
+        quantity: Number(quantity) || (totalPackets || 100),
+        unit: unit || 'Cartons',
+        packagingBreakdown: breakdownStr,
+        mfgDate: new Date(),
+        expiryDate: expiryDate ? new Date(expiryDate) : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+        storageLocation: storageLocation || 'Finished Goods Warehouse, Rack B',
+        status: 'Available',
+        minQuantity: 20,
+        notes: notes || ''
+      }
+    });
+
+    res.status(201).json({
+      success: true,
+      message: `Finished Goods Batch ${fgBatchId} created and ready for sales!`,
+      data: fgStock
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Trigger Reorder Purchase Request Notification
+exports.triggerPRNotification = async (req, res, next) => {
+  try {
+    const { stockId, itemName, currentQuantity, minQuantity } = req.body;
+
+    const prNumber = `PR-2026-${Math.floor(10000 + Math.random() * 90000)}`;
+
+    const pr = await prisma.purchaseRequest.create({
+      data: {
+        prNumber,
+        requestedBy: 'Stock Threshold System Alert',
+        department: 'Raw Material Inventory',
+        items: [
+          {
+            itemName: itemName || 'Raw Material',
+            category: 'Raw Materials',
+            requiredQuantity: (Number(minQuantity) || 50) * 2,
+            unit: 'kg'
+          }
+        ],
+        status: 'PENDING_QUOTES',
+        notes: `Automated PR triggered because stock of ${itemName} dropped to ${currentQuantity} (below threshold of ${minQuantity}).`
+      }
+    });
+
+    res.json({
+      success: true,
+      message: `Low Stock Alert: Auto Purchase Request ${prNumber} raised for ${itemName}!`,
+      data: pr
+    });
   } catch (error) {
     next(error);
   }

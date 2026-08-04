@@ -3,31 +3,34 @@ const prisma = require('../../config/database');
 
 exports.getDealerStores = async (req, res, next) => {
   try {
-    let dealerId;
-    if (req.user.role === 'ADMIN') {
-      dealerId = req.query.dealerId;
-      if (!dealerId) {
-        return res.status(400).json({ success: false, message: 'dealerId query param required for admin' });
+    const where = { isActive: true };
+
+    if (req.user.role === 'DEALER') {
+      if (req.user.dealer) {
+        where.dealerId = req.user.dealer.id;
       }
-    } else {
-      dealerId = req.user.dealer.id;
+    } else if (req.query.dealerId) {
+      where.dealerId = req.query.dealerId;
     }
 
     const stores = await prisma.store.findMany({
-      where: { dealerId, isActive: true },
+      where,
       orderBy: { name: 'asc' }
     });
 
     const enriched = [];
     for (const store of stores) {
-      const marginRule = await prisma.margin.findFirst({
-        where: {
-          dealerId,
-          storeId: store.id,
-          productId: null,
-          categoryId: null
-        }
-      });
+      let marginRule = null;
+      if (store.dealerId) {
+        marginRule = await prisma.margin.findFirst({
+          where: {
+            dealerId: store.dealerId,
+            storeId: store.id,
+            productId: null,
+            categoryId: null
+          }
+        });
+      }
       enriched.push({
         ...store,
         marginPercent: marginRule ? marginRule.marginPercent : null

@@ -13,13 +13,18 @@ router.use(verifyToken);
 // COMPANY INVENTORY (ADMIN ONLY)
 // ─────────────────────────────────────────────
 router.get('/company', requireRole('ADMIN'), inventoryController.getCompanyInventory);
+router.post('/company/create', requireRole('ADMIN'), inventoryController.createStockEntry);
+router.post('/company/issue-production', requireRole('ADMIN'), inventoryController.issueToProduction);
+router.post('/company/finished-goods', requireRole('ADMIN'), inventoryController.createFinishedGoodsBatch);
+router.post('/company/trigger-pr', requireRole('ADMIN'), inventoryController.triggerPRNotification);
+
 router.post('/company/adjust', requireRole('ADMIN'), validate([
-  body('productId').notEmpty().withMessage('Product ID is required'),
+  body('productId').optional().notEmpty().withMessage('Product ID is required'),
   body('quantity').isInt({ gt: 0 }).withMessage('Quantity must be positive integer'),
   body('type').isIn(['IN', 'OUT', 'ADJUSTMENT']).withMessage('Invalid adjustment type')
 ]), inventoryController.adjustCompanyInventory);
 router.put('/company/update', requireRole('ADMIN'), validate([
-  body('productId').notEmpty().withMessage('Product ID is required'),
+  body('productId').optional().notEmpty().withMessage('Product ID is required'),
   body('quantity').isInt({ gte: 0 }).withMessage('Quantity must be a non-negative integer'),
   body('minQuantity').isInt({ gte: 0 }).withMessage('Min quantity must be a non-negative integer')
 ]), inventoryController.updateCompanyInventory);
