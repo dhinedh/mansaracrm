@@ -491,7 +491,7 @@ export default function InventoryPage() {
           </button>
         </div>
       </div>
-      ut7tfv
+
       {/* Stock Items Multi-Batch Grouped Table */}
       <div className="bg-white border border-slate-200 rounded-3xl shadow-sm overflow-hidden">
         {loading ? (
