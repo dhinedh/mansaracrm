@@ -42,6 +42,7 @@ const B2CStorePage = lazy(() => import('./pages/admin/B2CStorePage'));
 const VendorsPage = lazy(() => import('./pages/admin/VendorsPage'));
 const ProcurementPage = lazy(() => import('./pages/admin/ProcurementPage'));
 const VendorCategoriesPage = lazy(() => import('./pages/admin/VendorCategoriesPage'));
+const VendorPriceAnalysisPage = lazy(() => import('./pages/admin/VendorPriceAnalysisPage'));
 
 // E-Commerce Pages
 const EcomOrdersPage = lazy(() => import('./pages/admin/EcomOrdersPage'));
@@ -245,6 +246,11 @@ export default function App() {
           <Route path="vendor-categories" element={
             <ProtectedRoute allowedStaffRoles={['ADMIN', 'B2B_MANAGER', 'FINANCE_OFFICER']}>
               <VendorCategoriesPage />
+            </ProtectedRoute>
+          } />
+          <Route path="vendor-price-analysis" element={
+            <ProtectedRoute allowedStaffRoles={['ADMIN', 'B2B_MANAGER', 'FINANCE_OFFICER']}>
+              <VendorPriceAnalysisPage />
             </ProtectedRoute>
           } />
           <Route path="b2c-stores" element={

@@ -77,6 +77,7 @@ const getVendorMenuItems = () => [
   { name: 'Vendors',               path: '/admin/vendors',             icon: Building2, allowedStaffRoles: ['ADMIN', 'B2B_MANAGER', 'FINANCE_OFFICER'] },
   { name: 'Procurement & POs',     path: '/admin/procurement',         icon: Package, allowedStaffRoles: ['ADMIN', 'B2B_MANAGER', 'FINANCE_OFFICER'] },
   { name: 'Supply Categories',     path: '/admin/vendor-categories',   icon: Tag, allowedStaffRoles: ['ADMIN', 'B2B_MANAGER', 'FINANCE_OFFICER'] },
+  { name: 'Price Movement / Analysis', path: '/admin/vendor-price-analysis', icon: TrendingUp, allowedStaffRoles: ['ADMIN', 'B2B_MANAGER', 'FINANCE_OFFICER'] },
 ];
 
 const getSalesMarketingMenuItems = (licensing) => {
