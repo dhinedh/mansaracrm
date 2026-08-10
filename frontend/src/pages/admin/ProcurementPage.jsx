@@ -1,5 +1,6 @@
 // src/pages/admin/ProcurementPage.jsx
 import React, { useEffect, useState, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 import axios from 'axios';
 import {
   FileText,
@@ -31,6 +32,69 @@ import {
   MessageSquare,
   Share2
 } from 'lucide-react';
+
+// ── Smart Category & Unit Auto-Detector for Materials ────────────────────────
+function detectCategoryAndUnit(itemName, masterInventories = []) {
+  if (!itemName || typeof itemName !== 'string') {
+    return { category: 'Raw Materials', unit: 'kg' };
+  }
+
+  const clean = itemName.trim().toLowerCase();
+  if (!clean) return { category: 'Raw Materials', unit: 'kg' };
+
+  // 1. Check exact or partial match in master inventories from database
+  if (Array.isArray(masterInventories) && masterInventories.length > 0) {
+    const match = masterInventories.find(i => {
+      const name = (i.itemName || i.name || '').toLowerCase();
+      return name === clean || clean.includes(name) || name.includes(clean);
+    });
+
+    if (match) {
+      let cat = match.category || match.itemType || 'Raw Materials';
+      if (cat.includes('Raw')) cat = 'Raw Materials';
+      else if (cat.includes('Packaging')) cat = 'Packaging Materials';
+      else if (cat.includes('Label') || cat.includes('Print')) cat = 'Labeling & Printing';
+      else if (cat.includes('Equipment') || cat.includes('Machinery')) cat = 'Equipment';
+      else if (cat.includes('Logistics') || cat.includes('Transport')) cat = 'Logistics';
+      else if (cat.includes('Service') || cat.includes('Maintenance')) cat = 'Services';
+
+      return {
+        category: cat,
+        unit: match.unit || 'kg'
+      };
+    }
+  }
+
+  // 2. Comprehensive pattern detection
+  if (/label|sticker|barcode|nutritional|print|tag/i.test(clean)) {
+    return { category: 'Labeling & Printing', unit: 'rolls' };
+  }
+
+  if (/pouch|box|carton|shipper|bag|tape|film|roll|container|wrapper|foil|jar|bottle|pouch|laminate|poly/i.test(clean)) {
+    let unit = 'units';
+    if (/roll|tape|film|laminate/i.test(clean)) unit = 'rolls';
+    if (/box|carton|pouch|jar|bottle|bag/i.test(clean)) unit = 'pcs';
+    return { category: 'Packaging Materials', unit };
+  }
+
+  if (/machine|mixer|grinder|conveyor|sealer|motor|blade|spare|tool|pump|scale|weighing|part|belt/i.test(clean)) {
+    return { category: 'Equipment', unit: 'units' };
+  }
+
+  if (/freight|transport|courier|vehicle|fuel|shipping|logistics|diesel|petrol|cartage/i.test(clean)) {
+    return { category: 'Logistics', unit: 'trip' };
+  }
+
+  if (/service|repair|maintenance|audit|pest|calibration|cleaning|lab test|cert/i.test(clean)) {
+    return { category: 'Services', unit: 'job' };
+  }
+
+  if (/oil|fat|ghee|syrup|liquid|water|milk|vinegar|essence/i.test(clean)) {
+    return { category: 'Raw Materials', unit: 'liters' };
+  }
+
+  return { category: 'Raw Materials', unit: 'kg' };
+}
 
 // ── Type-to-Searchable & Creatable Item Select Component ────────────────────────
 function ItemTypeSearchSelect({ value, onChange, masterItems = [] }) {
@@ -65,7 +129,10 @@ function ItemTypeSearchSelect({ value, onChange, masterItems = [] }) {
 
   const handleSelectOption = (optName) => {
     const matchedMaster = masterItems.find(m => (m.itemName || m.name) === optName);
-    onChange(optName, matchedMaster?.category);
+    const detected = detectCategoryAndUnit(optName, masterItems);
+    const finalCategory = matchedMaster?.category || detected.category;
+    const finalUnit = matchedMaster?.unit || detected.unit;
+    onChange(optName, finalCategory, finalUnit);
     setSearchTerm('');
     setIsOpen(false);
   };
@@ -73,7 +140,8 @@ function ItemTypeSearchSelect({ value, onChange, masterItems = [] }) {
   const handleAddCustom = () => {
     const trimmed = searchTerm.trim();
     if (!trimmed) return;
-    onChange(trimmed);
+    const detected = detectCategoryAndUnit(trimmed, masterItems);
+    onChange(trimmed, detected.category, detected.unit);
     setSearchTerm('');
     setIsOpen(false);
   };
@@ -92,8 +160,10 @@ function ItemTypeSearchSelect({ value, onChange, masterItems = [] }) {
           placeholder="Type to search or add new item..."
           value={isOpen ? searchTerm : (value || '')}
           onChange={(e) => {
-            setSearchTerm(e.target.value);
-            onChange(e.target.value);
+            const typedVal = e.target.value;
+            setSearchTerm(typedVal);
+            const detected = detectCategoryAndUnit(typedVal, masterItems);
+            onChange(typedVal, detected.category, detected.unit);
             setIsOpen(true);
           }}
           onFocus={() => setIsOpen(true)}
@@ -137,7 +207,24 @@ function ItemTypeSearchSelect({ value, onChange, masterItems = [] }) {
 }
 
 export default function ProcurementPage() {
+  const location = useLocation();
   const [activeTab, setActiveTab] = useState('pr'); // 'pr' | 'po' | 'grn' | 'archive'
+
+  useEffect(() => {
+    if (location.state?.autoCreatePO && location.state?.itemName) {
+      setPrItems([
+        {
+          itemName: location.state.itemName,
+          category: 'Raw Materials',
+          requiredQuantity: location.state.suggestedQty || 100,
+          unit: location.state.unit || 'kg',
+          targetDeliveryDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+        }
+      ]);
+      setPrNotes(`Auto-generated Purchase Request due to Low Stock Alert for ${location.state.itemName}.`);
+      setShowCreatePRModal(true);
+    }
+  }, [location.state]);
 
   // Data States
   const [purchaseRequests, setPurchaseRequests] = useState([]);
@@ -253,10 +340,20 @@ export default function ProcurementPage() {
     setPrItems(prev => prev.filter((_, i) => i !== index));
   };
 
-  const handleUpdatePRItemRow = (index, field, value) => {
+  const handleUpdatePRItemRow = (index, field, value, autoCat, autoUnit) => {
     setPrItems(prev => {
       const updated = [...prev];
-      updated[index] = { ...updated[index], [field]: value };
+      if (field === 'itemName') {
+        const detected = detectCategoryAndUnit(value, inventories);
+        updated[index] = {
+          ...updated[index],
+          itemName: value,
+          category: autoCat || detected.category,
+          unit: autoUnit || detected.unit || updated[index].unit || 'kg'
+        };
+      } else {
+        updated[index] = { ...updated[index], [field]: value };
+      }
       return updated;
     });
   };
@@ -1155,14 +1252,18 @@ export default function ProcurementPage() {
                       <ItemTypeSearchSelect
                         value={item.itemName}
                         masterItems={inventories}
-                        onChange={(name, category) => {
-                          handleUpdatePRItemRow(idx, 'itemName', name);
-                          if (category) handleUpdatePRItemRow(idx, 'category', category);
+                        onChange={(name, category, unit) => {
+                          handleUpdatePRItemRow(idx, 'itemName', name, category, unit);
                         }}
                       />
 
                       <div>
-                        <label className="block font-bold text-slate-700 mb-1">Category</label>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="block font-bold text-slate-700">Category</label>
+                          <span className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                            ⚡ Auto-Populated
+                          </span>
+                        </div>
                         <select
                           value={item.category}
                           onChange={(e) => handleUpdatePRItemRow(idx, 'category', e.target.value)}
@@ -1170,9 +1271,11 @@ export default function ProcurementPage() {
                         >
                           <option value="Raw Materials">Raw Materials</option>
                           <option value="Packaging Materials">Packaging Materials</option>
+                          <option value="Labeling & Printing">Labeling &amp; Printing</option>
                           <option value="Equipment">Equipment</option>
                           <option value="Services">Services</option>
                           <option value="Logistics">Logistics</option>
+                          <option value="Other">Other</option>
                         </select>
                       </div>
 

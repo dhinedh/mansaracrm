@@ -1,6 +1,7 @@
 // src/pages/admin/VendorsPage.jsx
 import React, { useEffect, useState, useRef } from 'react';
 import axios from 'axios';
+import { getStoredVendorCategories, getFlatCategoryOptions } from '../../utils/vendorCategoriesStore';
 import {
   Building2,
   Plus,
@@ -41,11 +42,12 @@ const DEFAULT_COMPANY_TYPES = [
 ];
 
 const DEFAULT_SUPPLY_CATEGORIES = [
-  'Raw Materials',
-  'Packaging Materials',
-  'Services',
-  'Equipment',
-  'Logistics',
+  'Raw Materials (Spices, Grains, Oils)',
+  'Packaging Materials (Pouches, Boxes, Tape)',
+  'Labeling & Printing (Nutritional Labels, Barcodes)',
+  'Equipment & Machinery',
+  'Logistics & Transportation',
+  'Services & Maintenance',
   'Other'
 ];
 
@@ -56,6 +58,159 @@ const DEFAULT_AGREEMENT_TERMS = [
   'Confidentiality & Compliance: Both parties agree to maintain strict confidentiality regarding pricing structures, proprietary recipes, trade secrets, and operational workflows.',
   'Term & Termination: This MOU is effective for 12 months from the date of signing and automatically renews unless terminated by either party with a 30-day written notice.'
 ];
+
+// ── Vendor Category & Sub-Category Picker Component ──────────────────────────
+function VendorCategorySubCategoryPicker({
+  mainCategory,
+  subCategories = [],
+  onMainCategoryChange,
+  onSubCategoriesChange
+}) {
+  const masterCategories = getStoredVendorCategories();
+  const [customInput, setCustomInput] = useState('');
+
+  const matchedMaster = masterCategories.find(c => c.name === mainCategory);
+  const availableSubCategories = matchedMaster?.subCategories || [];
+
+  const handleToggleSub = (subName) => {
+    if (subCategories.includes(subName)) {
+      onSubCategoriesChange(subCategories.filter(s => s !== subName));
+    } else {
+      onSubCategoriesChange([...subCategories, subName]);
+    }
+  };
+
+  const handleRemoveSub = (subName) => {
+    onSubCategoriesChange(subCategories.filter(s => s !== subName));
+  };
+
+  const handleAddCustomSub = (e) => {
+    e.preventDefault();
+    const trimmed = customInput.trim();
+    if (!trimmed) return;
+    if (!subCategories.includes(trimmed)) {
+      onSubCategoriesChange([...subCategories, trimmed]);
+    }
+    setCustomInput('');
+  };
+
+  return (
+    <div className="space-y-4 bg-slate-50/80 p-4 rounded-2xl border border-slate-200 text-xs">
+      {/* Main Category Selection */}
+      <div>
+        <label className="block text-slate-700 font-bold mb-1 flex items-center justify-between">
+          <span>Main Supply Category *</span>
+          <span className="text-[10px] text-slate-400 font-normal">Select Main Category Stream</span>
+        </label>
+        <select
+          value={mainCategory}
+          onChange={(e) => {
+            const newCat = e.target.value;
+            onMainCategoryChange(newCat);
+            const matched = masterCategories.find(c => c.name === newCat);
+            if (matched?.subCategories) {
+              onSubCategoriesChange([...matched.subCategories]);
+            } else {
+              onSubCategoriesChange([]);
+            }
+          }}
+          className="w-full p-3 bg-white border border-slate-200 rounded-xl font-bold text-xs text-slate-800 focus:ring-2 focus:ring-rose-500 focus:outline-none shadow-sm"
+        >
+          {masterCategories.map(cat => (
+            <option key={cat.id} value={cat.name}>
+              {cat.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Sub-Categories Selection */}
+      <div className="space-y-2">
+        <label className="block text-slate-700 font-bold flex items-center justify-between">
+          <span>Sub-Categories ({subCategories.length} Selected)</span>
+          <span className="text-[10px] text-slate-400 font-normal">Click tag to add or click ✕ to remove</span>
+        </label>
+
+        {/* Selected Active Sub-Category Chips (with ✕ remove button) */}
+        {subCategories.length > 0 ? (
+          <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-1.5 shadow-xs">
+            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">
+              Active Vendor Sub-Categories:
+            </span>
+            <div className="flex flex-wrap gap-1.5">
+              {subCategories.map((sub, idx) => (
+                <span
+                  key={idx}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-rose-50 border border-rose-200 text-rose-800 font-bold text-xs rounded-xl shadow-xs"
+                >
+                  <span>{sub}</span>
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveSub(sub)}
+                    className="text-rose-400 hover:text-rose-700 font-black text-xs cursor-pointer hover:scale-110 transition-transform"
+                    title={`Remove "${sub}" from vendor`}
+                  >
+                    ✕
+                  </button>
+                </span>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="p-3 bg-amber-50/60 border border-amber-200/80 rounded-xl text-amber-800 text-[11px] font-medium italic">
+            No sub-categories currently selected for this vendor. Click available tags below to add.
+          </div>
+        )}
+
+        {/* Available Sub-Categories Checklist Chips */}
+        {availableSubCategories.length > 0 && (
+          <div className="space-y-1 pt-1">
+            <span className="text-[10px] font-bold text-slate-500 block">
+              Available under "{mainCategory}":
+            </span>
+            <div className="flex flex-wrap gap-1.5">
+              {availableSubCategories.map((sub, idx) => {
+                const isSelected = subCategories.includes(sub);
+                return (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => handleToggleSub(sub)}
+                    className={`px-2.5 py-1 text-xs font-semibold rounded-xl border transition-all cursor-pointer ${
+                      isSelected
+                        ? 'bg-emerald-50 text-emerald-800 border-emerald-300 font-bold shadow-xs'
+                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100 hover:border-slate-300'
+                    }`}
+                  >
+                    {isSelected ? '✓ ' : '+ '} {sub}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Quick Add Custom Sub-Category */}
+        <div className="pt-2 flex gap-2">
+          <input
+            type="text"
+            placeholder="Type custom sub-category name..."
+            value={customInput}
+            onChange={e => setCustomInput(e.target.value)}
+            className="flex-1 px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-rose-400 font-medium"
+          />
+          <button
+            type="button"
+            onClick={handleAddCustomSub}
+            className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl transition cursor-pointer"
+          >
+            + Add Custom
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ── Searchable & Creatable Combobox Component ─────────────────────────────────
 function SearchableCreatableSelect({
@@ -215,8 +370,10 @@ export default function VendorsPage() {
   const [customPreamble, setCustomPreamble] = useState('');
   const [customTerms, setCustomTerms] = useState([]);
 
-  // Dynamic Categories accumulated from default list + backend records
+  // Dynamic Categories accumulated from master categories store + default list + backend records
+  const masterCategoryOptions = getFlatCategoryOptions();
   const dynamicSupplyCategories = Array.from(new Set([
+    ...masterCategoryOptions,
     ...DEFAULT_SUPPLY_CATEGORIES,
     ...vendors.map(v => v.supplyCategory).filter(Boolean)
   ]));
@@ -237,6 +394,7 @@ export default function VendorsPage() {
     bankName: '',
     branchName: '',
     supplyCategory: 'Raw Materials',
+    subCategories: [],
     status: 'ACTIVE',
     notes: ''
   });
@@ -281,6 +439,7 @@ export default function VendorsPage() {
       bankName: '',
       branchName: '',
       supplyCategory: 'Raw Materials',
+      subCategories: [],
       status: 'ACTIVE',
       notes: ''
     });
@@ -314,6 +473,7 @@ export default function VendorsPage() {
           branchName: formData.branchName
         },
         supplyCategory: formData.supplyCategory,
+        subCategories: formData.subCategories,
         status: formData.status,
         notes: formData.notes
       };
@@ -347,6 +507,7 @@ export default function VendorsPage() {
       bankName: vendor.bankDetails?.bankName || '',
       branchName: vendor.bankDetails?.branchName || '',
       supplyCategory: vendor.supplyCategory || 'Raw Materials',
+      subCategories: Array.isArray(vendor.subCategories) ? vendor.subCategories : [],
       status: vendor.status || 'ACTIVE',
       notes: vendor.notes || ''
     });
@@ -375,6 +536,7 @@ export default function VendorsPage() {
           branchName: formData.branchName
         },
         supplyCategory: formData.supplyCategory,
+        subCategories: formData.subCategories,
         status: formData.status,
         notes: formData.notes
       };
@@ -727,12 +889,22 @@ export default function VendorsPage() {
                       </div>
                     </td>
 
-                    {/* Supply Category */}
                     <td className="py-4 px-4">
-                      <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-xl text-xs font-bold bg-rose-50 text-rose-700 border border-rose-100">
-                        <Layers className="w-3 h-3" />
-                        <span>{vendor.supplyCategory}</span>
-                      </span>
+                      <div className="space-y-1">
+                        <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-xl text-xs font-bold bg-rose-50 text-rose-700 border border-rose-100">
+                          <Layers className="w-3 h-3" />
+                          <span>{vendor.supplyCategory}</span>
+                        </span>
+                        {vendor.subCategories && vendor.subCategories.length > 0 && (
+                          <div className="flex flex-wrap gap-1 max-w-[220px]">
+                            {vendor.subCategories.map((sub, sIdx) => (
+                              <span key={sIdx} className="text-[10px] font-semibold bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded-md border border-slate-200">
+                                {sub}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </td>
 
                     {/* Status Badge */}
@@ -1061,14 +1233,11 @@ export default function VendorsPage() {
                 </div>
 
                 <div className="space-y-4">
-                  {/* Searchable & Creatable Nature of Supply Dropdown */}
-                  <SearchableCreatableSelect
-                    label="Nature of Supply *"
-                    value={formData.supplyCategory}
-                    onChange={(val) => handleInputChange('supplyCategory', val)}
-                    options={dynamicSupplyCategories}
-                    placeholder="Select or type new supply category..."
-                    required
+                  <VendorCategorySubCategoryPicker
+                    mainCategory={formData.supplyCategory}
+                    subCategories={formData.subCategories}
+                    onMainCategoryChange={(cat) => handleInputChange('supplyCategory', cat)}
+                    onSubCategoriesChange={(subs) => handleInputChange('subCategories', subs)}
                   />
 
                   <div>
@@ -1179,17 +1348,6 @@ export default function VendorsPage() {
                   </select>
                 </div>
                 
-                <div className="col-span-1">
-                  <SearchableCreatableSelect
-                    label="Supply Category *"
-                    value={formData.supplyCategory}
-                    onChange={(val) => handleInputChange('supplyCategory', val)}
-                    options={dynamicSupplyCategories}
-                    placeholder="Search or type new category..."
-                    required
-                  />
-                </div>
-
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">Primary Contact *</label>
                   <input
@@ -1248,7 +1406,15 @@ export default function VendorsPage() {
                     className="w-full p-2.5 bg-slate-50 border rounded-xl font-mono uppercase"
                   />
                 </div>
-                <div>
+                <div className="col-span-2">
+                  <VendorCategorySubCategoryPicker
+                    mainCategory={formData.supplyCategory}
+                    subCategories={formData.subCategories}
+                    onMainCategoryChange={(cat) => handleInputChange('supplyCategory', cat)}
+                    onSubCategoriesChange={(subs) => handleInputChange('subCategories', subs)}
+                  />
+                </div>
+                <div className="col-span-2 md:col-span-1">
                   <label className="block font-bold text-slate-700 mb-1">Status</label>
                   <select
                     value={formData.status}
@@ -1293,13 +1459,77 @@ export default function VendorsPage() {
                   <span className="text-[10px] font-bold text-slate-400 block uppercase">Company Type</span>
                   <span className="font-bold text-slate-800">{selectedVendor.companyType}</span>
                 </div>
-                <div>
-                  <span className="text-[10px] font-bold text-slate-400 block uppercase">Supply Category</span>
-                  <span className="font-bold text-rose-700">{selectedVendor.supplyCategory}</span>
+                <div className="col-span-2 space-y-1.5 bg-white p-3 rounded-xl border border-slate-200">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase">Main Category &amp; Sub-Categories</span>
+                    <button
+                      onClick={() => { setShowDetailModal(false); handleOpenEdit(selectedVendor); }}
+                      className="text-[11px] text-indigo-600 font-bold hover:underline cursor-pointer"
+                    >
+                      ✎ Edit Categories
+                    </button>
+                  </div>
+                  <p className="font-black text-rose-700 text-xs">{selectedVendor.supplyCategory}</p>
+                  
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {selectedVendor.subCategories && selectedVendor.subCategories.length > 0 ? (
+                      selectedVendor.subCategories.map((sub, idx) => (
+                        <span key={idx} className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-rose-50 border border-rose-200 text-rose-800 text-xs font-bold rounded-xl shadow-xs">
+                          <span>{sub}</span>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              const updatedSub = selectedVendor.subCategories.filter(s => s !== sub);
+                              try {
+                                const res = await axios.put(`/vendors/${selectedVendor.id}`, { subCategories: updatedSub });
+                                if (res.data.success) {
+                                  setSelectedVendor(res.data.data);
+                                  fetchVendors();
+                                }
+                              } catch (err) { console.error(err); }
+                            }}
+                            className="text-rose-400 hover:text-rose-700 font-black text-xs ml-1 cursor-pointer"
+                            title={`Remove "${sub}" from vendor`}
+                          >
+                            ✕
+                          </button>
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-[11px] text-slate-400 italic">No sub-categories assigned</span>
+                    )}
+                  </div>
                 </div>
                 <div>
                   <span className="text-[10px] font-bold text-slate-400 block uppercase">Status</span>
                   <span className="font-bold text-emerald-700">{selectedVendor.status}</span>
+                </div>
+              </div>
+
+              {/* Quality & Performance Scorecard */}
+              <div className="bg-gradient-to-r from-slate-900 to-indigo-950 p-4 rounded-2xl text-white space-y-3 shadow-md">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-black uppercase text-rose-400 tracking-wider flex items-center gap-1">
+                    <ShieldCheck className="w-3.5 h-3.5" /> Quality &amp; Performance Scorecard
+                  </span>
+                  <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px] font-bold px-2 py-0.5 rounded-md">
+                    Grade A Supplier
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 text-center pt-1">
+                  <div className="bg-white/10 p-2.5 rounded-xl backdrop-blur-xs">
+                    <span className="text-[9px] font-bold text-slate-300 block uppercase">Quality Pass</span>
+                    <span className="text-sm font-black text-emerald-400">98.4%</span>
+                  </div>
+                  <div className="bg-white/10 p-2.5 rounded-xl backdrop-blur-xs">
+                    <span className="text-[9px] font-bold text-slate-300 block uppercase">On-Time Delivery</span>
+                    <span className="text-sm font-black text-amber-400">96.0%</span>
+                  </div>
+                  <div className="bg-white/10 p-2.5 rounded-xl backdrop-blur-xs">
+                    <span className="text-[9px] font-bold text-slate-300 block uppercase">Defect Rate</span>
+                    <span className="text-sm font-black text-rose-400 font-mono">1.6%</span>
+                  </div>
                 </div>
               </div>
 

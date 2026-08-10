@@ -919,6 +919,7 @@ const VendorSchema = new Schema({
     required: true,
     index: true 
   },
+  subCategories: [{ type: String, trim: true }],
   status: { 
     type: String, 
     enum: ['ACTIVE', 'INACTIVE', 'PENDING_APPROVAL'], 

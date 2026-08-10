@@ -38,36 +38,9 @@ import {
 } from 'lucide-react';
 import axios from 'axios';
 
-// ─── Menu Sections Config ────────────────────────────────────────────────────
-const getCrmMenuItems = (unreadNotifications) => [
+// ─── Menu Items Configuration ────────────────────────────────────────────────
+const getOverviewMenuItems = (unreadNotifications) => [
   { name: 'Dashboard',             path: '/admin/dashboard',           icon: LayoutDashboard, allowedStaffRoles: ['ADMIN', 'ECOM_MANAGER', 'B2B_MANAGER', 'SUPPORT_AGENT', 'FINANCE_OFFICER', 'VIEWER'] },
-  { name: 'Dealers',               path: '/admin/dealers',             icon: Users, allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'] },
-  { name: 'Vendors',               path: '/admin/vendors',             icon: Building2, allowedStaffRoles: ['ADMIN', 'B2B_MANAGER', 'FINANCE_OFFICER'] },
-  { name: 'Procurement & POs',     path: '/admin/procurement',         icon: Package, allowedStaffRoles: ['ADMIN', 'B2B_MANAGER', 'FINANCE_OFFICER'] },
-  {
-    name: 'Products',
-    icon: ShoppingBag,
-    allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'],
-    subItems: [
-      { name: 'All Products', path: '/admin/products',   icon: ShoppingBag },
-      { name: 'Categories',   path: '/admin/categories', icon: Tag }
-    ]
-  },
-  { name: 'Stock',                 path: '/admin/inventory',           icon: Warehouse, allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'] },
-  { name: 'Inventories',           path: '/admin/inventories',         icon: Boxes, allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'] },
-  { name: 'Channel Integration',   path: '/admin/channel-integration', icon: Cable, allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'] },
-  { name: 'R&D',                   path: '/admin/rnd',                 icon: Microscope, allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'] },
-  { name: 'Transfers',             path: '/admin/transfers',           icon: Truck, allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'] },
-  { name: 'Order Requests',        path: '/admin/requests',            icon: FileText, allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'] },
-  { name: 'Invoice Ledger',        path: '/admin/invoice-ledger',      icon: FileText, allowedStaffRoles: ['ADMIN', 'FINANCE_OFFICER', 'B2B_MANAGER'] },
-  { name: 'Returns Log',           path: '/admin/returns',             icon: RotateCcw, allowedStaffRoles: ['ADMIN', 'SUPPORT_AGENT', 'B2B_MANAGER'] },
-  { name: 'Tickets / Support',     path: '/admin/services',            icon: HelpCircle, allowedStaffRoles: ['ADMIN', 'SUPPORT_AGENT'] },
-  { name: 'Reports',               path: '/admin/reports',             icon: BarChart3, allowedStaffRoles: ['ADMIN', 'FINANCE_OFFICER'] },
-  { name: 'Expenses Log',          path: '/admin/expenses',            icon: Receipt, allowedStaffRoles: ['ADMIN', 'FINANCE_OFFICER', 'B2B_MANAGER'] },
-  { name: 'Offer Expenses',        path: '/admin/offers',              icon: Gift, allowedStaffRoles: ['ADMIN', 'FINANCE_OFFICER', 'B2B_MANAGER'] },
-  { name: 'Forecasting',           path: '/admin/forecasting',         icon: TrendingUp, allowedStaffRoles: ['ADMIN', 'FINANCE_OFFICER'] },
-  { name: 'Analytics',             path: '/admin/analytics',           icon: BarChart3, allowedStaffRoles: ['ADMIN', 'FINANCE_OFFICER'] },
-  { name: 'Privilege Management',  path: '/admin/users',               icon: Settings, allowedStaffRoles: ['ADMIN'] },
   {
     name: 'Notifications',
     path: '/admin/notifications',
@@ -77,26 +50,118 @@ const getCrmMenuItems = (unreadNotifications) => [
   },
 ];
 
-const fieldMenuItems = [
-  { name: 'B2C Stalls',   path: '/admin/stalls',       icon: Store,       allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'] },
-  { name: 'Store Visits', path: '/admin/store-visits',  icon: Truck,       allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'] },
-  { name: 'B2C Stores',   path: '/admin/b2c-stores',    icon: ShoppingBag, allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'] },
+const getRndMenuItems = () => [
+  { name: 'R&D',                   path: '/admin/rnd',                 icon: Microscope, allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'] },
 ];
 
-
-
-const ecomMenuItems = [
-  { name: 'E-Com Products',  path: '/admin/ecom/products',  icon: Package, allowedStaffRoles: ['ADMIN', 'ECOM_MANAGER'] },
-  { name: 'Website Orders',  path: '/admin/ecom/orders',    icon: ShoppingCart, allowedStaffRoles: ['ADMIN', 'ECOM_MANAGER'] },
-  { name: 'Customers',       path: '/admin/ecom/customers', icon: Users, allowedStaffRoles: ['ADMIN', 'ECOM_MANAGER'] },
-  { name: 'Product Combos',  path: '/admin/ecom/combos',    icon: PackageSearch, allowedStaffRoles: ['ADMIN', 'ECOM_MANAGER'] },
-  { name: 'Banners & Hero',  path: '/admin/ecom/banners',   icon: Image, allowedStaffRoles: ['ADMIN', 'ECOM_MANAGER'] },
-  { name: 'Product Reviews', path: '/admin/ecom/reviews',   icon: MessageSquare, allowedStaffRoles: ['ADMIN', 'ECOM_MANAGER'] },
-  { name: 'Website Content', path: '/admin/ecom/content',   icon: FileText, allowedStaffRoles: ['ADMIN', 'ECOM_MANAGER'] },
-  { name: 'Store Settings',  path: '/admin/ecom/settings',  icon: Settings, allowedStaffRoles: ['ADMIN', 'ECOM_MANAGER'] },
-  { name: 'Ecom Reports',    path: '/admin/ecom/reports',   icon: BarChart3, allowedStaffRoles: ['ADMIN', 'ECOM_MANAGER'] },
-  { name: 'Ecom Analytics',  path: '/admin/ecom/analytics', icon: TrendingUp, allowedStaffRoles: ['ADMIN', 'ECOM_MANAGER'] },
+const getInventoryMenuItems = () => [
+  {
+    name: 'Products',
+    icon: ShoppingBag,
+    allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'],
+    subItems: [
+      { name: 'All Products', path: '/admin/products',   icon: ShoppingBag },
+      { name: 'Categories',   path: '/admin/categories', icon: Tag }
+    ]
+  },
+  { name: 'Channel Integration',   path: '/admin/channel-integration', icon: Cable, allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'] },
 ];
+
+const getStockMenuItems = () => [
+  { name: 'Warehouse Stock',       path: '/admin/inventory',           icon: Warehouse, allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'] },
+  { name: 'Multi-Inventories',     path: '/admin/inventories',         icon: Boxes, allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'] },
+  { name: 'Stock Transfers',       path: '/admin/transfers',           icon: Truck, allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'] },
+];
+
+const getVendorMenuItems = () => [
+  { name: 'Vendors',               path: '/admin/vendors',             icon: Building2, allowedStaffRoles: ['ADMIN', 'B2B_MANAGER', 'FINANCE_OFFICER'] },
+  { name: 'Procurement & POs',     path: '/admin/procurement',         icon: Package, allowedStaffRoles: ['ADMIN', 'B2B_MANAGER', 'FINANCE_OFFICER'] },
+  { name: 'Supply Categories',     path: '/admin/vendor-categories',   icon: Tag, allowedStaffRoles: ['ADMIN', 'B2B_MANAGER', 'FINANCE_OFFICER'] },
+];
+
+const getSalesMarketingMenuItems = (licensing) => {
+  const fieldSubItems = [
+    { name: 'B2C Stalls',   path: '/admin/stalls',       icon: Store,       allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'] },
+    { name: 'Store Visits', path: '/admin/store-visits',  icon: Truck,       allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'] },
+    { name: 'B2C Stores',   path: '/admin/b2c-stores',    icon: ShoppingBag, allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'] },
+  ].filter(item => {
+    if (item.path === '/admin/stalls' && !licensing.enableB2cStall) return false;
+    if (item.path === '/admin/store-visits' && !licensing.enableFieldSales) return false;
+    return true;
+  });
+
+  return [
+    {
+      name: 'B2B Sales',
+      icon: Users,
+      allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'],
+      subItems: [
+        { name: 'Dealers',        path: '/admin/dealers',   icon: Users },
+        { name: 'Order Requests', path: '/admin/requests',  icon: FileText }
+      ]
+    },
+    {
+      name: 'Field Sales',
+      icon: Store,
+      allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'],
+      subItems: fieldSubItems
+    },
+    {
+      name: 'E-Commerce Store',
+      icon: ShoppingCart,
+      allowedStaffRoles: ['ADMIN', 'ECOM_MANAGER'],
+      subItems: [
+        { name: 'E-Com Products',  path: '/admin/ecom/products',  icon: Package },
+        { name: 'Website Orders',  path: '/admin/ecom/orders',    icon: ShoppingCart },
+        { name: 'Customers',       path: '/admin/ecom/customers', icon: Users },
+        { name: 'Product Combos',  path: '/admin/ecom/combos',    icon: PackageSearch },
+        { name: 'Banners & Hero',  path: '/admin/ecom/banners',   icon: Image },
+        { name: 'Product Reviews', path: '/admin/ecom/reviews',   icon: MessageSquare },
+        { name: 'Website Content', path: '/admin/ecom/content',   icon: FileText }
+      ]
+    }
+  ];
+};
+
+const getFinanceMenuItems = () => [
+  { name: 'Invoice Ledger',        path: '/admin/invoice-ledger',      icon: FileText, allowedStaffRoles: ['ADMIN', 'FINANCE_OFFICER', 'B2B_MANAGER'] },
+  { name: 'Expenses Log',          path: '/admin/expenses',            icon: Receipt, allowedStaffRoles: ['ADMIN', 'FINANCE_OFFICER', 'B2B_MANAGER'] },
+  { name: 'Offer Expenses',        path: '/admin/offers',              icon: Gift, allowedStaffRoles: ['ADMIN', 'FINANCE_OFFICER', 'B2B_MANAGER'] },
+];
+
+const getSupportMenuItems = () => [
+  { name: 'Tickets / Support',     path: '/admin/services',            icon: HelpCircle, allowedStaffRoles: ['ADMIN', 'SUPPORT_AGENT'] },
+  { name: 'Returns Log',           path: '/admin/returns',             icon: RotateCcw, allowedStaffRoles: ['ADMIN', 'SUPPORT_AGENT', 'B2B_MANAGER'] },
+];
+
+const getAnalyticsMenuItems = () => [
+  { name: 'Reports',               path: '/admin/reports',             icon: BarChart3, allowedStaffRoles: ['ADMIN', 'FINANCE_OFFICER'] },
+  { name: 'Forecasting',           path: '/admin/forecasting',         icon: TrendingUp, allowedStaffRoles: ['ADMIN', 'FINANCE_OFFICER'] },
+  { name: 'Analytics',             path: '/admin/analytics',           icon: BarChart3, allowedStaffRoles: ['ADMIN', 'FINANCE_OFFICER'] },
+  { name: 'Ecom Reports',          path: '/admin/ecom/reports',        icon: BarChart3, allowedStaffRoles: ['ADMIN', 'ECOM_MANAGER'] },
+  { name: 'Ecom Analytics',        path: '/admin/ecom/analytics',      icon: TrendingUp, allowedStaffRoles: ['ADMIN', 'ECOM_MANAGER'] },
+];
+
+const getSystemMenuItems = () => [
+  { name: 'Privilege Management',  path: '/admin/users',               icon: Settings, allowedStaffRoles: ['ADMIN'] },
+  { name: 'Store Settings',        path: '/admin/ecom/settings',       icon: Settings, allowedStaffRoles: ['ADMIN', 'ECOM_MANAGER'] },
+];
+
+const getAllMenuItems = (unreadNotifications, licensing = { enableB2cStall: true, enableFieldSales: true }) => [
+  ...getOverviewMenuItems(unreadNotifications),
+  ...getRndMenuItems(),
+  ...getInventoryMenuItems(),
+  ...getVendorMenuItems(),
+  ...getStockMenuItems(),
+  ...getSalesMarketingMenuItems(licensing),
+  ...getFinanceMenuItems(),
+  ...getSupportMenuItems(),
+  ...getAnalyticsMenuItems(),
+  ...getSystemMenuItems(),
+];
+
+// Backward compatibility alias
+const getCrmMenuItems = (unreadNotifications) => getAllMenuItems(unreadNotifications);
 
 // ─── Reusable Nav Item Components ────────────────────────────────────────────
 
@@ -110,7 +175,7 @@ function NavLink({ item, onLinkClick }) {
       onClick={onLinkClick}
       className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl font-medium text-sm transition-all duration-200 ${
         isActive
-          ? 'bg-rose-50 text-rose-700 shadow-sm border border-rose-100/50'
+          ? 'bg-rose-50 text-rose-700 shadow-sm border border-rose-100/50 font-bold'
           : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
       }`}
     >
@@ -137,7 +202,7 @@ function NavLinkEcom({ item, onLinkClick }) {
       onClick={onLinkClick}
       className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl font-medium text-sm transition-all duration-200 ${
         isActive
-          ? 'bg-blue-50 text-blue-700 shadow-sm border border-blue-100/50'
+          ? 'bg-blue-50 text-blue-700 shadow-sm border border-blue-100/50 font-bold'
           : 'text-slate-600 hover:bg-blue-50/40 hover:text-blue-800'
       }`}
     >
@@ -152,7 +217,7 @@ function NavLinkEcom({ item, onLinkClick }) {
 function NavGroup({ item, submenusOpen, toggleSubmenu, onLinkClick }) {
   const location = useLocation();
   const isOpen = !!submenusOpen[item.name];
-  const isAnySubActive = item.subItems.some(sub => location.pathname === sub.path);
+  const isAnySubActive = item.subItems?.some(sub => location.pathname === sub.path);
   const ParentIcon = item.icon;
   return (
     <div className="space-y-1">
@@ -172,7 +237,7 @@ function NavGroup({ item, submenusOpen, toggleSubmenu, onLinkClick }) {
       </button>
       {isOpen && (
         <div className="pl-6 space-y-1 transition-all">
-          {item.subItems.map((sub) => {
+          {item.subItems?.map((sub) => {
             const SubIcon = sub.icon;
             const isSubActive = location.pathname === sub.path;
             return (
@@ -205,7 +270,7 @@ function SectionLabel({ label, color = 'slate' }) {
     rose:  'text-rose-500  border-rose-100',
   };
   return (
-    <div className={`flex items-center gap-2 px-3 pt-2 pb-1`}>
+    <div className={`flex items-center gap-2 px-3 pt-3 pb-1`}>
       <span className={`text-[10px] font-bold uppercase tracking-widest ${colorMap[color].split(' ')[0]}`}>
         {label}
       </span>
@@ -215,62 +280,51 @@ function SectionLabel({ label, color = 'slate' }) {
 }
 
 function SidebarNav({ submenusOpen, toggleSubmenu, onLinkClick, unreadNotifications, staffRole, licensing = { enableB2cStall: true, enableFieldSales: true } }) {
-  const crmItems = getCrmMenuItems(unreadNotifications);
-  
-  // All menu items available to admin users
-  const filteredCrmItems = crmItems;
+  const overviewItems = getOverviewMenuItems(unreadNotifications);
+  const rndItems = getRndMenuItems();
+  const inventoryItems = getInventoryMenuItems();
+  const stockItems = getStockMenuItems();
+  const vendorItems = getVendorMenuItems();
+  const salesMarketingItems = getSalesMarketingMenuItems(licensing);
+  const financeItems = getFinanceMenuItems();
+  const supportItems = getSupportMenuItems();
+  const analyticsItems = getAnalyticsMenuItems();
+  const systemItems = getSystemMenuItems();
 
-  const filteredFieldItems = fieldMenuItems.filter(item => {
-    if (item.path === '/admin/stalls' && !licensing.enableB2cStall) return false;
-    if (item.path === '/admin/store-visits' && !licensing.enableFieldSales) return false;
-    return true;
-  });
-
-  const filteredEcomItems = ecomMenuItems;
+  const renderNavSection = (label, items, color = 'slate') => {
+    if (!items || items.length === 0) return null;
+    return (
+      <div key={label} className="space-y-0.5">
+        <SectionLabel label={label} color={color} />
+        {items.map((item) =>
+          item.subItems ? (
+            <NavGroup
+              key={item.name}
+              item={item}
+              submenusOpen={submenusOpen}
+              toggleSubmenu={toggleSubmenu}
+              onLinkClick={onLinkClick}
+            />
+          ) : (
+            <NavLink key={item.name} item={item} onLinkClick={onLinkClick} />
+          )
+        )}
+      </div>
+    );
+  };
 
   return (
-    <nav className="flex-1 px-4 py-4 space-y-0.5 overflow-y-auto">
-      {/* ── CRM Section ── */}
-      {filteredCrmItems.length > 0 && (
-        <>
-          <SectionLabel label="CRM Management" color="slate" />
-          {filteredCrmItems.map((item) =>
-            item.subItems ? (
-              <NavGroup
-                key={item.name}
-                item={item}
-                submenusOpen={submenusOpen}
-                toggleSubmenu={toggleSubmenu}
-                onLinkClick={onLinkClick}
-              />
-            ) : (
-              <NavLink key={item.name} item={item} onLinkClick={onLinkClick} />
-            )
-          )}
-        </>
-      )}
-
-      {/* ── Stalls & Field Sales Section ── */}
-      {filteredFieldItems.length > 0 && (
-        <>
-          <div className="pt-3" />
-          <SectionLabel label="Stalls & Field Sales" color="rose" />
-          {filteredFieldItems.map((item) => (
-            <NavLink key={item.name} item={item} onLinkClick={onLinkClick} />
-          ))}
-        </>
-      )}
-
-      {/* ── E-Commerce Section ── */}
-      {filteredEcomItems.length > 0 && (
-        <>
-          <div className="pt-3" />
-          <SectionLabel label="E-Commerce" color="blue" />
-          {filteredEcomItems.map((item) => (
-            <NavLinkEcom key={item.name} item={item} onLinkClick={onLinkClick} />
-          ))}
-        </>
-      )}
+    <nav className="flex-1 px-4 py-3 space-y-2 overflow-y-auto">
+      {renderNavSection('Overview', overviewItems, 'slate')}
+      {renderNavSection('R&D Department', rndItems, 'rose')}
+      {renderNavSection('Inventory & Products', inventoryItems, 'slate')}
+      {renderNavSection('Vendor & Procurement', vendorItems, 'slate')}
+      {renderNavSection('Stock Management', stockItems, 'slate')}
+      {renderNavSection('Sales & Marketing', salesMarketingItems, 'rose')}
+      {renderNavSection('Finance & Accounting', financeItems, 'slate')}
+      {renderNavSection('Customer Support', supportItems, 'slate')}
+      {renderNavSection('Analytics & Reports', analyticsItems, 'blue')}
+      {renderNavSection('System & Settings', systemItems, 'slate')}
     </nav>
   );
 }
@@ -285,10 +339,15 @@ export default function AdminLayout() {
   const [licensing, setLicensing] = useState({ enableB2cStall: true, enableFieldSales: true });
   const isDashboard = location.pathname === '/admin/dashboard' || location.pathname === '/admin';
 
-  const [submenusOpen, setSubmenusOpen] = useState({
-    Products:
-      location.pathname === '/admin/products' ||
-      location.pathname === '/admin/categories',
+  const [submenusOpen, setSubmenusOpen] = useState(() => {
+    const allItems = getAllMenuItems(0, { enableB2cStall: true, enableFieldSales: true });
+    const initial = {};
+    allItems.forEach(item => {
+      if (item.subItems && item.subItems.some(sub => sub.path === location.pathname)) {
+        initial[item.name] = true;
+      }
+    });
+    return initial;
   });
 
   const toggleSubmenu = (name) => {
@@ -296,8 +355,8 @@ export default function AdminLayout() {
   };
 
   const getActivePageName = () => {
-    const crmItems = getCrmMenuItems(0);
-    for (const item of [...crmItems, ...ecomMenuItems, ...fieldMenuItems]) {
+    const allItems = getAllMenuItems(0, licensing);
+    for (const item of allItems) {
       if (item.path === location.pathname) return item.name;
       if (item.subItems) {
         const sub = item.subItems.find(s => s.path === location.pathname);

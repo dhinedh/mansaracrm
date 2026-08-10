@@ -9,15 +9,21 @@ import BulkUploadModal from '../../components/BulkUploadModal';
 
 // E-Commerce backend base URL
 const getEcomApiUrl = () => {
-  const envUrl = import.meta.env.VITE_ECOM_API_URL;
+  const envUrl = import.meta.env.VITE_ECOM_API_URL || import.meta.env.VITE_API_URL;
   if (envUrl) return envUrl;
   const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-  return isLocal ? 'http://localhost:5001/api' : 'https://api.mansarafoods.com/api';
+  return isLocal ? 'http://localhost:5000/api' : 'https://api.mansarafoods.com/api';
 };
 
 const ECOM_API = getEcomApiUrl();
 
 const getEcomToken = () => localStorage.getItem('mansara_token') || localStorage.getItem('mansara-token') || '';
+
+const getCategoryName = (cat) => {
+  if (!cat) return '—';
+  if (typeof cat === 'object') return cat.name || cat.title || cat.slug || '—';
+  return String(cat);
+};
 
 export default function EcomProductsPage() {
   const [products, setProducts] = useState([]);
@@ -43,11 +49,13 @@ export default function EcomProductsPage() {
     try {
       const headers = { Authorization: `Bearer ${getEcomToken()}` };
       const [prodRes, catRes] = await Promise.all([
-        fetch(`${ECOM_API}/products?limit=500`, { headers }),
-        fetch(`${ECOM_API}/categories`, { headers }),
+        fetch(`${ECOM_API}/products?limit=500`, { headers }).catch(() => null),
+        fetch(`${ECOM_API}/products/categories`, { headers })
+          .then(r => (r && r.ok) ? r : fetch(`${ECOM_API}/categories`, { headers }))
+          .catch(() => null),
       ]);
-      const prodData = await prodRes.json();
-      const catData = await catRes.json();
+      const prodData = prodRes ? await prodRes.json().catch(() => ({})) : {};
+      const catData = catRes ? await catRes.json().catch(() => ({})) : {};
       setProducts(prodData.products || prodData.data || []);
       setCategories(catData.categories || catData.data || []);
     } catch (err) {
@@ -87,7 +95,12 @@ export default function EcomProductsPage() {
       const q = search.toLowerCase();
       r = r.filter(p => (p.name || '').toLowerCase().includes(q) || (p.sku || '').toLowerCase().includes(q));
     }
-    if (categoryFilter !== 'all') r = r.filter(p => (p.category || p.categoryId) === categoryFilter);
+    if (categoryFilter !== 'all') {
+      r = r.filter(p => {
+        const catId = typeof p.category === 'object' ? (p.category?.id || p.category?._id || p.category?.name) : (p.category || p.categoryId);
+        return String(catId) === String(categoryFilter);
+      });
+    }
     if (statusFilter !== 'all') r = r.filter(p => statusFilter === 'active' ? p.isActive !== false : p.isActive === false);
     if (flagFilter === 'new') r = r.filter(p => p.isNewArrival);
     if (flagFilter === 'featured') r = r.filter(p => p.isFeatured);
@@ -154,7 +167,11 @@ export default function EcomProductsPage() {
         <select value={categoryFilter} onChange={e => { setCategoryFilter(e.target.value); setPage(1); }}
           className="text-xs px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none cursor-pointer font-semibold text-slate-600">
           <option value="all">All Categories</option>
-          {categories.map(c => <option key={c.id || c._id} value={c.id || c._id}>{c.name}</option>)}
+          {categories.map((c, idx) => {
+            const cid = typeof c === 'object' ? (c.id || c._id || c.name || idx) : c;
+            const clabel = typeof c === 'object' ? (c.name || c.title || c.slug) : c;
+            return <option key={cid} value={cid}>{clabel}</option>;
+          })}
         </select>
         <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1); }}
           className="text-xs px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none cursor-pointer font-semibold text-slate-600">
@@ -244,7 +261,7 @@ export default function EcomProductsPage() {
                           <span className="text-slate-300 text-[10px]">—</span>
                         )}
                       </td>
-                      <td className="p-3 text-slate-500 capitalize">{product.category || '—'}</td>
+                      <td className="p-3 text-slate-500 capitalize">{getCategoryName(product.category)}</td>
                       <td className="p-3 text-right">
                         <div className="font-bold text-slate-800">₹{product.price?.toLocaleString()}</div>
                         {offerPrice && offerPrice > product.price && (

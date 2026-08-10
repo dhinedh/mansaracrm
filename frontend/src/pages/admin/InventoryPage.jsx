@@ -1,6 +1,6 @@
 // src/pages/admin/InventoryPage.jsx
 import React, { useEffect, useState, useMemo } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import {
   Warehouse,
@@ -26,7 +26,22 @@ import {
 
 export default function InventoryPage() {
   const location = useLocation();
+  const navigate = useNavigate();
   const [stocks, setStocks] = useState([]);
+
+  const handleTriggerPO = (stockGroup) => {
+    const minQty = stockGroup.minQuantity || 50;
+    const currentQty = stockGroup.totalQuantity || 0;
+    const suggestedQty = Math.max(minQty * 2 - currentQty, minQty);
+    navigate('/admin/procurement', {
+      state: {
+        autoCreatePO: true,
+        itemName: stockGroup.itemName,
+        suggestedQty,
+        unit: stockGroup.unit || 'Cartons'
+      }
+    });
+  };
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [filterLowStock, setFilterLowStock] = useState(false);
@@ -590,11 +605,12 @@ export default function InventoryPage() {
 
                           {isLow && (
                             <button
-                              onClick={() => handleTriggerPR(stockGroup)}
-                              className="p-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold shadow-sm transition cursor-pointer"
-                              title="Auto Trigger Purchase Request (PR)"
+                              onClick={() => handleTriggerPO(stockGroup)}
+                              className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold shadow-sm transition cursor-pointer inline-flex items-center space-x-1"
+                              title="Auto-Generate Purchase Order to Vendor"
                             >
                               <Send className="w-3.5 h-3.5" />
+                              <span>Reorder PO</span>
                             </button>
                           )}
                         </td>

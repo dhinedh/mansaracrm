@@ -16,6 +16,7 @@ exports.createVendor = async (req, res, next) => {
       pan,
       bankDetails,
       supplyCategory,
+      subCategories,
       status,
       notes
     } = req.body;
@@ -40,6 +41,7 @@ exports.createVendor = async (req, res, next) => {
         pan: pan ? pan.toUpperCase() : '',
         bankDetails: bankDetails || {},
         supplyCategory,
+        subCategories: Array.isArray(subCategories) ? subCategories : [],
         status: status || 'ACTIVE',
         notes: notes || ''
       }

@@ -5,7 +5,7 @@ import {
   AlertTriangle, SkipForward, Loader2, Package, Info
 } from 'lucide-react';
 
-const CRM_API = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
+const CRM_API = import.meta.env.VITE_API_URL || import.meta.env.VITE_ECOM_API_URL || 'http://localhost:5000/api';
 const getToken = () => localStorage.getItem('crm-token') || '';
 
 const CSV_TEMPLATE_HEADERS = [
