@@ -30,6 +30,21 @@ axios.interceptors.request.use((config) => {
   return Promise.reject(error);
 });
 
+// Response interceptor to handle 401 Unauthorized gracefully
+axios.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response && error.response.status === 401) {
+      const currentPath = window.location.pathname;
+      if (!currentPath.includes('/login') && !currentPath.includes('/forgot-password')) {
+        localStorage.removeItem('mansara_token');
+        window.location.href = '/login';
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
 export const useAuthStore = create((set, get) => ({
   user: null,
   token: localStorage.getItem('mansara_token') || null,

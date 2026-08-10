@@ -330,20 +330,25 @@ export default function ProductsPage() {
             <div key={product.id} className="bg-white border border-slate-150 rounded-2xl shadow-sm overflow-hidden flex flex-col group hover:shadow-md transition-shadow">
               {/* Product Image */}
               <div className="h-32 sm:h-44 bg-slate-50 relative flex items-center justify-center border-b border-slate-100 overflow-hidden">
-                {product.imageUrl ? (
-                  <img
-                    src={product.imageUrl.startsWith('http') || product.imageUrl.startsWith('data:') ? product.imageUrl : `${BACKEND_URL}${product.imageUrl.startsWith('/') ? '' : '/'}${product.imageUrl}`}
-                    alt={product.name}
-                    loading="lazy"
-                    decoding="async"
-                    className="object-cover h-full w-full group-hover:scale-105 transition-transform duration-300"
-                  />
-                ) : (
-                  <div className="text-slate-300 flex flex-col items-center space-y-1">
-                    <ImageIcon className="w-10 h-10 stroke-1" />
-                    <span className="text-[9px] uppercase tracking-wider font-bold">No Image</span>
-                  </div>
-                )}
+                {(() => {
+                  const img = product.imageUrl || product.image;
+                  const finalSrc = img
+                    ? (img.startsWith('http') || img.startsWith('data:') ? img : `${BACKEND_URL}${img.startsWith('/') ? '' : '/'}${img}`)
+                    : 'https://images.unsplash.com/photo-1596040033229-a9821ebd058d?auto=format&fit=crop&w=600&q=80';
+                  return (
+                    <img
+                      src={finalSrc}
+                      alt={product.name}
+                      loading="lazy"
+                      decoding="async"
+                      className="object-cover h-full w-full group-hover:scale-105 transition-transform duration-300"
+                      onError={(e) => {
+                        e.target.onerror = null;
+                        e.target.src = 'https://images.unsplash.com/photo-1596040033229-a9821ebd058d?auto=format&fit=crop&w=600&q=80';
+                      }}
+                    />
+                  );
+                })()}
                 
                 <span className="absolute top-3 left-3 bg-white/90 backdrop-blur-sm border border-slate-100 text-[8px] font-black uppercase px-2 py-0.5 rounded-full text-slate-600 shadow-sm">
                   {product.category?.name}
