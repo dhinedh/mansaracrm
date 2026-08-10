@@ -20,6 +20,8 @@ router.get('/categories', productsController.getCategories);
 router.post('/categories', requireRole('ADMIN'), validate([
   body('name').notEmpty().withMessage('Category name is required')
 ]), productsController.createCategory);
+router.put('/categories/:id', requireRole('ADMIN'), productsController.updateCategory);
+router.delete('/categories/:id', requireRole('ADMIN'), productsController.deleteCategory);
 
 // ─────────────────────────────────────────────
 // PRODUCT ROUTES

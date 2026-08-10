@@ -27,18 +27,61 @@ exports.getCategories = async (req, res, next) => {
 
 exports.createCategory = async (req, res, next) => {
   try {
-    const { name, description } = req.body;
+    const { name, description, subCategories } = req.body;
     
     const existing = await prisma.category.findUnique({ where: { name } });
     if (existing) {
       return res.status(400).json({ success: false, message: 'Category already exists' });
     }
 
+    const cleanSubs = Array.isArray(subCategories)
+      ? subCategories.map(s => String(s).trim()).filter(Boolean)
+      : [];
+
     const category = await prisma.category.create({
-      data: { name, description }
+      data: { name: name.trim(), description: description ? description.trim() : '', subCategories: cleanSubs }
     });
 
     res.status(201).json({ success: true, message: 'Category created', data: category });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.updateCategory = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { name, description, subCategories, isActive } = req.body;
+
+    const existing = await prisma.category.findUnique({ where: { id } });
+    if (!existing) {
+      return res.status(404).json({ success: false, message: 'Category not found' });
+    }
+
+    const updateData = {};
+    if (name !== undefined) updateData.name = name.trim();
+    if (description !== undefined) updateData.description = description.trim();
+    if (isActive !== undefined) updateData.isActive = Boolean(isActive);
+    if (subCategories !== undefined && Array.isArray(subCategories)) {
+      updateData.subCategories = subCategories.map(s => String(s).trim()).filter(Boolean);
+    }
+
+    const updated = await prisma.category.update({
+      where: { id },
+      data: updateData
+    });
+
+    res.json({ success: true, message: 'Category updated successfully', data: updated });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.deleteCategory = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    await prisma.category.delete({ where: { id } });
+    res.json({ success: true, message: 'Category deleted successfully' });
   } catch (error) {
     next(error);
   }

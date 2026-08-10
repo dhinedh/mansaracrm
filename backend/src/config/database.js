@@ -157,6 +157,7 @@ DealerSchema.virtual('margins', {
 const CategorySchema = new Schema({
   name: { type: String, unique: true, required: true },
   description: { type: String },
+  subCategories: [{ type: String, trim: true }],
   isActive: { type: Boolean, default: true }
 }, {
   timestamps: true,
