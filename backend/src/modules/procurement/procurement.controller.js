@@ -683,44 +683,23 @@ exports.getItemPriceHistory = async (req, res, next) => {
       }
     }
 
-    // Master seed defaults if no historical records exist
-    const MASTER_SUPPLY_ITEMS = [
-      { name: 'Chilli Powder (Dry Red Guntur)', category: 'Raw Materials', unit: 'kg', defaultPrice: 220, prevPrice: 210, vendor: 'Sri Lakshmi Spice Traders' },
-      { name: 'Coriander Seeds (Whole Organic)', category: 'Raw Materials', unit: 'kg', defaultPrice: 145, prevPrice: 140, vendor: 'Annapoorna Grains & Spices' },
-      { name: 'Curry Leaves (Fresh Grade-A)', category: 'Raw Materials', unit: 'kg', defaultPrice: 85, prevPrice: 90, vendor: 'Greenfield Fresh Farm Products' },
-      { name: 'Urad Dal (Split White)', category: 'Raw Materials', unit: 'kg', defaultPrice: 130, prevPrice: 125, vendor: 'Sri Lakshmi Spice Traders' },
-      { name: 'Millet Grain Mix (Foxtail/Kudo)', category: 'Raw Materials', unit: 'kg', defaultPrice: 95, prevPrice: 95, vendor: 'Annapoorna Grains & Spices' },
-      { name: 'Stand-up Pouches 100g (Zipper Foil)', category: 'Packaging Materials', unit: 'pcs', defaultPrice: 3.20, prevPrice: 3.40, vendor: 'Apex Packaging Industries' },
-      { name: 'Nutritional Barcode Labels (Roll of 1000)', category: 'Labeling & Printing', unit: 'rolls', defaultPrice: 450, prevPrice: 450, vendor: 'Prime Offset & Digital Printers' },
-      { name: 'Corrugated 5-Ply Shipping Box', category: 'Packaging Materials', unit: 'pcs', defaultPrice: 28.50, prevPrice: 27.00, vendor: 'Apex Packaging Industries' },
-      { name: 'Adhesive Sealing Tape (72mm Red)', category: 'Packaging Materials', unit: 'rolls', defaultPrice: 65, prevPrice: 65, vendor: 'Apex Packaging Industries' }
-    ];
-
-    for (const master of MASTER_SUPPLY_ITEMS) {
-      const key = master.name.toLowerCase();
-      if (!itemRecordsMap[key]) {
-        registerPriceEntry(
-          master.name,
-          master.category,
-          master.unit,
-          master.prevPrice,
-          master.vendor,
-          null,
-          new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
-          'PO-2026-00101',
-          'PO'
-        );
-        registerPriceEntry(
-          master.name,
-          master.category,
-          master.unit,
-          master.defaultPrice,
-          master.vendor,
-          null,
-          new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
-          'PO-2026-00108',
-          'PO'
-        );
+    // Include company inventory items so real database items appear even before a PO/GRN is issued
+    for (const inv of inventories) {
+      if (inv.itemName) {
+        const key = inv.itemName.trim().toLowerCase();
+        if (!itemRecordsMap[key]) {
+          registerPriceEntry(
+            inv.itemName,
+            inv.category || 'Raw Materials',
+            inv.unit || 'kg',
+            inv.costPrice || inv.sellingPrice || 0,
+            'Master Inventory',
+            null,
+            inv.createdAt || new Date(),
+            'INV-CATALOG',
+            'INVENTORY'
+          );
+        }
       }
     }
 
