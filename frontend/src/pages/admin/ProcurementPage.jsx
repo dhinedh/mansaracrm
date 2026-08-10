@@ -303,28 +303,32 @@ export default function ProcurementPage() {
   }, []);
 
   const fetchAllProcurementData = async () => {
-    setLoading(true);
-    try {
-      const [prRes, poRes, grnRes, archiveRes, vendorRes, invRes] = await Promise.all([
-        axios.get('/procurement/purchase-requests'),
-        axios.get('/procurement/purchase-orders'),
-        axios.get('/procurement/grn'),
-        axios.get('/procurement/document-archive'),
-        axios.get('/vendors'),
-        axios.get('/inventory/company')
-      ]);
+    // Non-blocking streaming fetch for instant UI load
+    setLoading(false);
 
-      if (prRes.data.success) setPurchaseRequests(prRes.data.data);
-      if (poRes.data.success) setPurchaseOrders(poRes.data.data);
-      if (grnRes.data.success) setGoodsReceiptNotes(grnRes.data.data);
-      if (archiveRes.data.success) setArchiveDocs(archiveRes.data.data);
-      if (vendorRes.data.success) setVendors(vendorRes.data.data);
-      if (invRes.data.success) setInventories(invRes.data.data || []);
-    } catch (err) {
-      console.error('Failed to fetch procurement data:', err);
-    } finally {
-      setLoading(false);
-    }
+    axios.get('/procurement/purchase-requests').then(res => {
+      if (res.data?.success) setPurchaseRequests(res.data.data);
+    }).catch(err => console.error(err));
+
+    axios.get('/procurement/purchase-orders').then(res => {
+      if (res.data?.success) setPurchaseOrders(res.data.data);
+    }).catch(err => console.error(err));
+
+    axios.get('/procurement/grn').then(res => {
+      if (res.data?.success) setGoodsReceiptNotes(res.data.data);
+    }).catch(err => console.error(err));
+
+    axios.get('/procurement/document-archive').then(res => {
+      if (res.data?.success) setArchiveDocs(res.data.data);
+    }).catch(err => console.error(err));
+
+    axios.get('/vendors').then(res => {
+      if (res.data?.success) setVendors(res.data.data);
+    }).catch(err => console.error(err));
+
+    axios.get('/inventory/company').then(res => {
+      if (res.data?.success) setInventories(res.data.data || []);
+    }).catch(err => console.error(err));
   };
 
   // Multi-item row helpers for PR

@@ -110,42 +110,40 @@ export default function AdminDashboard() {
   const [statsLoading, setStatsLoading] = useState(false);
 
   useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        const [stockRes, dealersRes, notifRes, settingsRes] = await Promise.all([
-          axios.get('/inventory/company'),
-          axios.get('/dealers'),
-          axios.get('/notifications'),
-          axios.get('/ecom/settings')
-        ]);
+    const fetchStats = () => {
+      axios.get('/inventory/company').then(stockRes => {
         const stocks = stockRes.data.data || [];
-        const dealers = dealersRes.data.data || [];
-        const notifications = notifRes.data.data || [];
-
         const totalStock = stocks.reduce((acc, curr) => acc + (curr.quantity || 0), 0);
         const lowStockCount = stocks.filter(s => (s.quantity || 0) <= (s.minQuantity || 10)).length;
-        const unreadCount = notifications.filter(n => !n.isRead).length;
+        setStats(prev => ({
+          ...prev,
+          productsCount: stocks.length,
+          totalStock,
+          lowStockCount
+        }));
+      }).catch(err => console.error(err));
 
-        if (settingsRes.data.success && settingsRes.data.settings) {
+      axios.get('/dealers').then(dealersRes => {
+        const dealers = dealersRes.data.data || [];
+        setStats(prev => ({ ...prev, dealersCount: dealers.length }));
+      }).catch(err => console.error(err));
+
+      axios.get('/notifications').then(notifRes => {
+        const notifications = notifRes.data.data || [];
+        const unreadCount = notifications.filter(n => !n.isRead).length;
+        setUnreadNotifications(unreadCount);
+      }).catch(err => console.error(err));
+
+      axios.get('/ecom/settings').then(settingsRes => {
+        if (settingsRes.data?.success && settingsRes.data?.settings) {
           setLicensing({
             enableB2cStall: settingsRes.data.settings.enableB2cStall !== false,
             enableFieldSales: settingsRes.data.settings.enableFieldSales !== false
           });
         }
-
-        setStats({
-          productsCount: stocks.length,
-          dealersCount: dealers.length,
-          totalStock,
-          lowStockCount
-        });
-        setUnreadNotifications(unreadCount);
-      } catch (err) {
-        console.error('Error fetching dashboard stats', err);
-      } finally {
-        setStatsLoading(false);
-      }
+      }).catch(err => console.error(err));
     };
+
     fetchStats();
   }, []);
 
