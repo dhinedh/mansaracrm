@@ -449,6 +449,7 @@ export default function AdminLayout() {
               <span className="font-black text-slate-800 text-sm tracking-wide uppercase">Menu</span>
               <button 
                 onClick={() => setMobileMenuOpen(false)}
+                aria-label="Close Navigation Menu"
                 className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
@@ -480,6 +481,7 @@ export default function AdminLayout() {
               <div className="flex items-center space-x-3">
                 <button
                   onClick={() => setMobileMenuOpen(true)}
+                  aria-label="Open Navigation Menu"
                   className="lg:hidden p-2 text-slate-500 hover:text-rose-600 hover:bg-slate-50 rounded-xl transition-all duration-200 cursor-pointer flex items-center justify-center border border-slate-100/50"
                   title="Open Navigation Menu"
                 >
@@ -487,6 +489,7 @@ export default function AdminLayout() {
                 </button>
                 <Link
                   to="/admin/dashboard"
+                  aria-label="Return to Admin Dashboard"
                   className="p-2 text-slate-500 hover:text-rose-600 hover:bg-slate-50 rounded-xl transition-all duration-200 cursor-pointer flex items-center justify-center border border-slate-100/50"
                   title="Return to Dashboard"
                 >
@@ -501,6 +504,7 @@ export default function AdminLayout() {
           <div className="flex items-center space-x-4">
             <Link
               to="/admin/notifications"
+              aria-label="View Notifications"
               className="relative p-2 text-slate-500 hover:text-rose-600 hover:bg-slate-50 rounded-xl transition-all duration-200 cursor-pointer flex items-center justify-center border border-slate-100/50"
               title="Notifications"
             >
@@ -520,6 +524,7 @@ export default function AdminLayout() {
             </div>
             <button
               onClick={handleLogout}
+              aria-label="Sign out of account"
               className="flex items-center space-x-1.5 px-3 py-1.5 text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg transition-all duration-200 cursor-pointer"
             >
               <LogOut className="w-3.5 h-3.5" />

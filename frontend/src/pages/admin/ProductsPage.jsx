@@ -338,7 +338,9 @@ export default function ProductsPage() {
                   return (
                     <img
                       src={finalSrc}
-                      alt={product.name}
+                      alt={product.name || "Product Image"}
+                      width="300"
+                      height="300"
                       loading="lazy"
                       decoding="async"
                       className="object-cover h-full w-full group-hover:scale-105 transition-transform duration-300"
