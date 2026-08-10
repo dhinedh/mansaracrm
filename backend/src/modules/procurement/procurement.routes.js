@@ -25,4 +25,7 @@ router.put('/grn/:id/payment', procurementController.updateGRNPayment);
 // Document Archiving & Traceability
 router.get('/document-archive', procurementController.getDocumentArchive);
 
+// Supply Item Price & Vendor Intelligence
+router.get('/item-price-history', procurementController.getItemPriceHistory);
+
 module.exports = router;

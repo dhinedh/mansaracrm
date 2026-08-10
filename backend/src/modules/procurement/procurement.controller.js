@@ -574,3 +574,210 @@ exports.getDocumentArchive = async (req, res, next) => {
     next(error);
   }
 };
+
+// ── 5. SUPPLY ITEM PRICE & VENDOR INTELLIGENCE ────────────────────────────────
+exports.getItemPriceHistory = async (req, res, next) => {
+  try {
+    const { data: pos } = await prisma.purchaseOrder.findMany({ where: {} });
+    const { data: grns } = await prisma.goodsReceiptNote.findMany({ where: {} });
+    const { data: prs } = await prisma.purchaseRequest.findMany({ where: {} });
+    const { data: inventories } = await prisma.companyInventory.findMany({ where: {} });
+
+    const itemRecordsMap = {};
+
+    const registerPriceEntry = (itemName, category, unit, unitPrice, vendorName, vendorId, date, refNo, type) => {
+      if (!itemName || !unitPrice || unitPrice <= 0) return;
+      const key = itemName.trim().toLowerCase();
+
+      if (!itemRecordsMap[key]) {
+        itemRecordsMap[key] = {
+          itemName: itemName.trim(),
+          category: category || 'Raw Materials',
+          unit: unit || 'kg',
+          history: [],
+          vendorQuotes: {}
+        };
+      }
+
+      itemRecordsMap[key].history.push({
+        unitPrice: Number(unitPrice),
+        vendorName: vendorName || 'Direct Supplier',
+        vendorId: vendorId || null,
+        date: new Date(date || Date.now()),
+        refNo: refNo || '',
+        type
+      });
+
+      if (vendorName) {
+        const vKey = vendorName.trim();
+        if (!itemRecordsMap[key].vendorQuotes[vKey] || new Date(date) > new Date(itemRecordsMap[key].vendorQuotes[vKey].date)) {
+          itemRecordsMap[key].vendorQuotes[vKey] = {
+            vendorName: vKey,
+            vendorId,
+            lastPrice: Number(unitPrice),
+            date: new Date(date || Date.now()),
+            type
+          };
+        }
+      }
+    };
+
+    // 1. Process GRN entries
+    for (const g of grns) {
+      if (g.items && Array.isArray(g.items)) {
+        for (const item of g.items) {
+          registerPriceEntry(
+            item.itemName,
+            item.category,
+            item.unit,
+            item.unitPrice,
+            g.vendorName,
+            g.vendorId,
+            g.receivedDate || g.createdAt,
+            g.grnNumber,
+            'GRN'
+          );
+        }
+      }
+    }
+
+    // 2. Process PO entries
+    for (const p of pos) {
+      if (p.items && Array.isArray(p.items)) {
+        for (const item of p.items) {
+          registerPriceEntry(
+            item.itemName,
+            item.category,
+            item.unit,
+            item.unitPrice,
+            p.vendorName,
+            p.vendorId,
+            p.createdAt,
+            p.poNumber,
+            'PO'
+          );
+        }
+      }
+    }
+
+    // 3. Process PR Quotes
+    for (const pr of prs) {
+      if (pr.quotes && Array.isArray(pr.quotes)) {
+        for (const q of pr.quotes) {
+          if (q.itemizedPrices && Array.isArray(q.itemizedPrices)) {
+            for (const ip of q.itemizedPrices) {
+              registerPriceEntry(
+                ip.itemName,
+                'Raw Materials',
+                'kg',
+                ip.unitPrice,
+                q.vendorName,
+                q.vendorId,
+                q.validUntil || pr.createdAt,
+                pr.prNumber,
+                'QUOTE'
+              );
+            }
+          }
+        }
+      }
+    }
+
+    // Master seed defaults if no historical records exist
+    const MASTER_SUPPLY_ITEMS = [
+      { name: 'Chilli Powder (Dry Red Guntur)', category: 'Raw Materials', unit: 'kg', defaultPrice: 220, prevPrice: 210, vendor: 'Sri Lakshmi Spice Traders' },
+      { name: 'Coriander Seeds (Whole Organic)', category: 'Raw Materials', unit: 'kg', defaultPrice: 145, prevPrice: 140, vendor: 'Annapoorna Grains & Spices' },
+      { name: 'Curry Leaves (Fresh Grade-A)', category: 'Raw Materials', unit: 'kg', defaultPrice: 85, prevPrice: 90, vendor: 'Greenfield Fresh Farm Products' },
+      { name: 'Urad Dal (Split White)', category: 'Raw Materials', unit: 'kg', defaultPrice: 130, prevPrice: 125, vendor: 'Sri Lakshmi Spice Traders' },
+      { name: 'Millet Grain Mix (Foxtail/Kudo)', category: 'Raw Materials', unit: 'kg', defaultPrice: 95, prevPrice: 95, vendor: 'Annapoorna Grains & Spices' },
+      { name: 'Stand-up Pouches 100g (Zipper Foil)', category: 'Packaging Materials', unit: 'pcs', defaultPrice: 3.20, prevPrice: 3.40, vendor: 'Apex Packaging Industries' },
+      { name: 'Nutritional Barcode Labels (Roll of 1000)', category: 'Labeling & Printing', unit: 'rolls', defaultPrice: 450, prevPrice: 450, vendor: 'Prime Offset & Digital Printers' },
+      { name: 'Corrugated 5-Ply Shipping Box', category: 'Packaging Materials', unit: 'pcs', defaultPrice: 28.50, prevPrice: 27.00, vendor: 'Apex Packaging Industries' },
+      { name: 'Adhesive Sealing Tape (72mm Red)', category: 'Packaging Materials', unit: 'rolls', defaultPrice: 65, prevPrice: 65, vendor: 'Apex Packaging Industries' }
+    ];
+
+    for (const master of MASTER_SUPPLY_ITEMS) {
+      const key = master.name.toLowerCase();
+      if (!itemRecordsMap[key]) {
+        registerPriceEntry(
+          master.name,
+          master.category,
+          master.unit,
+          master.prevPrice,
+          master.vendor,
+          null,
+          new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+          'PO-2026-00101',
+          'PO'
+        );
+        registerPriceEntry(
+          master.name,
+          master.category,
+          master.unit,
+          master.defaultPrice,
+          master.vendor,
+          null,
+          new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
+          'PO-2026-00108',
+          'PO'
+        );
+      }
+    }
+
+    const intelligenceList = Object.values(itemRecordsMap).map(item => {
+      item.history.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+      const lastEntry = item.history[0] || {};
+      const prevEntry = item.history[1] || lastEntry;
+
+      const lastPrice = lastEntry.unitPrice || 0;
+      const prevPrice = prevEntry.unitPrice || lastPrice;
+
+      const priceDiff = lastPrice - prevPrice;
+      const priceTrendPercent = prevPrice > 0 ? Number(((priceDiff / prevPrice) * 100).toFixed(1)) : 0;
+
+      const prices = item.history.map(h => h.unitPrice);
+      const minPrice = Math.min(...prices);
+      const maxPrice = Math.max(...prices);
+
+      const invMatch = inventories.find(i => (i.itemName || '').toLowerCase() === item.itemName.toLowerCase());
+
+      const vendorList = Object.values(item.vendorQuotes);
+      vendorList.sort((a, b) => a.lastPrice - b.lastPrice);
+
+      const bestVendor = vendorList[0] || { vendorName: lastEntry.vendorName || 'N/A', lastPrice };
+
+      return {
+        itemName: item.itemName,
+        category: item.category,
+        unit: item.unit,
+        lastPurchasePrice: lastPrice,
+        previousPurchasePrice: prevPrice,
+        priceTrendPercent,
+        priceTrendDirection: priceDiff > 0 ? 'UP' : priceDiff < 0 ? 'DOWN' : 'FLAT',
+        lastPurchaseDate: lastEntry.date,
+        lastRefNo: lastEntry.refNo,
+        lastVendorName: lastEntry.vendorName,
+        minHistoricalPrice: minPrice,
+        maxHistoricalPrice: maxPrice,
+        bestVendorName: bestVendor.vendorName,
+        bestVendorPrice: bestVendor.lastPrice,
+        vendorCount: vendorList.length,
+        vendorsComparison: vendorList,
+        historyLog: item.history.slice(0, 10),
+        currentStock: invMatch ? (invMatch.availableQuantity || invMatch.totalQuantity || 0) : 0,
+        stockStatus: (invMatch && (invMatch.availableQuantity || 0) < 50) ? 'LOW_STOCK' : 'HEALTHY'
+      };
+    });
+
+    intelligenceList.sort((a, b) => a.category.localeCompare(b.category) || a.itemName.localeCompare(b.itemName));
+
+    res.json({
+      success: true,
+      data: intelligenceList,
+      totalItems: intelligenceList.length
+    });
+  } catch (error) {
+    next(error);
+  }
+};

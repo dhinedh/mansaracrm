@@ -16,6 +16,7 @@ import {
   Layers,
   ArrowRight,
   TrendingDown,
+  TrendingUp,
   FileCheck,
   DollarSign,
   AlertTriangle,
@@ -233,6 +234,9 @@ export default function ProcurementPage() {
   const [archiveDocs, setArchiveDocs] = useState([]);
   const [vendors, setVendors] = useState([]);
   const [inventories, setInventories] = useState([]);
+  const [itemPriceHistory, setItemPriceHistory] = useState([]);
+  const [priceHistoryCategoryFilter, setPriceHistoryCategoryFilter] = useState('ALL');
+  const [priceHistorySearch, setPriceHistorySearch] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ text: '', type: '' });
 
@@ -244,11 +248,13 @@ export default function ProcurementPage() {
   const [showViewPRModal, setShowViewPRModal] = useState(false);
   const [showSendWhatsAppModal, setShowSendWhatsAppModal] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showVendorComparisonModal, setShowVendorComparisonModal] = useState(false);
 
   // Selected State
   const [selectedPR, setSelectedPR] = useState(null);
   const [selectedPO, setSelectedPO] = useState(null);
   const [selectedGRN, setSelectedGRN] = useState(null);
+  const [selectedIntelItem, setSelectedIntelItem] = useState(null);
 
   // WhatsApp RFQ State
   const [selectedVendorsForWhatsApp, setSelectedVendorsForWhatsApp] = useState([]);
@@ -328,6 +334,10 @@ export default function ProcurementPage() {
 
     axios.get('/inventory/company').then(res => {
       if (res.data?.success) setInventories(res.data.data || []);
+    }).catch(err => console.error(err));
+
+    axios.get('/procurement/item-price-history').then(res => {
+      if (res.data?.success) setItemPriceHistory(res.data.data || []);
     }).catch(err => console.error(err));
   };
 
@@ -701,8 +711,8 @@ export default function ProcurementPage() {
         </button>
       </div>
 
-      {/* ── Operational 5-Step Process Pipeline Bar ── */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-2 bg-white p-2 rounded-2xl border border-slate-200 shadow-sm text-[11px] font-bold text-center">
+      {/* ── Operational 6-Tab Process & Intelligence Bar ── */}
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-2 bg-white p-2 rounded-2xl border border-slate-200 shadow-sm text-[11px] font-bold text-center">
         <button
           onClick={() => setActiveTab('pr')}
           className={`p-3 rounded-xl flex flex-col items-center justify-center transition-all cursor-pointer ${
@@ -731,13 +741,24 @@ export default function ProcurementPage() {
           <span>3. Material Receipt & GRN</span>
         </button>
         <button
+          onClick={() => setActiveTab('price-history')}
+          className={`p-3 rounded-xl flex flex-col items-center justify-center transition-all cursor-pointer ${
+            activeTab === 'price-history' ? 'bg-slate-900 text-white shadow-md' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          <span className="text-[10px] text-amber-400 font-mono flex items-center gap-1">
+            <TrendingUp className="w-3 h-3 text-amber-400 inline" /> INTEL
+          </span>
+          <span>4. Price & Vendor Intel</span>
+        </button>
+        <button
           onClick={() => setActiveTab('archive')}
           className={`p-3 rounded-xl flex flex-col items-center justify-center transition-all cursor-pointer ${
             activeTab === 'archive' ? 'bg-slate-900 text-white shadow-md' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
           }`}
         >
-          <span className="text-[10px] text-amber-400 font-mono">STEP 4</span>
-          <span>4. Document Archive</span>
+          <span className="text-[10px] text-purple-400 font-mono">STEP 5</span>
+          <span>5. Document Archive</span>
         </button>
         <button
           onClick={() => setActiveTab('payment')}
@@ -745,8 +766,8 @@ export default function ProcurementPage() {
             activeTab === 'payment' ? 'bg-slate-900 text-white shadow-md' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
           }`}
         >
-          <span className="text-[10px] text-teal-400 font-mono">STEP 5</span>
-          <span>5. Payment Clearance</span>
+          <span className="text-[10px] text-teal-400 font-mono">STEP 6</span>
+          <span>6. Payment Clearance</span>
         </button>
       </div>
 
@@ -1135,6 +1156,267 @@ export default function ProcurementPage() {
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* ── TAB 4: SUPPLY ITEM PRICE & VENDOR INTELLIGENCE ── */}
+      {activeTab === 'price-history' && (
+        <div className="space-y-6">
+          {/* Header Banner */}
+          <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div className="space-y-1">
+              <span className="bg-amber-50 text-amber-800 border border-amber-200 text-[10px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full inline-flex items-center gap-1">
+                <TrendingUp className="w-3 h-3 text-amber-600" />
+                Procurement Cost & Vendor Intelligence
+              </span>
+              <h3 className="font-black text-slate-800 text-lg flex items-center gap-2">
+                Supply Stream Item Prices & Historic Vendor Rates
+              </h3>
+              <p className="text-xs text-slate-500 max-w-2xl">
+                Real-time price trend analytics across all supply streams (Raw Materials, Packaging, Labels, Equipment). Compare last purchased unit rates vs historic quotes to negotiate better vendor deals and control procurement costs.
+              </p>
+            </div>
+
+            <button
+              onClick={() => fetchAllProcurementData()}
+              className="px-4 py-2.5 rounded-xl bg-slate-900 text-white font-bold text-xs hover:bg-slate-800 cursor-pointer flex items-center space-x-1.5 shadow-sm shrink-0"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span>Refresh Price Rates</span>
+            </button>
+          </div>
+
+          {/* Key KPI Stats */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center space-x-3">
+              <div className="p-3 bg-rose-50 text-rose-600 rounded-xl">
+                <Package className="w-6 h-6" />
+              </div>
+              <div>
+                <p className="text-[10px] font-black uppercase text-slate-400">Tracked Supply Items</p>
+                <h4 className="text-xl font-black text-slate-800">{itemPriceHistory.length} Items</h4>
+              </div>
+            </div>
+
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center space-x-3">
+              <div className="p-3 bg-amber-50 text-amber-600 rounded-xl">
+                <TrendingUp className="w-6 h-6" />
+              </div>
+              <div>
+                <p className="text-[10px] font-black uppercase text-slate-400">Price Trend Alerts</p>
+                <h4 className="text-xl font-black text-slate-800">
+                  {itemPriceHistory.filter(i => i.priceTrendDirection === 'UP').length} Increased • {itemPriceHistory.filter(i => i.priceTrendDirection === 'DOWN').length} Savings
+                </h4>
+              </div>
+            </div>
+
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center space-x-3">
+              <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
+                <Building2 className="w-6 h-6" />
+              </div>
+              <div>
+                <p className="text-[10px] font-black uppercase text-slate-400">Active Vendor Partners</p>
+                <h4 className="text-xl font-black text-slate-800">{vendors.length} Verified Vendors</h4>
+              </div>
+            </div>
+
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center space-x-3">
+              <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl">
+                <FileText className="w-6 h-6" />
+              </div>
+              <div>
+                <p className="text-[10px] font-black uppercase text-slate-400">Procurement Orders Logged</p>
+                <h4 className="text-xl font-black text-slate-800">{purchaseOrders.length} POs Issued</h4>
+              </div>
+            </div>
+          </div>
+
+          {/* Filter Bar & Search */}
+          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-center gap-4">
+            {/* Category Filter Chips */}
+            <div className="flex flex-wrap gap-1.5 w-full md:w-auto">
+              {['ALL', 'Raw Materials', 'Packaging Materials', 'Labeling & Printing', 'Equipment'].map(cat => (
+                <button
+                  key={cat}
+                  onClick={() => setPriceHistoryCategoryFilter(cat)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    priceHistoryCategoryFilter === cat
+                      ? 'bg-slate-900 text-white shadow-md'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  {cat === 'ALL' ? 'All Supply Streams' : cat}
+                </button>
+              ))}
+            </div>
+
+            {/* Search Input */}
+            <div className="relative w-full md:w-72">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Search supply item or vendor..."
+                value={priceHistorySearch}
+                onChange={(e) => setPriceHistorySearch(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 text-xs bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none"
+              />
+            </div>
+          </div>
+
+          {/* Supply Items Table Grid */}
+          <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-900 text-white text-[11px] font-black uppercase tracking-wider">
+                    <th className="py-4 px-5">Supply Item & Stream</th>
+                    <th className="py-4 px-4 text-right">Last Paid Unit Price</th>
+                    <th className="py-4 px-4 text-center">Price Trend</th>
+                    <th className="py-4 px-4">Last PO Date & Ref</th>
+                    <th className="py-4 px-4">Primary / Best Vendor Rate</th>
+                    <th className="py-4 px-4 text-center">Historical Range (Min - Max)</th>
+                    <th className="py-4 px-4 text-center">Stock Level</th>
+                    <th className="py-4 px-5 text-right">Procurement Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-150 text-xs font-medium">
+                  {itemPriceHistory
+                    .filter(item => {
+                      const matchesCategory = priceHistoryCategoryFilter === 'ALL' || item.category === priceHistoryCategoryFilter;
+                      const q = priceHistorySearch.toLowerCase().trim();
+                      const matchesSearch = !q || (
+                        item.itemName.toLowerCase().includes(q) ||
+                        item.category.toLowerCase().includes(q) ||
+                        (item.lastVendorName && item.lastVendorName.toLowerCase().includes(q)) ||
+                        (item.bestVendorName && item.bestVendorName.toLowerCase().includes(q))
+                      );
+                      return matchesCategory && matchesSearch;
+                    })
+                    .map((item, idx) => (
+                      <tr key={idx} className="hover:bg-slate-50/80 transition-colors">
+                        {/* Item & Category */}
+                        <td className="py-4 px-5">
+                          <div className="font-black text-slate-800 text-sm">{item.itemName}</div>
+                          <div className="flex items-center space-x-2 mt-0.5">
+                            <span className="text-[9px] font-black uppercase bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md border border-slate-200">
+                              {item.category}
+                            </span>
+                            <span className="text-[10px] font-bold text-slate-400">Unit: {item.unit}</span>
+                          </div>
+                        </td>
+
+                        {/* Last Paid Price */}
+                        <td className="py-4 px-4 text-right">
+                          <div className="text-base font-black text-slate-900">
+                            ₹{item.lastPurchasePrice.toFixed(2)}
+                            <span className="text-[10px] font-bold text-slate-400"> / {item.unit}</span>
+                          </div>
+                          {item.previousPurchasePrice > 0 && item.previousPurchasePrice !== item.lastPurchasePrice && (
+                            <div className="text-[10px] text-slate-400 font-medium">
+                              Prev: ₹{item.previousPurchasePrice.toFixed(2)}
+                            </div>
+                          )}
+                        </td>
+
+                        {/* Price Trend */}
+                        <td className="py-4 px-4 text-center">
+                          {item.priceTrendDirection === 'UP' ? (
+                            <span className="inline-flex items-center space-x-1 bg-rose-50 border border-rose-200 text-rose-700 px-2.5 py-1 rounded-full text-[10px] font-black">
+                              <TrendingUp className="w-3 h-3" />
+                              <span>+{item.priceTrendPercent}% Price Increase</span>
+                            </span>
+                          ) : item.priceTrendDirection === 'DOWN' ? (
+                            <span className="inline-flex items-center space-x-1 bg-emerald-50 border border-emerald-200 text-emerald-700 px-2.5 py-1 rounded-full text-[10px] font-black">
+                              <TrendingUp className="w-3 h-3 rotate-180" />
+                              <span>{item.priceTrendPercent}% Savings</span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center space-x-1 bg-slate-100 text-slate-600 border border-slate-200 px-2.5 py-1 rounded-full text-[10px] font-bold">
+                              <span>Stable Rate</span>
+                            </span>
+                          )}
+                        </td>
+
+                        {/* Last PO Date & Ref */}
+                        <td className="py-4 px-4">
+                          <div className="font-bold text-slate-800">
+                            {new Date(item.lastPurchaseDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                          </div>
+                          <span className="text-[10px] font-mono font-bold text-rose-600">{item.lastRefNo}</span>
+                        </td>
+
+                        {/* Best Vendor */}
+                        <td className="py-4 px-4">
+                          <div className="font-bold text-slate-800 flex items-center gap-1">
+                            <Building2 className="w-3.5 h-3.5 text-slate-400" />
+                            <span>{item.bestVendorName}</span>
+                          </div>
+                          <div className="text-[10px] text-emerald-700 font-bold">
+                            Last Quote: ₹{item.bestVendorPrice.toFixed(2)} / {item.unit}
+                          </div>
+                        </td>
+
+                        {/* Historical Price Range */}
+                        <td className="py-4 px-4 text-center">
+                          <div className="text-[11px] font-bold text-slate-700">
+                            ₹{item.minHistoricalPrice.toFixed(2)} ── ₹{item.maxHistoricalPrice.toFixed(2)}
+                          </div>
+                          <div className="w-24 bg-slate-100 rounded-full h-1.5 mx-auto mt-1 overflow-hidden flex">
+                            <div className="bg-emerald-500 h-full" style={{ width: '40%' }}></div>
+                            <div className="bg-rose-500 h-full" style={{ width: '60%' }}></div>
+                          </div>
+                        </td>
+
+                        {/* Stock Status */}
+                        <td className="py-4 px-4 text-center">
+                          <div className="font-black text-slate-800">{item.currentStock} {item.unit}</div>
+                          <span className={`inline-block px-2 py-0.5 rounded-full text-[9px] font-black uppercase mt-0.5 ${
+                            item.stockStatus === 'LOW_STOCK'
+                              ? 'bg-rose-100 text-rose-800 border border-rose-200 animate-pulse'
+                              : 'bg-emerald-50 text-emerald-700 border border-emerald-100'
+                          }`}>
+                            {item.stockStatus === 'LOW_STOCK' ? 'Low Stock Triggers' : 'In Stock'}
+                          </span>
+                        </td>
+
+                        {/* Action */}
+                        <td className="py-4 px-5 text-right space-x-2">
+                          <button
+                            onClick={() => {
+                              setSelectedIntelItem(item);
+                              setShowVendorComparisonModal(true);
+                            }}
+                            className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[11px] rounded-xl cursor-pointer transition-colors"
+                            title="Compare Vendor Quotes"
+                          >
+                            Compare Vendors
+                          </button>
+                          <button
+                            onClick={() => {
+                              setPrItems([
+                                {
+                                  itemName: item.itemName,
+                                  category: item.category,
+                                  requiredQuantity: 100,
+                                  unit: item.unit,
+                                  targetDeliveryDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+                                }
+                              ]);
+                              setPrNotes(`Target Unit Rate based on last purchase: ₹${item.lastPurchasePrice}/${item.unit} from ${item.bestVendorName}.`);
+                              setShowCreatePRModal(true);
+                            }}
+                            className="px-3 py-1.5 bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-500 hover:to-rose-600 text-white font-bold text-[11px] rounded-xl shadow-md cursor-pointer inline-flex items-center space-x-1 transition-all"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            <span>Raise PR</span>
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}
@@ -2002,6 +2284,123 @@ export default function ProcurementPage() {
                 >
                   <Send className="w-4 h-4" />
                   <span>Send via WhatsApp Chatbot ({selectedVendorsForWhatsApp.length})</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL: VENDOR QUOTES & PRICE COMPARISON INTELLIGENCE ── */}
+      {showVendorComparisonModal && selectedIntelItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="bg-white max-w-2xl w-full rounded-3xl shadow-2xl overflow-hidden animate-zoom-in my-8">
+            <div className="p-6 bg-slate-900 text-white flex justify-between items-center border-b border-slate-800">
+              <div>
+                <span className="text-[10px] font-black uppercase text-amber-400 tracking-wider">
+                  Supplier Price Intelligence
+                </span>
+                <h3 className="text-lg font-black">{selectedIntelItem.itemName}</h3>
+                <p className="text-xs text-slate-400">Stream: {selectedIntelItem.category} • Unit: {selectedIntelItem.unit}</p>
+              </div>
+              <button
+                onClick={() => { setShowVendorComparisonModal(false); setSelectedIntelItem(null); }}
+                className="text-slate-400 hover:text-white font-bold p-1 rounded-lg hover:bg-slate-800 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-6 space-y-5 text-xs">
+              {/* Summary Stats */}
+              <div className="grid grid-cols-3 gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                <div>
+                  <span className="text-[10px] text-slate-400 font-bold uppercase block">Last Purchase Rate</span>
+                  <span className="text-base font-black text-slate-900">₹{selectedIntelItem.lastPurchasePrice.toFixed(2)} / {selectedIntelItem.unit}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-slate-400 font-bold uppercase block">Best Quoted Rate</span>
+                  <span className="text-base font-black text-emerald-700">₹{selectedIntelItem.bestVendorPrice.toFixed(2)} / {selectedIntelItem.unit}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-slate-400 font-bold uppercase block">Historic Price Range</span>
+                  <span className="text-base font-black text-slate-800">₹{selectedIntelItem.minHistoricalPrice.toFixed(2)} - ₹{selectedIntelItem.maxHistoricalPrice.toFixed(2)}</span>
+                </div>
+              </div>
+
+              {/* Vendor Quotes Comparison Table */}
+              <div className="space-y-2">
+                <h4 className="font-black text-slate-800 text-xs uppercase tracking-wide flex items-center gap-1.5">
+                  <Building2 className="w-4 h-4 text-rose-600" />
+                  Vendor Quotation & Rate Comparison Matrix ({selectedIntelItem.vendorsComparison.length})
+                </h4>
+
+                <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+                  <table className="w-full text-left">
+                    <thead className="bg-slate-100 text-[10px] font-black uppercase text-slate-500 border-b">
+                      <tr>
+                        <th className="py-2.5 px-3">Vendor Partner Name</th>
+                        <th className="py-2.5 px-3 text-right">Quoted Unit Rate</th>
+                        <th className="py-2.5 px-3">Last Entry Date</th>
+                        <th className="py-2.5 px-3 text-center">Entry Source</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 font-medium">
+                      {selectedIntelItem.vendorsComparison.map((v, idx) => (
+                        <tr key={idx} className={v.vendorName === selectedIntelItem.bestVendorName ? 'bg-emerald-50/60 font-bold' : ''}>
+                          <td className="py-2.5 px-3 flex items-center justify-between">
+                            <span className="text-slate-800">{v.vendorName}</span>
+                            {v.vendorName === selectedIntelItem.bestVendorName && (
+                              <span className="text-[9px] bg-emerald-100 text-emerald-800 font-black px-2 py-0.5 rounded-full border border-emerald-200 uppercase">
+                                Lowest Rate
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-2.5 px-3 text-right font-black text-slate-900">
+                            ₹{v.lastPrice.toFixed(2)} / {selectedIntelItem.unit}
+                          </td>
+                          <td className="py-2.5 px-3 text-slate-500">
+                            {new Date(v.date).toLocaleDateString('en-IN')}
+                          </td>
+                          <td className="py-2.5 px-3 text-center">
+                            <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-mono text-[10px] uppercase font-bold">
+                              {v.type}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Purchase History Log */}
+              <div className="space-y-2 pt-2 border-t border-slate-100">
+                <h4 className="font-black text-slate-800 text-xs uppercase tracking-wide">
+                  Recent Purchase Order History (Last 10 POs / GRNs)
+                </h4>
+                <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200 max-h-40 overflow-y-auto space-y-2">
+                  {selectedIntelItem.historyLog.map((log, idx) => (
+                    <div key={idx} className="flex justify-between items-center text-[11px] pb-1 border-b border-slate-200/60 last:border-0 last:pb-0">
+                      <div>
+                        <span className="font-bold text-slate-800">{log.vendorName}</span>
+                        <span className="text-slate-400 font-mono block text-[10px]">{log.refNo} • {new Date(log.date).toLocaleDateString()}</span>
+                      </div>
+                      <div className="font-black text-rose-700">
+                        ₹{log.unitPrice.toFixed(2)} / {selectedIntelItem.unit}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex justify-end pt-3 border-t">
+                <button
+                  type="button"
+                  onClick={() => { setShowVendorComparisonModal(false); setSelectedIntelItem(null); }}
+                  className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl cursor-pointer"
+                >
+                  Close Intelligence View
                 </button>
               </div>
             </div>
