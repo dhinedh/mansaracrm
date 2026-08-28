@@ -516,11 +516,13 @@ export default function DealersPage() {
   const [formError, setFormError] = useState('');
   const [formSuccess, setFormSuccess] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [registeredSummary, setRegisteredSummary] = useState(null);
 
   const handleRegister = async (e) => {
     e.preventDefault();
     setFormError('');
     setFormSuccess(false);
+    setRegisteredSummary(null);
     setSubmitting(true);
 
     if (zoneConflicts.length > 0) {
@@ -533,7 +535,7 @@ export default function DealersPage() {
     }
 
     try {
-      await axios.post('/auth/register-dealer', {
+      const res = await axios.post('/auth/register-dealer', {
         email, password, name, companyName, gstNumber, address, city, state, pincode,
         zones,     // send zones array
         area, phone, dealerType, dealerCategory,
@@ -544,12 +546,13 @@ export default function DealersPage() {
       });
       
       setFormSuccess(true);
+      if (res.data?.data) {
+        setRegisteredSummary({
+          ...res.data.data,
+          password: password || 'Dealer@123'
+        });
+      }
       fetchDealers();
-      setTimeout(() => {
-        setShowAddModal(false);
-        setFormSuccess(false);
-        resetForm();
-      }, 1500);
     } catch (err) {
       const msg = err.response?.data?.message || 'Failed to register dealer. Please try again.';
       setFormError(msg);
@@ -576,13 +579,31 @@ export default function DealersPage() {
     }
   };
 
+  const handleDeleteDealer = async (id, companyName) => {
+    if (!window.confirm(`⚠️ Are you sure you want to PERMANENTLY delete dealer profile "${companyName || 'this dealer'}" and its user account?\n\nThis action will remove all user login records, profile data, and configurations permanently.`)) {
+      return;
+    }
+    try {
+      const res = await axios.delete(`/dealers/${id}`);
+      if (res.data.success) {
+        setMessage({ text: res.data.message || 'Dealer profile and user account deleted successfully.', type: 'success' });
+        setShowDetailModal(false);
+        setDealerDetail(null);
+        fetchDealers();
+      }
+    } catch (err) {
+      console.error(err);
+      alert(err.response?.data?.message || 'Failed to delete dealer profile');
+    }
+  };
+
   const resetForm = () => {
     setEmail(''); setPassword(''); setName(''); setCompanyName(''); setGstNumber('');
     setAddress(''); setCity(''); setState(''); setPincode(''); setZones([]); setZoneInput(''); setArea('');
     setPhone(''); setDealerType('RETAIL'); setDealerCategory('STARTER'); setInitialDeposit(''); setSelectedCategories([]);
     setDefaultMargin(10);
     setBillingProfile('NORMAL');
-    setFormError(''); setFormSuccess(false); setSubmitting(false);
+    setFormError(''); setFormSuccess(false); setSubmitting(false); setRegisteredSummary(null);
     setPincodeSuggestions([]);
     setShowMap(false);
     setShowEditMap(false);
@@ -845,10 +866,23 @@ export default function DealersPage() {
                   </div>
                 )}
 
-                <span className="text-[10px] font-bold text-rose-600 group-hover:underline ml-auto flex items-center space-x-1">
-                  <span>View Profile</span>
-                  <span>→</span>
-                </span>
+                <div className="flex items-center space-x-2 ml-auto">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteDealer(dealer.id, dealer.companyName);
+                    }}
+                    className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg border border-transparent hover:border-rose-200 transition-all cursor-pointer"
+                    title="Delete dealer profile & user"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                  <span className="text-[10px] font-bold text-rose-600 group-hover:underline flex items-center space-x-1">
+                    <span>View Profile</span>
+                    <span>→</span>
+                  </span>
+                </div>
               </div>
             </div>
           ))}
@@ -898,286 +932,394 @@ export default function DealersPage() {
               </div>
             )}
             
-            <form onSubmit={handleRegister} className="p-6 space-y-4 overflow-y-auto flex-1 text-xs">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-slate-500 font-bold mb-1">Company / Firm Name *</label>
-                  <input type="text" required value={companyName} onChange={e => setCompanyName(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none" />
-                </div>
-                <div>
-                  <label className="block text-slate-500 font-bold mb-1">GST Number (optional)</label>
-                  <input type="text" value={gstNumber} onChange={e => setGstNumber(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none" />
-                </div>
-                <div>
-                  <label className="block text-slate-500 font-bold mb-1">Dealer Name *</label>
-                  <input type="text" required value={name} onChange={e => setName(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none" />
-                </div>
-                <div>
-                  <label className="block text-slate-500 font-bold mb-1">Phone Number *</label>
-                  <input type="text" required value={phone} onChange={e => setPhone(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none" />
-                </div>
-                <div>
-                  <label className="block text-slate-500 font-bold mb-1">Email ID *</label>
-                  <input 
-                    type="email" 
-                    required 
-                    autoComplete="off" 
-                    value={email} 
-                    onChange={e => { setEmail(e.target.value); if (formError) setFormError(''); }} 
-                    className={`w-full p-2.5 bg-slate-50 border focus:bg-white rounded-xl focus:outline-none transition-all ${
-                      formError && formError.toLowerCase().includes('email') 
-                        ? 'border-rose-400 bg-rose-50/30 focus:border-rose-500' 
-                        : 'border-slate-200 focus:border-rose-500'
-                    }`}
-                    placeholder="dealer@example.com"
-                  />
-                  {formError && formError.toLowerCase().includes('email') && (
-                    <p className="text-rose-600 text-[10px] mt-1 font-semibold">⚠ This email is already taken</p>
-                  )}
-                </div>
-                <div>
-                  <label className="block text-slate-500 font-bold mb-1">Password *</label>
-                  <input type="password" required autoComplete="new-password" value={password} onChange={e => setPassword(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none" placeholder="Min. 6 characters" />
-                </div>
-                <div>
-                  <label className="block text-slate-500 font-bold mb-1">Dealer Type</label>
-                  <select value={dealerType} onChange={e => setDealerType(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 rounded-xl focus:outline-none cursor-pointer">
-                    <option value="RETAIL">Retail</option>
-                    <option value="WHOLESALE">Wholesale</option>
-                    <option value="DISTRIBUTOR">Distributor</option>
-                    <option value="SUPER_DISTRIBUTOR">Super Distributor</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-slate-500 font-bold mb-1">Dealer Tier / Category *</label>
-                  <div className="grid grid-cols-2 gap-2 mt-1">
-                    {['STARTER', 'GROWTH', 'PREMIUM', 'SUPER'].map(tier => (
-                      <button
-                        key={tier}
-                        type="button"
-                        onClick={() => setDealerCategory(tier)}
-                        className={`py-2 rounded-xl text-[11px] font-black border transition-all ${
-                          dealerCategory === tier
-                            ? tier === 'SUPER' ? 'bg-purple-600 text-white border-purple-600 shadow-sm'
-                              : tier === 'PREMIUM' ? 'bg-amber-500 text-white border-amber-500 shadow-sm'
-                              : tier === 'GROWTH' ? 'bg-blue-500 text-white border-blue-500 shadow-sm'
-                              : 'bg-slate-600 text-white border-slate-600 shadow-sm'
-                            : 'bg-white text-slate-500 border-slate-200 hover:border-rose-300'
-                        }`}
-                      >
-                        {tier === 'SUPER' ? '⭐ SUPER' : tier === 'PREMIUM' ? '🥇 PREMIUM' : tier === 'GROWTH' ? '📈 GROWTH' : '🌱 STARTER'}
-                      </button>
-                    ))}
+            {registeredSummary ? (
+              <div className="p-6 space-y-5 animate-fade-in text-xs overflow-y-auto flex-1">
+                <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-2xl flex items-start space-x-3 shadow-sm">
+                  <div className="w-8 h-8 bg-emerald-600 text-white rounded-xl flex items-center justify-center font-bold text-sm shrink-0 shadow-sm">
+                    ✓
+                  </div>
+                  <div>
+                    <h4 className="font-black text-emerald-900 text-sm">Vendor Account Registered & Details Dispatched!</h4>
+                    <p className="text-emerald-800 text-xs mt-0.5">
+                      A registration email with account credentials has been sent to <strong>{registeredSummary.email}</strong>.
+                    </p>
                   </div>
                 </div>
-                <div>
-                  <label className="block text-slate-500 font-bold mb-1 flex items-center space-x-1">
-                    <IndianRupee className="w-3 h-3" />
-                    <span>Initial Deposit (₹)</span>
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={initialDeposit}
-                    onChange={e => setInitialDeposit(e.target.value)}
-                    placeholder="e.g. 5000"
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-slate-500 font-bold mb-1">Default Margin (%)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    step="0.1"
-                    value={defaultMargin}
-                    onChange={e => setDefaultMargin(e.target.value)}
-                    placeholder="e.g. 10"
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-slate-500 font-bold mb-2">Billing Profile</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {[
-                      { value: 'NORMAL', label: '📄 Normal', desc: 'Invoice on delivery' },
-                      { value: 'ADVANCE', label: '⚡ Advance', desc: 'Payment before dispatch' }
-                    ].map(opt => (
-                      <button
-                        key={opt.value}
-                        type="button"
-                        onClick={() => setBillingProfile(opt.value)}
-                        className={`py-2.5 px-3 rounded-xl text-[11px] font-black border transition-all text-left ${
-                          billingProfile === opt.value
-                            ? opt.value === 'ADVANCE'
-                              ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
-                              : 'bg-slate-700 text-white border-slate-700 shadow-sm'
-                            : 'bg-white text-slate-500 border-slate-200 hover:border-rose-300'
-                        }`}
-                      >
-                        <div>{opt.label}</div>
-                        <div className={`text-[9px] font-medium mt-0.5 ${billingProfile === opt.value ? 'opacity-80' : 'text-slate-400'}`}>{opt.desc}</div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
 
-              {/* Zones Tag Builder */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="block text-slate-500 font-bold">Zones / Territories (add multiple)</label>
+                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-4 shadow-xs">
+                  <div className="flex items-center justify-between border-b border-slate-200 pb-2.5">
+                    <h5 className="font-black text-slate-800 text-xs uppercase tracking-wider flex items-center gap-2">
+                      <Building2 className="w-4 h-4 text-rose-600" />
+                      <span>Registered Vendor / Partner Details</span>
+                    </h5>
+                    <span className="bg-indigo-50 text-indigo-700 font-black text-[10px] px-2.5 py-0.5 rounded-full">
+                      ✓ Email & Notification Dispatched
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-slate-700">
+                    <div className="p-3 bg-white border border-slate-200 rounded-xl space-y-1">
+                      <span className="text-slate-400 font-bold block text-[10px] uppercase tracking-wider">Registered Email ID</span>
+                      <span className="font-black text-slate-900 text-xs select-all">{registeredSummary.email}</span>
+                    </div>
+
+                    <div className="p-3 bg-white border border-slate-200 rounded-xl space-y-1">
+                      <span className="text-slate-400 font-bold block text-[10px] uppercase tracking-wider">Login Password</span>
+                      <span className="font-mono font-black text-rose-600 text-xs select-all">{registeredSummary.password}</span>
+                    </div>
+
+                    <div className="p-3 bg-white border border-slate-200 rounded-xl space-y-1">
+                      <span className="text-slate-400 font-bold block text-[10px] uppercase tracking-wider">Company / Firm Name</span>
+                      <span className="font-bold text-slate-800">{registeredSummary.companyName}</span>
+                    </div>
+
+                    <div className="p-3 bg-white border border-slate-200 rounded-xl space-y-1">
+                      <span className="text-slate-400 font-bold block text-[10px] uppercase tracking-wider">Contact Person Name</span>
+                      <span className="font-bold text-slate-800">{registeredSummary.name}</span>
+                    </div>
+
+                    <div className="p-3 bg-white border border-slate-200 rounded-xl space-y-1">
+                      <span className="text-slate-400 font-bold block text-[10px] uppercase tracking-wider">Phone Number</span>
+                      <span className="font-semibold text-slate-800">{registeredSummary.phone || 'N/A'}</span>
+                    </div>
+
+                    <div className="p-3 bg-white border border-slate-200 rounded-xl space-y-1">
+                      <span className="text-slate-400 font-bold block text-[10px] uppercase tracking-wider">Dealer Tier & Type</span>
+                      <span className="font-black text-purple-700">{registeredSummary.dealerCategory || 'STARTER'} ({registeredSummary.dealerType || 'RETAIL'})</span>
+                    </div>
+
+                    <div className="p-3 bg-white border border-slate-200 rounded-xl space-y-1">
+                      <span className="text-slate-400 font-bold block text-[10px] uppercase tracking-wider">Default Margin</span>
+                      <span className="font-black text-emerald-600">{registeredSummary.defaultMargin || 10}%</span>
+                    </div>
+
+                    <div className="p-3 bg-white border border-slate-200 rounded-xl space-y-1">
+                      <span className="text-slate-400 font-bold block text-[10px] uppercase tracking-wider">Approval Status</span>
+                      <span className="inline-block bg-amber-100 text-amber-800 text-[10px] font-black px-2.5 py-0.5 rounded-full">
+                        {registeredSummary.approvalStatus || 'PENDING'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between gap-3 pt-2">
+                  <div className="flex items-center space-x-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const text = `Mansara Foods - Vendor Account Credentials\nCompany: ${registeredSummary.companyName}\nContact Person: ${registeredSummary.name}\nEmail: ${registeredSummary.email}\nPassword: ${registeredSummary.password}\nPhone: ${registeredSummary.phone}\nStatus: ${registeredSummary.approvalStatus}`;
+                        navigator.clipboard.writeText(text);
+                        alert('✓ Vendor registration details copied to clipboard!');
+                      }}
+                      className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-xl text-xs transition cursor-pointer flex items-center space-x-1.5"
+                    >
+                      <span>📋 Copy Credentials</span>
+                    </button>
+
+                    {registeredSummary.phone && (
+                      <a
+                        href={registeredSummary.whatsappUrl || `https://wa.me/91${registeredSummary.phone.replace(/\D/g, '').slice(-10)}?text=${encodeURIComponent(`🎉 Welcome to Mansara Foods B2B Portal!\nHello ${registeredSummary.name}, your account for ${registeredSummary.companyName} has been registered.\n\nEmail: ${registeredSummary.email}\nPassword: ${registeredSummary.password}\nPhone: ${registeredSummary.phone}\nStatus: ${registeredSummary.approvalStatus}`)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs transition cursor-pointer flex items-center space-x-1.5 shadow-md"
+                      >
+                        <span>💬 Open WhatsApp Chat</span>
+                      </a>
+                    )}
+                  </div>
+
                   <button
                     type="button"
-                    onClick={() => setShowMap(!showMap)}
-                    className="text-[10px] font-bold text-rose-600 hover:text-rose-700 bg-rose-50 border border-rose-100 hover:bg-rose-100 px-2.5 py-1.5 rounded-xl transition-all"
+                    onClick={() => {
+                      setShowAddModal(false);
+                      resetForm();
+                    }}
+                    className="px-6 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-xs shadow-md transition cursor-pointer"
                   >
-                    {showMap ? '🗺️ Hide Interactive Map' : '🗺️ Use Interactive Map'}
+                    Done & Return to Directory
                   </button>
                 </div>
-
-                {showMap && (
-                  <div className="mb-3 animate-fade-in">
-                    <ZoneSelectionMap
-                      selectedZones={zones}
-                      onToggleZone={z => zones.includes(z) ? removeZone(z) : addZone(z)}
-                      zoneConflicts={zoneConflicts}
-                      isGrowthPartner={dealerCategory === 'GROWTH'}
-                    />
-                  </div>
-                )}
-
-                <div className="border border-slate-200 rounded-xl bg-slate-50 p-2.5 min-h-[42px] flex flex-wrap gap-1.5 items-center focus-within:border-rose-500 focus-within:bg-white transition-all">
-                  {zones.map(z => (
-                    <span key={z} className="inline-flex items-center space-x-1 bg-rose-100 text-rose-700 font-bold text-[10px] px-2.5 py-1 rounded-lg">
-                      <span>{z}</span>
-                      <button type="button" onClick={() => removeZone(z)} className="text-rose-500 hover:text-rose-700 ml-0.5">
-                        <X className="w-2.5 h-2.5" />
-                      </button>
-                    </span>
-                  ))}
-                  <input
-                    type="text"
-                    value={zoneInput}
-                    onChange={e => setZoneInput(e.target.value)}
-                    onKeyDown={e => {
-                      if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addZone(zoneInput); }
-                    }}
-                    onBlur={() => { if (zoneInput.trim()) addZone(zoneInput); }}
-                    placeholder={zones.length === 0 ? 'Type zone name, press Enter or comma to add...' : 'Add another zone...'}
-                    className="flex-1 min-w-[140px] bg-transparent text-xs focus:outline-none text-slate-700 placeholder-slate-400"
-                  />
-                </div>
-                <p className="text-[10px] text-slate-400 mt-1">e.g. North, South, East · Press Enter or comma to add each zone</p>
               </div>
-
-              {zoneConflicts.length > 0 && (
-                <div className="bg-amber-50 border border-amber-200 text-amber-800 p-3 rounded-xl space-y-1">
-                  <p className="font-bold text-[10px] flex items-center gap-1">
-                    <span>⚠️ Warning: Zone Assignment Conflict</span>
-                  </p>
-                  <ul className="list-disc pl-4 text-[10px]">
-                    {zoneConflicts.map((c, idx) => (
-                      <li key={idx}>
-                        Zone <strong>{c.zones.join(', ')}</strong> is already assigned to active dealer <strong>{c.companyName}</strong>.
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {pincodeSuggestions.length > 0 && (
-                <div className="bg-rose-50/20 border border-rose-100/50 p-3.5 rounded-xl space-y-2">
-                  <span className="block text-[10px] font-black uppercase text-rose-600 tracking-wider">Quick Add Suggested Zones:</span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {pincodeSuggestions.map(sz => {
-                      const isAdded = zones.includes(sz);
-                      return (
+            ) : (
+              <form onSubmit={handleRegister} className="p-6 space-y-4 overflow-y-auto flex-1 text-xs">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-slate-500 font-bold mb-1">Company / Firm Name *</label>
+                    <input type="text" required value={companyName} onChange={e => setCompanyName(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-slate-500 font-bold mb-1">GST Number (optional)</label>
+                    <input type="text" value={gstNumber} onChange={e => setGstNumber(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-slate-500 font-bold mb-1">Dealer Name *</label>
+                    <input type="text" required value={name} onChange={e => setName(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-slate-500 font-bold mb-1">Phone Number *</label>
+                    <input type="text" required value={phone} onChange={e => setPhone(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-slate-500 font-bold mb-1">Email ID *</label>
+                    <input 
+                      type="email" 
+                      required 
+                      autoComplete="off" 
+                      value={email} 
+                      onChange={e => { setEmail(e.target.value); if (formError) setFormError(''); }} 
+                      className={`w-full p-2.5 bg-slate-50 border focus:bg-white rounded-xl focus:outline-none transition-all ${
+                        formError && formError.toLowerCase().includes('email') 
+                          ? 'border-rose-400 bg-rose-50/30 focus:border-rose-500' 
+                          : 'border-slate-200 focus:border-rose-500'
+                      }`}
+                      placeholder="dealer@example.com"
+                    />
+                    {formError && formError.toLowerCase().includes('email') && (
+                      <p className="text-rose-600 text-[10px] mt-1 font-semibold">⚠ This email is already taken</p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-slate-500 font-bold mb-1">Password *</label>
+                    <input type="password" required autoComplete="new-password" value={password} onChange={e => setPassword(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none" placeholder="Min. 6 characters" />
+                  </div>
+                  <div>
+                    <label className="block text-slate-500 font-bold mb-1">Dealer Type</label>
+                    <select value={dealerType} onChange={e => setDealerType(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 rounded-xl focus:outline-none cursor-pointer">
+                      <option value="RETAIL">Retail</option>
+                      <option value="WHOLESALE">Wholesale</option>
+                      <option value="DISTRIBUTOR">Distributor</option>
+                      <option value="SUPER_DISTRIBUTOR">Super Distributor</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-slate-500 font-bold mb-1">Dealer Tier / Category *</label>
+                    <div className="grid grid-cols-2 gap-2 mt-1">
+                      {['STARTER', 'GROWTH', 'PREMIUM', 'SUPER'].map(tier => (
                         <button
-                          key={sz}
+                          key={tier}
                           type="button"
-                          disabled={isAdded}
-                          onClick={() => addZone(sz)}
-                          className={`text-[10px] font-bold px-2.5 py-1 rounded-lg border transition-all ${
-                            isAdded
-                              ? 'bg-slate-200 text-slate-400 border-slate-200 cursor-not-allowed'
-                              : 'bg-white text-rose-600 border-slate-200 hover:border-rose-300 hover:bg-rose-50/50 cursor-pointer'
+                          onClick={() => setDealerCategory(tier)}
+                          className={`py-2 rounded-xl text-[11px] font-black border transition-all ${
+                            dealerCategory === tier
+                              ? tier === 'SUPER' ? 'bg-purple-600 text-white border-purple-600 shadow-sm'
+                                : tier === 'PREMIUM' ? 'bg-amber-500 text-white border-amber-500 shadow-sm'
+                                : tier === 'GROWTH' ? 'bg-blue-500 text-white border-blue-500 shadow-sm'
+                                : 'bg-slate-600 text-white border-slate-600 shadow-sm'
+                              : 'bg-white text-slate-500 border-slate-200 hover:border-rose-300'
                           }`}
                         >
-                          + {sz}
+                          {tier === 'SUPER' ? '⭐ SUPER' : tier === 'PREMIUM' ? '🥇 PREMIUM' : tier === 'GROWTH' ? '📈 GROWTH' : '🌱 STARTER'}
                         </button>
-                      );
-                    })}
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-slate-500 font-bold mb-1 flex items-center space-x-1">
+                      <IndianRupee className="w-3 h-3" />
+                      <span>Initial Deposit (₹)</span>
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={initialDeposit}
+                      onChange={e => setInitialDeposit(e.target.value)}
+                      placeholder="e.g. 5000"
+                      className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-500 font-bold mb-1">Default Margin (%)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.1"
+                      value={defaultMargin}
+                      onChange={e => setDefaultMargin(e.target.value)}
+                      placeholder="e.g. 10"
+                      className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-500 font-bold mb-2">Billing Profile</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {[
+                        { value: 'NORMAL', label: '📄 Normal', desc: 'Invoice on delivery' },
+                        { value: 'ADVANCE', label: '⚡ Advance', desc: 'Payment before dispatch' }
+                      ].map(opt => (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => setBillingProfile(opt.value)}
+                          className={`py-2.5 px-3 rounded-xl text-[11px] font-black border transition-all text-left ${
+                            billingProfile === opt.value
+                              ? opt.value === 'ADVANCE'
+                                ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                                : 'bg-slate-700 text-white border-slate-700 shadow-sm'
+                              : 'bg-white text-slate-500 border-slate-200 hover:border-rose-300'
+                          }`}
+                        >
+                          <div>{opt.label}</div>
+                          <div className={`text-[9px] font-medium mt-0.5 ${billingProfile === opt.value ? 'opacity-80' : 'text-slate-400'}`}>{opt.desc}</div>
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
-              )}
 
-              {/* Category Multi-select */}
-              <div>
-                <label className="block text-slate-500 font-bold mb-2">Dealer Categories (select applicable)</label>
-                {categoryList.length === 0 ? (
-                  <p className="text-slate-400 text-[11px] italic">No categories found. Create categories in the Products section first.</p>
-                ) : (
-                  <div className="flex flex-wrap gap-2">
-                    {categoryList.map(cat => (
-                      <button
-                        key={cat.id}
-                        type="button"
-                        onClick={() => toggleCategory(cat.id)}
-                        className={`text-[11px] font-bold px-3 py-1.5 rounded-lg border transition-all ${
-                          selectedCategories.includes(cat.id)
-                            ? 'bg-rose-600 text-white border-rose-600 shadow-sm'
-                            : 'bg-white text-slate-600 border-slate-200 hover:border-rose-400 hover:text-rose-600'
-                        }`}
-                      >
-                        {selectedCategories.includes(cat.id) && '✓ '}{cat.name}
-                      </button>
+                {/* Zones Tag Builder */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-slate-500 font-bold">Zones / Territories (add multiple)</label>
+                    <button
+                      type="button"
+                      onClick={() => setShowMap(!showMap)}
+                      className="text-[10px] font-bold text-rose-600 hover:text-rose-700 bg-rose-50 border border-rose-100 hover:bg-rose-100 px-2.5 py-1.5 rounded-xl transition-all"
+                    >
+                      {showMap ? '🗺️ Hide Interactive Map' : '🗺️ Use Interactive Map'}
+                    </button>
+                  </div>
+
+                  {showMap && (
+                    <div className="mb-3 animate-fade-in">
+                      <ZoneSelectionMap
+                        selectedZones={zones}
+                        onToggleZone={z => zones.includes(z) ? removeZone(z) : addZone(z)}
+                        zoneConflicts={zoneConflicts}
+                        isGrowthPartner={dealerCategory === 'GROWTH'}
+                      />
+                    </div>
+                  )}
+
+                  <div className="border border-slate-200 rounded-xl bg-slate-50 p-2.5 min-h-[42px] flex flex-wrap gap-1.5 items-center focus-within:border-rose-500 focus-within:bg-white transition-all">
+                    {zones.map(z => (
+                      <span key={z} className="inline-flex items-center space-x-1 bg-rose-100 text-rose-700 font-bold text-[10px] px-2.5 py-1 rounded-lg">
+                        <span>{z}</span>
+                        <button type="button" onClick={() => removeZone(z)} className="text-rose-500 hover:text-rose-700 ml-0.5">
+                          <X className="w-2.5 h-2.5" />
+                        </button>
+                      </span>
                     ))}
+                    <input
+                      type="text"
+                      value={zoneInput}
+                      onChange={e => setZoneInput(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addZone(zoneInput); }
+                      }}
+                      onBlur={() => { if (zoneInput.trim()) addZone(zoneInput); }}
+                      placeholder={zones.length === 0 ? 'Type zone name, press Enter or comma to add...' : 'Add another zone...'}
+                      className="flex-1 min-w-[140px] bg-transparent text-xs focus:outline-none text-slate-700 placeholder-slate-400"
+                    />
+                  </div>
+                  <p className="text-[10px] text-slate-400 mt-1">e.g. North, South, East · Press Enter or comma to add each zone</p>
+                </div>
+
+                {zoneConflicts.length > 0 && (
+                  <div className="bg-amber-50 border border-amber-200 text-amber-800 p-3 rounded-xl space-y-1">
+                    <p className="font-bold text-[10px] flex items-center gap-1">
+                      <span>⚠️ Warning: Zone Assignment Conflict</span>
+                    </p>
+                    <ul className="list-disc pl-4 text-[10px]">
+                      {zoneConflicts.map((c, idx) => (
+                        <li key={idx}>
+                          Zone <strong>{c.zones.join(', ')}</strong> is already assigned to active dealer <strong>{c.companyName}</strong>.
+                        </li>
+                      ))}
+                    </ul>
                   </div>
                 )}
-              </div>
 
-              <div>
-                <label className="block text-slate-500 font-bold mb-1">Street Address *</label>
-                <textarea required value={address} onChange={e => setAddress(e.target.value)} rows="2" className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none"></textarea>
-              </div>
+                {pincodeSuggestions.length > 0 && (
+                  <div className="bg-rose-50/20 border border-rose-100/50 p-3.5 rounded-xl space-y-2">
+                    <span className="block text-[10px] font-black uppercase text-rose-600 tracking-wider">Quick Add Suggested Zones:</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {pincodeSuggestions.map(sz => {
+                        const isAdded = zones.includes(sz);
+                        return (
+                          <button
+                            key={sz}
+                            type="button"
+                            disabled={isAdded}
+                            onClick={() => addZone(sz)}
+                            className={`text-[10px] font-bold px-2.5 py-1 rounded-lg border transition-all ${
+                              isAdded
+                                ? 'bg-slate-200 text-slate-400 border-slate-200 cursor-not-allowed'
+                                : 'bg-white text-rose-600 border-slate-200 hover:border-rose-300 hover:bg-rose-50/50 cursor-pointer'
+                            }`}
+                          >
+                            + {sz}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
-              <div className="grid grid-cols-3 gap-4">
+                {/* Category Multi-select */}
                 <div>
-                  <label className="block text-slate-500 font-bold mb-1">City</label>
-                  <input type="text" value={city} onChange={e => setCity(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none" />
-                </div>
-                <div>
-                  <label className="block text-slate-500 font-bold mb-1">State</label>
-                  <input type="text" value={state} onChange={e => setState(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none" />
-                </div>
-                <div>
-                  <label className="block text-slate-500 font-bold mb-1">Pincode</label>
-                  <input type="text" value={pincode} onChange={e => handlePincodeChange(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none" />
-                </div>
-              </div>
-
-              <div className="pt-4">
-                <button 
-                  type="submit" 
-                  disabled={submitting || formSuccess}
-                  className="w-full bg-rose-600 hover:bg-rose-700 disabled:bg-rose-400 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl shadow-lg transition-all text-xs flex items-center justify-center space-x-2"
-                >
-                  {submitting ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      <span>Registering...</span>
-                    </>
-                  ) : formSuccess ? (
-                    <span>✓ Registered Successfully!</span>
+                  <label className="block text-slate-500 font-bold mb-2">Dealer Categories (select applicable)</label>
+                  {categoryList.length === 0 ? (
+                    <p className="text-slate-400 text-[11px] italic">No categories found. Create categories in the Products section first.</p>
                   ) : (
-                    <span>Register Partner Account</span>
+                    <div className="flex flex-wrap gap-2">
+                      {categoryList.map(cat => (
+                        <button
+                          key={cat.id}
+                          type="button"
+                          onClick={() => toggleCategory(cat.id)}
+                          className={`text-[11px] font-bold px-3 py-1.5 rounded-lg border transition-all ${
+                            selectedCategories.includes(cat.id)
+                              ? 'bg-rose-600 text-white border-rose-600 shadow-sm'
+                              : 'bg-white text-slate-600 border-slate-200 hover:border-rose-400 hover:text-rose-600'
+                          }`}
+                        >
+                          {selectedCategories.includes(cat.id) && '✓ '}{cat.name}
+                        </button>
+                      ))}
+                    </div>
                   )}
-                </button>
-              </div>
-            </form>
+                </div>
+
+                <div>
+                  <label className="block text-slate-500 font-bold mb-1">Street Address *</label>
+                  <textarea required value={address} onChange={e => setAddress(e.target.value)} rows="2" className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none"></textarea>
+                </div>
+
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-slate-500 font-bold mb-1">City</label>
+                    <input type="text" value={city} onChange={e => setCity(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-slate-500 font-bold mb-1">State</label>
+                    <input type="text" value={state} onChange={e => setState(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-slate-500 font-bold mb-1">Pincode</label>
+                    <input type="text" value={pincode} onChange={e => handlePincodeChange(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none" />
+                  </div>
+                </div>
+
+                <div className="pt-4">
+                  <button 
+                    type="submit" 
+                    disabled={submitting || formSuccess}
+                    className="w-full bg-rose-600 hover:bg-rose-700 disabled:bg-rose-400 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl shadow-lg transition-all text-xs flex items-center justify-center space-x-2"
+                  >
+                    {submitting ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        <span>Registering & Sending Message...</span>
+                      </>
+                    ) : (
+                      <span>Register Partner Account & Send Message</span>
+                    )}
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}
@@ -1481,8 +1623,18 @@ export default function DealersPage() {
                             )}
                             <button
                               type="button"
+                              onClick={() => handleDeleteDealer(dealerDetail.id, dealerDetail.companyName)}
+                              className="bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold px-4 py-2 rounded-xl border border-rose-200 text-xs uppercase tracking-wide flex items-center space-x-1.5 cursor-pointer transition-all shadow-xs"
+                              title="Permanently delete dealer profile and user account"
+                            >
+                              <Trash2 className="w-4 h-4 text-rose-600" />
+                              <span>Delete Profile & User</span>
+                            </button>
+
+                            <button
+                              type="button"
                               onClick={startEditing}
-                              className="bg-rose-600 hover:bg-rose-700 text-white font-bold px-4 py-2 rounded-xl shadow-md text-xs uppercase tracking-wide flex items-center space-x-1.5"
+                              className="bg-rose-600 hover:bg-rose-700 text-white font-bold px-4 py-2 rounded-xl shadow-md text-xs uppercase tracking-wide flex items-center space-x-1.5 cursor-pointer"
                             >
                               <span>Edit Profile Details</span>
                             </button>

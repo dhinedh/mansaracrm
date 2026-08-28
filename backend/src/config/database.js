@@ -35,6 +35,7 @@ const UserSchema = new Schema({
   email: { type: String, unique: true, required: true },
   password: { type: String, required: true },
   name: { type: String, required: true },
+  phone: { type: String },
   role: { type: String, enum: ['ADMIN', 'DEALER'], default: 'DEALER' },
   staffRole: { type: String, enum: ['ADMIN', 'ECOM_MANAGER', 'B2B_MANAGER', 'SUPPORT_AGENT', 'FINANCE_OFFICER', 'VIEWER'], default: 'ADMIN' },
   isActive: { type: Boolean, default: true },

@@ -13,13 +13,23 @@ router.post('/login', validate([
   body('password').notEmpty().withMessage('Password is required')
 ]), authController.login);
 
-router.post('/forgot-password', validate([
-  body('email').trim().isEmail().withMessage('Please enter a valid email')
+router.post('/forgot-password', (req, res, next) => {
+  if (!req.body.identifier && req.body.email) {
+    req.body.identifier = req.body.email;
+  }
+  next();
+}, validate([
+  body('identifier').trim().notEmpty().withMessage('Please enter your registered email or phone number')
 ]), authController.forgotPassword);
 
-router.post('/reset-password', validate([
-  body('email').trim().isEmail().withMessage('Please enter a valid email'),
-  body('token').notEmpty().withMessage('Reset token is required'),
+router.post('/reset-password', (req, res, next) => {
+  if (!req.body.identifier && req.body.email) {
+    req.body.identifier = req.body.email;
+  }
+  next();
+}, validate([
+  body('identifier').trim().notEmpty().withMessage('Email or phone number is required'),
+  body('token').trim().notEmpty().withMessage('OTP token is required'),
   body('newPassword').isLength({ min: 6 }).withMessage('Password must be at least 6 characters long')
 ]), authController.resetPassword);
 

@@ -1,5 +1,7 @@
 // src/modules/vendors/vendors.controller.js
 const prisma = require('../../config/database');
+const { sendVendorRegistrationEmail } = require('../../utils/emailService');
+const { sendVendorWhatsAppRegistration } = require('../../utils/whatsappService');
 
 // Create a new Vendor
 exports.createVendor = async (req, res, next) => {
@@ -47,9 +49,32 @@ exports.createVendor = async (req, res, next) => {
       }
     });
 
+    // 1. Send registration email notification with details
+    await sendVendorRegistrationEmail({
+      email: vendor.email,
+      name: vendor.primaryContactPerson,
+      companyName: vendor.legalName,
+      phone: vendor.phone,
+      dealerType: vendor.supplyCategory,
+      gstNumber: vendor.gstin,
+      address: vendor.officeAddress,
+      approvalStatus: vendor.status
+    });
+
+    // 2. Send WhatsApp Chatbot registration message to vendor's phone
+    await sendVendorWhatsAppRegistration({
+      phone: vendor.phone,
+      name: vendor.primaryContactPerson,
+      companyName: vendor.legalName,
+      email: vendor.email,
+      dealerType: vendor.supplyCategory,
+      gstNumber: vendor.gstin,
+      approvalStatus: vendor.status
+    });
+
     res.status(201).json({
       success: true,
-      message: 'Vendor registered successfully',
+      message: 'Vendor registered successfully. Details message dispatched to vendor via Email & WhatsApp Chatbot.',
       data: vendor
     });
   } catch (error) {

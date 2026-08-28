@@ -2,6 +2,8 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const prisma = require('../../config/database');
+const { sendVendorRegistrationEmail } = require('../../utils/emailService');
+const { sendVendorWhatsAppRegistration, sendWhatsAppOTP } = require('../../utils/whatsappService');
 
 const generateTokens = (user) => {
   const secret = process.env.JWT_SECRET || 'mansara_crm_jwt_secret_key_2024';
@@ -63,7 +65,8 @@ exports.registerDealer = async (req, res, next) => {
       }
     }
 
-    const hashedPassword = await bcrypt.hash(password || 'Dealer@123', 12); // Default password if not provided
+    const rawPassword = password || 'Dealer@123';
+    const hashedPassword = await bcrypt.hash(rawPassword, 12); // Default password if not provided
 
     // Create user and dealer profile in single transaction
     const result = await prisma.$transaction(async (tx) => {
@@ -123,6 +126,23 @@ exports.registerDealer = async (req, res, next) => {
         }
       });
 
+      // Create vendor welcoming notification
+      await tx.notification.create({
+        data: {
+          userId: newUser.id,
+          type: 'ACCOUNT_UPDATE',
+          title: 'Welcome to Mansara Foods CRM!',
+          message: `Welcome ${name}! Your dealer partner account for ${companyName} has been registered successfully. Login Email: ${email}`,
+          metadata: { 
+            email, 
+            companyName, 
+            dealerType: dealerType || 'RETAIL', 
+            dealerCategory: dealerCategory || 'STARTER',
+            defaultMargin: marginPercentVal
+          }
+        }
+      });
+
       // Create admin notification
       const admins = await tx.user.findMany({ where: { role: 'ADMIN' } });
       for (const admin of admins) {
@@ -140,15 +160,59 @@ exports.registerDealer = async (req, res, next) => {
       return { user: newUser, dealer: newDealer };
     });
 
+    let emailResult = { success: false };
+    let whatsappResult = { success: false };
+
+    // Send registration notifications via Email & WhatsApp
+    // 1. Send registration email with details
+    emailResult = await sendVendorRegistrationEmail({
+      email: result.user.email,
+      name: result.user.name,
+      companyName: result.dealer.companyName,
+      password: rawPassword,
+      phone: result.dealer.phone,
+      dealerType: result.dealer.dealerType,
+      dealerCategory: result.dealer.dealerCategory,
+      defaultMargin: result.dealer.defaultMargin,
+      gstNumber: result.dealer.gstNumber,
+      address: result.dealer.address,
+      city: result.dealer.city,
+      state: result.dealer.state,
+      pincode: result.dealer.pincode,
+      approvalStatus: result.dealer.approvalStatus
+    });
+
+    // 2. Send registration message directly via WhatsApp Chatbot to vendor's WhatsApp phone number
+    whatsappResult = await sendVendorWhatsAppRegistration({
+      phone: result.dealer.phone,
+      name: result.user.name,
+      companyName: result.dealer.companyName,
+      email: result.user.email,
+      password: rawPassword,
+      dealerType: result.dealer.dealerType,
+      dealerCategory: result.dealer.dealerCategory,
+      defaultMargin: result.dealer.defaultMargin,
+      gstNumber: result.dealer.gstNumber,
+      approvalStatus: result.dealer.approvalStatus
+    });
+
     res.status(201).json({
       success: true,
-      message: 'Dealer registered successfully. Pending approval.',
+      message: 'Dealer registered successfully. Registration details message dispatched to vendor via Email & WhatsApp chatbot.',
       data: {
         id: result.dealer.id,
         email: result.user.email,
         name: result.user.name,
+        password: rawPassword,
         companyName: result.dealer.companyName,
-        approvalStatus: result.dealer.approvalStatus
+        phone: result.dealer.phone,
+        dealerType: result.dealer.dealerType,
+        dealerCategory: result.dealer.dealerCategory,
+        defaultMargin: result.dealer.defaultMargin,
+        approvalStatus: result.dealer.approvalStatus,
+        emailNotificationSent: emailResult.success,
+        whatsappNotificationSent: whatsappResult.success,
+        whatsappUrl: whatsappResult.whatsappUrl
       }
     });
   } catch (error) {
@@ -246,35 +310,109 @@ exports.me = async (req, res, next) => {
 
 exports.forgotPassword = async (req, res, next) => {
   try {
-    const { email } = req.body;
-    const user = await prisma.user.findUnique({ where: { email } });
+    const rawIdentifier = req.body.identifier || req.body.email || '';
+    const cleanId = rawIdentifier.trim();
 
-    if (!user) {
-      // Avoid leaking user existence, but let's be descriptive enough in development/CRM settings
-      return res.status(404).json({ success: false, message: 'Email address not found' });
+    if (!cleanId) {
+      return res.status(400).json({ success: false, message: 'Email or phone number is required' });
     }
 
-    // For safety, generate temporary password/token placeholder for now
-    const resetToken = Math.random().toString(36).substring(2, 15);
-    const expiry = new Date(Date.now() + 3600000); // 1 hour
+    let user = null;
+    let dealerPhone = '';
 
+    // Check if input is email (contains @)
+    if (cleanId.includes('@')) {
+      user = await prisma.user.findUnique({
+        where: { email: cleanId.toLowerCase() },
+        include: { dealer: true }
+      });
+    } else {
+      // Input is phone number — search in Dealer model or User model
+      const cleanPhone = cleanId.replace(/\D/g, '');
+      
+      if (cleanPhone) {
+        const dealer = await prisma.dealer.findFirst({
+          where: {
+            $or: [
+              { phone: cleanId },
+              { phone: cleanPhone },
+              { phone: { $regex: cleanPhone } }
+            ]
+          },
+          include: { user: true }
+        });
+        if (dealer && dealer.user) {
+          user = dealer.user;
+          dealerPhone = dealer.phone;
+        }
+      }
+
+      if (!user) {
+        user = await prisma.user.findFirst({
+          where: {
+            $or: [
+              { email: cleanId.toLowerCase() },
+              { phone: cleanId }
+            ]
+          },
+          include: { dealer: true }
+        });
+      }
+    }
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'No registered account found with the provided email or phone number.'
+      });
+    }
+
+    // Determine target phone number for WhatsApp OTP
+    const phone = user.dealer?.phone || user.phone || dealerPhone;
+
+    if (!phone) {
+      return res.status(400).json({
+        success: false,
+        message: 'No registered WhatsApp phone number found for this account. Please contact support.'
+      });
+    }
+
+    // Generate 6-digit numeric OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+    // Save OTP & expiry to User record
     await prisma.user.update({
       where: { id: user.id },
       data: {
-        passwordReset: resetToken,
+        passwordReset: otp,
         resetExpiry: expiry
       }
     });
 
-    // In a production app, we would send an email here.
-    // For now we will return it in the API response in development so the user can easily reset it,
-    // plus log it to the server console.
-    console.log(`✉️ Forgot password requested. Reset Token for ${email} is: ${resetToken}`);
+    // Mask phone number for security display e.g. +91 ******3210
+    const digitsOnly = phone.replace(/\D/g, '');
+    const maskedPhone = digitsOnly.length >= 10
+      ? `${digitsOnly.slice(0, 2)}******${digitsOnly.slice(-4)}`
+      : '******' + digitsOnly.slice(-4);
+
+    // Dispatch WhatsApp OTP
+    console.log(`🔐 Forgot password requested. Sending WhatsApp OTP for user ${user.email} (${phone})...`);
+    await sendWhatsAppOTP({
+      phone,
+      otp,
+      name: user.name
+    });
 
     res.json({
       success: true,
-      message: 'Password reset instructions have been generated.',
-      developmentToken: resetToken // convenient for easy testing!
+      message: `OTP has been sent to your registered WhatsApp number (+91 ${maskedPhone}).`,
+      data: {
+        email: user.email,
+        phone: phone,
+        maskedPhone: `+91 ${maskedPhone}`,
+        developmentOtp: otp // Convenient for local developer testing!
+      }
     });
   } catch (error) {
     next(error);
@@ -283,20 +421,59 @@ exports.forgotPassword = async (req, res, next) => {
 
 exports.resetPassword = async (req, res, next) => {
   try {
-    const { email, token, newPassword } = req.body;
+    const { identifier, token, newPassword } = req.body;
+    const cleanId = (identifier || req.body.email || '').trim();
+    const cleanToken = (token || '').trim();
 
-    const user = await prisma.user.findFirst({
-      where: {
-        email,
-        passwordReset: token,
-        resetExpiry: {
-          gt: new Date()
+    if (!cleanToken) {
+      return res.status(400).json({ success: false, message: '6-digit OTP is required' });
+    }
+
+    let user = null;
+
+    // Search user by email, phone, or token match
+    if (cleanId.includes('@')) {
+      user = await prisma.user.findFirst({
+        where: {
+          email: cleanId.toLowerCase(),
+          passwordReset: cleanToken,
+          resetExpiry: { gt: new Date() }
         }
-      }
-    });
+      });
+    } else if (cleanId) {
+      const cleanPhone = cleanId.replace(/\D/g, '');
+      const dealer = await prisma.dealer.findFirst({
+        where: {
+          $or: [{ phone: cleanId }, { phone: cleanPhone }]
+        }
+      });
+      const userId = dealer ? dealer.userId : null;
+
+      user = await prisma.user.findFirst({
+        where: {
+          $or: [
+            { id: userId },
+            { email: cleanId.toLowerCase() },
+            { phone: cleanId }
+          ],
+          passwordReset: cleanToken,
+          resetExpiry: { gt: new Date() }
+        }
+      });
+    } else {
+      user = await prisma.user.findFirst({
+        where: {
+          passwordReset: cleanToken,
+          resetExpiry: { gt: new Date() }
+        }
+      });
+    }
 
     if (!user) {
-      return res.status(400).json({ success: false, message: 'Invalid or expired reset token' });
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid or expired 6-digit OTP. Please request a new OTP.'
+      });
     }
 
     const hashedPassword = await bcrypt.hash(newPassword, 12);
@@ -310,9 +487,11 @@ exports.resetPassword = async (req, res, next) => {
       }
     });
 
+    console.log(`✓ Password successfully reset via WhatsApp OTP for user: ${user.email}`);
+
     res.json({
       success: true,
-      message: 'Password has been reset successfully'
+      message: 'Password reset successfully! You can now log in with your new password.'
     });
   } catch (error) {
     next(error);

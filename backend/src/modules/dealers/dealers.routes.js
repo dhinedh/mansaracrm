@@ -42,4 +42,6 @@ router.patch('/:id/change-password', requireRole('ADMIN'), validate([
     .notEmpty().withMessage('New password is required')
 ]), dealersController.changeDealerPassword);
 
+router.delete('/:id', requireRole('ADMIN'), dealersController.deleteDealer);
+
 module.exports = router;

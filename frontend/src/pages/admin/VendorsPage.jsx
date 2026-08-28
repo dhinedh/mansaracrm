@@ -480,7 +480,7 @@ export default function VendorsPage() {
 
       const res = await axios.post('/vendors', payload);
       if (res.data.success) {
-        setMessage({ text: 'Vendor registered and onboarded successfully!', type: 'success' });
+        setMessage({ text: `🎉 Vendor registered and onboarded successfully! Registration details message dispatched to ${formData.email}.`, type: 'success' });
         setShowAddModal(false);
         resetForm();
         fetchVendors();

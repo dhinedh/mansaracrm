@@ -1,6 +1,8 @@
 // src/modules/dealers/dealers.controller.js
 const prisma = require('../../config/database');
 const bcrypt = require('bcryptjs');
+const { sendVendorRegistrationEmail } = require('../../utils/emailService');
+const { sendVendorWhatsAppRegistration } = require('../../utils/whatsappService');
 
 exports.getAllDealers = async (req, res, next) => {
   try {
@@ -251,9 +253,38 @@ exports.approveDealer = async (req, res, next) => {
       return d;
     });
 
+    // If status is APPROVED, dispatch Email & WhatsApp notifications with login details
+    if (status === 'APPROVED') {
+      await sendVendorRegistrationEmail({
+        email: dealer.user?.email,
+        name: dealer.user?.name,
+        companyName: dealer.companyName,
+        phone: dealer.phone,
+        dealerType: dealer.dealerType,
+        dealerCategory: dealer.dealerCategory,
+        defaultMargin: dealer.defaultMargin,
+        address: dealer.address,
+        city: dealer.city,
+        state: dealer.state,
+        pincode: dealer.pincode,
+        approvalStatus: 'APPROVED'
+      });
+
+      await sendVendorWhatsAppRegistration({
+        phone: dealer.phone,
+        name: dealer.user?.name,
+        companyName: dealer.companyName,
+        email: dealer.user?.email,
+        dealerType: dealer.dealerType,
+        dealerCategory: dealer.dealerCategory,
+        defaultMargin: dealer.defaultMargin,
+        approvalStatus: 'APPROVED'
+      });
+    }
+
     res.json({
       success: true,
-      message: `Dealer account ${status.toLowerCase()} successfully`,
+      message: `Dealer account ${status.toLowerCase()} successfully${status === 'APPROVED' ? ' and notification dispatched via Email & WhatsApp' : ''}`,
       data: updatedDealer
     });
   } catch (error) {
@@ -493,6 +524,57 @@ exports.checkZoneConflicts = async (req, res, next) => {
     res.json({
       success: true,
       conflicts
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.deleteDealer = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const dealer = await prisma.dealer.findUnique({
+      where: { id },
+      include: { user: true }
+    });
+
+    if (!dealer) {
+      return res.status(404).json({ success: false, message: 'Dealer profile not found' });
+    }
+
+    await prisma.$transaction(async (tx) => {
+      // Delete associated margins
+      await tx.margin.deleteMany({ where: { dealerId: id } });
+
+      // Delete notifications
+      if (dealer.userId) {
+        await tx.notification.deleteMany({ where: { userId: dealer.userId } });
+      }
+
+      // Delete dealer profile
+      await tx.dealer.delete({ where: { id } });
+
+      // Delete user account
+      if (dealer.userId) {
+        await tx.user.delete({ where: { id: dealer.userId } });
+      }
+
+      // Create audit log
+      await tx.auditLog.create({
+        data: {
+          userId: req.user.id,
+          action: 'DELETE_DEALER',
+          entity: 'Dealer',
+          entityId: id,
+          newValues: { companyName: dealer.companyName, email: dealer.user?.email }
+        }
+      });
+    });
+
+    res.json({
+      success: true,
+      message: `Dealer profile "${dealer.companyName}" and user account deleted successfully.`
     });
   } catch (error) {
     next(error);
