@@ -40,9 +40,19 @@ const app = express();
 // Trust proxy (Render, Vercel, etc.)
 app.set('trust proxy', 1);
 
-// Security HTTP headers with relaxed configurations for static content serving
+// Security HTTP headers with relaxed configurations for static content & media serving
 app.use(helmet({
   crossOriginResourcePolicy: false,
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'", "https:", "http:", "data:", "blob:"],
+      mediaSrc: ["'self'", "data:", "blob:", "https:", "http:"],
+      imgSrc: ["'self'", "data:", "blob:", "https:", "http:"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https:", "http:"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https:", "http:"],
+      connectSrc: ["'self'", "https:", "http:", "wss:", "ws:"]
+    }
+  }
 }));
 
 // CORS Configuration
