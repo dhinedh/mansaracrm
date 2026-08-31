@@ -86,14 +86,7 @@ ${frontendUrl}/login
   // 2. Fallback to direct Meta Cloud API if credentials exist
   if (metaToken && phoneId) {
     try {
-      // Send approved Meta utility template 'sales_team_alert' (en_US - uses English 'Hello')
-      const bodyParams = [
-        name || 'Vendor Partner',
-        `${companyName || 'Mansara Foods Vendor'} (B2B Portal)`,
-        phone,
-        `Dealer Reg ${isApproved ? 'APPROVED!' : 'RECEIVED (Pending Approval)'} | Login Email: ${email}${password ? ` | Password: ${password}` : ''} | Status: ${approvalStatus}${dealerCategory ? ` | Tier: ${dealerCategory} (${dealerType || 'RETAIL'})` : ''}${defaultMargin !== undefined && defaultMargin !== null ? ` | Margin: ${defaultMargin}%` : ''} | Portal URL: ${frontendUrl}/login`
-      ];
-
+      const tierInfo = `${dealerCategory || 'STARTER'} (${defaultMargin || 10}% Margin)${password ? ` | Password: ${password}` : ''}`;
       const metaRes = await axios({
         method: 'POST',
         url: `https://graph.facebook.com/v20.0/${phoneId}/messages`,
@@ -107,22 +100,65 @@ ${frontendUrl}/login
           to: normalizedPhone,
           type: 'template',
           template: {
-            name: 'sales_team_alert',
+            name: 'dealer_partner_approval_v2',
             language: { code: 'en_US' },
             components: [
               {
                 type: 'body',
-                parameters: bodyParams.map(text => ({ type: 'text', text }))
+                parameters: [
+                  { type: 'text', text: name || 'Vendor Partner' },
+                  { type: 'text', text: companyName || 'Mansara Partner' },
+                  { type: 'text', text: email || 'dealer@mansarafoods.com' },
+                  { type: 'text', text: tierInfo }
+                ]
               }
             ]
           }
         },
-        timeout: 6000
+        timeout: 5000
       });
-      console.log(`[WHATSAPP SERVICE] ✓ Delivered Meta approved WhatsApp sales_team_alert template to ${normalizedPhone} (ID: ${metaRes.data?.messages?.[0]?.id})`);
+      console.log(`[WHATSAPP SERVICE] ✓ Delivered dealer_partner_approval_v2 template to ${normalizedPhone}`);
       return { success: true, method: 'meta_cloud_api', data: metaRes.data, whatsappUrl, messageText };
-    } catch (metaErr) {
-      console.warn(`[WHATSAPP SERVICE] Custom template error:`, metaErr.response?.data || metaErr.message);
+    } catch (primaryErr) {
+      console.warn(`[WHATSAPP SERVICE] dealer_partner_approval_v2 pending/error (${primaryErr.message}). Using approved sales_team_alert fallback...`);
+      try {
+        const bodyParams = [
+          name || 'Vendor Partner',
+          `${companyName || 'Mansara Foods Vendor'} (B2B Portal)`,
+          phone,
+          `Dealer Reg ${isApproved ? 'APPROVED!' : 'RECEIVED (Pending Approval)'} | Login Email: ${email}${password ? ` | Password: ${password}` : ''} | Status: ${approvalStatus}${dealerCategory ? ` | Tier: ${dealerCategory} (${dealerType || 'RETAIL'})` : ''}${defaultMargin !== undefined && defaultMargin !== null ? ` | Margin: ${defaultMargin}%` : ''} | Portal URL: ${frontendUrl}/login`
+        ];
+
+        const metaRes = await axios({
+          method: 'POST',
+          url: `https://graph.facebook.com/v20.0/${phoneId}/messages`,
+          headers: {
+            'Authorization': `Bearer ${metaToken}`,
+            'Content-Type': 'application/json'
+          },
+          data: {
+            messaging_product: 'whatsapp',
+            recipient_type: 'individual',
+            to: normalizedPhone,
+            type: 'template',
+            template: {
+              name: 'sales_team_alert',
+              language: { code: 'en_US' },
+              components: [
+                {
+                  type: 'body',
+                  parameters: bodyParams.map(text => ({ type: 'text', text }))
+                }
+              ]
+            }
+          },
+          timeout: 6000
+        });
+        console.log(`[WHATSAPP SERVICE] ✓ Delivered sales_team_alert fallback template to ${normalizedPhone}`);
+        return { success: true, method: 'meta_cloud_api', data: metaRes.data, whatsappUrl, messageText };
+      } catch (metaErr) {
+        console.warn(`[WHATSAPP SERVICE] Meta API error:`, metaErr.response?.data || metaErr.message);
+      }
     }
   }
 
