@@ -42,6 +42,9 @@ router.patch('/:id/change-password', requireRole('ADMIN'), validate([
     .notEmpty().withMessage('New password is required')
 ]), dealersController.changeDealerPassword);
 
+router.patch('/:id/margin-credit', requireRole('ADMIN'), dealersController.updateDealerMarginOrCredit);
+router.post('/broadcast', requireRole('ADMIN'), dealersController.sendDealerBroadcast);
 router.delete('/:id', requireRole('ADMIN'), dealersController.deleteDealer);
 
 module.exports = router;
+

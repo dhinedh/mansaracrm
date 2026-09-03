@@ -34,4 +34,8 @@ router.post('/', requireRole('DEALER'), validate([
   body('items.*.quantity').isInt({ gt: 0 }).withMessage('Quantity must be positive integer')
 ]), billingController.createInvoice);
 
+router.post('/payments', requireRole('ADMIN', 'DEALER'), billingController.recordPayment);
+
 module.exports = router;
+
+

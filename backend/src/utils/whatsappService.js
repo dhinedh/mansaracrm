@@ -279,8 +279,77 @@ This OTP is valid for 10 minutes. Please do not share this OTP with anyone.
   return { success: true, simulated: true, normalizedPhone, whatsappUrl, messageText };
 };
 
+/**
+ * Generic Helper to send any Meta Approved Utility Template to a Dealer
+ */
+const sendDealerTemplateMessage = async ({ phone, templateName, bodyParameters = [] }) => {
+  const normalizedPhone = normalizePhone(phone);
+  if (!normalizedPhone) {
+    console.warn(`[WHATSAPP SERVICE] Invalid phone number '${phone}' for template '${templateName}'`);
+    return { success: false, error: 'Invalid phone' };
+  }
+
+  const metaToken = process.env.META_ACCESS_TOKEN || process.env.WHATSAPP_API_TOKEN;
+  const phoneId = process.env.META_PHONE_NUMBER_ID || process.env.WHATSAPP_PHONE_ID;
+  const botUrl = process.env.WHATSAPP_BOT_URL || 'https://whatapp-automation-kxml.onrender.com';
+
+  console.log(`[WHATSAPP SERVICE] Dispatching Utility Template '${templateName}' to ${normalizedPhone}...`);
+
+  // 1. Meta Cloud API direct dispatch
+  if (metaToken && phoneId) {
+    try {
+      const response = await axios({
+        method: 'POST',
+        url: `https://graph.facebook.com/v20.0/${phoneId}/messages`,
+        headers: {
+          'Authorization': `Bearer ${metaToken}`,
+          'Content-Type': 'application/json'
+        },
+        data: {
+          messaging_product: 'whatsapp',
+          recipient_type: 'individual',
+          to: normalizedPhone,
+          type: 'template',
+          template: {
+            name: templateName,
+            language: { code: 'en_US' },
+            components: [
+              {
+                type: 'body',
+                parameters: bodyParameters.map(p => (typeof p === 'object' ? p : { type: 'text', text: String(p) }))
+              }
+            ]
+          }
+        },
+        timeout: 6000
+      });
+      console.log(`[WHATSAPP SERVICE] ✓ Meta Utility Template '${templateName}' delivered to ${normalizedPhone}`);
+      return { success: true, method: 'meta_cloud_api', data: response.data };
+    } catch (metaError) {
+      console.warn(`[WHATSAPP SERVICE] Meta API error for '${templateName}' (${metaError.response?.data?.error?.message || metaError.message}). Trying Bot API / fallback...`);
+    }
+  }
+
+  // 2. Fallback: Botbiz / Bot API plain message or sales_team_alert fallback
+  try {
+    const fallbackText = `Mansara Foods Alert (${templateName}): ` + bodyParameters.join(' | ');
+    const botRes = await axios.post(`${botUrl}/api/send-message`, {
+      phone: normalizedPhone,
+      message: fallbackText
+    }, { timeout: 4000 });
+    console.log(`[WHATSAPP SERVICE] ✓ Fallback message delivered via Bot API to ${normalizedPhone}`);
+    return { success: true, method: 'bot_api', data: botRes.data };
+  } catch (botError) {
+    console.warn(`[WHATSAPP SERVICE] Bot API fallback failed (${botError.message}).`);
+  }
+
+  return { success: false, error: 'Dispatch failed' };
+};
+
 module.exports = {
   normalizePhone,
   sendVendorWhatsAppRegistration,
-  sendWhatsAppOTP
+  sendWhatsAppOTP,
+  sendDealerTemplateMessage
 };
+

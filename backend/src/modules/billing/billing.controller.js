@@ -2,6 +2,8 @@
 const prisma = require('../../config/database');
 const { generateInvoicePdf } = require('../../utils/pdfGenerator');
 const { buildInvoiceHtml, buildSimpleRetailInvoiceHtml, buildAgreementHtml } = require('../../utils/pdfTemplate');
+const centralNotificationService = require('../../utils/centralNotificationService');
+
 
 // Helper to fetch company settings
 const getCompanyDetails = () => {
@@ -270,6 +272,11 @@ exports.createInvoice = async (req, res, next) => {
       return inv;
     });
 
+    // Trigger Dealer Invoice Generated Notification
+    centralNotificationService.notifyInvoiceGenerated(invoice, invoice.dealer || req.user.dealer).catch(err => {
+      console.error('[NOTIF ERROR] Invoice alert failed:', err.message);
+    });
+
     res.status(201).json({
       success: true,
       message: 'Invoice created successfully as OPEN',
@@ -279,6 +286,7 @@ exports.createInvoice = async (req, res, next) => {
     next(error);
   }
 };
+
 
 exports.closeInvoice = async (req, res, next) => {
   try {
@@ -615,6 +623,43 @@ exports.downloadAgreementPdf = async (req, res, next) => {
     next(error);
   }
 };
+
+exports.recordPayment = async (req, res, next) => {
+  try {
+    const { invoiceId, amount, paymentMethod, referenceNumber, notes } = req.body;
+
+    const invoice = await prisma.invoice.findUnique({
+      where: { id: invoiceId },
+      include: { dealer: true }
+    });
+
+    if (!invoice) {
+      return res.status(404).json({ success: false, message: 'Invoice not found' });
+    }
+
+    const paymentRecord = {
+      invoiceId,
+      amount: parseFloat(amount),
+      paymentMethod: paymentMethod || 'NEFT',
+      referenceNumber: referenceNumber || 'N/A',
+      notes
+    };
+
+    // Trigger Payment Receipt Notification
+    centralNotificationService.notifyPaymentReceived(paymentRecord, invoice, invoice.dealer).catch(err => {
+      console.error('[NOTIF ERROR] Payment receipt alert failed:', err.message);
+    });
+
+    res.json({
+      success: true,
+      message: 'Payment recorded successfully and notification sent',
+      data: paymentRecord
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 
 
 

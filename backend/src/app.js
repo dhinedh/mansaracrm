@@ -163,10 +163,14 @@ app.use('*', (req, res) => {
 // Global Error Handler Middleware
 app.use(errorHandler);
 
+const cronScheduler = require('./utils/cronScheduler');
+
 const PORT = process.env.PORT || 5000;
 const server = app.listen(PORT, () => {
   console.log(`🚀 B2B CRM Server running on port ${PORT} in ${process.env.NODE_ENV} mode`);
+  cronScheduler.start();
 });
+
 
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (err, promise) => {

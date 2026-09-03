@@ -11,5 +11,7 @@ router.post('/', requestsController.createRequest);
 router.get('/', requestsController.getRequests);
 router.patch('/:id/cancel', requestsController.cancelRequest);
 router.post('/:id/dispatch', requestsController.dispatchRequest);
+router.post('/:id/deliver', requestsController.markDelivered);
 
 module.exports = router;
+

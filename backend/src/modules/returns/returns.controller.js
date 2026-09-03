@@ -1,5 +1,7 @@
 // src/modules/returns/returns.controller.js
 const prisma = require('../../config/database');
+const centralNotificationService = require('../../utils/centralNotificationService');
+
 
 exports.createReturn = async (req, res, next) => {
   try {
@@ -239,8 +241,16 @@ exports.updateReturnStatus = async (req, res, next) => {
       return up;
     });
 
+    if (status === 'APPROVED' && ret.dealer) {
+      centralNotificationService.notifyCreditNoteIssued({
+        creditNoteNumber: `CN-${ret.returnNo}`,
+        amount: ret.items?.reduce((sum, i) => sum + ((i.quantity || 1) * (i.price || 100)), 0) || 0
+      }, ret, ret.dealer).catch(err => console.error('[NOTIF ERROR] Credit note alert failed:', err.message));
+    }
+
     res.json({ success: true, message: `Return request ${status.toLowerCase()} successfully`, data: updated });
   } catch (error) {
     next(error);
   }
 };
+

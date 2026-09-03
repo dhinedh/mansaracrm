@@ -1,5 +1,6 @@
 // src/modules/requests/requests.controller.js
 const prisma = require('../../config/database');
+const centralNotificationService = require('../../utils/centralNotificationService');
 
 exports.createRequest = async (req, res, next) => {
   try {
@@ -41,11 +42,17 @@ exports.createRequest = async (req, res, next) => {
       });
     }
 
+    // Trigger multi-channel Dealer Notification (WhatsApp + Email + In-App)
+    centralNotificationService.notifyStockRequestCreated(request, req.user.dealer).catch(err => {
+      console.error('[NOTIF ERROR] Failed to send stock request created alert:', err.message);
+    });
+
     res.status(201).json({
       success: true,
       message: 'Order request submitted successfully',
       data: request
     });
+
   } catch (error) {
     next(error);
   }
@@ -281,7 +288,7 @@ exports.dispatchRequest = async (req, res, next) => {
         data: { status: 'DISPATCHED' }
       });
 
-      // F. Notify Dealer
+      // F. Notify Dealer in DB & WhatsApp
       await tx.notification.create({
         data: {
           userId: request.dealer.userId,
@@ -295,6 +302,13 @@ exports.dispatchRequest = async (req, res, next) => {
       return stockTx;
     });
 
+    // Trigger Multi-Channel Dispatch Notification
+    centralNotificationService.notifyStockRequestDispatched(request, request.dealer, {
+      courier: 'Mansara Logistics',
+      awb: transfer.transferNo,
+      edd: '2-3 Business Days'
+    }).catch(err => console.error('[NOTIF ERROR] dispatch alert failed:', err.message));
+
     res.json({
       success: true,
       message: 'Request converted to stock dispatch successfully',
@@ -304,3 +318,36 @@ exports.dispatchRequest = async (req, res, next) => {
     next(error);
   }
 };
+
+exports.markDelivered = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const request = await prisma.stockRequest.findUnique({
+      where: { id },
+      include: { dealer: true }
+    });
+
+    if (!request) {
+      return res.status(404).json({ success: false, message: 'Request not found' });
+    }
+
+    const updated = await prisma.stockRequest.update({
+      where: { id },
+      data: { status: 'DELIVERED' }
+    });
+
+    // Trigger Stock Request Delivered Notification
+    centralNotificationService.notifyStockRequestDelivered(updated, request.dealer).catch(err => {
+      console.error('[NOTIF ERROR] delivery alert failed:', err.message);
+    });
+
+    res.json({
+      success: true,
+      message: 'Stock request marked as DELIVERED',
+      data: updated
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+

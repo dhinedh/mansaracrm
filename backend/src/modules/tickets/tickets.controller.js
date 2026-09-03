@@ -1,5 +1,7 @@
 // src/modules/tickets/tickets.controller.js
 const prisma = require('../../config/database');
+const centralNotificationService = require('../../utils/centralNotificationService');
+
 
 exports.createTicket = async (req, res, next) => {
   try {
@@ -184,6 +186,17 @@ exports.replyToTicket = async (req, res, next) => {
           metadata: { ticketId: ticket.id }
         }
       });
+
+      // Trigger WhatsApp Ticket Update Alert
+      const ticketUser = await prisma.user.findUnique({
+        where: { id: ticket.userId },
+        include: { dealer: true }
+      });
+      if (ticketUser && ticketUser.dealer) {
+        centralNotificationService.notifyTicketUpdated(ticket, message, ticketUser.dealer).catch(err => {
+          console.error('[NOTIF ERROR] Ticket reply WhatsApp alert failed:', err.message);
+        });
+      }
     }
 
     res.json({ success: true, message: 'Reply posted successfully', data: updated });
@@ -191,3 +204,4 @@ exports.replyToTicket = async (req, res, next) => {
     next(error);
   }
 };
+

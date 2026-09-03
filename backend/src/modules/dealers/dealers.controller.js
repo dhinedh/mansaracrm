@@ -3,6 +3,8 @@ const prisma = require('../../config/database');
 const bcrypt = require('bcryptjs');
 const { sendVendorRegistrationEmail } = require('../../utils/emailService');
 const { sendVendorWhatsAppRegistration } = require('../../utils/whatsappService');
+const centralNotificationService = require('../../utils/centralNotificationService');
+
 
 exports.getAllDealers = async (req, res, next) => {
   try {
@@ -580,4 +582,76 @@ exports.deleteDealer = async (req, res, next) => {
     next(error);
   }
 };
+
+exports.updateDealerMarginOrCredit = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { defaultMargin, creditLimit, dealerCategory } = req.body;
+
+    const dealer = await prisma.dealer.findUnique({
+      where: { id },
+      include: { user: true }
+    });
+
+    if (!dealer) {
+      return res.status(404).json({ success: false, message: 'Dealer not found' });
+    }
+
+    const updated = await prisma.dealer.update({
+      where: { id },
+      data: {
+        defaultMargin: defaultMargin !== undefined ? parseFloat(defaultMargin) : dealer.defaultMargin,
+        creditLimit: creditLimit !== undefined ? parseFloat(creditLimit) : dealer.creditLimit,
+        dealerCategory: dealerCategory || dealer.dealerCategory
+      }
+    });
+
+    // Trigger Dealer Margin / Credit Update Notification
+    centralNotificationService.notifyMarginCreditUpdated(updated, {
+      tier: dealerCategory || dealer.dealerCategory,
+      margin: defaultMargin,
+      creditLimit
+    }).catch(err => console.error('[NOTIF ERROR] Margin update alert failed:', err.message));
+
+    res.json({
+      success: true,
+      message: 'Dealer margin and credit parameters updated',
+      data: updated
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.sendDealerBroadcast = async (req, res, next) => {
+  try {
+    const { category, title, code, validUntil } = req.body;
+
+    const where = { approvalStatus: 'APPROVED' };
+    if (category) {
+      where.dealerCategory = category;
+    }
+
+    const dealers = await prisma.dealer.findMany({
+      where,
+      include: { user: true }
+    });
+
+    const dispatchedCount = await centralNotificationService.broadcastPromotionalScheme(dealers, {
+      title: title || 'Special Volume Discount Announcement!',
+      code: code || 'SCHEME2026',
+      validUntil: validUntil || 'Limited Period'
+    });
+
+    res.json({
+      success: true,
+      message: `Promotional scheme broadcasted to ${dispatchedCount} dealers successfully.`,
+      targetCount: dealers.length,
+      dispatchedCount
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 
