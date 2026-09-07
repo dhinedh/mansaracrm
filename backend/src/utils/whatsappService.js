@@ -67,6 +67,10 @@ ${frontendUrl}/login
 
   const whatsappUrl = `https://wa.me/${normalizedPhone}?text=${encodeURIComponent(messageText)}`;
 
+  // Always trigger Admin WhatsApp Operations Alert to Admin numbers
+  sendAdminDealerRegistrationAlert(details)
+    .catch(err => console.error('[ERROR] Admin Dealer Alert failed:', err.message));
+
   // 1. Try sending via WhatsApp Bot Automation API
   try {
     console.log(`[WHATSAPP SERVICE] Sending registration message via Chatbot Bot API to ${normalizedPhone}...`);
@@ -126,7 +130,7 @@ ${frontendUrl}/login
           name || 'Vendor Partner',
           `${companyName || 'Mansara Foods Vendor'} (B2B Portal)`,
           phone,
-          `Dealer Reg ${isApproved ? 'APPROVED!' : 'RECEIVED (Pending Approval)'} | Login Email: ${email}${password ? ` | Password: ${password}` : ''} | Status: ${approvalStatus}${dealerCategory ? ` | Tier: ${dealerCategory} (${dealerType || 'RETAIL'})` : ''}${defaultMargin !== undefined && defaultMargin !== null ? ` | Margin: ${defaultMargin}%` : ''} | Portal URL: ${frontendUrl}/login`
+          `Dealer Reg ${isApproved ? 'APPROVED!' : 'RECEIVED (Pending Approval)'} | Login Email: ${email}${password ? ` | Password: ${password}` : ''} | Status: ${approvalStatus}${dealerCategory ? ` | Tier: ${dealerCategory} (${dealerType || 'RETAIL'})` : ''}${defaultMargin !== undefined && defaultMargin !== null ? ` | Margin: ${defaultMargin}%` : ''} | Quick Action: Reply 'Approve ${email}' to activate dealer account!`
         ];
 
         const metaRes = await axios({
@@ -177,6 +181,55 @@ ${frontendUrl}/login
   }
 
   return { success: true, simulated: true, normalizedPhone, whatsappUrl, messageText };
+};
+
+/**
+ * Dispatches Admin WhatsApp Operations Alert for B2B Dealer Registrations
+ */
+const sendAdminDealerRegistrationAlert = async (details) => {
+  const { phone, name, companyName, email, dealerCategory, defaultMargin } = details;
+  const rawPhones = process.env.ADMIN_PHONE || '919342400879,918838887064';
+  const adminPhones = rawPhones.split(',').map(p => normalizePhone(p.trim())).filter(Boolean);
+
+  const metaToken = process.env.META_ACCESS_TOKEN || process.env.WHATSAPP_API_TOKEN;
+  const phoneId = process.env.META_PHONE_NUMBER_ID || process.env.WHATSAPP_PHONE_ID;
+
+  if (!metaToken || !phoneId) return;
+
+  const eventDetails = `Phone: ${phone} | Email: ${email} | Category: ${dealerCategory || 'RETAIL'} (${defaultMargin || 10}% Margin) | Status: PENDING | Quick Action: Reply 'Approve ${email}' on WhatsApp to activate dealer account!`;
+
+  for (const targetPhone of adminPhones) {
+    try {
+      await axios({
+        method: 'POST',
+        url: `https://graph.facebook.com/v20.0/${phoneId}/messages`,
+        headers: { 'Authorization': `Bearer ${metaToken}`, 'Content-Type': 'application/json' },
+        data: {
+          messaging_product: 'whatsapp',
+          recipient_type: 'individual',
+          to: targetPhone,
+          type: 'template',
+          template: {
+            name: 'admin_operations_alert_v1',
+            language: { code: 'en_US' },
+            components: [{
+              type: 'body',
+              parameters: [
+                { type: 'text', text: 'NEW B2B DEALER APPLICATION' },
+                { type: 'text', text: `${companyName || 'Firm'} (${name || 'Vendor'})` },
+                { type: 'text', text: 'HIGH' },
+                { type: 'text', text: eventDetails }
+              ]
+            }]
+          }
+        },
+        timeout: 6000
+      });
+      console.log(`[WHATSAPP SERVICE] ✓ Admin B2B Dealer Alert delivered to ${targetPhone}`);
+    } catch (err) {
+      console.warn(`[WHATSAPP SERVICE] Admin Dealer Alert failed to ${targetPhone}: ${err.message}`);
+    }
+  }
 };
 
 /**
@@ -346,9 +399,60 @@ const sendDealerTemplateMessage = async ({ phone, templateName, bodyParameters =
   return { success: false, error: 'Dispatch failed' };
 };
 
+/**
+ * Dispatches Admin WhatsApp Operations Alert for B2B Wholesale Orders
+ */
+const sendAdminB2BOrderAlert = async (details) => {
+  const { orderId, companyName, dealerName, totalAmount, itemsSummary, phone } = details;
+  const rawPhones = process.env.ADMIN_PHONE || '919342400879,918838887064';
+  const adminPhones = rawPhones.split(',').map(p => normalizePhone(p.trim())).filter(Boolean);
+
+  const metaToken = process.env.META_ACCESS_TOKEN || process.env.WHATSAPP_API_TOKEN;
+  const phoneId = process.env.META_PHONE_NUMBER_ID || process.env.WHATSAPP_PHONE_ID;
+
+  if (!metaToken || !phoneId) return;
+
+  const eventDetails = `Order ID: ${orderId || 'B2B-ORDER'} | Total: ₹${totalAmount || 0} | Dealer: ${companyName || 'Wholesale Partner'} (${phone || 'N/A'}) | Items: ${itemsSummary || 'Bulk Order'}`;
+
+  for (const targetPhone of adminPhones) {
+    try {
+      await axios({
+        method: 'POST',
+        url: `https://graph.facebook.com/v20.0/${phoneId}/messages`,
+        headers: { 'Authorization': `Bearer ${metaToken}`, 'Content-Type': 'application/json' },
+        data: {
+          messaging_product: 'whatsapp',
+          recipient_type: 'individual',
+          to: targetPhone,
+          type: 'template',
+          template: {
+            name: 'admin_operations_alert_v1',
+            language: { code: 'en_US' },
+            components: [{
+              type: 'body',
+              parameters: [
+                { type: 'text', text: 'NEW B2B WHOLESALE ORDER' },
+                { type: 'text', text: `${companyName || 'Dealer'} (${dealerName || 'Vendor'})` },
+                { type: 'text', text: 'HIGH' },
+                { type: 'text', text: eventDetails }
+              ]
+            }]
+          }
+        },
+        timeout: 6000
+      });
+      console.log(`[WHATSAPP SERVICE] ✓ Admin B2B Order Alert delivered to ${targetPhone}`);
+    } catch (err) {
+      console.warn(`[WHATSAPP SERVICE] Admin B2B Order Alert failed to ${targetPhone}: ${err.message}`);
+    }
+  }
+};
+
 module.exports = {
   normalizePhone,
   sendVendorWhatsAppRegistration,
+  sendAdminDealerRegistrationAlert,
+  sendAdminB2BOrderAlert,
   sendWhatsAppOTP,
   sendDealerTemplateMessage
 };

@@ -21,8 +21,14 @@ import {
   Send,
   ChevronDown,
   ChevronRight,
-  Trash2
+  Trash2,
+  Calculator,
+  Sliders,
+  Layers,
+  Sparkles,
+  Scale
 } from 'lucide-react';
+import { convertAllUnits, formatVal, DEFAULT_CONVERSION_RATES } from '../../utils/unitConverter';
 
 export default function InventoryPage() {
   const location = useLocation();
@@ -46,6 +52,13 @@ export default function InventoryPage() {
   const [search, setSearch] = useState('');
   const [filterLowStock, setFilterLowStock] = useState(false);
   const [message, setMessage] = useState({ text: '', type: '' });
+
+  // Custom Conversion Rates State & Settings Toggle
+  const [customConversionRates, setCustomConversionRates] = useState(DEFAULT_CONVERSION_RATES);
+  const [showCustomRatesAccordion, setShowCustomRatesAccordion] = useState(false);
+
+  // Table Unit Display View Filter ('ALL' | 'Cartons' | 'Numbers' | 'Packets' | 'Boxes' | 'kg')
+  const [displayUnitFilter, setDisplayUnitFilter] = useState('ALL');
 
   // State to track expanded Stock Item rows for Multi-Batch view
   const [expandedStockRows, setExpandedStockRows] = useState({});
@@ -90,7 +103,7 @@ export default function InventoryPage() {
   const [fgData, setFgData] = useState({
     itemName: '',
     cartonsCount: '',
-    packetsPerCarton: '',
+    packetsPerCarton: '24',
     storageLocation: 'Finished Goods Warehouse, Rack B',
     expiryDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     notes: ''
@@ -131,7 +144,7 @@ export default function InventoryPage() {
     }));
   };
 
-  // Open Add Stock Modal (New Item or Add Batch to Existing Item)
+  // Open Add Stock Modal
   const handleOpenAddStockModal = (existingItem = null) => {
     if (existingItem) {
       setAddStockData({
@@ -221,7 +234,7 @@ export default function InventoryPage() {
     }
   };
 
-  // 2. Submit Issue to Operations (Movement & Yield/Scrap)
+  // 2. Submit Issue to Operations
   const handleIssueSubmit = async (e) => {
     e.preventDefault();
     try {
@@ -259,7 +272,7 @@ export default function InventoryPage() {
         setFgData({
           itemName: '',
           cartonsCount: '',
-          packetsPerCarton: '',
+          packetsPerCarton: '24',
           storageLocation: 'Finished Goods Warehouse, Rack B',
           expiryDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
           notes: ''
@@ -271,24 +284,7 @@ export default function InventoryPage() {
     }
   };
 
-  // 4. Trigger Purchase Request (PR) when stock is low
-  const handleTriggerPR = async (stockItem) => {
-    try {
-      const res = await axios.post('/inventory/company/trigger-pr', {
-        stockId: stockItem.id || stockItem.stockId,
-        itemName: stockItem.itemName || stockItem.product?.name,
-        currentQuantity: stockItem.totalQuantity || stockItem.quantity,
-        minQuantity: stockItem.minQuantity
-      });
-      if (res.data.success) {
-        setMessage({ text: res.data.message, type: 'success' });
-      }
-    } catch (err) {
-      setMessage({ text: 'Failed to trigger purchase request.', type: 'error' });
-    }
-  };
-
-  // 5. Edit Stock Quantity & Threshold
+  // 4. Edit Stock Quantity & Threshold
   const openEditModal = (item) => {
     setEditItem(item);
     setEditQty(String(item.quantity));
@@ -317,26 +313,49 @@ export default function InventoryPage() {
     }
   };
 
-  // Export CSV Report
+  // Export CSV Report with Multi-Unit Conversions
   const handleExportCSV = () => {
     if (stocks.length === 0) return;
-    const headers = ['Stock ID', 'Batch ID', 'Item Name', 'Count / Cartons', 'Unit', 'Storage Location', 'Mfg Date', 'Expiry Date', 'Status'];
-    const rows = stocks.map(s => [
-      s.stockId || 'N/A',
-      s.batchId || 'N/A',
-      `"${s.itemName || s.product?.name || ''}"`,
-      s.quantity,
-      s.unit || 'Cartons',
-      `"${s.storageLocation || ''}"`,
-      new Date(s.mfgDate || s.createdAt).toLocaleDateString(),
-      s.expiryDate ? new Date(s.expiryDate).toLocaleDateString() : 'N/A',
-      s.status || 'Available'
-    ]);
+    const headers = [
+      'Stock ID',
+      'Batch ID',
+      'Item Name',
+      'Qty Entered',
+      'Unit Entered',
+      'Converted Cartons (CTN)',
+      'Converted Numbers (Units)',
+      'Converted Packets (Pkts)',
+      'Converted Boxes',
+      'Converted Weight (kg)',
+      'Storage Location',
+      'Mfg Date',
+      'Expiry Date',
+      'Status'
+    ];
+    const rows = stocks.map(s => {
+      const conv = convertAllUnits(s.quantity, s.unit, customConversionRates);
+      return [
+        s.stockId || 'N/A',
+        s.batchId || 'N/A',
+        `"${s.itemName || s.product?.name || ''}"`,
+        s.quantity,
+        s.unit || 'Cartons',
+        conv.conversions.cartons,
+        conv.conversions.numbers,
+        conv.conversions.packets,
+        conv.conversions.boxes,
+        conv.conversions.kg,
+        `"${s.storageLocation || ''}"`,
+        new Date(s.mfgDate || s.createdAt).toLocaleDateString(),
+        s.expiryDate ? new Date(s.expiryDate).toLocaleDateString() : 'N/A',
+        s.status || 'Available'
+      ];
+    });
     const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `Stock_Report_${new Date().toISOString().split('T')[0]}.csv`);
+    link.setAttribute('download', `Stock_Report_MultiUnit_${new Date().toISOString().split('T')[0]}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -382,12 +401,70 @@ export default function InventoryPage() {
       map[itemKey].batches.push(item);
     });
 
-    return Object.values(map);
-  }, [stocks, search, filterLowStock]);
+    return Object.values(map).map(group => {
+      const converted = convertAllUnits(group.totalQuantity, group.unit, customConversionRates);
+      return {
+        ...group,
+        converted
+      };
+    });
+  }, [stocks, search, filterLowStock, customConversionRates]);
+
+  // Overall Total Multi-Unit Aggregations for Stats KPI Card
+  const grandConverted = useMemo(() => {
+    let totalPackets = 0;
+    stocks.forEach(s => {
+      const c = convertAllUnits(s.quantity, s.unit, customConversionRates);
+      totalPackets += c.basePackets;
+    });
+    return convertAllUnits(totalPackets, 'Packets', customConversionRates);
+  }, [stocks, customConversionRates]);
 
   const lowStockCount = stocks.filter(s => s.quantity <= (s.minQuantity || 10)).length;
   const totalBatchesCount = stocks.length;
-  const totalUnitsCount = stocks.reduce((sum, s) => sum + (Number(s.quantity) || 0), 0);
+
+  // Multi-Unit Live Conversion Preview Component
+  const MultiUnitConversionCard = ({ quantity, unit, customRates = customConversionRates, title = "Multi-Unit Auto Conversion (Live Reflecting)" }) => {
+    const result = convertAllUnits(quantity, unit, customRates);
+    const { formatted } = result;
+
+    return (
+      <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-rose-950 p-3.5 rounded-2xl text-white space-y-2 border border-slate-700/80 shadow-md">
+        <div className="flex items-center justify-between border-b border-slate-700/80 pb-2">
+          <span className="font-black text-[11px] uppercase tracking-wider text-rose-300 flex items-center gap-1.5">
+            <Calculator className="w-4 h-4 text-rose-400 animate-pulse" />
+            {title}
+          </span>
+          <span className="text-[10px] font-mono font-bold text-slate-300 bg-slate-800 px-2 py-0.5 rounded-full border border-slate-700">
+            Input: {formatVal(Number(quantity) || 0)} {unit}
+          </span>
+        </div>
+
+        <div className="grid grid-cols-5 gap-1.5 text-center">
+          <div className="bg-slate-800/90 p-2 rounded-xl border border-slate-700/60 flex flex-col justify-center">
+            <span className="block text-[8px] uppercase font-black tracking-wider text-slate-400">Cartons</span>
+            <span className="text-xs font-black text-rose-400 mt-0.5">{formatted.cartons}</span>
+          </div>
+          <div className="bg-slate-800/90 p-2 rounded-xl border border-slate-700/60 flex flex-col justify-center">
+            <span className="block text-[8px] uppercase font-black tracking-wider text-slate-400">Units (Pcs)</span>
+            <span className="text-xs font-black text-amber-400 mt-0.5">{formatted.numbers}</span>
+          </div>
+          <div className="bg-slate-800/90 p-2 rounded-xl border border-slate-700/60 flex flex-col justify-center">
+            <span className="block text-[8px] uppercase font-black tracking-wider text-slate-400">Packets</span>
+            <span className="text-xs font-black text-emerald-400 mt-0.5">{formatted.packets}</span>
+          </div>
+          <div className="bg-slate-800/90 p-2 rounded-xl border border-slate-700/60 flex flex-col justify-center">
+            <span className="block text-[8px] uppercase font-black tracking-wider text-slate-400">Boxes</span>
+            <span className="text-xs font-black text-indigo-400 mt-0.5">{formatted.boxes}</span>
+          </div>
+          <div className="bg-slate-800/90 p-2 rounded-xl border border-slate-700/60 flex flex-col justify-center">
+            <span className="block text-[8px] uppercase font-black tracking-wider text-slate-400">Kilograms</span>
+            <span className="text-xs font-black text-cyan-400 mt-0.5">{formatted.kg}</span>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-6 pb-12">
@@ -398,7 +475,9 @@ export default function InventoryPage() {
             <Warehouse className="w-7 h-7 text-rose-400" />
             <h1 className="text-xl font-black tracking-tight">Central Stock & Multi-Batch Traceability Hub</h1>
           </div>
-          <p className="text-xs text-slate-300">1 Stock Item → Multiple Batches tracking (Cartons / Numbers / Units), yield/scrap logs & automated low stock alerts.</p>
+          <p className="text-xs text-slate-300">
+            Multi-Unit Measurement Auto-Conversion Engine: Add stock in any unit (Cartons, Numbers, Packets, Boxes, kg) and auto-reflect conversions across all connected modules.
+          </p>
         </div>
 
         <div className="flex flex-wrap gap-2">
@@ -436,12 +515,13 @@ export default function InventoryPage() {
         </div>
       </div>
 
-      {/* KPI Stats Bar */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      {/* KPI Stats Bar with Multi-Unit Conversions Summary */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
           <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Total Stock Items</p>
           <p className="text-2xl font-black text-slate-800 mt-1">{groupedStockItems.length}</p>
         </div>
+
         <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
           <p className="text-[10px] font-black uppercase tracking-wider text-indigo-600 flex items-center gap-1">
             <Tag className="w-3 h-3 text-indigo-500" />
@@ -449,13 +529,18 @@ export default function InventoryPage() {
           </p>
           <p className="text-2xl font-black text-slate-800 mt-1">{totalBatchesCount}</p>
         </div>
-        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
-          <p className="text-[10px] font-black uppercase tracking-wider text-emerald-600 flex items-center gap-1">
-            <Boxes className="w-3 h-3 text-emerald-500" />
-            Total Count (Cartons / Numbers)
+
+        <div className="bg-gradient-to-br from-rose-50 to-amber-50 border border-rose-200 rounded-2xl p-4 shadow-sm col-span-1 md:col-span-1">
+          <p className="text-[10px] font-black uppercase tracking-wider text-rose-800 flex items-center gap-1">
+            <Calculator className="w-3.5 h-3.5 text-rose-600" />
+            Total Converted Stock Count
           </p>
-          <p className="text-2xl font-black text-slate-800 mt-1">{totalUnitsCount}</p>
+          <p className="text-xl font-black text-slate-900 mt-1">{grandConverted.formatted.cartons}</p>
+          <p className="text-[10px] font-mono text-slate-600 mt-0.5 font-bold">
+            = {grandConverted.formatted.numbers} • {grandConverted.formatted.packets} • {grandConverted.formatted.boxes} • {grandConverted.formatted.kg}
+          </p>
         </div>
+
         <div className={`bg-white border rounded-2xl p-4 shadow-sm ${lowStockCount > 0 ? 'border-rose-300 bg-rose-50/30' : 'border-slate-200'}`}>
           <p className="text-[10px] font-black uppercase tracking-wider text-rose-600 flex items-center gap-1">
             {lowStockCount > 0 && <AlertTriangle className="w-3.5 h-3.5 text-rose-500 animate-pulse" />}
@@ -478,32 +563,66 @@ export default function InventoryPage() {
         </div>
       )}
 
-      {/* Search Bar */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row gap-3 justify-between items-center">
-        <div className="relative w-full md:w-96">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-          <input
-            type="text"
-            placeholder="Search Stock ID, Batch ID, Item Name, Location..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-rose-400 text-xs font-bold text-slate-700"
-          />
+      {/* Search Bar & Multi-Unit Display View Selector */}
+      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col space-y-3">
+        <div className="flex flex-col md:flex-row gap-3 justify-between items-center">
+          <div className="relative w-full md:w-96">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Search Stock ID, Batch ID, Item Name, Location..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-rose-400 text-xs font-bold text-slate-700"
+            />
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 w-full md:w-auto justify-end">
+            <button
+              onClick={() => setFilterLowStock(!filterLowStock)}
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold border transition cursor-pointer flex items-center space-x-1.5 ${
+                filterLowStock ? 'bg-rose-600 text-white border-rose-600 shadow-sm' : 'bg-white text-rose-600 border-rose-200 hover:bg-rose-50'
+              }`}
+            >
+              <AlertTriangle className="w-3.5 h-3.5" />
+              <span>Low Stock Only</span>
+            </button>
+            <button onClick={fetchStocks} className="p-2 border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 cursor-pointer" title="Refresh Data">
+              <RefreshCw className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto justify-end">
-          <button
-            onClick={() => setFilterLowStock(!filterLowStock)}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold border transition cursor-pointer flex items-center space-x-1.5 ${
-              filterLowStock ? 'bg-rose-600 text-white border-rose-600 shadow-sm' : 'bg-white text-rose-600 border-rose-200 hover:bg-rose-50'
-            }`}
-          >
-            <AlertTriangle className="w-3.5 h-3.5" />
-            <span>Low Stock Only</span>
-          </button>
-          <button onClick={fetchStocks} className="p-2 border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 cursor-pointer" title="Refresh Data">
-            <RefreshCw className="w-4 h-4" />
-          </button>
+        {/* Display Unit Switcher Bar */}
+        <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-black uppercase text-slate-500 flex items-center gap-1">
+              <Layers className="w-3.5 h-3.5 text-rose-600" />
+              Dynamic Table Unit View:
+            </span>
+            <div className="flex flex-wrap gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
+              {[
+                { id: 'ALL', label: '🌐 All Units (Breakdown)' },
+                { id: 'Cartons', label: '📦 Cartons (CTN)' },
+                { id: 'Numbers', label: '🔢 Numbers (Units)' },
+                { id: 'Packets', label: '🛍️ Packets (Pkts)' },
+                { id: 'Boxes', label: '📦 Boxes' },
+                { id: 'kg', label: '⚖️ Kilograms (kg)' }
+              ].map(u => (
+                <button
+                  key={u.id}
+                  onClick={() => setDisplayUnitFilter(u.id)}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-black transition cursor-pointer ${
+                    displayUnitFilter === u.id
+                      ? 'bg-rose-600 text-white shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
+                  }`}
+                >
+                  {u.label}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -520,13 +639,15 @@ export default function InventoryPage() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-xs text-left border-collapse min-w-[900px]">
+            <table className="w-full text-xs text-left border-collapse min-w-[950px]">
               <thead>
                 <tr className="bg-slate-900 text-white font-black uppercase tracking-wider text-[10px]">
                   <th className="p-4 w-10"></th>
                   <th className="p-4">Stock ID</th>
                   <th className="p-4">Item Name</th>
-                  <th className="p-4 text-center">Total Stock Count (Cartons / Numbers)</th>
+                  <th className="p-4 text-center">
+                    Total Stock Count ({displayUnitFilter === 'ALL' ? 'Multi-Unit Converted' : displayUnitFilter})
+                  </th>
                   <th className="p-4 text-center">Active Batches</th>
                   <th className="p-4 text-center">Min Threshold</th>
                   <th className="p-4 text-center">Overall Status</th>
@@ -537,6 +658,15 @@ export default function InventoryPage() {
                 {groupedStockItems.map(stockGroup => {
                   const isExpanded = !!expandedStockRows[stockGroup.stockKey];
                   const isLow = stockGroup.totalQuantity <= (stockGroup.minQuantity || 10);
+                  const conv = stockGroup.converted;
+
+                  // Determine display count according to active view filter
+                  let displayPrimaryText = `${stockGroup.totalQuantity} ${stockGroup.unit}`;
+                  if (displayUnitFilter === 'Cartons') displayPrimaryText = conv.formatted.cartons;
+                  else if (displayUnitFilter === 'Numbers') displayPrimaryText = conv.formatted.numbers;
+                  else if (displayUnitFilter === 'Packets') displayPrimaryText = conv.formatted.packets;
+                  else if (displayUnitFilter === 'Boxes') displayPrimaryText = conv.formatted.boxes;
+                  else if (displayUnitFilter === 'kg') displayPrimaryText = conv.formatted.kg;
 
                   return (
                     <React.Fragment key={stockGroup.stockKey}>
@@ -563,9 +693,16 @@ export default function InventoryPage() {
                         </td>
 
                         <td className="p-4 text-center">
-                          <span className={`text-base font-black ${isLow ? 'text-rose-600' : 'text-slate-900'}`}>
-                            {stockGroup.totalQuantity} {stockGroup.unit}
-                          </span>
+                          <div className="inline-flex flex-col items-center">
+                            <span className={`text-base font-black ${isLow ? 'text-rose-600' : 'text-slate-900'}`}>
+                              {displayPrimaryText}
+                            </span>
+                            {displayUnitFilter === 'ALL' && (
+                              <span className="text-[10px] font-mono text-slate-600 bg-slate-100 px-2 py-0.5 rounded-lg border border-slate-200 mt-1 font-bold">
+                                = {conv.formatted.numbers} • {conv.formatted.packets} • {conv.formatted.boxes} • {conv.formatted.kg}
+                              </span>
+                            )}
+                          </div>
                         </td>
 
                         <td className="p-4 text-center">
@@ -640,7 +777,7 @@ export default function InventoryPage() {
                                   <thead>
                                     <tr className="bg-slate-100 text-slate-600 font-bold uppercase tracking-wider text-[9px]">
                                       <th className="p-3">Batch ID</th>
-                                      <th className="p-3">Stock Count (Cartons / Numbers)</th>
+                                      <th className="p-3">Stock Count & Multi-Unit Breakdown</th>
                                       <th className="p-3">Packaging Breakdown</th>
                                       <th className="p-3">Mfg & Expiry Date</th>
                                       <th className="p-3">Storage Location</th>
@@ -651,6 +788,7 @@ export default function InventoryPage() {
                                   <tbody className="divide-y divide-slate-100">
                                     {stockGroup.batches.map((batchItem, bIdx) => {
                                       const isExpiring = batchItem.expiryDate && (new Date(batchItem.expiryDate) - Date.now()) < 30 * 24 * 60 * 60 * 1000;
+                                      const batchConv = convertAllUnits(batchItem.quantity, batchItem.unit || stockGroup.unit, customConversionRates);
 
                                       return (
                                         <tr key={batchItem.id || batchItem._id || bIdx} className="hover:bg-slate-50">
@@ -658,10 +796,13 @@ export default function InventoryPage() {
                                             {batchItem.batchId || `BATCH-${bIdx + 1}`}
                                           </td>
                                           <td className="p-3 font-bold text-slate-900">
-                                            {batchItem.quantity} {batchItem.unit || stockGroup.unit}
+                                            <div>{batchItem.quantity} {batchItem.unit || stockGroup.unit}</div>
+                                            <div className="text-[10px] text-slate-500 font-mono font-medium mt-0.5">
+                                              = {batchConv.formatted.cartons} | {batchConv.formatted.numbers} | {batchConv.formatted.packets} | {batchConv.formatted.boxes} | {batchConv.formatted.kg}
+                                            </div>
                                           </td>
                                           <td className="p-3 text-slate-600">
-                                            {batchItem.packagingBreakdown || '1 Batch = Direct Stock'}
+                                            {batchItem.packagingBreakdown || 'Direct Stock Batch'}
                                           </td>
                                           <td className="p-3 text-[11px]">
                                             <div>Mfg: {new Date(batchItem.mfgDate || batchItem.createdAt).toLocaleDateString()}</div>
@@ -754,7 +895,7 @@ export default function InventoryPage() {
               {/* Row 2: Unit Type & Min Threshold */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Unit Measurement (Cartons / Numbers) *</label>
+                  <label className="block font-bold text-slate-700 mb-1">Unit Measurement (Cartons / Numbers / kg) *</label>
                   <select
                     value={addStockData.unit}
                     onChange={e => setAddStockData({ ...addStockData, unit: e.target.value })}
@@ -780,6 +921,62 @@ export default function InventoryPage() {
                 </div>
               </div>
 
+              {/* LIVE MULTI-UNIT AUTO-CONVERSION PREVIEW CARD */}
+              <MultiUnitConversionCard
+                quantity={addStockData.batches.reduce((sum, b) => sum + (Number(b.quantity) || 0), 0)}
+                unit={addStockData.unit}
+                customRates={customConversionRates}
+                title="Total Stock Live Multi-Unit Auto Conversion Preview"
+              />
+
+              {/* Optional Custom Conversion Ratios Collapsible Accordion */}
+              <div className="border border-slate-200 rounded-2xl overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setShowCustomRatesAccordion(!showCustomRatesAccordion)}
+                  className="w-full bg-slate-50 p-2.5 text-left font-bold text-slate-700 text-xs flex justify-between items-center cursor-pointer hover:bg-slate-100"
+                >
+                  <span className="flex items-center gap-1.5 text-slate-800">
+                    <Sliders className="w-3.5 h-3.5 text-rose-600" />
+                    Custom Conversion Ratios (Optional Ratio Tuning)
+                  </span>
+                  <ChevronDown className={`w-4 h-4 transition-transform ${showCustomRatesAccordion ? 'rotate-180' : ''}`} />
+                </button>
+
+                {showCustomRatesAccordion && (
+                  <div className="p-3 bg-white grid grid-cols-3 gap-2 text-xs border-t">
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-600 mb-0.5">Packets per Carton</label>
+                      <input
+                        type="number"
+                        value={customConversionRates.packetsPerCarton}
+                        onChange={e => setCustomConversionRates({ ...customConversionRates, packetsPerCarton: Number(e.target.value) || 24 })}
+                        className="w-full p-1.5 border rounded-lg font-bold"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-600 mb-0.5">Packets per Box</label>
+                      <input
+                        type="number"
+                        value={customConversionRates.packetsPerBox}
+                        onChange={e => setCustomConversionRates({ ...customConversionRates, packetsPerBox: Number(e.target.value) || 12 })}
+                        className="w-full p-1.5 border rounded-lg font-bold"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-600 mb-0.5">Weight per Packet (kg)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={customConversionRates.kgPerPacket}
+                        onChange={e => setCustomConversionRates({ ...customConversionRates, kgPerPacket: Number(e.target.value) || 0.5 })}
+                        className="w-full p-1.5 border rounded-lg font-bold"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
               {/* Dynamic Multiple Batches List Section */}
               <div className="space-y-3 pt-2 border-t">
                 <div className="flex justify-between items-center">
@@ -797,97 +994,106 @@ export default function InventoryPage() {
                   </button>
                 </div>
 
-                {addStockData.batches.map((batch, bIdx) => (
-                  <div key={bIdx} className="bg-rose-50/40 p-3 rounded-2xl border border-rose-200/80 space-y-2 relative">
-                    <div className="flex justify-between items-center">
-                      <span className="font-bold text-slate-800 text-xs">Batch #{bIdx + 1}</span>
-                      {addStockData.batches.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveBatchRow(bIdx)}
-                          className="text-rose-600 hover:text-rose-800 font-bold text-xs flex items-center gap-0.5 cursor-pointer"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" /> Remove
-                        </button>
-                      )}
-                    </div>
+                {addStockData.batches.map((batch, bIdx) => {
+                  const bConv = convertAllUnits(batch.quantity, addStockData.unit, customConversionRates);
 
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="block font-bold text-slate-700 mb-1">Batch ID *</label>
-                        <input
-                          type="text"
-                          required
-                          value={batch.batchId}
-                          onChange={e => {
-                            const updated = [...addStockData.batches];
-                            updated[bIdx].batchId = e.target.value;
-                            setAddStockData({ ...addStockData, batches: updated });
-                          }}
-                          className="w-full p-2 bg-white border rounded-xl font-mono font-bold text-rose-700"
-                        />
+                  return (
+                    <div key={bIdx} className="bg-rose-50/40 p-3 rounded-2xl border border-rose-200/80 space-y-2 relative">
+                      <div className="flex justify-between items-center">
+                        <span className="font-bold text-slate-800 text-xs">Batch #{bIdx + 1}</span>
+                        {addStockData.batches.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveBatchRow(bIdx)}
+                            className="text-rose-600 hover:text-rose-800 font-bold text-xs flex items-center gap-0.5 cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" /> Remove
+                          </button>
+                        )}
                       </div>
-                      <div>
-                        <label className="block font-bold text-slate-700 mb-1">Stock Count ({addStockData.unit}) *</label>
-                        <input
-                          type="number"
-                          required
-                          placeholder="100"
-                          value={batch.quantity}
-                          onChange={e => {
-                            const updated = [...addStockData.batches];
-                            updated[bIdx].quantity = e.target.value;
-                            setAddStockData({ ...addStockData, batches: updated });
-                          }}
-                          className="w-full p-2 bg-white border rounded-xl font-bold"
-                        />
-                      </div>
-                    </div>
 
-                    <div className="grid grid-cols-3 gap-2">
-                      <div>
-                        <label className="block font-bold text-slate-700 mb-1">Mfg Date</label>
-                        <input
-                          type="date"
-                          value={batch.mfgDate}
-                          onChange={e => {
-                            const updated = [...addStockData.batches];
-                            updated[bIdx].mfgDate = e.target.value;
-                            setAddStockData({ ...addStockData, batches: updated });
-                          }}
-                          className="w-full p-2 bg-white border rounded-xl cursor-pointer"
-                        />
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block font-bold text-slate-700 mb-1">Batch ID *</label>
+                          <input
+                            type="text"
+                            required
+                            value={batch.batchId}
+                            onChange={e => {
+                              const updated = [...addStockData.batches];
+                              updated[bIdx].batchId = e.target.value;
+                              setAddStockData({ ...addStockData, batches: updated });
+                            }}
+                            className="w-full p-2 bg-white border rounded-xl font-mono font-bold text-rose-700"
+                          />
+                        </div>
+                        <div>
+                          <label className="block font-bold text-slate-700 mb-1">Stock Count ({addStockData.unit}) *</label>
+                          <input
+                            type="number"
+                            required
+                            placeholder="100"
+                            value={batch.quantity}
+                            onChange={e => {
+                              const updated = [...addStockData.batches];
+                              updated[bIdx].quantity = e.target.value;
+                              setAddStockData({ ...addStockData, batches: updated });
+                            }}
+                            className="w-full p-2 bg-white border rounded-xl font-bold"
+                          />
+                          {batch.quantity > 0 && (
+                            <p className="text-[10px] font-mono text-slate-500 mt-1 font-bold">
+                              = {bConv.formatted.cartons} | {bConv.formatted.numbers} | {bConv.formatted.packets} | {bConv.formatted.boxes} | {bConv.formatted.kg}
+                            </p>
+                          )}
+                        </div>
                       </div>
-                      <div>
-                        <label className="block font-bold text-slate-700 mb-1">Expiry Date</label>
-                        <input
-                          type="date"
-                          value={batch.expiryDate}
-                          onChange={e => {
-                            const updated = [...addStockData.batches];
-                            updated[bIdx].expiryDate = e.target.value;
-                            setAddStockData({ ...addStockData, batches: updated });
-                          }}
-                          className="w-full p-2 bg-white border rounded-xl cursor-pointer"
-                        />
-                      </div>
-                      <div>
-                        <label className="block font-bold text-slate-700 mb-1">Storage Location</label>
-                        <input
-                          type="text"
-                          placeholder="Rack A, Warehouse 1"
-                          value={batch.storageLocation}
-                          onChange={e => {
-                            const updated = [...addStockData.batches];
-                            updated[bIdx].storageLocation = e.target.value;
-                            setAddStockData({ ...addStockData, batches: updated });
-                          }}
-                          className="w-full p-2 bg-white border rounded-xl"
-                        />
+
+                      <div className="grid grid-cols-3 gap-2">
+                        <div>
+                          <label className="block font-bold text-slate-700 mb-1">Mfg Date</label>
+                          <input
+                            type="date"
+                            value={batch.mfgDate}
+                            onChange={e => {
+                              const updated = [...addStockData.batches];
+                              updated[bIdx].mfgDate = e.target.value;
+                              setAddStockData({ ...addStockData, batches: updated });
+                            }}
+                            className="w-full p-2 bg-white border rounded-xl cursor-pointer"
+                          />
+                        </div>
+                        <div>
+                          <label className="block font-bold text-slate-700 mb-1">Expiry Date</label>
+                          <input
+                            type="date"
+                            value={batch.expiryDate}
+                            onChange={e => {
+                              const updated = [...addStockData.batches];
+                              updated[bIdx].expiryDate = e.target.value;
+                              setAddStockData({ ...addStockData, batches: updated });
+                            }}
+                            className="w-full p-2 bg-white border rounded-xl cursor-pointer"
+                          />
+                        </div>
+                        <div>
+                          <label className="block font-bold text-slate-700 mb-1">Storage Location</label>
+                          <input
+                            type="text"
+                            placeholder="Rack A, Warehouse 1"
+                            value={batch.storageLocation}
+                            onChange={e => {
+                              const updated = [...addStockData.batches];
+                              updated[bIdx].storageLocation = e.target.value;
+                              setAddStockData({ ...addStockData, batches: updated });
+                            }}
+                            className="w-full p-2 bg-white border rounded-xl"
+                          />
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               <div className="flex justify-end space-x-2 pt-3 border-t">
@@ -923,11 +1129,14 @@ export default function InventoryPage() {
                   className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold cursor-pointer"
                 >
                   <option value="">-- Choose Stock Batch --</option>
-                  {stocks.map(s => (
-                    <option key={s.id || s._id} value={s.id || s.stockId}>
-                      {s.itemName || s.product?.name} ({s.batchId}) - Count: {s.quantity} {s.unit || 'Cartons'}
-                    </option>
-                  ))}
+                  {stocks.map(s => {
+                    const sConv = convertAllUnits(s.quantity, s.unit, customConversionRates);
+                    return (
+                      <option key={s.id || s._id} value={s.id || s.stockId}>
+                        {s.itemName || s.product?.name} ({s.batchId}) - Count: {s.quantity} {s.unit || 'Cartons'} ({sConv.formatted.packets})
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
 
@@ -956,6 +1165,16 @@ export default function InventoryPage() {
                   </select>
                 </div>
               </div>
+
+              {/* LIVE CONVERSION PREVIEW FOR ISSUED QUANTITY */}
+              {issueQuantity > 0 && (
+                <MultiUnitConversionCard
+                  quantity={issueQuantity}
+                  unit="Cartons"
+                  customRates={customConversionRates}
+                  title="Issued Stock Multi-Unit Conversion Breakdown"
+                />
+              )}
 
               <div className="grid grid-cols-2 gap-3 bg-amber-50 p-3 rounded-2xl border border-amber-200">
                 <div>
@@ -1042,13 +1261,26 @@ export default function InventoryPage() {
                   <input
                     type="number"
                     required
-                    placeholder="20"
+                    placeholder="24"
                     value={fgData.packetsPerCarton}
                     onChange={e => setFgData({ ...fgData, packetsPerCarton: e.target.value })}
                     className="w-full p-2 bg-white border border-emerald-300 rounded-xl font-bold"
                   />
                 </div>
               </div>
+
+              {/* LIVE MULTI-UNIT CONVERSION PREVIEW */}
+              {fgData.cartonsCount > 0 && (
+                <MultiUnitConversionCard
+                  quantity={fgData.cartonsCount}
+                  unit="Cartons"
+                  customRates={{
+                    ...customConversionRates,
+                    packetsPerCarton: Number(fgData.packetsPerCarton) || 24
+                  }}
+                  title="Finished Goods Multi-Unit Converted Preview"
+                />
+              )}
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -1091,9 +1323,9 @@ export default function InventoryPage() {
 
             <form onSubmit={handleEditSubmit} className="space-y-3 text-xs">
               <p className="font-black text-slate-800">{editItem.itemName || editItem.product?.name} ({editItem.batchId})</p>
-              
+
               <div>
-                <label className="block font-bold text-slate-700 mb-1">Stock Count (Cartons / Numbers)</label>
+                <label className="block font-bold text-slate-700 mb-1">Stock Count ({editItem.unit || 'Cartons'})</label>
                 <input
                   type="number"
                   required
@@ -1102,6 +1334,15 @@ export default function InventoryPage() {
                   className="w-full p-2 bg-slate-50 border rounded-xl font-bold text-slate-900"
                 />
               </div>
+
+              {editQty > 0 && (
+                <MultiUnitConversionCard
+                  quantity={editQty}
+                  unit={editItem.unit || 'Cartons'}
+                  customRates={customConversionRates}
+                  title="Updated Multi-Unit Conversion Preview"
+                />
+              )}
 
               <div>
                 <label className="block font-bold text-slate-700 mb-1">Minimum Alert Threshold Limit</label>

@@ -1,5 +1,6 @@
 // src/modules/inventory/inventory.controller.js
 const prisma = require('../../config/database');
+const { convertAllUnits } = require('../../utils/unitConverter');
 
 // Get company inventory (Admin only)
 exports.getCompanyInventory = async (req, res, next) => {
@@ -15,18 +16,26 @@ exports.getCompanyInventory = async (req, res, next) => {
       orderBy: { updatedAt: 'desc' }
     });
 
-    // Populate default fields for items missing batchId / stockId
-    inventory = inventory.map((item, idx) => ({
-      ...item.toObject ? item.toObject() : item,
-      stockId: item.stockId || `STK-2026-${String(idx + 1).padStart(3, '0')}`,
-      batchId: item.batchId || `BATCH-RM-${Date.now().toString().slice(-4)}-${idx + 1}`,
-      category: item.category || (item.product?.category?.name || 'Raw Material'),
-      unit: item.unit || 'kg',
-      storageLocation: item.storageLocation || 'Warehouse 1, Rack A',
-      status: item.quantity <= (item.minQuantity || 10) ? 'Low Stock' : (item.status || 'Available'),
-      mfgDate: item.mfgDate || item.createdAt || new Date(),
-      expiryDate: item.expiryDate || new Date(Date.now() + 180 * 24 * 60 * 60 * 1000)
-    }));
+    // Populate default fields and dynamic unit conversions for all measurement units
+    inventory = inventory.map((item, idx) => {
+      const itemObj = item.toObject ? item.toObject() : item;
+      const unit = itemObj.unit || 'kg';
+      const qty = Number(itemObj.quantity) || 0;
+      const converted = convertAllUnits(qty, unit);
+
+      return {
+        ...itemObj,
+        stockId: itemObj.stockId || `STK-2026-${String(idx + 1).padStart(3, '0')}`,
+        batchId: itemObj.batchId || `BATCH-RM-${Date.now().toString().slice(-4)}-${idx + 1}`,
+        category: itemObj.category || (itemObj.product?.category?.name || 'Raw Material'),
+        unit,
+        storageLocation: itemObj.storageLocation || 'Warehouse 1, Rack A',
+        status: qty <= (itemObj.minQuantity || 10) ? 'Low Stock' : (itemObj.status || 'Available'),
+        mfgDate: itemObj.mfgDate || itemObj.createdAt || new Date(),
+        expiryDate: itemObj.expiryDate || new Date(Date.now() + 180 * 24 * 60 * 60 * 1000),
+        convertedUnits: converted
+      };
+    });
 
     if (category && category !== 'All') {
       inventory = inventory.filter(i => i.category === category);
