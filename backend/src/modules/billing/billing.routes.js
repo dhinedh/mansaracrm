@@ -10,9 +10,12 @@ const router = express.Router();
 router.use(verifyToken);
 
 router.get('/', billingController.getInvoices);
+router.get('/settings', requireRole('ADMIN', 'DEALER'), billingController.getInvoiceSettings);
+router.put('/settings', requireRole('ADMIN'), billingController.updateInvoiceSettings);
 router.get('/agreement/:dealerId', billingController.downloadAgreementPdf);
 router.get('/:id', billingController.getInvoiceById);
 router.get('/:id/pdf', billingController.downloadPdf);
+router.put('/:id', requireRole('DEALER', 'ADMIN'), billingController.updateInvoice);
 router.patch('/:id/close', requireRole('DEALER', 'ADMIN'), billingController.closeInvoice);
 router.delete('/:id', requireRole('DEALER', 'ADMIN'), billingController.deleteInvoice);
 

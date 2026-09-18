@@ -5,15 +5,203 @@ const { buildInvoiceHtml, buildSimpleRetailInvoiceHtml, buildAgreementHtml } = r
 const centralNotificationService = require('../../utils/centralNotificationService');
 
 
-// Helper to fetch company settings
-const getCompanyDetails = () => {
-  return {
-    name: process.env.COMPANY_NAME || 'Mansara Foods Pvt. Ltd.',
-    gstNumber: process.env.COMPANY_GST || '27AABCM1234F1Z5',
-    address: process.env.COMPANY_ADDRESS || 'Mumbai, Maharashtra, India',
-    phone: process.env.COMPANY_PHONE || '+91 98765 43210',
-    email: process.env.COMPANY_EMAIL || 'info@mansarafoods.com'
+// Helper to fetch company settings dynamically
+const getCompanyDetails = async (dealer = null) => {
+  let settings = null;
+  try {
+    settings = await prisma.setting.findFirst({
+      where: { key: 'invoice_settings' }
+    });
+    if (!settings) {
+      settings = await prisma.setting.findFirst({
+        where: { key: 'site_settings' }
+      });
+    }
+  } catch (err) {
+    console.error('Error loading invoice settings from DB:', err.message);
+  }
+
+  const base = {
+    name: settings?.companyName || process.env.COMPANY_NAME || 'Mansara Foods Pvt. Ltd.',
+    companyName: settings?.companyName || process.env.COMPANY_NAME || 'Mansara Foods Pvt. Ltd.',
+    logoBase64: settings?.logoBase64 || '',
+    logoUrl: settings?.logoUrl || '',
+    gstNumber: settings?.gstNumber || process.env.COMPANY_GST || '27AABCM1234F1Z5',
+    address: settings?.address || process.env.COMPANY_ADDRESS || 'Mumbai, Maharashtra, India',
+    city: settings?.city || '',
+    state: settings?.state || 'Tamil Nadu',
+    pincode: settings?.pincode || '600077',
+    phone: settings?.phone || process.env.COMPANY_PHONE || '+91 98765 43210',
+    email: settings?.email || process.env.COMPANY_EMAIL || 'info@mansarafoods.com',
+    invoicePrefix: settings?.invoicePrefix || 'MF-INV',
+    placeOfSupply: settings?.placeOfSupply || 'Tamil Nadu (33)',
+    invoiceTerms: settings?.invoiceTerms || '1. Payment within 15 days.\n2. Interest @ 2% per month on delay.\n3. Claims if any must be reported at delivery.',
+    bankDetails: settings?.bankDetails || {},
+    signatoryTitle: settings?.signatoryTitle || 'Authorised Signatory',
+    signatoryName: settings?.signatoryName || 'Mansara Foods Pvt. Ltd.'
   };
+
+  if (dealer) {
+    if (dealer.companyName) base.companyName = dealer.companyName;
+    if (dealer.logoBase64) base.logoBase64 = dealer.logoBase64;
+    if (dealer.invoicePrefix) base.invoicePrefix = dealer.invoicePrefix;
+    if (dealer.invoiceTerms) base.invoiceTerms = dealer.invoiceTerms;
+    if (dealer.bankDetails && Object.keys(dealer.bankDetails).length > 0) {
+      base.bankDetails = { ...base.bankDetails, ...dealer.bankDetails };
+    }
+  }
+
+  return base;
+};
+
+// GET /api/billing/settings
+exports.getInvoiceSettings = async (req, res, next) => {
+  try {
+    let settings = await prisma.setting.findFirst({
+      where: { key: 'invoice_settings' }
+    });
+
+    if (!settings) {
+      settings = await prisma.setting.create({
+        data: {
+          key: 'invoice_settings',
+          companyName: 'Mansara Foods Pvt. Ltd.',
+          logoBase64: '',
+          logoUrl: '',
+          gstNumber: '27AABCM1234F1Z5',
+          address: 'Mumbai, Maharashtra, India',
+          city: '',
+          state: 'Tamil Nadu',
+          pincode: '600077',
+          phone: '+91 98765 43210',
+          email: 'info@mansarafoods.com',
+          invoicePrefix: 'MF-INV',
+          nextSequenceNumber: 38,
+          placeOfSupply: 'Tamil Nadu (33)',
+          invoiceTerms: '1. Payment within 15 days.\n2. Interest @ 2% per month on delay.\n3. Claims if any must be reported at delivery.',
+          bankDetails: {
+            bankName: '',
+            accountNo: '',
+            ifscCode: '',
+            branch: '',
+            accountType: 'Current'
+          },
+          signatoryTitle: 'Authorised Signatory',
+          signatoryName: 'Mansara Foods Pvt. Ltd.'
+        }
+      });
+    }
+
+    const seq = await prisma.invoiceSequence.findUnique({
+      where: { id: 'singleton' }
+    });
+
+    const currentLast = seq ? seq.lastNumber : (settings.nextSequenceNumber ? settings.nextSequenceNumber - 1 : 37);
+    const nextSeq = currentLast + 1;
+
+    res.json({
+      success: true,
+      data: {
+        ...(settings.toJSON ? settings.toJSON() : settings),
+        nextSequenceNumber: nextSeq,
+        currentLastNumber: currentLast,
+        invoicePrefix: seq?.prefix || settings.invoicePrefix || 'MF-INV'
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// PUT /api/billing/settings
+exports.updateInvoiceSettings = async (req, res, next) => {
+  try {
+    const {
+      companyName,
+      logoBase64,
+      logoUrl,
+      gstNumber,
+      address,
+      city,
+      state,
+      pincode,
+      phone,
+      email,
+      invoicePrefix,
+      nextSequenceNumber,
+      placeOfSupply,
+      invoiceTerms,
+      bankDetails,
+      signatoryTitle,
+      signatoryName
+    } = req.body;
+
+    let settings = await prisma.setting.findFirst({
+      where: { key: 'invoice_settings' }
+    });
+
+    const updateData = {
+      ...(companyName !== undefined && { companyName }),
+      ...(logoBase64 !== undefined && { logoBase64 }),
+      ...(logoUrl !== undefined && { logoUrl }),
+      ...(gstNumber !== undefined && { gstNumber }),
+      ...(address !== undefined && { address }),
+      ...(city !== undefined && { city }),
+      ...(state !== undefined && { state }),
+      ...(pincode !== undefined && { pincode }),
+      ...(phone !== undefined && { phone }),
+      ...(email !== undefined && { email }),
+      ...(invoicePrefix !== undefined && { invoicePrefix }),
+      ...(placeOfSupply !== undefined && { placeOfSupply }),
+      ...(invoiceTerms !== undefined && { invoiceTerms }),
+      ...(bankDetails !== undefined && { bankDetails }),
+      ...(signatoryTitle !== undefined && { signatoryTitle }),
+      ...(signatoryName !== undefined && { signatoryName })
+    };
+
+    if (settings) {
+      settings = await prisma.setting.update({
+        where: { id: settings.id || settings._id },
+        data: updateData
+      });
+    } else {
+      settings = await prisma.setting.create({
+        data: {
+          key: 'invoice_settings',
+          ...updateData
+        }
+      });
+    }
+
+    // Sync sequence number & prefix if updated
+    if (nextSequenceNumber !== undefined || invoicePrefix !== undefined) {
+      const seqId = 'singleton';
+      const parsedSeq = parseInt(nextSequenceNumber, 10);
+      const newLast = !isNaN(parsedSeq) ? Math.max(0, parsedSeq - 1) : undefined;
+      const prefixToUse = invoicePrefix || settings.invoicePrefix || 'MF-INV';
+
+      await prisma.invoiceSequence.upsert({
+        where: { id: seqId },
+        update: {
+          ...(newLast !== undefined && { lastNumber: newLast }),
+          ...(prefixToUse && { prefix: prefixToUse })
+        },
+        create: {
+          id: seqId,
+          lastNumber: newLast !== undefined ? newLast : 37,
+          prefix: prefixToUse
+        }
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Invoice configuration updated successfully',
+      data: settings
+    });
+  } catch (error) {
+    next(error);
+  }
 };
 
 exports.createInvoice = async (req, res, next) => {
@@ -553,7 +741,7 @@ exports.downloadPdf = async (req, res, next) => {
       return res.status(403).json({ success: false, message: 'Unauthorized' });
     }
 
-    const company = getCompanyDetails();
+    const company = await getCompanyDetails(invoice.dealer);
     // Use simple retail template for dealer→store invoices; full B2B template for warehouse→dealer invoices
     const html = invoice.store
       ? buildSimpleRetailInvoiceHtml(company, invoice)
@@ -601,7 +789,7 @@ exports.downloadAgreementPdf = async (req, res, next) => {
       return res.status(403).json({ success: false, message: 'Unauthorized' });
     }
 
-    const company = getCompanyDetails();
+    const company = await getCompanyDetails(dealer);
     const html = buildAgreementHtml(company, dealer);
 
     try {
@@ -654,6 +842,141 @@ exports.recordPayment = async (req, res, next) => {
       success: true,
       message: 'Payment recorded successfully and notification sent',
       data: paymentRecord
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.updateInvoice = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const {
+      invoiceNo,
+      createdAt,
+      dueDate,
+      notes,
+      status,
+      shippingCharges,
+      totalDiscount,
+      isGstEnabled,
+      items
+    } = req.body;
+
+    const existing = await prisma.invoice.findUnique({
+      where: { id },
+      include: { items: true }
+    });
+
+    if (!existing) {
+      return res.status(404).json({ success: false, message: 'Invoice not found' });
+    }
+
+    if (req.user.role === 'DEALER' && existing.dealerId !== req.user.dealer?.id) {
+      return res.status(403).json({ success: false, message: 'Unauthorized to edit this invoice' });
+    }
+
+    // Uniqueness check for invoiceNo if changing
+    if (invoiceNo && invoiceNo.trim() !== existing.invoiceNo) {
+      const duplicate = await prisma.invoice.findFirst({
+        where: {
+          invoiceNo: invoiceNo.trim(),
+          id: { not: id }
+        }
+      });
+      if (duplicate) {
+        return res.status(400).json({ success: false, message: `Invoice number '${invoiceNo}' is already assigned to another invoice.` });
+      }
+    }
+
+    const updateData = {};
+    if (invoiceNo !== undefined && invoiceNo.trim()) updateData.invoiceNo = invoiceNo.trim();
+    if (createdAt) updateData.createdAt = new Date(createdAt);
+    if (dueDate) updateData.dueDate = new Date(dueDate);
+    if (notes !== undefined) updateData.notes = notes;
+    if (status !== undefined) updateData.status = status;
+    if (shippingCharges !== undefined) updateData.shippingCharges = parseFloat(shippingCharges) || 0;
+    if (totalDiscount !== undefined) updateData.totalDiscount = parseFloat(totalDiscount) || 0;
+    if (isGstEnabled !== undefined) updateData.isGstEnabled = !!isGstEnabled;
+
+    if (items && Array.isArray(items) && items.length > 0) {
+      let subtotal = 0;
+      let totalGst = 0;
+
+      const formattedItems = [];
+      for (const item of items) {
+        const product = await prisma.product.findUnique({ where: { id: item.productId } });
+        const qty = parseInt(item.quantity) || 1;
+        const mrp = parseFloat(item.unitPrice || product?.mrp || product?.price || 0);
+        const marginPct = parseFloat(item.marginPct !== undefined ? item.marginPct : 10);
+        const sellingPrice = parseFloat(item.sellingPrice || (mrp * (1 - marginPct / 100)));
+        const gstPercent = parseFloat(product?.gstPercent || 5);
+        const lineTotal = sellingPrice * qty;
+        const lineGst = (updateData.isGstEnabled !== false && existing.isGstEnabled !== false) ? (lineTotal * gstPercent / 100) : 0;
+
+        subtotal += lineTotal;
+        totalGst += lineGst;
+
+        formattedItems.push({
+          productId: item.productId,
+          quantity: qty,
+          unitPrice: mrp,
+          marginPct,
+          sellingPrice,
+          gstPercent,
+          gstAmount: lineGst,
+          lineTotal
+        });
+      }
+
+      const activeGstEnabled = updateData.isGstEnabled !== undefined ? updateData.isGstEnabled : existing.isGstEnabled;
+      const finalGst = activeGstEnabled ? totalGst : 0;
+
+      updateData.subtotal = subtotal;
+      updateData.totalGst = finalGst;
+      updateData.cgst = activeGstEnabled ? (finalGst / 2) : 0;
+      updateData.sgst = activeGstEnabled ? (finalGst / 2) : 0;
+      const ship = updateData.shippingCharges !== undefined ? updateData.shippingCharges : parseFloat(existing.shippingCharges || 0);
+      const disc = updateData.totalDiscount !== undefined ? updateData.totalDiscount : parseFloat(existing.totalDiscount || 0);
+      updateData.totalAmount = Math.max(0, subtotal + finalGst + ship - disc);
+
+      await prisma.$transaction(async (tx) => {
+        await tx.invoiceItem.deleteMany({ where: { invoiceId: id } });
+        await tx.invoiceItem.createMany({
+          data: formattedItems.map(i => ({ ...i, invoiceId: id }))
+        });
+        await tx.invoice.update({
+          where: { id },
+          data: updateData
+        });
+      });
+    } else {
+      const subtotal = existing.subtotal || 0;
+      const activeGstEnabled = updateData.isGstEnabled !== undefined ? updateData.isGstEnabled : existing.isGstEnabled;
+      const gst = activeGstEnabled ? (existing.totalGst || 0) : 0;
+      const ship = updateData.shippingCharges !== undefined ? updateData.shippingCharges : parseFloat(existing.shippingCharges || 0);
+      const disc = updateData.totalDiscount !== undefined ? updateData.totalDiscount : parseFloat(existing.totalDiscount || 0);
+      
+      updateData.totalGst = gst;
+      updateData.cgst = activeGstEnabled ? (gst / 2) : 0;
+      updateData.sgst = activeGstEnabled ? (gst / 2) : 0;
+      updateData.totalAmount = Math.max(0, subtotal + gst + ship - disc);
+
+      await prisma.invoice.update({
+        where: { id },
+        data: updateData
+      });
+    }
+
+    const updated = await prisma.invoice.findUnique({
+      where: { id },
+      include: { store: true, dealer: true, items: { include: { product: true } } }
+    });
+
+    res.json({
+      success: true,
+      message: 'Invoice updated successfully',
+      data: updated
     });
   } catch (error) {
     next(error);

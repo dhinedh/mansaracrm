@@ -1051,8 +1051,31 @@ const SettingSchema = new Schema({
   freeShippingThreshold: { type: Number, default: 0 },
   defaultShippingCharge: { type: Number, default: 0 },
   enableB2cStall: { type: Boolean, default: true },
-  enableFieldSales: { type: Boolean, default: true }
-}, { timestamps: true });
+  enableFieldSales: { type: Boolean, default: true },
+  // Invoice Configuration Fields
+  companyName: { type: String, default: 'Mansara Foods Pvt. Ltd.' },
+  logoBase64: { type: String, default: '' },
+  logoUrl: { type: String, default: '' },
+  gstNumber: { type: String, default: '27AABCM1234F1Z5' },
+  city: { type: String, default: '' },
+  state: { type: String, default: 'Tamil Nadu' },
+  pincode: { type: String, default: '600077' },
+  phone: { type: String, default: '+91 98765 43210' },
+  email: { type: String, default: 'info@mansarafoods.com' },
+  invoicePrefix: { type: String, default: 'MF-INV' },
+  nextSequenceNumber: { type: Number, default: 38 },
+  placeOfSupply: { type: String, default: 'Tamil Nadu (33)' },
+  invoiceTerms: { type: String, default: '1. Payment within 15 days.\n2. Interest @ 2% per month on delay.\n3. Claims if any must be reported at delivery.' },
+  bankDetails: {
+    bankName: { type: String, default: '' },
+    accountNo: { type: String, default: '' },
+    ifscCode: { type: String, default: '' },
+    branch: { type: String, default: '' },
+    accountType: { type: String, default: 'Current' }
+  },
+  signatoryTitle: { type: String, default: 'Authorised Signatory' },
+  signatoryName: { type: String, default: 'Mansara Foods Pvt. Ltd.' }
+}, { timestamps: true, strict: false });
 
 // Order Schema
 const OrderSchema = new Schema({
@@ -1637,25 +1660,6 @@ class PrismaCollectionWrapper {
   }
 
   async findUnique(args) {
-    if (this.modelName === 'CompanyInventory') {
-      const prodId = args.where.productId || args.where.id;
-      const productModel = mongoose.model('Product');
-      let q = productModel.findById(prodId).lean();
-      if (args.include && args.include.product) {
-        if (args.include.product.include) {
-          q = q.populate(translateInclude(args.include.product.include));
-        }
-      }
-      const prod = await q.exec();
-      if (!prod) return null;
-      return {
-        id: prod._id.toString(),
-        productId: prod._id.toString(),
-        quantity: prod.stock || 0,
-        minQuantity: prod.minQuantity || 10,
-        product: formatResult(prod)
-      };
-    }
     const query = await resolveRelationFilters(args.where, this.modelName);
     let q = this.model.findOne(query).lean();
     if (args.include) {
@@ -1666,25 +1670,6 @@ class PrismaCollectionWrapper {
   }
 
   async findFirst(args) {
-    if (this.modelName === 'CompanyInventory') {
-      const prodId = args.where.productId || args.where.id;
-      const productModel = mongoose.model('Product');
-      let q = productModel.findOne({ _id: prodId }).lean();
-      if (args.include && args.include.product) {
-        if (args.include.product.include) {
-          q = q.populate(translateInclude(args.include.product.include));
-        }
-      }
-      const prod = await q.exec();
-      if (!prod) return null;
-      return {
-        id: prod._id.toString(),
-        productId: prod._id.toString(),
-        quantity: prod.stock || 0,
-        minQuantity: prod.minQuantity || 10,
-        product: formatResult(prod)
-      };
-    }
     const query = await resolveRelationFilters(args.where, this.modelName);
     let q = this.model.findOne(query).lean();
     if (args.orderBy) {
@@ -1700,27 +1685,6 @@ class PrismaCollectionWrapper {
   async findMany(args = {}) {
     const take = args.take ? Math.min(args.take, 200) : 50;
     const skip = args.skip || 0;
-
-    if (this.modelName === 'CompanyInventory') {
-      const productModel = mongoose.model('Product');
-      const total = await productModel.countDocuments({ isActive: true });
-      let q = productModel.find({ isActive: true }).lean();
-      if (args.orderBy) {
-        q = q.sort({ name: 1 });
-      }
-      q = q.skip(skip).limit(take);
-      const products = await q.exec();
-      const formatted = products.map(prod => ({
-        id: prod._id.toString(),
-        productId: prod._id.toString(),
-        quantity: prod.stock || 0,
-        minQuantity: prod.minQuantity || 10,
-        product: formatResult(prod)
-      }));
-      formatted.data = formatted;
-      formatted.total = total;
-      return formatted;
-    }
 
     const query = await resolveRelationFilters(args.where, this.modelName);
     const total = await this.model.countDocuments(query);
@@ -1749,23 +1713,6 @@ class PrismaCollectionWrapper {
   }
 
   async create(args) {
-    if (this.modelName === 'CompanyInventory') {
-      const productModel = mongoose.model('Product');
-      const quantity = args.data.quantity || 0;
-      const minQuantity = args.data.minQuantity || 10;
-      const prod = await productModel.findByIdAndUpdate(
-        args.data.productId,
-        { $set: { stock: quantity, minQuantity } },
-        { new: true }
-      );
-      return {
-        id: prod._id.toString(),
-        productId: prod._id.toString(),
-        quantity: prod.stock || 0,
-        minQuantity: prod.minQuantity || 10,
-        product: formatResult(prod)
-      };
-    }
     // Extract nested create operations
     const nestedCreates = [];
     const cleanData = {};
@@ -1817,32 +1764,6 @@ class PrismaCollectionWrapper {
   }
 
   async update(args) {
-    if (this.modelName === 'CompanyInventory') {
-      const productModel = mongoose.model('Product');
-      const prodId = args.where.productId || args.where.id;
-      const data = translateUpdateData(args.data);
-      let updateQuery = {};
-      const setFields = {};
-      if (data.quantity !== undefined) {
-        setFields.stock = data.quantity;
-      }
-      if (data.minQuantity !== undefined) {
-        setFields.minQuantity = data.minQuantity;
-      }
-      if (data['$inc']) {
-        updateQuery = { $inc: { stock: data['$inc'].quantity } };
-      } else {
-        updateQuery = { $set: setFields };
-      }
-      const prod = await productModel.findByIdAndUpdate(prodId, updateQuery, { new: true });
-      return {
-        id: prod._id.toString(),
-        productId: prod._id.toString(),
-        quantity: prod.stock || 0,
-        minQuantity: prod.minQuantity || 10,
-        product: formatResult(prod)
-      };
-    }
     const query = await resolveRelationFilters(args.where, this.modelName);
     const data = translateUpdateData(args.data);
 
@@ -1869,18 +1790,12 @@ class PrismaCollectionWrapper {
   }
 
   async delete(args) {
-    if (this.modelName === 'CompanyInventory') {
-      return null;
-    }
     const query = await resolveRelationFilters(args.where, this.modelName);
     const doc = await this.model.findOneAndDelete(query);
     return formatResult(doc);
   }
 
   async deleteMany(args = {}) {
-    if (this.modelName === 'CompanyInventory') {
-      return { count: 0 };
-    }
     const query = await resolveRelationFilters(args.where, this.modelName);
     const res = await this.model.deleteMany(query);
     return { count: res.deletedCount };

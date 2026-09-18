@@ -80,12 +80,12 @@ export function convertAllUnits(quantity = 0, inputUnit = 'Cartons', customRates
       kg: Number(kg.toFixed(2))
     },
     formatted: {
-      cartons: `${formatVal(cartons)} CTN`,
+      cartons: `${formatVal(cartons)} Cartons`,
       numbers: `${formatVal(numbers)} Units`,
       packets: `${formatVal(packets)} Pkts`,
       boxes: `${formatVal(boxes)} Boxes`,
       kg: `${formatVal(kg)} kg`
     },
-    summaryPill: `= ${formatVal(cartons)} CTN | ${formatVal(numbers)} Units | ${formatVal(packets)} Pkts | ${formatVal(boxes)} Boxes | ${formatVal(kg)} kg`
+    summaryPill: `= ${formatVal(cartons)} Cartons | ${formatVal(numbers)} Units | ${formatVal(packets)} Pkts | ${formatVal(boxes)} Boxes | ${formatVal(kg)} kg`
   };
 }

@@ -28,12 +28,12 @@ function numberToWords(num) {
  * Columns: S.No | HSN | Item | NET WT(G) | Rate(Rs.) | PAC | WT/CTN(Kg) | CTNS | TOT. QTY | TOTAL NT WT(Kg) | PRICE
  */
 const buildInvoiceHtml = (company, invoice) => {
-  // Read Mansara logo
-  let logoBase64 = '';
+  // Read Mansara logo from disk fallback
+  let diskLogoBase64 = '';
   try {
     const logoPath = path.join(__dirname, '../../public/logo.png');
     if (fs.existsSync(logoPath)) {
-      logoBase64 = fs.readFileSync(logoPath).toString('base64');
+      diskLogoBase64 = fs.readFileSync(logoPath).toString('base64');
     }
   } catch (err) {
     console.error('Logo read error:', err);
@@ -42,12 +42,12 @@ const buildInvoiceHtml = (company, invoice) => {
   const isRetail = !!invoice.store;
 
   // Determine billing entity
-  const billerName    = isRetail ? (invoice.dealer?.companyName || company.name) : company.name;
+  const billerName    = isRetail ? (invoice.dealer?.companyName || company.name) : (company.companyName || company.name);
   const billerAddress = isRetail ? (invoice.dealer?.address || company.address) : company.address;
-  const billerCity    = isRetail ? (invoice.dealer?.city || '') : '';
-  const billerState   = isRetail ? (invoice.dealer?.state || '') : 'Tamil Nadu';
-  const billerPin     = isRetail ? (invoice.dealer?.pincode || '') : '600077';
-  const billerGst     = isRetail ? (invoice.dealer?.gstNumber || 'N/A') : company.gstNumber;
+  const billerCity    = isRetail ? (invoice.dealer?.city || company.city || '') : (company.city || '');
+  const billerState   = isRetail ? (invoice.dealer?.state || company.state || 'Tamil Nadu') : (company.state || 'Tamil Nadu');
+  const billerPin     = isRetail ? (invoice.dealer?.pincode || company.pincode || '600077') : (company.pincode || '600077');
+  const billerGst     = isRetail ? (invoice.dealer?.gstNumber || 'N/A') : (company.gstNumber || 'N/A');
   const billerPhone   = isRetail ? (invoice.dealer?.phone || company.phone) : company.phone;
 
   const shipToName    = isRetail ? invoice.store?.name : invoice.dealer?.companyName;
@@ -58,17 +58,18 @@ const buildInvoiceHtml = (company, invoice) => {
   const shipToGst     = isRetail ? (invoice.store?.gstNumber || 'N/A') : (invoice.dealer?.gstNumber || 'N/A');
   const shipToPhone   = isRetail ? (invoice.store?.phone || '') : (invoice.dealer?.phone || '');
 
-  // Dealer logo for retail invoices
+  // Logo rendering logic (dealer logo > saved company logo > disk logo > text name)
   let logoHtml = '';
-  if (isRetail && invoice.dealer?.logoBase64) {
-    const src = invoice.dealer.logoBase64.startsWith('data:')
-      ? invoice.dealer.logoBase64
-      : `data:image/png;base64,${invoice.dealer.logoBase64}`;
-    logoHtml = `<img src="${src}" style="height:60px;width:auto;object-fit:contain;" alt="${billerName}" />`;
-  } else if (logoBase64) {
-    logoHtml = `<img src="data:image/png;base64,${logoBase64}" style="height:65px;width:auto;object-fit:contain;" alt="Mansara Foods" />`;
+  const activeLogo = isRetail ? (invoice.dealer?.logoBase64 || company.logoBase64 || company.logoUrl) : (company.logoBase64 || company.logoUrl);
+  if (activeLogo) {
+    const src = activeLogo.startsWith('data:') || activeLogo.startsWith('http')
+      ? activeLogo
+      : `data:image/png;base64,${activeLogo}`;
+    logoHtml = `<img src="${src}" style="max-height:65px;max-width:180px;object-fit:contain;" alt="${billerName}" />`;
+  } else if (diskLogoBase64) {
+    logoHtml = `<img src="data:image/png;base64,${diskLogoBase64}" style="max-height:65px;max-width:180px;object-fit:contain;" alt="${billerName}" />`;
   } else {
-    logoHtml = `<div style="font-size:22px;font-weight:900;color:#D6295A;letter-spacing:0.5px;">${billerName}</div>`;
+    logoHtml = `<div style="font-size:20px;font-weight:900;color:#D6295A;letter-spacing:0.5px;">${billerName}</div>`;
   }
 
   // Invoice dates
@@ -137,12 +138,20 @@ const buildInvoiceHtml = (company, invoice) => {
   const grandTotal  = invoice.totalAmount !== undefined && invoice.totalAmount !== null ? parseFloat(invoice.totalAmount) : (originalTotal - discount);
   const grandRounded = Math.round(grandTotal);
 
-  const bd = invoice.dealer?.bankDetails || {};
+  const bd = isRetail ? (invoice.dealer?.bankDetails || company.bankDetails || {}) : (company.bankDetails || invoice.dealer?.bankDetails || {});
 
   // Terms
-  const terms = invoice.dealer?.invoiceTerms
-    ? invoice.dealer.invoiceTerms.split('\n').map((t, i) => `${i + 1}. ${t}`).join('<br>')
+  const rawTerms = isRetail
+    ? (invoice.dealer?.invoiceTerms || company.invoiceTerms)
+    : (company.invoiceTerms || invoice.dealer?.invoiceTerms);
+
+  const terms = rawTerms
+    ? rawTerms.split('\n').filter(Boolean).map((t, i) => `${i + 1}. ${t.replace(/^\d+\.\s*/, '')}`).join('<br>')
     : `1. Payment within 15 days.<br>2. Interest @ 2% per month on delay.<br>3. Claims if any must be reported at delivery.`;
+
+  const placeOfSupply = company.placeOfSupply || 'Tamil Nadu (33)';
+  const signatoryTitle = company.signatoryTitle || 'Authorised Signatory';
+  const signatoryName = company.signatoryName || billerName;
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -242,7 +251,7 @@ const buildInvoiceHtml = (company, invoice) => {
       <div class="meta-line"><span>Invoice Date :</span><strong>${invDate}</strong></div>
       <div class="meta-line"><span>Due Date :</span><strong>${dueDate}</strong></div>
       <div style="margin-top:6px;font-size:10px;display:flex;justify-content:space-between;">
-        <span>Place of Supply :</span><strong>Tamil Nadu (33)</strong>
+        <span>Place of Supply :</span><strong>${placeOfSupply}</strong>
       </div>
     </div>
   </div>
@@ -323,7 +332,8 @@ const buildInvoiceHtml = (company, invoice) => {
         ${bd.accountNo ? `<tr><td>A/C No.</td><td>${bd.accountNo}</td></tr>` : ''}
         ${bd.ifscCode  ? `<tr><td>IFSC Code :</td><td style="font-weight:700;">${bd.ifscCode}</td></tr>` : ''}
         ${bd.bankName  ? `<tr><td>Bank :</td><td>${bd.bankName}${bd.branch ? ', ' + bd.branch : ''}</td></tr>` : ''}
-        <tr><td>UPI ID:</td><td>${bd.upiId || ''}</td></tr>
+        ${bd.accountType ? `<tr><td>Type :</td><td>${bd.accountType}</td></tr>` : ''}
+        ${bd.upiId ? `<tr><td>UPI ID:</td><td>${bd.upiId}</td></tr>` : ''}
       </table>` : '<div style="font-size:10px;color:#777;font-style:italic;">Contact for payment details</div>'}
     </div>
     <div style="width:280px;padding:8px 14px;display:flex;flex-direction:column;justify-content:space-between;">
@@ -333,8 +343,8 @@ const buildInvoiceHtml = (company, invoice) => {
       </div>
       <div style="text-align:right;margin-top:8px;">
         <div style="font-size:10px;font-weight:700;font-style:italic;color:#D6295A;">For ${billerName}.</div>
-        <div style="font-size:10px;font-style:italic;color:#333;margin-top:28px;margin-bottom:2px;">H. Deepika</div>
-        <div style="font-size:9px;color:#555;">Authorised Signatory</div>
+        <div style="font-size:10px;font-style:italic;color:#333;margin-top:24px;margin-bottom:2px;">${signatoryName}</div>
+        <div style="font-size:9px;color:#555;">${signatoryTitle}</div>
         <div style="font-size:9px;font-weight:700;text-decoration:underline;margin-top:2px;">Authorized signature</div>
       </div>
     </div>
@@ -641,13 +651,14 @@ const buildAgreementHtml = (company, dealer) => {
 
   const zones = Array.isArray(dealer.zones) ? dealer.zones.join(', ') : (dealer.zones || 'Chennai');
   const dealerCity = dealer.city || 'Chennai';
-  const dealerAddr = [dealer.address, dealerCity, dealer.state].filter(Boolean).join(', ');
+  const companyNameStr = (dealer?.companyName || 'B2B Partner').toString();
+  const dealerAddrStr  = [dealer?.address, dealerCity, dealer?.state].filter(Boolean).join(', ') || 'Address Not Specified';
 
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Dealer Appointment Agreement - ${dealer.companyName}</title>
+<title>Dealer Appointment Agreement - ${companyNameStr}</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
@@ -690,9 +701,9 @@ const buildAgreementHtml = (company, dealer) => {
   <div class="header">
     <div>${logoHtml}</div>
     <div class="company-hdr">
-      <div class="company-title">Mansara Foods Pvt Ltd</div>
-      <div class="company-sub">B4, No.13, Balaji Nagar 1st street extn, Noombal, Chennai – 600077, Tamil Nadu</div>
-      <div class="company-sub">Ph: +91-88388 87064 | CIN: U10790TN2026PTC188398 | GST: ${company.gstNumber}</div>
+      <div class="company-title">${company.name || company.companyName || 'Mansara Foods Pvt Ltd'}</div>
+      <div class="company-sub">${company.address || 'B4, No.13, Balaji Nagar 1st street extn, Noombal, Chennai – 600077'}, Tamil Nadu</div>
+      <div class="company-sub">Ph: ${company.phone || '+91-88388 87064'} | GST: ${company.gstNumber || '27AABCM1234F1Z5'}</div>
     </div>
   </div>
 
@@ -708,8 +719,8 @@ const buildAgreementHtml = (company, dealer) => {
   hereinafter referred to as the "Company", which expression shall, unless repugnant to the context, include its successors,
   administrators and assigns.</p>
   <p><strong>AND</strong></p>
-  <p>M/s. <span class="field"> ${dealer.companyName.toUpperCase()} </span>, a Proprietorship / <s>Partnership / LLP / Private Limited Company</s> having its place of
-  business at <span class="field"> ${dealerAddr.toUpperCase()} </span>, hereinafter referred to as the "Dealer", which expression
+  <p>M/s. <span class="field"> ${companyNameStr.toUpperCase()} </span>, a Proprietorship / <s>Partnership / LLP / Private Limited Company</s> having its place of
+  business at <span class="field"> ${dealerAddrStr.toUpperCase()} </span>, hereinafter referred to as the "Dealer", which expression
   shall, unless repugnant to the context, include its proprietors, partners, legal heirs, successors and permitted assigns.</p>
 
   <p>WHEREAS the Company is engaged in the manufacture and marketing of food products under the brand name MANSARA.</p>

@@ -24,7 +24,6 @@ import {
   Trash2,
   Calculator,
   Sliders,
-  Layers,
   Sparkles,
   Scale
 } from 'lucide-react';
@@ -57,8 +56,7 @@ export default function InventoryPage() {
   const [customConversionRates, setCustomConversionRates] = useState(DEFAULT_CONVERSION_RATES);
   const [showCustomRatesAccordion, setShowCustomRatesAccordion] = useState(false);
 
-  // Table Unit Display View Filter ('ALL' | 'Cartons' | 'Numbers' | 'Packets' | 'Boxes' | 'kg')
-  const [displayUnitFilter, setDisplayUnitFilter] = useState('ALL');
+
 
   // State to track expanded Stock Item rows for Multi-Batch view
   const [expandedStockRows, setExpandedStockRows] = useState({});
@@ -390,7 +388,7 @@ export default function InventoryPage() {
           stockKey: itemKey,
           stockId: item.stockId || `STK-2026-${String(idx + 1).padStart(3, '0')}`,
           itemName: item.itemName || item.product?.name || 'Stock Item',
-          unit: item.unit || 'Cartons',
+          unit: (!item.unit || item.unit.toLowerCase() === 'kg') ? 'Cartons' : item.unit,
           minQuantity: item.minQuantity || 50,
           totalQuantity: 0,
           batches: []
@@ -537,7 +535,7 @@ export default function InventoryPage() {
           </p>
           <p className="text-xl font-black text-slate-900 mt-1">{grandConverted.formatted.cartons}</p>
           <p className="text-[10px] font-mono text-slate-600 mt-0.5 font-bold">
-            = {grandConverted.formatted.numbers} • {grandConverted.formatted.packets} • {grandConverted.formatted.boxes} • {grandConverted.formatted.kg}
+            = {grandConverted.formatted.kg} • {grandConverted.formatted.packets} • {grandConverted.formatted.boxes}
           </p>
         </div>
 
@@ -593,37 +591,7 @@ export default function InventoryPage() {
           </div>
         </div>
 
-        {/* Display Unit Switcher Bar */}
-        <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] font-black uppercase text-slate-500 flex items-center gap-1">
-              <Layers className="w-3.5 h-3.5 text-rose-600" />
-              Dynamic Table Unit View:
-            </span>
-            <div className="flex flex-wrap gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
-              {[
-                { id: 'ALL', label: '🌐 All Units (Breakdown)' },
-                { id: 'Cartons', label: '📦 Cartons (CTN)' },
-                { id: 'Numbers', label: '🔢 Numbers (Units)' },
-                { id: 'Packets', label: '🛍️ Packets (Pkts)' },
-                { id: 'Boxes', label: '📦 Boxes' },
-                { id: 'kg', label: '⚖️ Kilograms (kg)' }
-              ].map(u => (
-                <button
-                  key={u.id}
-                  onClick={() => setDisplayUnitFilter(u.id)}
-                  className={`px-2.5 py-1 rounded-lg text-[11px] font-black transition cursor-pointer ${
-                    displayUnitFilter === u.id
-                      ? 'bg-rose-600 text-white shadow-sm'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
-                  }`}
-                >
-                  {u.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
+
       </div>
 
       {/* Stock Items Multi-Batch Grouped Table */}
@@ -645,9 +613,7 @@ export default function InventoryPage() {
                   <th className="p-4 w-10"></th>
                   <th className="p-4">Stock ID</th>
                   <th className="p-4">Item Name</th>
-                  <th className="p-4 text-center">
-                    Total Stock Count ({displayUnitFilter === 'ALL' ? 'Multi-Unit Converted' : displayUnitFilter})
-                  </th>
+                  <th className="p-4 text-center">Total Stock Count</th>
                   <th className="p-4 text-center">Active Batches</th>
                   <th className="p-4 text-center">Min Threshold</th>
                   <th className="p-4 text-center">Overall Status</th>
@@ -660,13 +626,7 @@ export default function InventoryPage() {
                   const isLow = stockGroup.totalQuantity <= (stockGroup.minQuantity || 10);
                   const conv = stockGroup.converted;
 
-                  // Determine display count according to active view filter
                   let displayPrimaryText = `${stockGroup.totalQuantity} ${stockGroup.unit}`;
-                  if (displayUnitFilter === 'Cartons') displayPrimaryText = conv.formatted.cartons;
-                  else if (displayUnitFilter === 'Numbers') displayPrimaryText = conv.formatted.numbers;
-                  else if (displayUnitFilter === 'Packets') displayPrimaryText = conv.formatted.packets;
-                  else if (displayUnitFilter === 'Boxes') displayPrimaryText = conv.formatted.boxes;
-                  else if (displayUnitFilter === 'kg') displayPrimaryText = conv.formatted.kg;
 
                   return (
                     <React.Fragment key={stockGroup.stockKey}>
@@ -697,9 +657,9 @@ export default function InventoryPage() {
                             <span className={`text-base font-black ${isLow ? 'text-rose-600' : 'text-slate-900'}`}>
                               {displayPrimaryText}
                             </span>
-                            {displayUnitFilter === 'ALL' && (
+                            {conv && (
                               <span className="text-[10px] font-mono text-slate-600 bg-slate-100 px-2 py-0.5 rounded-lg border border-slate-200 mt-1 font-bold">
-                                = {conv.formatted.numbers} • {conv.formatted.packets} • {conv.formatted.boxes} • {conv.formatted.kg}
+                                = {conv.formatted.kg} • {conv.formatted.packets} • {conv.formatted.boxes}
                               </span>
                             )}
                           </div>
@@ -788,7 +748,8 @@ export default function InventoryPage() {
                                   <tbody className="divide-y divide-slate-100">
                                     {stockGroup.batches.map((batchItem, bIdx) => {
                                       const isExpiring = batchItem.expiryDate && (new Date(batchItem.expiryDate) - Date.now()) < 30 * 24 * 60 * 60 * 1000;
-                                      const batchConv = convertAllUnits(batchItem.quantity, batchItem.unit || stockGroup.unit, customConversionRates);
+                                      const batchUnit = (!batchItem.unit || batchItem.unit.toLowerCase() === 'kg') ? 'Cartons' : batchItem.unit;
+                                      const batchConv = convertAllUnits(batchItem.quantity, batchUnit, customConversionRates);
 
                                       return (
                                         <tr key={batchItem.id || batchItem._id || bIdx} className="hover:bg-slate-50">
@@ -796,9 +757,9 @@ export default function InventoryPage() {
                                             {batchItem.batchId || `BATCH-${bIdx + 1}`}
                                           </td>
                                           <td className="p-3 font-bold text-slate-900">
-                                            <div>{batchItem.quantity} {batchItem.unit || stockGroup.unit}</div>
+                                            <div>{batchItem.quantity} {batchUnit}</div>
                                             <div className="text-[10px] text-slate-500 font-mono font-medium mt-0.5">
-                                              = {batchConv.formatted.cartons} | {batchConv.formatted.numbers} | {batchConv.formatted.packets} | {batchConv.formatted.boxes} | {batchConv.formatted.kg}
+                                              = {batchConv.formatted.kg} | {batchConv.formatted.numbers} | {batchConv.formatted.packets} | {batchConv.formatted.boxes}
                                             </div>
                                           </td>
                                           <td className="p-3 text-slate-600">

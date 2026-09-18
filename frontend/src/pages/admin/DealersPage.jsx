@@ -271,17 +271,33 @@ export default function DealersPage() {
   const downloadAgreement = async (dealerId, companyName) => {
     try {
       const response = await axios.get(`/billing/agreement/${dealerId}`, { responseType: 'blob' });
-      const file = new Blob([response.data], { type: 'application/pdf' });
-      const fileURL = URL.createObjectURL(file);
-      const link = document.createElement('a');
-      link.href = fileURL;
-      link.setAttribute('download', `Agreement_${companyName.replace(/\s+/g, '_')}.pdf`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      const contentType = response.headers['content-type'] || response.data?.type || '';
+
+      if (contentType.includes('text/html')) {
+        // Fallback: If PDF generator is unavailable or returned HTML, open in a printable window
+        const fileURL = URL.createObjectURL(new Blob([response.data], { type: 'text/html' }));
+        const printWin = window.open(fileURL, '_blank');
+        if (!printWin) {
+          const link = document.createElement('a');
+          link.href = fileURL;
+          link.setAttribute('download', `Agreement_${(companyName || 'Dealer').replace(/\s+/g, '_')}.html`);
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        }
+      } else {
+        const file = new Blob([response.data], { type: 'application/pdf' });
+        const fileURL = URL.createObjectURL(file);
+        const link = document.createElement('a');
+        link.href = fileURL;
+        link.setAttribute('download', `Agreement_${(companyName || 'Dealer').replace(/\s+/g, '_')}.pdf`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
     } catch (err) {
       console.error('Failed to download agreement:', err);
-      alert('Failed to download agreement PDF.');
+      alert('Failed to download agreement PDF. Please check server logs.');
     }
   };
 

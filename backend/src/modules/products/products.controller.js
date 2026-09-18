@@ -121,7 +121,32 @@ exports.getProducts = async (req, res, next) => {
       take: limit
     });
 
-    res.json({ success: true, data: products, total, page, limit });
+    const allInventory = await prisma.companyInventory.findMany({});
+
+    const syncedProducts = products.map(p => {
+      const pIdStr = String(p.id || p._id || '');
+      const pNameLower = String(p.name || '').trim().toLowerCase();
+
+      const matchingInventory = allInventory.filter(inv => {
+        const invPId = inv.productId ? String(inv.productId) : null;
+        const invNameLower = String(inv.itemName || '').trim().toLowerCase();
+        return (invPId && invPId === pIdStr) || (invNameLower && invNameLower === pNameLower);
+      });
+
+      const totalQty = matchingInventory.reduce((sum, inv) => sum + (Number(inv.quantity) || 0), 0);
+
+      return {
+        ...p,
+        companyStock: {
+          id: pIdStr,
+          productId: pIdStr,
+          quantity: matchingInventory.length > 0 ? totalQty : (p.companyStock?.quantity || p.stock || 0),
+          minQuantity: p.companyStock?.minQuantity || p.minQuantity || 10
+        }
+      };
+    });
+
+    res.json({ success: true, data: syncedProducts, total, page, limit });
   } catch (error) {
     next(error);
   }
@@ -142,7 +167,29 @@ exports.getProductById = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Product not found' });
     }
 
-    res.json({ success: true, data: product });
+    const allInventory = await prisma.companyInventory.findMany({});
+    const pIdStr = String(product.id || product._id || '');
+    const pNameLower = String(product.name || '').trim().toLowerCase();
+
+    const matchingInventory = allInventory.filter(inv => {
+      const invPId = inv.productId ? String(inv.productId) : null;
+      const invNameLower = String(inv.itemName || '').trim().toLowerCase();
+      return (invPId && invPId === pIdStr) || (invNameLower && invNameLower === pNameLower);
+    });
+
+    const totalQty = matchingInventory.reduce((sum, inv) => sum + (Number(inv.quantity) || 0), 0);
+
+    const syncedProduct = {
+      ...product,
+      companyStock: {
+        id: pIdStr,
+        productId: pIdStr,
+        quantity: matchingInventory.length > 0 ? totalQty : (product.companyStock?.quantity || product.stock || 0),
+        minQuantity: product.companyStock?.minQuantity || product.minQuantity || 10
+      }
+    };
+
+    res.json({ success: true, data: syncedProduct });
   } catch (error) {
     next(error);
   }

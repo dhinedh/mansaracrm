@@ -21,7 +21,7 @@ exports.createPurchaseRequest = async (req, res, next) => {
           itemName: item.itemName,
           category: item.category || 'Raw Materials',
           requiredQuantity: Number(item.requiredQuantity),
-          unit: item.unit || 'kg',
+          unit: item.unit || 'Cartons',
           targetDeliveryDate: item.targetDeliveryDate ? new Date(item.targetDeliveryDate) : null
         })),
         requestedBy: requestedBy || 'Procurement System',
@@ -44,7 +44,7 @@ exports.createPurchaseRequest = async (req, res, next) => {
             data: {
               itemName: trimmedName,
               category: item.category || 'Raw Materials',
-              unit: item.unit || 'kg',
+              unit: item.unit || 'Cartons',
               availableQuantity: 0,
               totalQuantity: 0,
               reservedQuantity: 0,

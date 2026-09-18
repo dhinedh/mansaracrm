@@ -19,7 +19,7 @@ exports.getCompanyInventory = async (req, res, next) => {
     // Populate default fields and dynamic unit conversions for all measurement units
     inventory = inventory.map((item, idx) => {
       const itemObj = item.toObject ? item.toObject() : item;
-      const unit = itemObj.unit || 'kg';
+      const unit = (!itemObj.unit || itemObj.unit === 'kg') ? 'Cartons' : itemObj.unit;
       const qty = Number(itemObj.quantity) || 0;
       const converted = convertAllUnits(qty, unit);
 
