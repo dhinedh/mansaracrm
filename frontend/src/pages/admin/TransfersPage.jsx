@@ -128,7 +128,7 @@ export default function TransfersPage() {
     const product = stockRecord.product;
 
     if (parseInt(currentQty) > availableQty) {
-      alert(`Cannot transfer more than available stock (${availableQty} ${product.unit})`);
+      alert(`Cannot transfer more than available stock (${availableQty} ${product?.unit || 'PCS'})`);
       return;
     }
 
@@ -150,7 +150,7 @@ export default function TransfersPage() {
     } else {
       setTransferItems([...transferItems, {
         productId: currentProductId,
-        product,
+        product: product || { name: 'Unknown Product', sku: 'N/A', unit: 'PCS', mrp: 0, price: 0 },
         quantity: parseInt(currentQty),
         marginPct: detectedMargin,
         isMarginCustomized: false
@@ -180,10 +180,10 @@ export default function TransfersPage() {
   });
 
   const invoiceLines = transferItems.map(item => {
-    const mrp = parseFloat(item.product.mrp || item.product.price || 0);
+    const mrp = parseFloat(item.product?.mrp || item.product?.price || 0);
     const margin = item.marginPct || 0;
     const sellingPrice = mrp * (1 - margin / 100);
-    const gstPct = parseFloat(item.product.gstPercent || 0);
+    const gstPct = parseFloat(item.product?.gstPercent || 0);
     const lineSubtotal = sellingPrice * item.quantity;
     const lineGst = lineSubtotal * (gstPct / 100);
     const lineTotal = lineSubtotal + lineGst;
@@ -392,7 +392,7 @@ export default function TransfersPage() {
                         const id = typeof item.productId === 'object' ? item.productId?.id || item.productId?.toString() : item.productId;
                         return (
                           <option key={id} value={id}>
-                            {item.product.name} — Avail: {item.quantity} {item.product.unit}
+                            {item.product?.name || 'Unknown Product'} — Avail: {item.quantity} {item.product?.unit || 'PCS'}
                           </option>
                         );
                       })}
@@ -436,19 +436,19 @@ export default function TransfersPage() {
                     </div>
                     {transferItems.map(item => {
                       const id = typeof item.productId === 'object' ? item.productId?.id || item.productId?.toString() : item.productId;
-                      const mrp = parseFloat(item.product.mrp || item.product.price || 0);
+                      const mrp = parseFloat(item.product?.mrp || item.product?.price || 0);
                       const effPrice = mrp * (1 - (item.marginPct || 0) / 100);
                       return (
                         <div key={id} className="grid grid-cols-12 gap-2 items-center px-4 py-3 border-b border-slate-100 last:border-0 text-xs">
                           <div className="col-span-4">
-                            <p className="font-bold text-slate-800 truncate">{item.product.name}</p>
-                            <p className="text-[9px] text-rose-600 font-black">SKU: {item.product.sku}</p>
+                            <p className="font-bold text-slate-800 truncate">{item.product?.name || 'Unknown Product'}</p>
+                            <p className="text-[9px] text-rose-600 font-black">SKU: {item.product?.sku || 'N/A'}</p>
                           </div>
                           <div className="col-span-2 text-center font-bold text-slate-700">
-                            {item.quantity} <span className="text-slate-400">{item.product.unit}</span>
+                            {item.quantity} <span className="text-slate-400">{item.product?.unit || 'PCS'}</span>
                           </div>
                           <div className="col-span-2 text-center font-bold text-slate-600">
-                            {fmt(item.product.price)}
+                            {fmt(item.product?.price || item.product?.mrp)}
                           </div>
                           <div className="col-span-2 text-center">
                             <div className="flex items-center justify-center gap-1">
@@ -739,8 +739,8 @@ export default function TransfersPage() {
                       return (
                         <tr key={id} className="border-b border-slate-100 last:border-0">
                           <td className="px-4 py-3">
-                            <p className="font-bold text-slate-800">{line.product.name}</p>
-                            <p className="text-[9px] text-rose-600 font-black">SKU: {line.product.sku}</p>
+                            <p className="font-bold text-slate-800">{line.product?.name || 'Unknown Product'}</p>
+                            <p className="text-[9px] text-rose-600 font-black">SKU: {line.product?.sku || 'N/A'}</p>
                           </td>
                           <td className="px-4 py-3 text-center text-slate-600 font-bold">{line.quantity}</td>
                           <td className="px-4 py-3 text-center text-slate-500">{fmt(line.basePrice)}</td>

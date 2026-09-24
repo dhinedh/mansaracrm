@@ -3,7 +3,7 @@
 const DEFAULT_CONVERSION_RATES = {
   packetsPerCarton: 24, // 1 Carton = 24 Packets
   packetsPerBox: 12,    // 1 Box = 12 Packets
-  kgPerPacket: 0.5,     // 1 Packet = 0.5 kg (500g)
+  kgPerPacket: 0.25,    // 1 Packet = 0.25 kg (250g) -> 1 Carton (24 pkts) = 6 kg
   numbersPerPacket: 1   // 1 Packet = 1 Unit / Number
 };
 

@@ -37,11 +37,14 @@ const CurrencyTooltip = ({ active, payload, label }) => {
   return (
     <div className="bg-white border border-slate-200 rounded-xl px-3 py-2 shadow-lg text-xs">
       <p className="font-black text-slate-700 mb-1">{label}</p>
-      {payload.map((p, i) => (
-        <p key={i} style={{ color: p.color }} className="font-bold">
-          {p.name}: {fmt(p.value)}
-        </p>
-      ))}
+      {payload.map((p, i) => {
+        if (!p) return null;
+        return (
+          <p key={i} style={{ color: p.color || '#334155' }} className="font-bold">
+            {p.name || 'Value'}: {fmt(p.value)}
+          </p>
+        );
+      })}
     </div>
   );
 };

@@ -930,7 +930,7 @@ export default function InventoryPage() {
                         type="number"
                         step="0.01"
                         value={customConversionRates.kgPerPacket}
-                        onChange={e => setCustomConversionRates({ ...customConversionRates, kgPerPacket: Number(e.target.value) || 0.5 })}
+                        onChange={e => setCustomConversionRates({ ...customConversionRates, kgPerPacket: Number(e.target.value) || 0.25 })}
                         className="w-full p-1.5 border rounded-lg font-bold"
                       />
                     </div>
