@@ -465,17 +465,86 @@ StoreSchema.virtual('visits', {
 
 // Margin
 const MarginSchema = new Schema({
-  dealerId: { type: Schema.Types.ObjectId, ref: 'Dealer', required: true },
+  dealerId: { type: Schema.Types.ObjectId, ref: 'Dealer' },
   storeId: { type: Schema.Types.ObjectId, ref: 'Store' },
   productId: { type: Schema.Types.ObjectId, ref: 'Product' },
   categoryId: { type: String },
   marginPercent: { type: Number, required: true },
-  isDefault: { type: Boolean, default: false }
+  isDefault: { type: Boolean, default: false },
+  status: { type: String, enum: ['PROPOSED', 'APPROVED', 'REJECTED', 'REVOKED'], default: 'APPROVED' },
+  approvedBy: { type: String },
+  approvedAt: { type: Date },
+  approvalNotes: { type: String },
+  minOrderQty: { type: Number, default: 1 },
+  specialOrderSize: { type: String },
+  baseMrp: { type: Number },
+  suggestedPrice: { type: Number },
+  simulationId: { type: Schema.Types.ObjectId, ref: 'PriceSimulation' }
 }, {
   timestamps: true,
   toJSON: { virtuals: true },
   toObject: { virtuals: true }
 });
+
+// PriceSimulation (Price Simulator & Margin Control for Store Approvals)
+const PriceSimulationSchema = new Schema({
+  simulationNo: { type: String, unique: true, required: true, index: true },
+  title: { type: String },
+  productId: { type: Schema.Types.ObjectId, ref: 'Product' },
+  productName: { type: String, required: true },
+  sku: { type: String },
+  dealerId: { type: Schema.Types.ObjectId, ref: 'Dealer' },
+  storeId: { type: Schema.Types.ObjectId, ref: 'Store' },
+  storeName: { type: String },
+  mrp: { type: Number, required: true },
+  requestedMarginPct: { type: Number, required: true },
+  orderType: { type: String, default: 'STANDARD' },
+  quantity: { type: Number, required: true },
+  quantityUnit: { type: String, default: 'PCS' },
+  cartonSize: { type: Number, default: 24 },
+  totalUnits: { type: Number, required: true },
+  suggestedPricePerUnit: { type: Number, required: true },
+  suggestedPriceIncGst: { type: Number },
+  gstPercent: { type: Number, default: 5 },
+  unitMarginAmount: { type: Number, required: true },
+  totalOrderValue: { type: Number, required: true },
+  totalStoreGrossProfit: { type: Number, required: true },
+  freightPerUnit: { type: Number, default: 0 },
+  containerCapacityKg: { type: Number },
+  scaleDiscountPct: { type: Number, default: 0 },
+  status: { type: String, enum: ['DRAFT', 'COMMITTED', 'APPROVED', 'REJECTED'], default: 'DRAFT' },
+  approvedBy: { type: String },
+  approvedAt: { type: Date },
+  approvalNotes: { type: String },
+  createdBy: { type: String },
+  marginRuleId: { type: Schema.Types.ObjectId, ref: 'Margin' }
+}, {
+  timestamps: true,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
+});
+
+PriceSimulationSchema.virtual('product', {
+  ref: 'Product',
+  localField: 'productId',
+  foreignField: '_id',
+  justOne: true
+});
+
+PriceSimulationSchema.virtual('store', {
+  ref: 'Store',
+  localField: 'storeId',
+  foreignField: '_id',
+  justOne: true
+});
+
+PriceSimulationSchema.virtual('dealer', {
+  ref: 'Dealer',
+  localField: 'dealerId',
+  foreignField: '_id',
+  justOne: true
+});
+
 
 MarginSchema.virtual('dealer', {
   ref: 'Dealer',
@@ -1297,6 +1366,7 @@ const Vendor = mongoose.model('Vendor', VendorSchema, 'vendors');
 const PurchaseRequest = mongoose.model('PurchaseRequest', PurchaseRequestSchema, 'purchase_requests');
 const PurchaseOrder = mongoose.model('PurchaseOrder', PurchaseOrderSchema, 'purchase_orders');
 const GoodsReceiptNote = mongoose.model('GoodsReceiptNote', GoodsReceiptNoteSchema, 'goods_receipt_notes');
+const PriceSimulation = mongoose.model('PriceSimulation', PriceSimulationSchema, 'price_simulations');
 
 // ─────────────────────────────────────────────
 // AUTOMATIC DATABASE SCHEMA MIGRATION RUNNER
@@ -2012,6 +2082,7 @@ const prisma = {
   purchaseRequest: new PrismaCollectionWrapper('PurchaseRequest'),
   purchaseOrder: new PrismaCollectionWrapper('PurchaseOrder'),
   goodsReceiptNote: new PrismaCollectionWrapper('GoodsReceiptNote'),
+  priceSimulation: new PrismaCollectionWrapper('PriceSimulation'),
 
   $transaction: async (fn) => {
     // Run transactions sequentially on standalone local MongoDB instances

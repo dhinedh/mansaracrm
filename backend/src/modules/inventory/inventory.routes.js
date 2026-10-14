@@ -24,9 +24,12 @@ router.post('/company/adjust', requireRole('ADMIN'), validate([
   body('type').isIn(['IN', 'OUT', 'ADJUSTMENT']).withMessage('Invalid adjustment type')
 ]), inventoryController.adjustCompanyInventory);
 router.put('/company/update', requireRole('ADMIN'), validate([
-  body('productId').optional().notEmpty().withMessage('Product ID is required'),
+  body('productId').optional(),
+  body('id').optional(),
   body('quantity').isInt({ gte: 0 }).withMessage('Quantity must be a non-negative integer'),
-  body('minQuantity').isInt({ gte: 0 }).withMessage('Min quantity must be a non-negative integer')
+  body('minQuantity').isInt({ gte: 0 }).withMessage('Min quantity must be a non-negative integer'),
+  body('storageLocation').optional(),
+  body('unit').optional()
 ]), inventoryController.updateCompanyInventory);
 
 // ─────────────────────────────────────────────

@@ -27,7 +27,7 @@ import {
   Sparkles,
   Scale
 } from 'lucide-react';
-import { convertAllUnits, formatVal, DEFAULT_CONVERSION_RATES } from '../../utils/unitConverter';
+import { convertAllUnits, formatVal, normalizeUnitKey, DEFAULT_CONVERSION_RATES } from '../../utils/unitConverter';
 
 export default function InventoryPage() {
   const location = useLocation();
@@ -109,8 +109,10 @@ export default function InventoryPage() {
 
   // Edit Stock State
   const [editItem, setEditItem] = useState(null);
+  const [editUnit, setEditUnit] = useState('Cartons');
   const [editQty, setEditQty] = useState('');
   const [editMinQty, setEditMinQty] = useState('');
+  const [editLocation, setEditLocation] = useState('');
   const [editSaving, setEditSaving] = useState(false);
 
   useEffect(() => {
@@ -285,9 +287,25 @@ export default function InventoryPage() {
   // 4. Edit Stock Quantity & Threshold
   const openEditModal = (item) => {
     setEditItem(item);
-    setEditQty(String(item.quantity));
+    const initialUnit = (!item.unit || item.unit.toLowerCase() === 'kg') ? 'Cartons' : item.unit;
+    setEditUnit(initialUnit);
+    setEditQty(String(item.quantity !== undefined && item.quantity !== null ? item.quantity : 0));
     setEditMinQty(String(item.minQuantity || 50));
+    setEditLocation(item.storageLocation || 'Warehouse 1, Rack A');
     setShowEditModal(true);
+  };
+
+  const handleEditUnitChange = (newUnit) => {
+    if (!newUnit || normalizeUnitKey(newUnit) === normalizeUnitKey(editUnit)) return;
+    const currentQtyNum = parseFloat(editQty);
+    if (!isNaN(currentQtyNum) && currentQtyNum > 0) {
+      // Live convert currently entered quantity from previous unit into the newly selected unit
+      const conv = convertAllUnits(currentQtyNum, editUnit, customConversionRates);
+      const targetKey = normalizeUnitKey(newUnit);
+      const convertedVal = conv.conversions[targetKey] !== undefined ? conv.conversions[targetKey] : currentQtyNum;
+      setEditQty(String(convertedVal));
+    }
+    setEditUnit(newUnit);
   };
 
   const handleEditSubmit = async (e) => {
@@ -295,12 +313,25 @@ export default function InventoryPage() {
     if (!editItem) return;
     setEditSaving(true);
     try {
+      const baseItemUnit = (!editItem.unit || editItem.unit.toLowerCase() === 'kg') ? 'Cartons' : editItem.unit;
+      // Convert the user's entered quantity in editUnit to the base unit for database storage
+      const conv = convertAllUnits(parseFloat(editQty) || 0, editUnit, customConversionRates);
+      const baseKey = normalizeUnitKey(baseItemUnit);
+      const finalQuantityInBaseUnit = Math.round(conv.conversions[baseKey] !== undefined ? conv.conversions[baseKey] : conv.conversions.cartons);
+
       await axios.put('/inventory/company/update', {
         productId: editItem.productId || editItem.id,
-        quantity: parseInt(editQty),
-        minQuantity: parseInt(editMinQty)
+        id: editItem.id || editItem._id,
+        stockId: editItem.stockId,
+        quantity: finalQuantityInBaseUnit,
+        minQuantity: parseInt(editMinQty),
+        storageLocation: editLocation,
+        unit: baseItemUnit
       });
-      setMessage({ text: `Stock count for "${editItem.itemName || editItem.product?.name}" updated!`, type: 'success' });
+      setMessage({
+        text: `Stock count for "${editItem.itemName || editItem.product?.name}" updated to ${editQty} ${editUnit} (= ${finalQuantityInBaseUnit} ${baseItemUnit})!`,
+        type: 'success'
+      });
       setShowEditModal(false);
       setEditItem(null);
       fetchStocks();
@@ -422,9 +453,17 @@ export default function InventoryPage() {
   const totalBatchesCount = stocks.length;
 
   // Multi-Unit Live Conversion Preview Component
-  const MultiUnitConversionCard = ({ quantity, unit, customRates = customConversionRates, title = "Multi-Unit Auto Conversion (Live Reflecting)" }) => {
+  const MultiUnitConversionCard = ({ quantity, unit, customRates = customConversionRates, title = "Multi-Unit Auto Conversion (Live Reflecting)", onSelectUnit = null, activeUnit = null }) => {
     const result = convertAllUnits(quantity, unit, customRates);
     const { formatted } = result;
+
+    const unitTiles = [
+      { id: 'Cartons', label: 'Cartons', val: formatted.cartons, color: 'text-rose-400', activeRing: 'ring-2 ring-rose-400 bg-rose-950/70 border-rose-500' },
+      { id: 'Units', label: 'Units (Pcs)', val: formatted.numbers, color: 'text-amber-400', activeRing: 'ring-2 ring-amber-400 bg-amber-950/70 border-amber-500' },
+      { id: 'Packets', label: 'Packets', val: formatted.packets, color: 'text-emerald-400', activeRing: 'ring-2 ring-emerald-400 bg-emerald-950/70 border-emerald-500' },
+      { id: 'Boxes', label: 'Boxes', val: formatted.boxes, color: 'text-indigo-400', activeRing: 'ring-2 ring-indigo-400 bg-indigo-950/70 border-indigo-500' },
+      { id: 'kg', label: 'Kilograms', val: formatted.kg, color: 'text-cyan-400', activeRing: 'ring-2 ring-cyan-400 bg-cyan-950/70 border-cyan-500' },
+    ];
 
     return (
       <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-rose-950 p-3.5 rounded-2xl text-white space-y-2 border border-slate-700/80 shadow-md">
@@ -439,27 +478,32 @@ export default function InventoryPage() {
         </div>
 
         <div className="grid grid-cols-5 gap-1.5 text-center">
-          <div className="bg-slate-800/90 p-2 rounded-xl border border-slate-700/60 flex flex-col justify-center">
-            <span className="block text-[8px] uppercase font-black tracking-wider text-slate-400">Cartons</span>
-            <span className="text-xs font-black text-rose-400 mt-0.5">{formatted.cartons}</span>
-          </div>
-          <div className="bg-slate-800/90 p-2 rounded-xl border border-slate-700/60 flex flex-col justify-center">
-            <span className="block text-[8px] uppercase font-black tracking-wider text-slate-400">Units (Pcs)</span>
-            <span className="text-xs font-black text-amber-400 mt-0.5">{formatted.numbers}</span>
-          </div>
-          <div className="bg-slate-800/90 p-2 rounded-xl border border-slate-700/60 flex flex-col justify-center">
-            <span className="block text-[8px] uppercase font-black tracking-wider text-slate-400">Packets</span>
-            <span className="text-xs font-black text-emerald-400 mt-0.5">{formatted.packets}</span>
-          </div>
-          <div className="bg-slate-800/90 p-2 rounded-xl border border-slate-700/60 flex flex-col justify-center">
-            <span className="block text-[8px] uppercase font-black tracking-wider text-slate-400">Boxes</span>
-            <span className="text-xs font-black text-indigo-400 mt-0.5">{formatted.boxes}</span>
-          </div>
-          <div className="bg-slate-800/90 p-2 rounded-xl border border-slate-700/60 flex flex-col justify-center">
-            <span className="block text-[8px] uppercase font-black tracking-wider text-slate-400">Kilograms</span>
-            <span className="text-xs font-black text-cyan-400 mt-0.5">{formatted.kg}</span>
-          </div>
+          {unitTiles.map(tile => {
+            const isSelected = activeUnit && normalizeUnitKey(activeUnit) === normalizeUnitKey(tile.id);
+            return (
+              <button
+                key={tile.id}
+                type="button"
+                onClick={() => onSelectUnit && onSelectUnit(tile.id)}
+                className={`bg-slate-800/90 p-2 rounded-xl border border-slate-700/60 flex flex-col justify-center transition-all ${
+                  onSelectUnit ? 'cursor-pointer hover:bg-slate-700 hover:scale-[1.02]' : ''
+                } ${isSelected ? tile.activeRing : ''}`}
+                title={onSelectUnit ? `Click to edit quantity in ${tile.label}` : undefined}
+              >
+                <span className="block text-[8px] uppercase font-black tracking-wider text-slate-400 flex items-center justify-center gap-1">
+                  <span>{tile.label}</span>
+                  {isSelected && <span className="text-rose-400 font-bold">✓</span>}
+                </span>
+                <span className={`text-xs font-black ${tile.color} mt-0.5`}>{tile.val}</span>
+              </button>
+            );
+          })}
         </div>
+        {onSelectUnit && (
+          <p className="text-[9px] text-slate-400 text-center font-medium">
+            💡 Click any unit tile above to switch and edit directly in that unit
+          </p>
+        )}
       </div>
     );
   };
@@ -1273,52 +1317,183 @@ export default function InventoryPage() {
         </div>
       )}
 
-      {/* ── MODAL 4: EDIT STOCK & MIN THRESHOLD LIMIT ── */}
+      {/* ── MODAL 4: EDIT STOCK COUNT & MULTI-UNIT QUANTITY TYPE ── */}
       {showEditModal && editItem && (
-        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
-          <div className="bg-white border border-slate-200 rounded-3xl shadow-2xl max-w-sm w-full p-6 space-y-4">
-            <div className="flex justify-between items-center border-b pb-3">
-              <h3 className="font-black text-slate-900 text-sm">Edit Stock Count & Location</h3>
-              <button onClick={() => setShowEditModal(false)} className="text-slate-400">✕</button>
+        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in overflow-y-auto">
+          <div className="bg-white border border-slate-200 rounded-3xl shadow-2xl max-w-lg w-full p-6 space-y-4 my-auto">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-rose-50 flex items-center justify-center text-rose-600">
+                  <Sliders className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-black text-slate-900 text-sm">Edit Stock Count & Location</h3>
+                  <p className="text-[10px] text-slate-400">Choose quantity unit to edit in & update warehouse location</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowEditModal(false)}
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition cursor-pointer"
+              >
+                ✕
+              </button>
             </div>
 
-            <form onSubmit={handleEditSubmit} className="space-y-3 text-xs">
-              <p className="font-black text-slate-800">{editItem.itemName || editItem.product?.name} ({editItem.batchId})</p>
-
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Stock Count ({editItem.unit || 'Cartons'})</label>
-                <input
-                  type="number"
-                  required
-                  value={editQty}
-                  onChange={e => setEditQty(e.target.value)}
-                  className="w-full p-2 bg-slate-50 border rounded-xl font-bold text-slate-900"
-                />
+            <form onSubmit={handleEditSubmit} className="space-y-4 text-xs">
+              {/* Product & Batch Info Bar */}
+              <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200 flex items-center justify-between">
+                <div>
+                  <p className="font-black text-slate-900 text-xs">{editItem.itemName || editItem.product?.name}</p>
+                  <span className="text-[10px] font-mono font-bold text-slate-500">
+                    Batch: {editItem.batchId || editItem.stockId}
+                  </span>
+                </div>
+                <div className="text-right">
+                  <span className="text-[9px] uppercase font-bold text-slate-400 block">Baseline Stock</span>
+                  <span className="text-xs font-black text-rose-600">
+                    {editItem.quantity} {editItem.unit || 'Cartons'}
+                  </span>
+                </div>
               </div>
 
-              {editQty > 0 && (
+              {/* Quantity Type (Unit) Selector */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="font-bold text-slate-700 flex items-center gap-1.5">
+                    <Scale className="w-3.5 h-3.5 text-rose-600" />
+                    <span>Quantity Type to Edit:</span>
+                  </label>
+                  <span className="text-[10px] font-bold text-rose-700 bg-rose-50 px-2.5 py-0.5 rounded-full border border-rose-200">
+                    Active: {editUnit}
+                  </span>
+                </div>
+
+                {/* 5 Segmented Unit Pill Buttons */}
+                <div className="grid grid-cols-5 gap-1.5 p-1 bg-slate-100 rounded-2xl border border-slate-200">
+                  {[
+                    { id: 'Cartons', label: 'Cartons (CTN)', short: 'Cartons' },
+                    { id: 'Units', label: 'Units (PCS)', short: 'Units' },
+                    { id: 'Packets', label: 'Packets (Pkts)', short: 'Packets' },
+                    { id: 'Boxes', label: 'Boxes', short: 'Boxes' },
+                    { id: 'kg', label: 'Kilograms (kg)', short: 'Kilograms' },
+                  ].map(u => {
+                    const isSelected = normalizeUnitKey(editUnit) === normalizeUnitKey(u.id);
+                    return (
+                      <button
+                        key={u.id}
+                        type="button"
+                        onClick={() => handleEditUnitChange(u.id)}
+                        className={`py-2 px-1 rounded-xl text-[10px] font-black transition-all cursor-pointer text-center ${
+                          isSelected
+                            ? 'bg-slate-900 text-white shadow-md ring-2 ring-slate-900/20'
+                            : 'text-slate-600 hover:text-slate-900 hover:bg-white/80'
+                        }`}
+                        title={`Switch input to ${u.label}`}
+                      >
+                        {u.short}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Stock Count Input in the selected unit */}
+              <div className="space-y-1">
+                <div className="flex justify-between items-center">
+                  <label className="font-bold text-slate-700">
+                    Stock Count ({editUnit})
+                  </label>
+                  <span className="text-[10px] text-slate-400 font-medium">
+                    Type count in {editUnit}
+                  </span>
+                </div>
+                <div className="relative">
+                  <input
+                    type="number"
+                    step="any"
+                    required
+                    value={editQty}
+                    onChange={e => setEditQty(e.target.value)}
+                    className="w-full p-2.5 pr-24 bg-slate-50 border border-slate-200 rounded-xl font-black text-slate-900 text-sm focus:bg-white focus:ring-2 focus:ring-rose-500 transition"
+                    placeholder={`Enter quantity in ${editUnit}...`}
+                  />
+                  <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                    <span className="text-xs font-bold px-2 py-0.5 rounded-lg bg-slate-200 text-slate-700 font-mono">
+                      {editUnit}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Updated Live Multi-Unit Conversion Preview */}
+              {parseFloat(editQty) > 0 && (
                 <MultiUnitConversionCard
                   quantity={editQty}
-                  unit={editItem.unit || 'Cartons'}
+                  unit={editUnit}
                   customRates={customConversionRates}
                   title="Updated Multi-Unit Conversion Preview"
+                  onSelectUnit={handleEditUnitChange}
+                  activeUnit={editUnit}
                 />
               )}
 
+              {/* Storage / Warehouse Location */}
               <div>
-                <label className="block font-bold text-slate-700 mb-1">Minimum Alert Threshold Limit</label>
+                <label className="block font-bold text-slate-700 mb-1 flex items-center gap-1.5">
+                  <MapPin className="w-3.5 h-3.5 text-rose-500" />
+                  <span>Storage / Warehouse Location</span>
+                </label>
+                <input
+                  type="text"
+                  value={editLocation}
+                  onChange={e => setEditLocation(e.target.value)}
+                  placeholder="e.g. Warehouse 1, Rack B"
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-medium text-slate-800 focus:bg-white focus:ring-2 focus:ring-rose-500 transition"
+                />
+              </div>
+
+              {/* Minimum Threshold Limit */}
+              <div>
+                <div className="flex justify-between items-center mb-1">
+                  <label className="font-bold text-slate-700">
+                    Minimum Alert Threshold Limit ({editItem.unit || 'Cartons'})
+                  </label>
+                  <span className="text-[10px] font-bold text-rose-500">
+                    Alerts when &le; {editMinQty} {editItem.unit || 'Cartons'}
+                  </span>
+                </div>
                 <input
                   type="number"
                   required
                   value={editMinQty}
                   onChange={e => setEditMinQty(e.target.value)}
-                  className="w-full p-2 bg-slate-50 border rounded-xl font-bold text-rose-600"
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-rose-600 focus:bg-white focus:ring-2 focus:ring-rose-500 transition"
                 />
               </div>
 
-              <div className="flex justify-end space-x-2 pt-3 border-t">
-                <button type="button" onClick={() => setShowEditModal(false)} className="px-3 py-2 border rounded-xl font-bold cursor-pointer">Cancel</button>
-                <button type="submit" disabled={editSaving} className="px-4 py-2 bg-slate-900 text-white font-bold rounded-xl cursor-pointer">Save Changes</button>
+              <div className="flex justify-end space-x-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowEditModal(false)}
+                  className="px-4 py-2 border border-slate-200 text-slate-600 hover:bg-slate-100 rounded-xl font-bold cursor-pointer transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={editSaving}
+                  className="px-5 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl cursor-pointer shadow-md transition flex items-center gap-2"
+                >
+                  {editSaving ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Saving...</span>
+                    </>
+                  ) : (
+                    <span>Save Changes</span>
+                  )}
+                </button>
               </div>
             </form>
           </div>

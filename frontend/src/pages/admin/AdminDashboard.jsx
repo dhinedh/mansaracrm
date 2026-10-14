@@ -7,7 +7,7 @@ import {
   HelpCircle, BarChart3, TrendingUp, Bell, Tag, Cable, Microscope,
   Globe, ShoppingCart, Image, MessageSquare, Settings, PackageSearch,
   Boxes, Package, DollarSign, AlertCircle, BookOpen, UserCog,
-  LayoutGrid, MapPin, X, Store, Receipt, Gift
+  LayoutGrid, MapPin, X, Store, Receipt, Gift, Calculator
 } from 'lucide-react';
 
 
@@ -15,6 +15,7 @@ import {
 // ─── Module Tiles Config ──────────────────────────────────────────────────────
 const crmModules = [
   { name: 'Dealers',       path: '/admin/dealers',             icon: Users,         color: '#e11d48', bg: '#fff1f2', desc: 'Manage distributor partners' },
+  { name: 'Price Simulator', path: '/admin/price-simulator',   icon: Calculator,    color: '#e11d48', bg: '#fff1f2', desc: 'Margin calculator & pricing suite' },
   { name: 'Products',      path: '/admin/products',            icon: ShoppingBag,   color: '#0369a1', bg: '#e0f2fe', desc: 'Product catalog & pricing' },
   { name: 'Categories',    path: '/admin/categories',          icon: Tag,           color: '#7c3aed', bg: '#ede9fe', desc: 'Product groupings' },
   { name: 'Inventory',     path: '/admin/inventory',           icon: Warehouse,     color: '#0f766e', bg: '#f0fdfa', desc: 'Master stock management' },

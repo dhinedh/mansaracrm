@@ -34,7 +34,8 @@ import {
   Store,
   Receipt,
   Gift,
-  Building2
+  Building2,
+  Calculator
 } from 'lucide-react';
 import axios from 'axios';
 
@@ -100,6 +101,12 @@ const getSalesMarketingMenuItems = (licensing) => {
         { name: 'Dealers',        path: '/admin/dealers',   icon: Users },
         { name: 'Order Requests', path: '/admin/requests',  icon: FileText }
       ]
+    },
+    {
+      name: 'Price Simulator',
+      path: '/admin/price-simulator',
+      icon: Calculator,
+      allowedStaffRoles: ['ADMIN', 'B2B_MANAGER', 'FINANCE_OFFICER']
     },
     {
       name: 'Field Sales',

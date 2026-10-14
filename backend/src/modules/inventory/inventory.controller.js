@@ -308,35 +308,55 @@ exports.adjustCompanyInventory = async (req, res, next) => {
 // Update company stock directly (Admin only)
 exports.updateCompanyInventory = async (req, res, next) => {
   try {
-    const { productId, quantity, minQuantity } = req.body;
+    const { productId, id, stockId, quantity, minQuantity, storageLocation, unit } = req.body;
 
-    const companyStock = await prisma.companyInventory.findUnique({
-      where: { productId }
-    });
+    const targetKey = productId || id || stockId;
+    let companyStock = null;
+
+    if (productId) {
+      companyStock = await prisma.companyInventory.findUnique({
+        where: { productId }
+      });
+    }
+
+    if (!companyStock && (id || targetKey)) {
+      companyStock = await prisma.companyInventory.findFirst({
+        where: {
+          OR: [
+            { id: id || targetKey },
+            { stockId: targetKey },
+            { productId: targetKey }
+          ]
+        }
+      });
+    }
 
     if (!companyStock) {
       return res.status(404).json({ success: false, message: 'Product inventory record not found' });
     }
 
     const oldQuantity = companyStock.quantity;
+    const updateData = { 
+      quantity: parseInt(quantity),
+      minQuantity: parseInt(minQuantity)
+    };
+    if (storageLocation !== undefined) updateData.storageLocation = storageLocation;
+    if (unit) updateData.unit = unit;
 
     await prisma.$transaction(async (tx) => {
       await tx.companyInventory.update({
-        where: { productId },
-        data: { 
-          quantity: parseInt(quantity),
-          minQuantity: parseInt(minQuantity)
-        }
+        where: { id: companyStock.id },
+        data: updateData
       });
 
       // Create a stock movement record if quantity changed
       if (oldQuantity !== parseInt(quantity)) {
         await tx.stockMovement.create({
           data: {
-            productId,
+            productId: companyStock.productId || companyStock.id,
             type: 'ADJUSTMENT',
             quantity: Math.abs(parseInt(quantity) - oldQuantity),
-            notes: `Manual Admin update (from ${oldQuantity} to ${quantity})`
+            notes: `Manual Admin update (from ${oldQuantity} to ${quantity} ${updateData.unit || companyStock.unit || ''})`
           }
         });
       }
