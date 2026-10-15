@@ -27,7 +27,11 @@ import {
   X,
   IndianRupee,
   Trash2,
-  Truck
+  Truck,
+  UserX,
+  FileX2,
+  RotateCcw,
+  AlertTriangle
 } from 'lucide-react';
 import ZoneSelectionMap from '../../components/ZoneSelectionMap';
 
@@ -107,6 +111,20 @@ export default function DealersPage() {
   const [editZoneConflicts, setEditZoneConflicts] = useState([]);
   const [showMap, setShowMap] = useState(false);
   const [showEditMap, setShowEditMap] = useState(false);
+
+  // Close Relationship Modal states
+  const [showCloseModal, setShowCloseModal] = useState(false);
+  const [closingDealer, setClosingDealer] = useState(null);
+  const [closeForm, setCloseForm] = useState({
+    closureReason: 'Mutual Agreement of both Parties',
+    customReason: '',
+    effectiveDate: new Date().toISOString().split('T')[0],
+    closureSettlementStatus: 'SETTLED',
+    closureNotes: 'Accounts reconciled. Zero outstanding balance. Security deposit accounted for.',
+    deactivateUser: true
+  });
+  const [closeLoading, setCloseLoading] = useState(false);
+  const [closeError, setCloseError] = useState('');
 
   const handleFieldChange = (key, value) => {
     setEditForm(prev => ({
@@ -301,6 +319,111 @@ export default function DealersPage() {
     }
   };
 
+  const downloadClosureAgreement = async (dealerId, companyName) => {
+    try {
+      const response = await axios.get(`/billing/closure-agreement/${dealerId}`, { responseType: 'blob' });
+      const contentType = response.headers['content-type'] || response.data?.type || '';
+
+      if (contentType.includes('text/html')) {
+        const fileURL = URL.createObjectURL(new Blob([response.data], { type: 'text/html' }));
+        const printWin = window.open(fileURL, '_blank');
+        if (!printWin) {
+          const link = document.createElement('a');
+          link.href = fileURL;
+          link.setAttribute('download', `Closure_Agreement_${(companyName || 'Dealer').replace(/\\s+/g, '_')}.html`);
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        }
+      } else {
+        const file = new Blob([response.data], { type: 'application/pdf' });
+        const fileURL = URL.createObjectURL(file);
+        const link = document.createElement('a');
+        link.href = fileURL;
+        link.setAttribute('download', `Closure_Agreement_${(companyName || 'Dealer').replace(/\\s+/g, '_')}.pdf`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
+    } catch (err) {
+      console.error('Failed to download closure agreement:', err);
+      alert('Failed to download closure agreement PDF. Please check server logs.');
+    }
+  };
+
+  const handleOpenCloseModal = (dealer) => {
+    setClosingDealer(dealer);
+    setCloseForm({
+      closureReason: 'Mutual Agreement of both Parties',
+      customReason: '',
+      effectiveDate: new Date().toISOString().split('T')[0],
+      closureSettlementStatus: 'SETTLED',
+      closureNotes: `Accounts reconciled for ${dealer.companyName}. Zero outstanding dues confirmed. Security deposit accounted for.`,
+      deactivateUser: true
+    });
+    setCloseError('');
+    setShowCloseModal(true);
+  };
+
+  const handleConfirmCloseRelationship = async (e) => {
+    if (e) e.preventDefault();
+    if (!closingDealer) return;
+    setCloseLoading(true);
+    setCloseError('');
+
+    const reasonToSave = closeForm.closureReason === 'Other'
+      ? (closeForm.customReason.trim() || 'Other / Special Circumstances')
+      : closeForm.closureReason;
+
+    try {
+      const res = await axios.patch(`/dealers/${closingDealer.id}/close-relationship`, {
+        closureReason: reasonToSave,
+        closedAt: closeForm.effectiveDate,
+        closureNotes: closeForm.closureNotes,
+        closureSettlementStatus: closeForm.closureSettlementStatus,
+        deactivateUser: closeForm.deactivateUser
+      });
+
+      setMessage({
+        text: `Dealership relationship with "${closingDealer.companyName}" successfully closed.`,
+        type: 'success'
+      });
+
+      setShowCloseModal(false);
+
+      if (dealerDetail && dealerDetail.id === closingDealer.id) {
+        setDealerDetail(res.data.data);
+      }
+
+      fetchDealers();
+    } catch (err) {
+      console.error('Failed to close relationship:', err);
+      setCloseError(err.response?.data?.message || 'Failed to close dealer relationship.');
+    } finally {
+      setCloseLoading(false);
+    }
+  };
+
+  const handleReopenRelationship = async (dealerId, companyName) => {
+    const confirm = window.confirm(`Are you sure you want to reopen and restore the dealership relationship with "${companyName}"? This will restore their active status.`);
+    if (!confirm) return;
+
+    try {
+      const res = await axios.patch(`/dealers/${dealerId}/reopen-relationship`);
+      setMessage({
+        text: `Dealership relationship for "${companyName}" restored to Active.`,
+        type: 'success'
+      });
+      if (dealerDetail && dealerDetail.id === dealerId) {
+        setDealerDetail(res.data.data);
+      }
+      fetchDealers();
+    } catch (err) {
+      console.error('Failed to reopen relationship:', err);
+      alert(err.response?.data?.message || 'Failed to restore relationship.');
+    }
+  };
+
   const startEditing = () => {
     const initialForm = {};
     DEALER_FIELDS.forEach(field => {
@@ -434,9 +557,13 @@ export default function DealersPage() {
 
   const fetchDealers = async () => {
     try {
-      const res = await axios.get('/dealers', {
-        params: { search, status: statusFilter }
-      });
+      const params = { search };
+      if (statusFilter === 'CLOSED') {
+        params.relationshipStatus = 'CLOSED';
+      } else if (statusFilter) {
+        params.status = statusFilter;
+      }
+      const res = await axios.get('/dealers', { params });
       setDealers(res.data.data);
     } catch (err) {
       console.error(err);
@@ -751,6 +878,7 @@ export default function DealersPage() {
           <option value="PENDING">Pending Approval</option>
           <option value="APPROVED">Approved</option>
           <option value="REJECTED">Rejected</option>
+          <option value="CLOSED">Closed Relationships</option>
         </select>
       </div>
 
@@ -793,12 +921,19 @@ export default function DealersPage() {
                 
                 {/* Status Badges */}
                 <div className="flex flex-col items-end space-y-1">
-                  <span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${
-                    dealer.approvalStatus === 'APPROVED' ? 'bg-emerald-50 text-emerald-700' :
-                    dealer.approvalStatus === 'REJECTED' ? 'bg-rose-50 text-rose-700' : 'bg-amber-50 text-amber-700'
-                  }`}>
-                    {dealer.approvalStatus}
-                  </span>
+                  <div className="flex items-center space-x-1">
+                    <span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${
+                      dealer.approvalStatus === 'APPROVED' ? 'bg-emerald-50 text-emerald-700' :
+                      dealer.approvalStatus === 'REJECTED' ? 'bg-rose-50 text-rose-700' : 'bg-amber-50 text-amber-700'
+                    }`}>
+                      {dealer.approvalStatus}
+                    </span>
+                    {dealer.relationshipStatus === 'CLOSED' && (
+                      <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 border border-rose-200">
+                        Closed
+                      </span>
+                    )}
+                  </div>
                   <span className={`text-[9px] font-semibold px-2 py-0.5 rounded-full ${
                     dealer.user?.isActive ? 'bg-indigo-50 text-indigo-700' : 'bg-slate-100 text-slate-500'
                   }`}>
@@ -828,7 +963,7 @@ export default function DealersPage() {
               </div>
 
               {/* Action buttons */}
-              <div className="flex items-center justify-between gap-3 pt-2">
+              <div className="flex items-center justify-between gap-2 pt-2">
                 {dealer.approvalStatus === 'PENDING' && (
                   <div className="flex space-x-2">
                     <button
@@ -849,18 +984,38 @@ export default function DealersPage() {
                 )}
                 
                 {dealer.approvalStatus === 'APPROVED' && (
-                  <div className="flex items-center space-x-2">
+                  <div className="flex items-center space-x-1.5 flex-wrap gap-y-1">
                     <button
                       onClick={(e) => { e.stopPropagation(); handleToggleActive(dealer.id, dealer.user?.isActive); }}
-                      className={`inline-flex items-center space-x-1.5 text-[10px] font-bold px-2.5 py-1.5 rounded-lg border ${
+                      className={`inline-flex items-center space-x-1 text-[10px] font-bold px-2 py-1.5 rounded-lg border ${
                         dealer.user?.isActive 
                           ? 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
                           : 'bg-rose-600 border-rose-600 text-white hover:bg-rose-700'
                       }`}
                     >
-                      <Power className="w-3.5 h-3.5" />
+                      <Power className="w-3 h-3" />
                       <span>{dealer.user?.isActive ? 'Deactivate' : 'Activate'}</span>
                     </button>
+
+                    {dealer.relationshipStatus === 'CLOSED' ? (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleReopenRelationship(dealer.id, dealer.companyName); }}
+                        className="inline-flex items-center space-x-1 text-[10px] font-bold px-2 py-1.5 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 cursor-pointer"
+                        title="Reopen / Restore Dealer Relationship"
+                      >
+                        <RotateCcw className="w-3 h-3" />
+                        <span>Reopen</span>
+                      </button>
+                    ) : (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleOpenCloseModal(dealer); }}
+                        className="inline-flex items-center space-x-1 text-[10px] font-bold px-2 py-1.5 rounded-lg border border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100 cursor-pointer"
+                        title="Close Dealer Relationship"
+                      >
+                        <UserX className="w-3 h-3 text-amber-600" />
+                        <span>Close Rel</span>
+                      </button>
+                    )}
 
                     <button
                       onClick={(e) => {
@@ -870,14 +1025,14 @@ export default function DealersPage() {
                         }
                       }}
                       disabled={!dealer.user?.isActive}
-                      className={`inline-flex items-center space-x-1.5 text-[10px] font-bold px-2.5 py-1.5 rounded-lg border transition ${
+                      className={`inline-flex items-center space-x-1 text-[10px] font-bold px-2 py-1.5 rounded-lg border transition ${
                         dealer.user?.isActive
                           ? 'bg-rose-50 border-rose-200 text-rose-700 hover:bg-rose-100 cursor-pointer'
                           : 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed opacity-50'
                       }`}
                     >
-                      <Truck className="w-3.5 h-3.5" />
-                      <span>Transfer Request</span>
+                      <Truck className="w-3 h-3" />
+                      <span>Transfer</span>
                     </button>
                   </div>
                 )}
@@ -1353,13 +1508,20 @@ export default function DealersPage() {
                     {dealerDetail ? dealerDetail.companyName : 'Loading Dealer details...'}
                   </h3>
                   {dealerDetail && (
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                      dealerDetail.approvalStatus === 'APPROVED' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' :
-                      dealerDetail.approvalStatus === 'REJECTED' ? 'bg-rose-50 text-rose-700 border border-rose-100' : 
-                      'bg-amber-50 text-amber-700 border border-amber-100'
-                    }`}>
-                      {dealerDetail.approvalStatus}
-                    </span>
+                    <div className="flex items-center space-x-1.5">
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                        dealerDetail.approvalStatus === 'APPROVED' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' :
+                        dealerDetail.approvalStatus === 'REJECTED' ? 'bg-rose-50 text-rose-700 border border-rose-100' : 
+                        'bg-amber-50 text-amber-700 border border-amber-100'
+                      }`}>
+                        {dealerDetail.approvalStatus}
+                      </span>
+                      {dealerDetail.relationshipStatus === 'CLOSED' && (
+                        <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 border border-rose-300">
+                          RELATIONSHIP CLOSED
+                        </span>
+                      )}
+                    </div>
                   )}
                 </div>
                 {dealerDetail && (
@@ -1371,6 +1533,12 @@ export default function DealersPage() {
                     <span>Status: <strong className={dealerDetail.user?.isActive ? 'text-indigo-600' : 'text-slate-500'}>
                       {dealerDetail.user?.isActive ? 'Active' : 'Inactive'}
                     </strong></span>
+                    {dealerDetail.relationshipStatus === 'CLOSED' && (
+                      <>
+                        <span className="text-slate-300">•</span>
+                        <span>Relationship: <strong className="text-rose-600 font-bold">Closed</strong></span>
+                      </>
+                    )}
                   </p>
                 )}
               </div>
@@ -1626,17 +1794,89 @@ export default function DealersPage() {
                         </form>
                       ) : (
                         <>
-                          <div className="flex justify-end mb-4 gap-3">
-                            {dealerDetail.approvalStatus === 'APPROVED' && (
+                          {dealerDetail.relationshipStatus === 'CLOSED' && (
+                            <div className="bg-rose-50 border-2 border-rose-200 rounded-2xl p-4 mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs animate-fade-in">
+                              <div className="flex items-start space-x-3">
+                                <div className="w-9 h-9 bg-rose-600 text-white rounded-xl flex items-center justify-center font-bold text-sm shrink-0 shadow-sm mt-0.5">
+                                  ⚠️
+                                </div>
+                                <div>
+                                  <div className="flex items-center space-x-2">
+                                    <h4 className="font-black text-rose-950 text-xs uppercase tracking-wider">
+                                      Dealership Relationship Closed
+                                    </h4>
+                                    <span className="text-[10px] bg-rose-200 text-rose-900 px-2 py-0.5 rounded-full font-bold">
+                                      {dealerDetail.closureAgreementNumber || 'TERMINATED'}
+                                    </span>
+                                  </div>
+                                  <p className="text-rose-800 text-[11px] mt-1">
+                                    Effective Date: <strong>{new Date(dealerDetail.closedAt || dealerDetail.updatedAt).toLocaleDateString()}</strong> &bull; Reason: <strong>{dealerDetail.closureReason || 'Mutual Agreement'}</strong> &bull; Settlement: <strong>{dealerDetail.closureSettlementStatus || 'Settled'}</strong>
+                                  </p>
+                                  {dealerDetail.closureNotes && (
+                                    <p className="text-slate-600 text-[10px] mt-1 bg-white/80 p-2 rounded-lg border border-rose-100">
+                                      {dealerDetail.closureNotes}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
                               <button
                                 type="button"
-                                onClick={() => downloadAgreement(dealerDetail.id, dealerDetail.companyName)}
-                                className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-4 py-2 rounded-xl shadow-md text-xs uppercase tracking-wide flex items-center space-x-1.5 cursor-pointer"
+                                onClick={() => downloadClosureAgreement(dealerDetail.id, dealerDetail.companyName)}
+                                className="bg-rose-700 hover:bg-rose-800 text-white font-bold px-3 py-1.5 rounded-xl text-xs flex items-center space-x-1.5 shrink-0 shadow-sm cursor-pointer transition-all self-start sm:self-auto"
                               >
-                                <FileText className="w-4 h-4" />
-                                <span>Download Agreement PDF</span>
+                                <FileX2 className="w-3.5 h-3.5" />
+                                <span>Download Closer Agreement</span>
+                              </button>
+                            </div>
+                          )}
+
+                          <div className="flex justify-end mb-4 gap-2.5 flex-wrap items-center">
+                            {dealerDetail.approvalStatus === 'APPROVED' && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => downloadAgreement(dealerDetail.id, dealerDetail.companyName)}
+                                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-4 py-2 rounded-xl shadow-md text-xs uppercase tracking-wide flex items-center space-x-1.5 cursor-pointer transition-all"
+                                  title="Download Original Appointment Agreement PDF"
+                                >
+                                  <FileText className="w-4 h-4" />
+                                  <span>Download Agreement PDF</span>
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => downloadClosureAgreement(dealerDetail.id, dealerDetail.companyName)}
+                                  className="bg-rose-700 hover:bg-rose-800 text-white font-bold px-4 py-2 rounded-xl shadow-md text-xs uppercase tracking-wide flex items-center space-x-1.5 cursor-pointer transition-all"
+                                  title="Download Dealership Relationship Closure Agreement PDF"
+                                >
+                                  <FileX2 className="w-4 h-4" />
+                                  <span>Download Closer Agreement PDF</span>
+                                </button>
+                              </>
+                            )}
+
+                            {dealerDetail.relationshipStatus === 'CLOSED' ? (
+                              <button
+                                type="button"
+                                onClick={() => handleReopenRelationship(dealerDetail.id, dealerDetail.companyName)}
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-xl shadow-md text-xs uppercase tracking-wide flex items-center space-x-1.5 cursor-pointer transition-all"
+                                title="Restore & Reopen Dealer Relationship"
+                              >
+                                <RotateCcw className="w-4 h-4" />
+                                <span>Reopen Relationship</span>
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => handleOpenCloseModal(dealerDetail)}
+                                className="bg-amber-600 hover:bg-amber-700 text-white font-bold px-4 py-2 rounded-xl shadow-md text-xs uppercase tracking-wide flex items-center space-x-1.5 cursor-pointer transition-all"
+                                title="Officially close dealership relationship & record closure terms"
+                              >
+                                <UserX className="w-4 h-4" />
+                                <span>Close Relationship</span>
                               </button>
                             )}
+
                             <button
                               type="button"
                               onClick={() => handleDeleteDealer(dealerDetail.id, dealerDetail.companyName)}
@@ -1816,6 +2056,38 @@ export default function DealersPage() {
 
                                 <span className="text-slate-400 font-medium">Approver User ID</span>
                                 <span className="col-span-2 text-slate-800 font-semibold truncate">{dealerDetail.approvedBy || 'N/A'}</span>
+
+                                <span className="text-slate-400 font-medium">Relationship</span>
+                                <span className="col-span-2">
+                                  {dealerDetail.relationshipStatus === 'CLOSED' ? (
+                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-700">
+                                      Closed
+                                    </span>
+                                  ) : (
+                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+                                      Active Partner
+                                    </span>
+                                  )}
+                                </span>
+
+                                {dealerDetail.relationshipStatus === 'CLOSED' && (
+                                  <>
+                                    <span className="text-slate-400 font-medium">Closed On</span>
+                                    <span className="col-span-2 text-rose-700 font-bold text-xs">
+                                      {dealerDetail.closedAt ? new Date(dealerDetail.closedAt).toLocaleDateString() : 'N/A'}
+                                    </span>
+
+                                    <span className="text-slate-400 font-medium">Closure Reason</span>
+                                    <span className="col-span-2 text-slate-800 font-medium text-xs">
+                                      {dealerDetail.closureReason || 'Mutual Agreement'}
+                                    </span>
+
+                                    <span className="text-slate-400 font-medium">Closure Ref</span>
+                                    <span className="col-span-2 font-mono text-[11px] text-slate-800 font-bold">
+                                      {dealerDetail.closureAgreementNumber || 'N/A'}
+                                    </span>
+                                  </>
+                                )}
                               </div>
                             </div>
                           </div>
@@ -2257,6 +2529,197 @@ export default function DealersPage() {
                 Failed to load dealer profile.
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Close Dealer Relationship Modal */}
+      {showCloseModal && closingDealer && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4 overflow-y-auto">
+          <div className="bg-white max-w-xl w-full rounded-2xl shadow-2xl overflow-hidden animate-zoom-in my-8 flex flex-col border border-slate-150">
+            {/* Modal Header */}
+            <div className="p-6 border-b border-rose-100 bg-linear-to-r from-rose-50 to-amber-50 flex justify-between items-start">
+              <div className="flex items-start space-x-3">
+                <div className="w-10 h-10 bg-rose-600 text-white rounded-xl flex items-center justify-center font-bold text-base shadow-sm shrink-0 mt-0.5">
+                  <UserX className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-slate-800 text-base">Close Dealer Relationship</h3>
+                  <p className="text-slate-500 text-xs mt-0.5">
+                    Formally terminate relationship with <strong className="text-slate-700">{closingDealer.companyName}</strong> and generate closure agreement.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => { setShowCloseModal(false); setClosingDealer(null); }}
+                className="text-slate-400 hover:text-slate-600 p-1.5 hover:bg-white/80 rounded-lg transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Dealer Overview Strip */}
+            <div className="px-6 py-3.5 bg-slate-50 border-b border-slate-150 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+              <div>
+                <span className="text-slate-400 font-semibold block text-[10px] uppercase">Dealer Type</span>
+                <strong className="text-slate-700 font-bold">{closingDealer.dealerType}</strong>
+              </div>
+              <div>
+                <span className="text-slate-400 font-semibold block text-[10px] uppercase">Territory / Zone</span>
+                <strong className="text-slate-700 font-bold truncate block">{Array.isArray(closingDealer.zones) ? closingDealer.zones.join(', ') || 'N/A' : (closingDealer.zones || 'N/A')}</strong>
+              </div>
+              <div>
+                <span className="text-slate-400 font-semibold block text-[10px] uppercase">Security Deposit</span>
+                <strong className="text-emerald-700 font-bold">₹{(closingDealer.initialDeposit || 0).toLocaleString('en-IN')}</strong>
+              </div>
+              <div>
+                <span className="text-slate-400 font-semibold block text-[10px] uppercase">Contact Person</span>
+                <strong className="text-slate-700 font-bold truncate block">{closingDealer.user?.name || closingDealer.contactName || 'N/A'}</strong>
+              </div>
+            </div>
+
+            {closeError && (
+              <div className="mx-6 mt-4 p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs font-semibold flex items-center space-x-2">
+                <AlertTriangle className="w-4 h-4 shrink-0 text-rose-600" />
+                <span>{closeError}</span>
+              </div>
+            )}
+
+            {/* Form */}
+            <form onSubmit={handleConfirmCloseRelationship} className="p-6 space-y-4 overflow-y-auto max-h-[60vh] text-xs">
+              <div>
+                <label className="block text-slate-700 font-bold mb-1.5">
+                  Reason for Relationship Closure <span className="text-rose-500">*</span>
+                </label>
+                <select
+                  value={closeForm.closureReason}
+                  onChange={(e) => setCloseForm({ ...closeForm, closureReason: e.target.value })}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-hidden font-semibold text-slate-700 cursor-pointer"
+                  required
+                >
+                  <option value="Mutual Agreement of both Parties">Mutual Agreement of both Parties</option>
+                  <option value="Contract Expiry / Non-Renewal">Contract Expiry / Non-Renewal</option>
+                  <option value="Voluntary Resignation / Exit">Voluntary Resignation / Exit</option>
+                  <option value="Non-performance / Low Sales Volume">Non-performance / Low Sales Volume</option>
+                  <option value="Breach of Dealership Terms / Non-compliance">Breach of Dealership Terms / Non-compliance</option>
+                  <option value="Business Relocation / Closure of Store">Business Relocation / Closure of Store</option>
+                  <option value="Other">Other (Please specify below)</option>
+                </select>
+              </div>
+
+              {closeForm.closureReason === 'Other' && (
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">
+                    Specify Custom Reason <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Enter reason for closing dealership..."
+                    value={closeForm.customReason}
+                    onChange={(e) => setCloseForm({ ...closeForm, customReason: e.target.value })}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-hidden"
+                  />
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1.5">
+                    Effective Closure Date <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={closeForm.effectiveDate}
+                    onChange={(e) => setCloseForm({ ...closeForm, effectiveDate: e.target.value })}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-hidden font-medium"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1.5">
+                    Security Deposit & Settlement Status <span className="text-rose-500">*</span>
+                  </label>
+                  <select
+                    value={closeForm.closureSettlementStatus}
+                    onChange={(e) => setCloseForm({ ...closeForm, closureSettlementStatus: e.target.value })}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-hidden font-semibold text-slate-700 cursor-pointer"
+                    required
+                  >
+                    <option value="SETTLED">SETTLED — Reconciled with Zero Dues</option>
+                    <option value="REFUNDED">REFUNDED — Deposit Refunded to Dealer</option>
+                    <option value="ADJUSTED">ADJUSTED — Adjusted Against Ledger Invoices</option>
+                    <option value="PENDING">PENDING — Final Audit in Progress</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-bold mb-1.5">
+                  Accounts & Reconciliation Notes
+                </label>
+                <textarea
+                  rows="3"
+                  value={closeForm.closureNotes}
+                  onChange={(e) => setCloseForm({ ...closeForm, closureNotes: e.target.value })}
+                  placeholder="Record ledger status, returned stock reconciliation, or mutual release remarks..."
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-hidden text-xs"
+                ></textarea>
+              </div>
+
+              <div className="p-3 bg-amber-50/80 border border-amber-200 rounded-xl space-y-2">
+                <label className="flex items-center space-x-2.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={closeForm.deactivateUser}
+                    onChange={(e) => setCloseForm({ ...closeForm, deactivateUser: e.target.checked })}
+                    className="w-4 h-4 text-rose-600 rounded-md border-slate-300 focus:ring-rose-500"
+                  />
+                  <span className="text-amber-950 font-bold text-xs">Deactivate dealer login access immediately</span>
+                </label>
+                <p className="text-[11px] text-amber-800/90 pl-6 leading-tight">
+                  Prevents the dealer from creating new orders or logging into the B2B portal. Their historical data and ledgers will remain intact.
+                </p>
+              </div>
+
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-slate-600 text-[11px] flex items-center space-x-2">
+                <FileText className="w-4 h-4 text-rose-600 shrink-0" />
+                <span>
+                  A formal <strong>Dealer Relationship Closure &amp; No-Dues Clearance Agreement</strong> will be generated. You can download the PDF at any time.
+                </span>
+              </div>
+
+              {/* Modal Actions */}
+              <div className="pt-2 border-t border-slate-150 flex items-center justify-end space-x-3">
+                <button
+                  type="button"
+                  onClick={() => { setShowCloseModal(false); setClosingDealer(null); }}
+                  disabled={closeLoading}
+                  className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={closeLoading}
+                  className="px-6 py-2.5 bg-rose-600 hover:bg-rose-700 disabled:bg-rose-400 text-white font-bold rounded-xl text-xs transition-all shadow-md flex items-center space-x-1.5 cursor-pointer"
+                >
+                  {closeLoading ? (
+                    <>
+                      <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-white"></div>
+                      <span>Closing Relationship...</span>
+                    </>
+                  ) : (
+                    <>
+                      <UserX className="w-4 h-4" />
+                      <span>Confirm &amp; Close Dealer Relationship</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

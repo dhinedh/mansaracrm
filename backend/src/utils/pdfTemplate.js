@@ -778,4 +778,167 @@ const buildAgreementHtml = (company, dealer) => {
 </html>`;
 };
 
-module.exports = { buildInvoiceHtml, buildSimpleRetailInvoiceHtml, buildAgreementHtml };
+/**
+ * Builds the Dealer Relationship Closure & Termination Agreement HTML
+ * Matches the Mansara Foods formal agreement layout with mutual release and no-dues clauses
+ */
+const buildClosureAgreementHtml = (company, dealer) => {
+  let logoBase64 = '';
+  try {
+    const logoPath = path.join(__dirname, '../../public/logo.png');
+    if (fs.existsSync(logoPath)) {
+      logoBase64 = fs.readFileSync(logoPath).toString('base64');
+    }
+  } catch (e) {}
+
+  const logoHtml = logoBase64
+    ? `<img src="data:image/png;base64,${logoBase64}" style="height:70px;width:auto;object-fit:contain;" alt="Mansara Foods" />`
+    : `<div style="font-size:22px;font-weight:900;color:#D6295A;">MANSARA</div>`;
+
+  const closureDate = dealer.closedAt ? new Date(dealer.closedAt) : new Date();
+  const day   = closureDate.getDate();
+  const month = closureDate.toLocaleString('en-IN', { month: 'long' }).toUpperCase();
+  const year  = closureDate.getFullYear();
+
+  const originalYear = dealer.approvedAt ? new Date(dealer.approvedAt).getFullYear() : (dealer.createdAt ? new Date(dealer.createdAt).getFullYear() : year);
+  const origAgreeNo = `MFD/GD/${originalYear}/${String(dealer.agreeSeq || 1).padStart(3, '0')}`;
+  const closeAgreeNo = dealer.closureAgreementNumber || `MFD/CLOSE/${year}/${String(dealer.agreeSeq || 1).padStart(3, '0')}`;
+
+  const zones = Array.isArray(dealer.zones) ? dealer.zones.join(', ') : (dealer.zones || 'Chennai');
+  const dealerCity = dealer.city || 'Chennai';
+  const companyNameStr = (dealer?.companyName || 'B2B Partner').toString();
+  const dealerAddrStr  = [dealer?.address, dealerCity, dealer?.state].filter(Boolean).join(', ') || 'Address Not Specified';
+  const closureReason  = dealer.closureReason || 'Mutual Agreement of both Parties';
+  const closureNotes   = dealer.closureNotes || 'Accounts reconciled with zero outstanding dues. Security deposit settled.';
+  const depositStr     = (dealer.initialDeposit || 0).toLocaleString('en-IN');
+  const settlementStatus = dealer.closureSettlementStatus || 'SETTLED & RECONCILED';
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Dealer Relationship Closure Agreement - ${companyNameStr}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 11.5px;
+    color: #1a1a1a;
+    background: #fff;
+    padding: 30px 40px;
+    line-height: 1.7;
+  }
+  .outer { max-width: 800px; margin: auto; }
+  .header { display: flex; align-items: center; gap: 20px; border-bottom: 3px solid #D6295A; padding-bottom: 14px; margin-bottom: 18px; }
+  .company-hdr { flex: 1; }
+  .company-title { font-size: 26px; font-weight: 900; color: #D6295A; text-transform: uppercase; letter-spacing: 1px; }
+  .company-sub { font-size: 10px; color: #555; margin-top: 3px; }
+  .agree-title { text-align: center; font-size: 14px; font-weight: 900; text-decoration: underline; text-transform: uppercase; margin-bottom: 4px; letter-spacing: 0.5px; color: #991b1b; }
+  .agree-subtitle { text-align: center; font-size: 11px; font-weight: 700; text-transform: uppercase; margin-bottom: 16px; color: #555; }
+  p { margin-bottom: 10px; text-align: justify; }
+  .field { font-weight: 700; text-decoration: underline; }
+  .bold { font-weight: 700; }
+  .center { text-align: center; }
+  h3 { font-size: 12px; font-weight: 900; margin: 18px 0 8px; text-transform: uppercase; text-decoration: underline; }
+  table.details { width: 100%; border-collapse: collapse; margin: 12px 0 18px; }
+  table.details th, table.details td { border: 1px solid #999; padding: 6px 10px; font-size: 11px; }
+  table.details th { background: #fbebee; font-weight: 700; width: 45%; color: #881337; }
+  .clause { margin-bottom: 8px; }
+  .clause-num { font-weight: 700; }
+  .highlight-box { background: #fff1f2; border: 1.5px solid #fecdd3; border-radius: 6px; padding: 10px 14px; margin: 12px 0 16px; }
+  .sig-section { display: flex; justify-content: space-between; margin-top: 45px; gap: 30px; }
+  .sig-block { flex: 1; }
+  .sig-party { font-size: 10px; font-weight: 700; text-transform: uppercase; margin-bottom: 40px; }
+  .sig-line { border-top: 1.5px solid #1a1a1a; padding-top: 5px; font-size: 10px; font-weight: 700; }
+  .footer-strip { margin-top: 30px; border-top: 2px solid #D6295A; padding-top: 8px; text-align: center; font-size: 9px; color: #555; }
+  .watermark { position: fixed; top: 45%; left: 50%; transform: translate(-50%,-50%) rotate(-30deg); font-size: 65px; font-weight: 900; color: rgba(214,41,90,0.04); pointer-events: none; white-space: nowrap; z-index: 0; }
+</style>
+</head>
+<body>
+<div class="watermark">MANSARA CLOSURE</div>
+<div class="outer">
+
+  <!-- Header -->
+  <div class="header">
+    <div>${logoHtml}</div>
+    <div class="company-hdr">
+      <div class="company-title">${company.name || company.companyName || 'Mansara Foods Pvt Ltd'}</div>
+      <div class="company-sub">${company.address || 'B4, No.13, Balaji Nagar 1st street extn, Noombal, Chennai – 600077'}, Tamil Nadu</div>
+      <div class="company-sub">Ph: ${company.phone || '+91-88388 87064'} | GST: ${company.gstNumber || '27AABCM1234F1Z5'}</div>
+    </div>
+  </div>
+
+  <!-- Title -->
+  <div class="agree-title">DEALER RELATIONSHIP CLOSURE &amp; NO-DUES CLEARANCE AGREEMENT</div>
+  <div class="agree-subtitle">Formal Dealership Termination, Mutual Release &amp; Account Settlement Deed</div>
+
+  <p><strong>Closure Agreement Ref:</strong> <span class="field">${closeAgreeNo}</span> &nbsp;&nbsp;|&nbsp;&nbsp; <strong>Original Agreement Ref:</strong> <span class="field">${origAgreeNo}</span></p>
+  <p><strong>Effective Date of Closure:</strong> <span class="field"> ${day} / ${month} / ${year} </span></p>
+  <br>
+  <p>This Dealer Relationship Closure Agreement is executed at Chennai on this <span class="field">${day}th</span> day of <span class="field"> ${month}, ${year} </span>.</p>
+  <p><strong>BETWEEN</strong></p>
+  <p><strong>MANSARA FOODS PRIVATE LIMITED</strong>, having its Registered Office at <span class="field"> NOOMBAL </span>, Chennai, Tamil Nadu,
+  hereinafter referred to as the <strong>"Company"</strong> (which expression shall include its successors, administrators and assigns).</p>
+  <p><strong>AND</strong></p>
+  <p><strong>M/s. <span class="field"> ${companyNameStr.toUpperCase()} </span></strong>, having its principal place of business at <span class="field"> ${dealerAddrStr.toUpperCase()} </span>,
+  represented by its Proprietor / Authorized Signatory <span class="field"> ${(dealer.user?.name || dealer.contactName || 'AUTHORIZED SIGNATORY').toUpperCase()} </span>,
+  hereinafter referred to as the <strong>"Exiting Dealer"</strong> (which expression shall include its successors, legal heirs, and permitted assigns).</p>
+
+  <p><strong>WHEREAS:</strong></p>
+  <p>1. The Company and Dealer entered into a Dealer Appointment Agreement for authorized distribution and marketing of MANSARA brand products across assigned territories.</p>
+  <p>2. Both parties have mutually resolved to conclude and formally terminate the dealership relationship with effect from <span class="field">${day} ${month} ${year}</span> due to: <strong>${closureReason}</strong>.</p>
+  <p>3. The parties have undertaken a complete reconciliation of accounts, trade balances, inventory returns, and security deposits.</p>
+
+  <div class="highlight-box">
+    <strong>Closure Summary:</strong> Dealership relationship stands officially closed with effect from <strong>${day} ${month} ${year}</strong>. Reason: <strong>${closureReason}</strong>. Account settlement status: <strong>${settlementStatus}</strong>.
+  </div>
+
+  <h3>Dealership Details at Closure</h3>
+  <table class="details">
+    <tr><th>Particulars</th><th>Details</th></tr>
+    <tr><td>Dealer / Firm Name</td><td>${dealer.companyName}</td></tr>
+    <tr><td>Authorized Person / Proprietor</td><td>${dealer.user?.name || dealer.contactName || '—'}</td></tr>
+    <tr><td>Dealership Type &amp; Tier</td><td>${dealer.dealerType} (${dealer.dealerCategory || 'STARTER'})</td></tr>
+    <tr><td>GST Identification No.</td><td>${dealer.gstNumber || '—'}</td></tr>
+    <tr><td>Contact Phone / Email</td><td>${dealer.phone || '—'} / ${dealer.user?.email || '—'}</td></tr>
+    <tr><td>Assigned Territory / Zones</td><td>${zones}</td></tr>
+    <tr><td>Relationship Closure Date</td><td>${day} / ${month} / ${year}</td></tr>
+    <tr><td>Reason for Closure</td><td>${closureReason}</td></tr>
+    <tr><td>Security Deposit (₹)</td><td>₹${depositStr} (${settlementStatus})</td></tr>
+    <tr><td>Ledger &amp; Settlement Notes</td><td>${closureNotes}</td></tr>
+  </table>
+
+  <h3>Terms &amp; Conditions of Dealership Closure</h3>
+  <div class="clause"><span class="clause-num">1. Termination of Dealership Rights:</span> With effect from the date of this Agreement, all rights, authorizations, licenses, and privileges granted to the Dealer to stock, market, distribute, or sell MANSARA products stand permanently terminated and revoked.</div>
+  <div class="clause"><span class="clause-num">2. Brand Assets &amp; Intellectual Property:</span> The Dealer shall immediately cease the use of the trade name "MANSARA", brand logos, signs, marketing materials, and digital assets. All promotional collateral and company-supplied display assets have been returned or cleared.</div>
+  <div class="clause"><span class="clause-num">3. Account Reconciliation &amp; Final Settlement:</span> Both parties confirm that all trade invoices, billings, credit limits, and purchase ledgers have been audited and fully settled. Neither party has any outstanding dues or pending monetary liability against the other.</div>
+  <div class="clause"><span class="clause-num">4. Security Deposit Settlement:</span> The initial security deposit amount of <strong>₹${depositStr}</strong> has been fully reconciled and settled as per the agreed terms (Status: <strong>${settlementStatus}</strong>), leaving no further financial claims.</div>
+  <div class="clause"><span class="clause-num">5. Mutual Release &amp; No-Dues Clearance:</span> The Company and the Dealer hereby mutually, irrevocably, and unconditionally release, acquit, and forever discharge each other, their proprietors, directors, agents, and representatives from all claims, demands, disputes, liabilities, actions, or proceedings arising out of or connected with the dealership agreement.</div>
+  <div class="clause"><span class="clause-num">6. Confidentiality:</span> The Exiting Dealer covenants to maintain strict confidentiality regarding all proprietary formulas, recipes, wholesale pricing structures, dealer networks, and commercial terms learned during the course of the dealership tenure.</div>
+  <div class="clause"><span class="clause-num">7. Governing Law &amp; Jurisdiction:</span> This Agreement shall be governed by the laws of India, and any disputes arising herefrom shall be subject to the exclusive jurisdiction of the competent courts in <strong>Chennai, Tamil Nadu</strong>.</div>
+
+  <!-- Signatures -->
+  <div class="sig-section">
+    <div class="sig-block">
+      <div class="sig-party">For M/s. ${dealer.companyName}</div>
+      <div class="sig-line">Authorized Signatory (Exiting Dealer)</div>
+      <div style="font-size:9px;color:#555;margin-top:3px;">Name: ${(dealer.user?.name || dealer.contactName || '_________________')} &nbsp; Date: ${day}/${month}/${year}</div>
+    </div>
+    <div class="sig-block" style="text-align:right;">
+      <div class="sig-party">For Mansara Foods Pvt. Ltd.</div>
+      <div class="sig-line">H. Deepika — Authorized Signatory</div>
+      <div style="font-size:9px;color:#555;margin-top:3px;">Date: ${day}/${month}/${year}</div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="footer-strip">
+    Regd. Office &amp; Operations : Flat No. B4, No.13, Balaji Nagar 1<sup>st</sup> street extn, Noombal, Chennai – 600077, Tamil Nadu, India Ph: +91-88388 87064. |
+    CIN- U10790TN2026PTC188398 | Email: contact@mansarafoods.com | Website: www.mansarafoods.com
+  </div>
+</div>
+</body>
+</html>`;
+};
+
+module.exports = { buildInvoiceHtml, buildSimpleRetailInvoiceHtml, buildAgreementHtml, buildClosureAgreementHtml };

@@ -99,7 +99,14 @@ const DealerSchema = new Schema({
   },
   invoiceTerms: { type: String, default: '' },
   invoicePrefix: { type: String },
-  defaultMargin: { type: Number, default: 10 }
+  defaultMargin: { type: Number, default: 10 },
+  relationshipStatus: { type: String, enum: ['ACTIVE', 'CLOSED'], default: 'ACTIVE' },
+  closedAt: { type: Date },
+  closedBy: { type: String },
+  closureReason: { type: String },
+  closureNotes: { type: String },
+  closureSettlementStatus: { type: String, default: 'SETTLED' },
+  closureAgreementNumber: { type: String }
 }, {
   timestamps: true,
   toJSON: { virtuals: true },

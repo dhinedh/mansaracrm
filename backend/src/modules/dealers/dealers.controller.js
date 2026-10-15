@@ -8,7 +8,7 @@ const centralNotificationService = require('../../utils/centralNotificationServi
 
 exports.getAllDealers = async (req, res, next) => {
   try {
-    const { status, zone, search } = req.query;
+    const { status, zone, search, relationshipStatus } = req.query;
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 25;
     const skip = (page - 1) * limit;
@@ -16,6 +16,9 @@ exports.getAllDealers = async (req, res, next) => {
     const where = {};
     if (status) {
       where.approvalStatus = status;
+    }
+    if (relationshipStatus) {
+      where.relationshipStatus = relationshipStatus;
     }
     if (zone) {
       where.zone = zone;
@@ -648,6 +651,164 @@ exports.sendDealerBroadcast = async (req, res, next) => {
       message: `Promotional scheme broadcasted to ${dispatchedCount} dealers successfully.`,
       targetCount: dealers.length,
       dispatchedCount
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.closeDealerRelationship = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { 
+      closureReason, 
+      closedAt, 
+      closureNotes, 
+      closureSettlementStatus = 'SETTLED', 
+      deactivateUser = true 
+    } = req.body;
+
+    const dealer = await prisma.dealer.findUnique({
+      where: { id },
+      include: { user: true }
+    });
+
+    if (!dealer) {
+      return res.status(404).json({ success: false, message: 'Dealer not found' });
+    }
+
+    const year = new Date().getFullYear();
+    const closureAgreementNumber = dealer.closureAgreementNumber || `MFD/CLOSE/${year}/${String(dealer.agreeSeq || 1).padStart(3, '0')}`;
+    const effectiveClosedAt = closedAt ? new Date(closedAt) : new Date();
+
+    const updatedDealer = await prisma.$transaction(async (tx) => {
+      // 1. Update Dealer closure info
+      const d = await tx.dealer.update({
+        where: { id },
+        data: {
+          relationshipStatus: 'CLOSED',
+          closedAt: effectiveClosedAt,
+          closedBy: req.user.name || req.user.email || req.user.id,
+          closureReason: closureReason || 'Mutual Agreement of both Parties',
+          closureNotes: closureNotes || '',
+          closureSettlementStatus: closureSettlementStatus || 'SETTLED',
+          closureAgreementNumber
+        },
+        include: {
+          user: true,
+          categoryDetails: true
+        }
+      });
+
+      // 2. Deactivate dealer's user account if requested
+      if (deactivateUser && dealer.userId) {
+        await tx.user.update({
+          where: { id: dealer.userId },
+          data: { isActive: false }
+        });
+      }
+
+      // 3. Create Notification for Dealer User
+      if (dealer.userId) {
+        await tx.notification.create({
+          data: {
+            userId: dealer.userId,
+            type: 'ACCOUNT_UPDATE',
+            title: 'Dealership Relationship Closed',
+            message: `Your dealership relationship with Mansara Foods has been formally concluded. Reason: ${closureReason || 'Mutual Agreement'}. Closure Ref: ${closureAgreementNumber}.`,
+            metadata: { relationshipStatus: 'CLOSED', closureAgreementNumber }
+          }
+        });
+      }
+
+      // 4. Audit Log
+      await tx.auditLog.create({
+        data: {
+          userId: req.user.id,
+          action: 'CLOSE_DEALER_RELATIONSHIP',
+          entity: 'Dealer',
+          entityId: id,
+          newValues: {
+            relationshipStatus: 'CLOSED',
+            closureReason,
+            closureAgreementNumber,
+            closedAt: effectiveClosedAt
+          }
+        }
+      });
+
+      return d;
+    });
+
+    res.json({
+      success: true,
+      message: `Dealership relationship with "${dealer.companyName}" closed successfully.`,
+      data: updatedDealer
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.reopenDealerRelationship = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const dealer = await prisma.dealer.findUnique({
+      where: { id },
+      include: { user: true }
+    });
+
+    if (!dealer) {
+      return res.status(404).json({ success: false, message: 'Dealer not found' });
+    }
+
+    const updatedDealer = await prisma.$transaction(async (tx) => {
+      const d = await tx.dealer.update({
+        where: { id },
+        data: {
+          relationshipStatus: 'ACTIVE'
+        },
+        include: {
+          user: true,
+          categoryDetails: true
+        }
+      });
+
+      if (dealer.userId) {
+        await tx.user.update({
+          where: { id: dealer.userId },
+          data: { isActive: true }
+        });
+
+        await tx.notification.create({
+          data: {
+            userId: dealer.userId,
+            type: 'ACCOUNT_UPDATE',
+            title: 'Dealership Relationship Restored',
+            message: 'Your dealership relationship with Mansara Foods has been restored to active status.',
+            metadata: { relationshipStatus: 'ACTIVE' }
+          }
+        });
+      }
+
+      await tx.auditLog.create({
+        data: {
+          userId: req.user.id,
+          action: 'REOPEN_DEALER_RELATIONSHIP',
+          entity: 'Dealer',
+          entityId: id,
+          newValues: { relationshipStatus: 'ACTIVE' }
+        }
+      });
+
+      return d;
+    });
+
+    res.json({
+      success: true,
+      message: `Dealership relationship for "${dealer.companyName}" restored to Active.`,
+      data: updatedDealer
     });
   } catch (error) {
     next(error);

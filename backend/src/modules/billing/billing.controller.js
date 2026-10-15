@@ -1,7 +1,7 @@
 // src/modules/billing/billing.controller.js
 const prisma = require('../../config/database');
 const { generateInvoicePdf } = require('../../utils/pdfGenerator');
-const { buildInvoiceHtml, buildSimpleRetailInvoiceHtml, buildAgreementHtml } = require('../../utils/pdfTemplate');
+const { buildInvoiceHtml, buildSimpleRetailInvoiceHtml, buildAgreementHtml, buildClosureAgreementHtml } = require('../../utils/pdfTemplate');
 const centralNotificationService = require('../../utils/centralNotificationService');
 
 
@@ -805,6 +805,49 @@ exports.downloadAgreementPdf = async (req, res, next) => {
       );
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.setHeader('Content-Disposition', `inline; filename="Agreement_${dealer.companyName.replace(/\s+/g, '_')}.html"`);
+      res.send(printableHtml);
+    }
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.downloadClosureAgreementPdf = async (req, res, next) => {
+  try {
+    const { dealerId } = req.params;
+
+    const dealer = await prisma.dealer.findUnique({
+      where: { id: dealerId },
+      include: {
+        user: true
+      }
+    });
+
+    if (!dealer) {
+      return res.status(404).json({ success: false, message: 'Dealer not found' });
+    }
+
+    // Auth verification: ADMINs can download any agreement; DEALER can only download their own
+    if (req.user.role === 'DEALER' && req.user.dealer?.id !== dealerId) {
+      return res.status(403).json({ success: false, message: 'Unauthorized' });
+    }
+
+    const company = await getCompanyDetails(dealer);
+    const html = buildClosureAgreementHtml(company, dealer);
+
+    try {
+      const pdfBuffer = await generateInvoicePdf(html);
+      res.contentType('application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="Closure_Agreement_${dealer.companyName.replace(/\\s+/g, '_')}.pdf"`);
+      res.send(pdfBuffer);
+    } catch (pdfErr) {
+      console.warn(`PDF closure agreement generation failed for ${dealer.companyName}, falling back to HTML:`, pdfErr.message);
+      const printableHtml = html.replace(
+        '</body>',
+        '<script>window.onload=function(){window.print();}</script></body>'
+      );
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.setHeader('Content-Disposition', `inline; filename="Closure_Agreement_${dealer.companyName.replace(/\\s+/g, '_')}.html"`);
       res.send(printableHtml);
     }
   } catch (error) {

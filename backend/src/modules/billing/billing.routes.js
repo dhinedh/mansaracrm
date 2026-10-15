@@ -13,6 +13,7 @@ router.get('/', billingController.getInvoices);
 router.get('/settings', requireRole('ADMIN', 'DEALER'), billingController.getInvoiceSettings);
 router.put('/settings', requireRole('ADMIN'), billingController.updateInvoiceSettings);
 router.get('/agreement/:dealerId', billingController.downloadAgreementPdf);
+router.get('/closure-agreement/:dealerId', billingController.downloadClosureAgreementPdf);
 router.get('/:id', billingController.getInvoiceById);
 router.get('/:id/pdf', billingController.downloadPdf);
 router.put('/:id', requireRole('DEALER', 'ADMIN'), billingController.updateInvoice);
