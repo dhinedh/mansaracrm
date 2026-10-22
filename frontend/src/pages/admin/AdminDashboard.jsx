@@ -7,7 +7,8 @@ import {
   HelpCircle, BarChart3, TrendingUp, Bell, Tag, Cable, Microscope,
   Globe, ShoppingCart, Image, MessageSquare, Settings, PackageSearch,
   Boxes, Package, DollarSign, AlertCircle, BookOpen, UserCog,
-  LayoutGrid, MapPin, X, Store, Receipt, Gift, Calculator
+  LayoutGrid, MapPin, X, Store, Receipt, Gift, Calculator,
+  ShieldCheck, Calendar, Search
 } from 'lucide-react';
 
 
@@ -38,8 +39,17 @@ const crmModules = [
 ];
 
 const fieldModules = [
-  { name: 'B2C Stalls',    path: '/admin/stalls',       icon: Store,  color: '#e11d48', bg: '#fff1f2', desc: 'Direct-to-customer stall events & billing' },
-  { name: 'Store Visits',  path: '/admin/store-visits', icon: Truck,  color: '#16a34a', bg: '#f0fdf4', desc: 'Manage store check-ins & order fulfillment' }
+  { name: 'Sales Executives', path: '/admin/sales-team',       icon: Users,        color: '#e11d48', bg: '#fff1f2', desc: 'Roster, credentials & monthly targets' },
+  { name: 'Beats & Routes',   path: '/admin/beats',            icon: MapPin,       color: '#2563eb', bg: '#eff6ff', desc: 'Territory beats & retail store mapping' },
+  { name: 'Field Orders',     path: '/admin/field-orders',     icon: ShoppingBag,  color: '#059669', bg: '#ecfdf5', desc: 'Booked retail orders & dispatch status' },
+  { name: 'Collections',      path: '/admin/sales-collections',icon: Receipt,      color: '#d97706', bg: '#fffbeb', desc: 'Cash/UPI payments & settlement ledger' },
+  { name: 'Approvals Hub',    path: '/admin/sales-approvals',  icon: ShieldCheck,  color: '#dc2626', bg: '#fef2f2', desc: 'Margins, quotations & order amendments' },
+  { name: 'Store Visits',     path: '/admin/store-visits',     icon: Truck,        color: '#16a34a', bg: '#f0fdf4', desc: 'Manage store check-ins & spot billing' },
+  { name: 'DAR Audit',        path: '/admin/sales-dar',        icon: Calendar,     color: '#7c3aed', bg: '#faf5ff', desc: 'Daily activity reports & shift verification' },
+  { name: 'Performance',      path: '/admin/sales-performance',icon: TrendingUp,   color: '#0891b2', bg: '#ecfeff', desc: 'MTD target tracking & rep leaderboards' },
+  { name: 'Competitor Intel', path: '/admin/competitor-intel', icon: Search,       color: '#4f46e5', bg: '#eef2ff', desc: 'Market pricing & scheme tracking' },
+  { name: 'B2C Stalls',       path: '/admin/stalls',           icon: Store,        color: '#be185d', bg: '#fdf2f8', desc: 'Direct-to-customer stall events & billing' },
+  { name: 'B2C Stores',       path: '/admin/b2c-stores',       icon: ShoppingBag,  color: '#059669', bg: '#ecfdf5', desc: 'Retail outlets directory & ledger' },
 ];
 
 const ecomModules = [

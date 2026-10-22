@@ -20,6 +20,8 @@ export default function LoginPage() {
     if (isAuthenticated && user) {
       if (user.role === 'ADMIN') {
         navigate('/admin/dashboard');
+      } else if (user.role === 'SALESPERSON') {
+        navigate('/sales/dashboard');
       } else {
         navigate('/dealer/dashboard');
       }
@@ -35,6 +37,8 @@ export default function LoginPage() {
       clearCart(); // clear cart on login session clean start
       if (res.role === 'ADMIN') {
         navigate('/admin/dashboard');
+      } else if (res.role === 'SALESPERSON') {
+        navigate('/sales/dashboard');
       } else {
         navigate('/dealer/dashboard');
       }
@@ -126,6 +130,18 @@ export default function LoginPage() {
             )}
           </button>
         </form>
+
+        <div className="mt-6 pt-4 border-t border-slate-100 flex flex-col items-center gap-2 relative z-10">
+          <p className="text-xs text-slate-500 font-medium">Are you a Field Sales Executive?</p>
+          <button
+            type="button"
+            onClick={() => navigate('/sales/login')}
+            className="text-xs font-bold text-amber-600 hover:text-amber-700 bg-amber-50 hover:bg-amber-100/80 px-3 py-1.5 rounded-lg border border-amber-200/60 transition-all cursor-pointer flex items-center gap-1.5"
+          >
+            <span>Switch to Field Sales Portal</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
       </div>
     </div>
   );

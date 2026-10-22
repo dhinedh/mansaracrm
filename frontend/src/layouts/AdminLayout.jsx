@@ -35,7 +35,11 @@ import {
   Receipt,
   Gift,
   Building2,
-  Calculator
+  Calculator,
+  MapPin,
+  ShieldCheck,
+  Calendar,
+  Search
 } from 'lucide-react';
 import axios from 'axios';
 
@@ -83,12 +87,20 @@ const getVendorMenuItems = () => [
 
 const getSalesMarketingMenuItems = (licensing) => {
   const fieldSubItems = [
-    { name: 'B2C Stalls',   path: '/admin/stalls',       icon: Store,       allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'] },
-    { name: 'Store Visits', path: '/admin/store-visits',  icon: Truck,       allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'] },
-    { name: 'B2C Stores',   path: '/admin/b2c-stores',    icon: ShoppingBag, allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'] },
+    { name: 'Sales Executives', path: '/admin/sales-team', icon: Users, allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'] },
+    { name: 'Beats & Routes', path: '/admin/beats', icon: MapPin, allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'] },
+    { name: 'Field Orders', path: '/admin/field-orders', icon: ShoppingCart, allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'] },
+    { name: 'Store Visits', path: '/admin/store-visits', icon: Truck, allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'] },
+    { name: 'Collections Ledger', path: '/admin/sales-collections', icon: Receipt, allowedStaffRoles: ['ADMIN', 'B2B_MANAGER', 'FINANCE_OFFICER'] },
+    { name: 'Approvals Hub', path: '/admin/sales-approvals', icon: ShieldCheck, allowedStaffRoles: ['ADMIN', 'B2B_MANAGER', 'FINANCE_OFFICER'] },
+    { name: 'DAR Audit', path: '/admin/sales-dar', icon: Calendar, allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'] },
+    { name: 'Performance Matrix', path: '/admin/sales-performance', icon: TrendingUp, allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'] },
+    { name: 'Competitor Intel', path: '/admin/competitor-intel', icon: Search, allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'] },
+    { name: 'B2C Stalls', path: '/admin/stalls', icon: Store, allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'] },
+    { name: 'B2C Stores', path: '/admin/b2c-stores', icon: ShoppingBag, allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'] },
   ].filter(item => {
     if (item.path === '/admin/stalls' && !licensing.enableB2cStall) return false;
-    if (item.path === '/admin/store-visits' && !licensing.enableFieldSales) return false;
+    if ((item.path === '/admin/store-visits' || item.path === '/admin/sales-team' || item.path === '/admin/beats' || item.path === '/admin/field-orders' || item.path === '/admin/sales-collections' || item.path === '/admin/sales-approvals' || item.path === '/admin/sales-dar' || item.path === '/admin/sales-performance' || item.path === '/admin/competitor-intel') && !licensing.enableFieldSales) return false;
     return true;
   });
 

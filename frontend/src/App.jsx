@@ -44,6 +44,14 @@ const ProcurementPage = lazy(() => import('./pages/admin/ProcurementPage'));
 const VendorCategoriesPage = lazy(() => import('./pages/admin/VendorCategoriesPage'));
 const VendorPriceAnalysisPage = lazy(() => import('./pages/admin/VendorPriceAnalysisPage'));
 const PriceSimulatorPage = lazy(() => import('./pages/admin/PriceSimulatorPage'));
+const AdminSalesTeamPage = lazy(() => import('./pages/admin/AdminSalesTeamPage'));
+const AdminBeatsPage = lazy(() => import('./pages/admin/AdminBeatsPage'));
+const AdminApprovalsPage = lazy(() => import('./pages/admin/AdminApprovalsPage'));
+const AdminDarAuditPage = lazy(() => import('./pages/admin/AdminDarAuditPage'));
+const AdminCompetitorsPage = lazy(() => import('./pages/admin/AdminCompetitorsPage'));
+const AdminFieldOrdersPage = lazy(() => import('./pages/admin/AdminFieldOrdersPage'));
+const AdminCollectionsPage = lazy(() => import('./pages/admin/AdminCollectionsPage'));
+const AdminSalesPerformancePage = lazy(() => import('./pages/admin/AdminSalesPerformancePage'));
 
 // E-Commerce Pages
 const EcomOrdersPage = lazy(() => import('./pages/admin/EcomOrdersPage'));
@@ -66,6 +74,20 @@ const MyLedgersPage = lazy(() => import('./pages/dealer/MyLedgersPage'));
 const DealerAnalyticsPage = lazy(() => import('./pages/dealer/DealerAnalyticsPage'));
 const ProfilePage = lazy(() => import('./pages/dealer/ProfilePage'));
 
+// Salesperson Layout & Pages
+import SalespersonLayout from './layouts/SalespersonLayout';
+const SalesLoginPage = lazy(() => import('./pages/auth/SalesLoginPage'));
+const SalesDashboard = lazy(() => import('./pages/sales/SalesDashboard'));
+const SalesVisitsPage = lazy(() => import('./pages/sales/SalesVisitsPage'));
+const SalesProductsPage = lazy(() => import('./pages/sales/SalesProductsPage'));
+const SalesOrdersPage = lazy(() => import('./pages/sales/SalesOrdersPage'));
+const SalesCollectionsPage = lazy(() => import('./pages/sales/SalesCollectionsPage'));
+const SalesFollowUpsPage = lazy(() => import('./pages/sales/SalesFollowUpsPage'));
+const SalesDarPage = lazy(() => import('./pages/sales/SalesDarPage'));
+const SalesPerformancePage = lazy(() => import('./pages/sales/SalesPerformancePage'));
+const SalesSyncPage = lazy(() => import('./pages/sales/SalesSyncPage'));
+const SalesProfilePage = lazy(() => import('./pages/sales/SalesProfilePage'));
+
 // Loading spinner fallback component
 const PageSpinner = () => (
   <div className="min-h-[60vh] flex items-center justify-center">
@@ -83,7 +105,13 @@ const ProtectedRoute = ({ children, allowedRole }) => {
 
   // Primary Role Check
   if (allowedRole && user && user.role !== allowedRole) {
-    return <Navigate to={user.role === 'ADMIN' ? '/admin/dashboard' : '/dealer/dashboard'} replace />;
+    if (user.role === 'ADMIN') {
+      return <Navigate to="/admin/dashboard" replace />;
+    } else if (user.role === 'SALESPERSON') {
+      return <Navigate to="/sales/dashboard" replace />;
+    } else {
+      return <Navigate to="/dealer/dashboard" replace />;
+    }
   }
 
   return children;
@@ -229,6 +257,46 @@ export default function App() {
               <StoreVisitsPage />
             </ProtectedRoute>
           } />
+          <Route path="sales-team" element={
+            <ProtectedRoute allowedStaffRoles={['ADMIN', 'B2B_MANAGER']}>
+              <AdminSalesTeamPage />
+            </ProtectedRoute>
+          } />
+          <Route path="beats" element={
+            <ProtectedRoute allowedStaffRoles={['ADMIN', 'B2B_MANAGER']}>
+              <AdminBeatsPage />
+            </ProtectedRoute>
+          } />
+          <Route path="sales-approvals" element={
+            <ProtectedRoute allowedStaffRoles={['ADMIN', 'B2B_MANAGER', 'FINANCE_OFFICER']}>
+              <AdminApprovalsPage />
+            </ProtectedRoute>
+          } />
+          <Route path="sales-dar" element={
+            <ProtectedRoute allowedStaffRoles={['ADMIN', 'B2B_MANAGER']}>
+              <AdminDarAuditPage />
+            </ProtectedRoute>
+          } />
+          <Route path="competitor-intel" element={
+            <ProtectedRoute allowedStaffRoles={['ADMIN', 'B2B_MANAGER']}>
+              <AdminCompetitorsPage />
+            </ProtectedRoute>
+          } />
+          <Route path="field-orders" element={
+            <ProtectedRoute allowedStaffRoles={['ADMIN', 'B2B_MANAGER']}>
+              <AdminFieldOrdersPage />
+            </ProtectedRoute>
+          } />
+          <Route path="sales-collections" element={
+            <ProtectedRoute allowedStaffRoles={['ADMIN', 'B2B_MANAGER', 'FINANCE_OFFICER']}>
+              <AdminCollectionsPage />
+            </ProtectedRoute>
+          } />
+          <Route path="sales-performance" element={
+            <ProtectedRoute allowedStaffRoles={['ADMIN', 'B2B_MANAGER']}>
+              <AdminSalesPerformancePage />
+            </ProtectedRoute>
+          } />
           <Route path="retail-stores" element={
             <ProtectedRoute allowedStaffRoles={['ADMIN', 'B2B_MANAGER']}>
               <RetailStoresPage />
@@ -341,6 +409,42 @@ export default function App() {
           <Route path="services" element={<TicketsPage />} />
           <Route path="analytics" element={<DealerAnalyticsPage />} />
           <Route path="notifications" element={<NotificationsPage />} />
+        </Route>
+
+        {/* Separate Field Salesperson Login Routes */}
+        <Route path="/sales/login" element={<SalesLoginPage />} />
+        <Route path="/sales-login" element={<Navigate to="/sales/login" replace />} />
+
+        {/* Field Salesperson Portal Protected Routes */}
+        <Route
+          path="/sales"
+          element={
+            <ProtectedRoute allowedRole="SALESPERSON">
+              <SalespersonLayout />
+            </ProtectedRoute>
+          }
+        >
+          <Route index element={<Navigate to="dashboard" replace />} />
+          <Route path="dashboard" element={<SalesDashboard />} />
+          <Route path="visits" element={<SalesVisitsPage />} />
+          <Route path="customer-360" element={<SalesVisitsPage />} />
+          <Route path="competitor-intel" element={<SalesVisitsPage />} />
+          <Route path="catalogue" element={<SalesProductsPage />} />
+          <Route path="pricing" element={<SalesProductsPage />} />
+          <Route path="margins" element={<SalesProductsPage />} />
+          <Route path="schemes" element={<SalesProductsPage />} />
+          <Route path="stock" element={<SalesProductsPage />} />
+          <Route path="orders" element={<SalesOrdersPage />} />
+          <Route path="quotations" element={<SalesOrdersPage />} />
+          <Route path="tracking" element={<SalesOrdersPage />} />
+          <Route path="amendments" element={<SalesOrdersPage />} />
+          <Route path="collections" element={<SalesCollectionsPage />} />
+          <Route path="follow-ups" element={<SalesFollowUpsPage />} />
+          <Route path="dar" element={<SalesDarPage />} />
+          <Route path="performance" element={<SalesPerformancePage />} />
+          <Route path="sync" element={<SalesSyncPage />} />
+          <Route path="profile" element={<SalesProfilePage />} />
+          <Route path="help" element={<SalesProfilePage />} />
         </Route>
 
         {/* Wildcard Fallback redirects to Login */}

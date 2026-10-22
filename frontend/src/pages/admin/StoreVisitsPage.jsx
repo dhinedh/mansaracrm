@@ -1,5 +1,5 @@
 // src/pages/admin/StoreVisitsPage.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { 
   MapPin, 
@@ -19,28 +19,90 @@ import {
   Truck,
   FileEdit,
   DollarSign,
-  PlusCircle
+  PlusCircle,
+  Calendar,
+  Search,
+  Filter,
+  RefreshCw,
+  X,
+  ChevronDown,
+  ChevronUp,
+  Navigation,
+  ExternalLink,
+  ShieldCheck,
+  CheckCircle2,
+  Clock3,
+  AlertCircle,
+  Phone,
+  UserCheck,
+  ShoppingBag,
+  Eye,
+  Check,
+  ArrowRight
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 
 export default function StoreVisitsPage() {
   const { user } = useAuthStore();
+
+  // Master Data
   const [dealers, setDealers] = useState([]);
   const [stores, setStores] = useState([]);
+  const [allStores, setAllStores] = useState([]);
   const [products, setProducts] = useState([]);
-  
-  // Selection states
+  const [salesTeam, setSalesTeam] = useState([]);
+
+  // Today's Visits Board State
+  const [todayVisits, setTodayVisits] = useState([]);
+  const [todayStats, setTodayStats] = useState({
+    totalScheduled: 0,
+    completedCount: 0,
+    inProgressCount: 0,
+    pendingCount: 0,
+    cancelledCount: 0,
+    todayOrderValue: 0,
+    todayCollections: 0
+  });
+  const [visitsLoading, setVisitsLoading] = useState(false);
+  const [selectedDate, setSelectedDate] = useState(() => {
+    const today = new Date();
+    return today.toISOString().split('T')[0];
+  });
+  const [selectedRepFilter, setSelectedRepFilter] = useState('ALL');
+  const [selectedStatusTab, setSelectedStatusTab] = useState('ALL');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Allocation Modal State
+  const [isAllocateModalOpen, setIsAllocateModalOpen] = useState(false);
+  const [allocationSubmitting, setAllocationSubmitting] = useState(false);
+  const [allocationForm, setAllocationForm] = useState({
+    salespersonId: '',
+    dealerId: '',
+    storeId: '',
+    scheduledDate: new Date().toISOString().split('T')[0],
+    purpose: 'Order Booking & Stock Audit',
+    priority: 'NORMAL',
+    remarks: ''
+  });
+
+  // Visit Dossier Modal State
+  const [selectedVisitDossier, setSelectedVisitDossier] = useState(null);
+
+  // Spot Billing & Direct Check-in Collapsible State
+  const [isSpotBillingOpen, setIsSpotBillingOpen] = useState(false);
+
+  // Spot Check-in Selection states
   const [selectedDealerId, setSelectedDealerId] = useState('');
   const [selectedStoreId, setSelectedStoreId] = useState('');
   
-  // Visit Status
+  // Active Spot Visit Status
   const [activeVisit, setActiveVisit] = useState(null);
   const [loading, setLoading] = useState(false);
   const [locationLoading, setLocationLoading] = useState(false);
   const [locationError, setLocationError] = useState('');
 
-  // Active Tab
-  const [activeTab, setActiveTab] = useState('pending'); // pending, adjust, checkout
+  // Active Tab for Spot Visit Mode (pending, new-bill, adjust, checkout)
+  const [activeTab, setActiveTab] = useState('pending');
 
   // Open invoices data for the visited store
   const [openInvoices, setOpenInvoices] = useState([]);
@@ -57,8 +119,8 @@ export default function StoreVisitsPage() {
   const [checkoutOutcome, setCheckoutOutcome] = useState('');
 
   // New Bill Generation States
-  const [billQuantities, setBillQuantities] = useState({}); // productId -> quantity
-  const [billMargins, setBillMargins] = useState({}); // productId -> margin
+  const [billQuantities, setBillQuantities] = useState({});
+  const [billMargins, setBillMargins] = useState({});
   const [billNotes, setBillNotes] = useState('');
   const [billShipping, setBillShipping] = useState('');
   const [billDiscount, setBillDiscount] = useState('');
@@ -73,19 +135,30 @@ export default function StoreVisitsPage() {
   // Revisit Date State
   const [revisitDate, setRevisitDate] = useState('');
 
+  // Initialize
   useEffect(() => {
     fetchDealers();
+    fetchAllStores();
     fetchProducts();
-    // Check if there is an active visit stored in localStorage
+    fetchSalesTeam();
+    fetchTodayVisits(selectedDate);
+
+    // Check if there is an active spot visit stored in localStorage
     const savedVisit = localStorage.getItem('mansara_active_visit');
     if (savedVisit) {
-      const parsed = JSON.parse(savedVisit);
-      setActiveVisit(parsed);
-      setSelectedStoreId(parsed.storeId);
-      setSelectedDealerId(parsed.dealerId);
+      try {
+        const parsed = JSON.parse(savedVisit);
+        setActiveVisit(parsed);
+        setSelectedStoreId(parsed.storeId);
+        setSelectedDealerId(parsed.dealerId);
+        setIsSpotBillingOpen(true);
+      } catch (e) {
+        console.error(e);
+      }
     }
   }, []);
 
+  // Watch for dealer selection in spot check-in panel
   useEffect(() => {
     if (selectedDealerId) {
       fetchStores(selectedDealerId);
@@ -94,6 +167,7 @@ export default function StoreVisitsPage() {
     }
   }, [selectedDealerId]);
 
+  // Watch for active spot visit
   useEffect(() => {
     if (activeVisit) {
       fetchOpenInvoices();
@@ -102,21 +176,39 @@ export default function StoreVisitsPage() {
     }
   }, [activeVisit]);
 
+  // Refetch visits when date, rep filter, or status tab changes
+  useEffect(() => {
+    fetchTodayVisits(selectedDate);
+  }, [selectedDate, selectedRepFilter, selectedStatusTab]);
+
+  // ==========================================
+  // DATA FETCHING FUNCTIONS
+  // ==========================================
+
   const fetchDealers = async () => {
     try {
       const res = await axios.get('/dealers');
       setDealers(res.data.data.filter(d => d.approvalStatus === 'APPROVED'));
     } catch (err) {
-      console.error(err);
+      console.error('Error fetching dealers:', err);
+    }
+  };
+
+  const fetchAllStores = async () => {
+    try {
+      const res = await axios.get('/stores');
+      setAllStores(res.data.data || []);
+    } catch (err) {
+      console.error('Error fetching all stores:', err);
     }
   };
 
   const fetchStores = async (dealerId) => {
     try {
       const res = await axios.get(`/stores?dealerId=${dealerId}`);
-      setStores(res.data.data);
+      setStores(res.data.data || []);
     } catch (err) {
-      console.error(err);
+      console.error('Error fetching stores:', err);
     }
   };
 
@@ -125,7 +217,41 @@ export default function StoreVisitsPage() {
       const res = await axios.get('/products');
       setProducts(res.data.data.filter(p => p.isActive));
     } catch (err) {
-      console.error(err);
+      console.error('Error fetching products:', err);
+    }
+  };
+
+  const fetchSalesTeam = async () => {
+    try {
+      const res = await axios.get('/field-sales/admin/team');
+      if (res.data?.success) {
+        setSalesTeam(res.data.data || []);
+      }
+    } catch (err) {
+      console.error('Error fetching sales team:', err);
+    }
+  };
+
+  const fetchTodayVisits = async (targetDate) => {
+    setVisitsLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (targetDate) params.append('date', targetDate);
+      if (selectedRepFilter && selectedRepFilter !== 'ALL') params.append('salespersonId', selectedRepFilter);
+      if (selectedStatusTab && selectedStatusTab !== 'ALL') params.append('status', selectedStatusTab);
+      if (searchQuery.trim()) params.append('search', searchQuery.trim());
+
+      const res = await axios.get(`/field-sales/admin/visits/today?${params.toString()}`);
+      if (res.data?.success) {
+        setTodayVisits(res.data.data.visits || []);
+        if (res.data.data.stats) {
+          setTodayStats(res.data.data.stats);
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching today visits:', err);
+    } finally {
+      setVisitsLoading(false);
     }
   };
 
@@ -134,8 +260,7 @@ export default function StoreVisitsPage() {
     try {
       setInvoicesLoading(true);
       const res = await axios.get(`/billing?storeId=${selectedStoreId}&status=OPEN`);
-      setOpenInvoices(res.data.data);
-      // Reset inputs
+      setOpenInvoices(res.data.data || []);
       setDeliveryInputs({});
     } catch (err) {
       console.error(err);
@@ -143,6 +268,98 @@ export default function StoreVisitsPage() {
       setInvoicesLoading(false);
     }
   };
+
+  // ==========================================
+  // ALLOCATION HANDLERS
+  // ==========================================
+
+  const handleOpenAllocateModal = (prefillStore = null) => {
+    setAllocationForm({
+      salespersonId: salesTeam[0]?.user?._id || '',
+      dealerId: prefillStore?.dealerId?._id || prefillStore?.dealerId || '',
+      storeId: prefillStore?._id || prefillStore?.id || '',
+      scheduledDate: selectedDate || new Date().toISOString().split('T')[0],
+      purpose: 'Order Booking & Stock Audit',
+      priority: 'NORMAL',
+      remarks: ''
+    });
+    setIsAllocateModalOpen(true);
+  };
+
+  const handleAllocateSubmit = async (e) => {
+    e.preventDefault();
+    if (!allocationForm.salespersonId) {
+      alert('Please select a salesperson to assign.');
+      return;
+    }
+    if (!allocationForm.storeId) {
+      alert('Please select a store / outlet.');
+      return;
+    }
+
+    setAllocationSubmitting(true);
+    try {
+      const res = await axios.post('/field-sales/admin/visits/allocate', allocationForm);
+      if (res.data?.success) {
+        alert(res.data.message || 'Store visit successfully allocated!');
+        setIsAllocateModalOpen(false);
+        fetchTodayVisits(selectedDate);
+      }
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to allocate store visit');
+    } finally {
+      setAllocationSubmitting(false);
+    }
+  };
+
+  const handleUpdateVisitStatus = async (visitId, newStatus) => {
+    try {
+      const res = await axios.put(`/field-sales/admin/visits/${visitId}/status`, { status: newStatus });
+      if (res.data?.success) {
+        fetchTodayVisits(selectedDate);
+        if (selectedVisitDossier && selectedVisitDossier._id === visitId) {
+          setSelectedVisitDossier(res.data.data);
+        }
+      }
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to update visit status');
+    }
+  };
+
+  // Stores available in allocation modal
+  const allocationStoreOptions = useMemo(() => {
+    if (!allocationForm.dealerId) return allStores;
+    return allStores.filter(s => {
+      const dId = s.dealerId?._id || s.dealerId;
+      return dId === allocationForm.dealerId;
+    });
+  }, [allStores, allocationForm.dealerId]);
+
+  // Filtered visits on client side for search
+  const filteredVisits = useMemo(() => {
+    if (!searchQuery.trim()) return todayVisits;
+    const q = searchQuery.toLowerCase().trim();
+    return todayVisits.filter(v => {
+      const storeName = v.storeId?.name?.toLowerCase() || '';
+      const repName = v.salespersonId?.name?.toLowerCase() || '';
+      const dealerName = v.dealerId?.companyName?.toLowerCase() || '';
+      const purpose = v.purpose?.toLowerCase() || '';
+      const city = v.storeId?.city?.toLowerCase() || '';
+      return storeName.includes(q) || repName.includes(q) || dealerName.includes(q) || purpose.includes(q) || city.includes(q);
+    });
+  }, [todayVisits, searchQuery]);
+
+  // Quick Date Jump
+  const handleQuickDate = (offsetDays) => {
+    const d = new Date();
+    d.setDate(d.getDate() + offsetDays);
+    const dateStr = d.toISOString().split('T')[0];
+    setSelectedDate(dateStr);
+  };
+
+  // ==========================================
+  // SPOT BILLING & DIRECT CHECK-IN HANDLERS
+  // ==========================================
 
   const handleCheckIn = () => {
     if (!selectedStoreId) {
@@ -167,7 +384,7 @@ export default function StoreVisitsPage() {
           const res = await axios.post('/field-sales/visits/check-in', {
             dealerId: selectedDealerId,
             storeId: selectedStoreId,
-            visitorName: user?.name || 'Sales Representative',
+            visitorName: user?.name || 'Super Admin',
             purpose: 'Store Visit & Inventory Fulfillment Check',
             latitude,
             longitude
@@ -176,6 +393,7 @@ export default function StoreVisitsPage() {
           const visitData = res.data.data;
           setActiveVisit(visitData);
           localStorage.setItem('mansara_active_visit', JSON.stringify(visitData));
+          fetchTodayVisits(selectedDate);
         } catch (err) {
           alert(err.response?.data?.message || 'Check-in failed');
         } finally {
@@ -190,7 +408,6 @@ export default function StoreVisitsPage() {
     );
   };
 
-  // Delivery Input Handlers
   const handleDeliveryQtyChange = (invoiceId, productId, val) => {
     const qty = parseInt(val) || 0;
     setDeliveryInputs(prev => ({
@@ -202,38 +419,37 @@ export default function StoreVisitsPage() {
     }));
   };
 
-  const handleConfirmFulfillment = async (invoiceId) => {
-    const inputs = deliveryInputs[invoiceId] || {};
-    const itemsToFulfill = Object.entries(inputs)
+  const handleFulfillDelivery = async (invoiceId) => {
+    const inputsForInvoice = deliveryInputs[invoiceId] || {};
+    const items = Object.entries(inputsForInvoice)
       .map(([productId, quantity]) => ({ productId, quantity }))
       .filter(item => item.quantity > 0);
 
-    if (itemsToFulfill.length === 0) {
-      alert('Please enter delivery quantities greater than 0.');
+    if (items.length === 0) {
+      alert('Please specify quantity greater than 0 to deliver.');
       return;
     }
 
     try {
       setLoading(true);
-      await axios.post(`/field-sales/invoices/${invoiceId}/fulfill`, { items: itemsToFulfill });
-      alert('Delivery recorded successfully!');
+      await axios.post(`/field-sales/invoices/${invoiceId}/fulfill`, { items });
+      alert('Products fulfilled and delivered successfully!');
       fetchOpenInvoices();
     } catch (err) {
-      alert(err.response?.data?.message || 'Fulfillment request failed');
+      alert(err.response?.data?.message || 'Failed to fulfill items');
     } finally {
       setLoading(false);
     }
   };
 
-  // Bill Adjustments Handlers
-  const startAdjusting = (invoice) => {
+  const startAdjustingInvoice = (invoice) => {
     setAdjustingInvoice(invoice);
-    setAdjustedItems(invoice.items.map(item => ({
-      productId: item.productId,
-      productName: item.product?.name || 'Product',
-      quantity: item.quantity,
-      marginPct: item.marginPct,
-      unit: item.unit
+    setAdjustedItems(invoice.items.map(i => ({
+      productId: i.productId,
+      productName: i.productName,
+      quantity: i.quantity,
+      marginPct: i.marginPct,
+      unit: i.unit || 'PCS'
     })));
     setActiveTab('adjust');
   };
@@ -243,6 +459,15 @@ export default function StoreVisitsPage() {
       if (item.productId === productId) {
         const newQty = item.quantity + delta;
         return newQty > 0 ? { ...item, quantity: newQty } : item;
+      }
+      return item;
+    }));
+  };
+
+  const updateAdjustedMargin = (productId, newMargin) => {
+    setAdjustedItems(prev => prev.map(item => {
+      if (item.productId === productId) {
+        return { ...item, marginPct: parseFloat(newMargin) || 0 };
       }
       return item;
     }));
@@ -336,14 +561,12 @@ export default function StoreVisitsPage() {
     }
   };
 
-  // Checkout Visit
   const handleCheckOut = async () => {
     if (!checkoutOutcome.trim()) {
       alert('Please enter outcome notes of your visit.');
       return;
     }
 
-    // Verify if there are still pending items
     const hasPending = openInvoices.some(inv => 
       inv.items.some(item => (item.fulfilledQuantity || 0) < item.quantity)
     );
@@ -372,6 +595,7 @@ export default function StoreVisitsPage() {
       setBillQuantities({});
       setBillSuccess('');
       localStorage.removeItem('mansara_active_visit');
+      fetchTodayVisits(selectedDate);
     } catch (err) {
       alert(err.response?.data?.message || 'Checkout failed');
     } finally {
@@ -379,685 +603,1148 @@ export default function StoreVisitsPage() {
     }
   };
 
-  // UI Helpers
   const getVisitedStoreName = () => {
-    const storeObj = stores.find(s => s.id === selectedStoreId);
+    const storeObj = stores.find(s => s.id === selectedStoreId) || allStores.find(s => s.id === selectedStoreId || s._id === selectedStoreId);
     return storeObj ? storeObj.name : 'Selected Store';
   };
 
   const getDealerName = () => {
-    const dealerObj = dealers.find(d => d.id === selectedDealerId);
+    const dealerObj = dealers.find(d => d.id === selectedDealerId || d._id === selectedDealerId);
     return dealerObj ? dealerObj.companyName : 'Selected Dealer';
   };
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-          <Truck className="w-7 h-7 text-rose-500" />
-          Field Sales & Store Visits
-        </h1>
-        <p className="text-slate-500 text-sm mt-0.5">
-          Verify visits with GPS Check-Ins, fulfill pending deliveries, and adjust store bills in real-time.
-        </p>
-      </div>
-
-      {/* Geolocation/Check-in Status Panel */}
-      {!activeVisit ? (
-        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-          <div className="space-y-4 flex-1 w-full">
-            <h3 className="font-bold text-slate-800 text-base">Select Target Outlet</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Dealer</label>
-                <select
-                  value={selectedDealerId}
-                  onChange={(e) => { setSelectedDealerId(e.target.value); setSelectedStoreId(''); }}
-                  className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-rose-500/20"
-                >
-                  <option value="">Select B2B Dealer...</option>
-                  {dealers.map(d => (
-                    <option key={d.id} value={d.id}>{d.companyName}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Store / Outlet</label>
-                <select
-                  value={selectedStoreId}
-                  disabled={!selectedDealerId}
-                  onChange={(e) => setSelectedStoreId(e.target.value)}
-                  className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-rose-500/20 disabled:bg-slate-50 disabled:text-slate-400"
-                >
-                  <option value="">Select Store Outlet...</option>
-                  {stores.map(s => (
-                    <option key={s.id} value={s.id}>{s.name}</option>
-                  ))}
-                </select>
-              </div>
+      
+      {/* 1. TOP HEADER & PRIMARY ACTIONS */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white border border-slate-200 rounded-2xl p-6 shadow-xs">
+        <div>
+          <div className="flex items-center gap-2.5">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-rose-500 to-amber-500 flex items-center justify-center text-white shadow-md shadow-rose-500/20">
+              <Truck className="w-5 h-5" />
             </div>
-
-            {locationError && (
-              <div className="bg-red-50 text-red-700 p-3.5 rounded-xl border border-red-100 flex items-center gap-2.5 text-xs font-medium">
-                <AlertTriangle className="w-4 h-4 flex-shrink-0" />
-                <span>{locationError}</span>
-              </div>
-            )}
+            <div>
+              <h1 className="text-2xl font-black text-slate-900 tracking-tight">
+                Field Sales & Store Visits
+              </h1>
+              <p className="text-slate-500 text-xs mt-0.5 font-medium">
+                Allocate store visits to sales personnel, track today's live visits, verify GPS check-ins, and inspect field performance.
+              </p>
+            </div>
           </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2.5">
+          <button
+            type="button"
+            onClick={() => handleOpenAllocateModal()}
+            className="bg-gradient-to-r from-rose-600 to-amber-500 hover:from-rose-500 hover:to-amber-400 text-white font-black px-4 py-2.5 rounded-xl text-xs flex items-center gap-2 cursor-pointer shadow-md shadow-rose-500/20 active:scale-95 transition-all"
+          >
+            <PlusCircle className="w-4 h-4" />
+            <span>Allocate Store Visit</span>
+          </button>
 
           <button
-            onClick={handleCheckIn}
-            disabled={locationLoading || !selectedStoreId}
-            className="flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 disabled:opacity-50 disabled:hover:bg-slate-900 text-white px-6 py-3 rounded-xl font-bold text-sm shadow-sm transition active:scale-95 whitespace-nowrap self-stretch md:self-end"
+            type="button"
+            onClick={() => setIsSpotBillingOpen(!isSpotBillingOpen)}
+            className={`font-bold px-3.5 py-2.5 rounded-xl text-xs flex items-center gap-2 cursor-pointer border transition-all ${
+              isSpotBillingOpen || activeVisit
+                ? 'bg-rose-50 border-rose-200 text-rose-700'
+                : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+            }`}
           >
-            {locationLoading ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <MapPin className="w-4 h-4" />
-            )}
-            Verify & Check-In
+            <MapPin className="w-4 h-4 text-rose-500" />
+            <span>{activeVisit ? 'Live Visit In Progress' : 'Direct Spot Check-In / Billing'}</span>
+            {isSpotBillingOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => fetchTodayVisits(selectedDate)}
+            className="p-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl cursor-pointer transition active:scale-95"
+            title="Refresh Feed"
+          >
+            <RefreshCw className={`w-4 h-4 ${visitsLoading ? 'animate-spin text-rose-500' : ''}`} />
           </button>
         </div>
-      ) : (
-        <div className="bg-gradient-to-r from-rose-500 to-rose-600 rounded-2xl p-5 text-white shadow-md relative overflow-hidden">
-          <div className="absolute -right-10 -bottom-10 opacity-10">
-            <MapPin className="w-40 h-40" />
+      </div>
+
+      {/* 2. LIVE TODAY'S OPERATIONAL KPI METRICS STRIP */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
+        
+        {/* Total Scheduled */}
+        <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-2xs hover:border-slate-300 transition-all">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Total Visits</span>
+            <div className="p-1.5 rounded-lg bg-blue-50 text-blue-600">
+              <Calendar className="w-4 h-4" />
+            </div>
           </div>
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 relative z-10">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 bg-emerald-400 rounded-full animate-ping"></span>
-                <span className="text-[10px] uppercase font-black bg-white/20 px-2 py-0.5 rounded tracking-wider">Active Store Visit</span>
-              </div>
-              <h2 className="text-xl font-black">{getVisitedStoreName()}</h2>
-              <p className="text-xs text-white/80 font-medium">Dealer: {getDealerName()}</p>
-              
-              <div className="flex flex-wrap gap-4 mt-3 text-xs text-white/90">
-                <span className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5" /> Checked In: {new Date(activeVisit.checkInTime).toLocaleTimeString()}</span>
-                <span className="flex items-center gap-1.5"><Map className="w-3.5 h-3.5" /> Coordinates: {activeVisit.latitude?.toFixed(4)}, {activeVisit.longitude?.toFixed(4)}</span>
+          <div className="mt-2 text-2xl font-black text-slate-900 tracking-tight">
+            {todayStats.totalScheduled}
+          </div>
+          <span className="text-[11px] text-slate-400 font-medium">For selected date</span>
+        </div>
+
+        {/* In-Progress (GPS Verified) */}
+        <div className="bg-white border border-amber-200/80 rounded-2xl p-4 shadow-2xs hover:border-amber-300 transition-all bg-gradient-to-b from-amber-50/30 to-white">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-amber-700">In Progress</span>
+            <div className="flex items-center gap-1.5 p-1.5 rounded-lg bg-amber-100 text-amber-700">
+              <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span>
+              <Navigation className="w-3.5 h-3.5" />
+            </div>
+          </div>
+          <div className="mt-2 text-2xl font-black text-amber-600 tracking-tight">
+            {todayStats.inProgressCount}
+          </div>
+          <span className="text-[11px] text-amber-600/80 font-medium">Checked-in on field</span>
+        </div>
+
+        {/* Completed */}
+        <div className="bg-white border border-emerald-200/80 rounded-2xl p-4 shadow-2xs hover:border-emerald-300 transition-all bg-gradient-to-b from-emerald-50/30 to-white">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-700">Completed</span>
+            <div className="p-1.5 rounded-lg bg-emerald-100 text-emerald-700">
+              <CheckCircle2 className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="mt-2 text-2xl font-black text-emerald-600 tracking-tight">
+            {todayStats.completedCount}
+          </div>
+          <span className="text-[11px] text-emerald-600/80 font-medium">Wrapped & reported</span>
+        </div>
+
+        {/* Pending Scheduled */}
+        <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-2xs hover:border-slate-300 transition-all">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Scheduled</span>
+            <div className="p-1.5 rounded-lg bg-slate-100 text-slate-600">
+              <Clock3 className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="mt-2 text-2xl font-black text-slate-800 tracking-tight">
+            {todayStats.pendingCount}
+          </div>
+          <span className="text-[11px] text-slate-400 font-medium">Awaiting arrival</span>
+        </div>
+
+        {/* Today's Orders Booked */}
+        <div className="bg-white border border-rose-200/80 rounded-2xl p-4 shadow-2xs hover:border-rose-300 transition-all bg-gradient-to-b from-rose-50/20 to-white">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-rose-700">Booked Orders</span>
+            <div className="p-1.5 rounded-lg bg-rose-100 text-rose-600">
+              <ShoppingBag className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="mt-2 text-xl font-black text-rose-600 tracking-tight">
+            ₹{todayStats.todayOrderValue.toLocaleString('en-IN')}
+          </div>
+          <span className="text-[11px] text-rose-600/80 font-medium">Primary & secondary</span>
+        </div>
+
+        {/* Collections */}
+        <div className="bg-white border border-emerald-200/80 rounded-2xl p-4 shadow-2xs hover:border-emerald-300 transition-all bg-gradient-to-b from-emerald-50/20 to-white">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-700">Collections</span>
+            <div className="p-1.5 rounded-lg bg-emerald-100 text-emerald-600">
+              <DollarSign className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="mt-2 text-xl font-black text-emerald-600 tracking-tight">
+            ₹{todayStats.todayCollections.toLocaleString('en-IN')}
+          </div>
+          <span className="text-[11px] text-emerald-600/80 font-medium">Cash & online cleared</span>
+        </div>
+
+      </div>
+
+      {/* 3. OPTIONAL DIRECT SPOT CHECK-IN / BILLING ACCORDION */}
+      {isSpotBillingOpen && (
+        <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 transition-all space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-200/80 pb-3">
+            <div className="flex items-center gap-2">
+              <MapPin className="w-5 h-5 text-rose-500" />
+              <div>
+                <h3 className="font-bold text-slate-900 text-sm">Direct Desktop Spot Check-In & Billing Simulation</h3>
+                <p className="text-slate-500 text-xs">Simulate direct visits and immediate invoice generation from Admin portal.</p>
               </div>
             </div>
-
             <button
-              onClick={() => { setActiveTab('checkout'); }}
-              className="bg-white text-rose-600 hover:bg-rose-50 px-5 py-2.5 rounded-xl text-xs font-bold transition shadow-sm active:scale-95"
+              onClick={() => setIsSpotBillingOpen(false)}
+              className="text-slate-400 hover:text-slate-600 text-xs font-semibold cursor-pointer"
             >
-              Finish Visit & Checkout
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Main Content Area */}
-      {activeVisit && (
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          {/* Navigation Tabs (Left Sidebar) */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm h-fit space-y-1">
-            <button
-              onClick={() => { setAdjustingInvoice(null); setActiveTab('pending'); }}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all text-left cursor-pointer ${
-                activeTab === 'pending'
-                  ? 'bg-rose-50 text-rose-700 shadow-sm border border-rose-100/50 font-black'
-                  : 'text-slate-650 hover:bg-slate-50'
-              }`}
-            >
-              <Truck className="w-4.5 h-4.5" />
-              Pending Deliveries
-            </button>
-
-            <button
-              onClick={() => { setAdjustingInvoice(null); setActiveTab('new-bill'); }}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all text-left cursor-pointer ${
-                activeTab === 'new-bill'
-                  ? 'bg-rose-50 text-rose-700 shadow-sm border border-rose-100/50 font-black'
-                  : 'text-slate-650 hover:bg-slate-50'
-              }`}
-            >
-              <PlusCircle className="w-4.5 h-4.5" />
-              Create New Bill
-            </button>
-
-            <button
-              onClick={() => { setAdjustingInvoice(null); setActiveTab('payment'); }}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all text-left cursor-pointer ${
-                activeTab === 'payment'
-                  ? 'bg-rose-50 text-rose-700 shadow-sm border border-rose-100/50 font-black'
-                  : 'text-slate-650 hover:bg-slate-50'
-              }`}
-            >
-              <DollarSign className="w-4.5 h-4.5" />
-              Collect Payments
-            </button>
-
-            <button
-              onClick={() => {
-                if (openInvoices.length > 0) {
-                  startAdjusting(openInvoices[0]);
-                } else {
-                  alert('No open invoices found for this store to adjust.');
-                }
-              }}
-              disabled={openInvoices.length === 0}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all text-left cursor-pointer ${
-                activeTab === 'adjust'
-                  ? 'bg-rose-50 text-rose-700 shadow-sm border border-rose-100/50 font-black'
-                  : 'text-slate-650 hover:bg-slate-50 disabled:opacity-50'
-              }`}
-            >
-              <FileEdit className="w-4.5 h-4.5" />
-              Adjust Bills / Requests
-            </button>
-
-            <button
-              onClick={() => { setAdjustingInvoice(null); setActiveTab('checkout'); }}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all text-left cursor-pointer ${
-                activeTab === 'checkout'
-                  ? 'bg-rose-50 text-rose-700 shadow-sm border border-rose-100/50 font-black'
-                  : 'text-slate-650 hover:bg-slate-50'
-              }`}
-            >
-              <CheckCircle className="w-4.5 h-4.5" />
-              Check-Out Notes
+              Hide Panel
             </button>
           </div>
 
-          {/* Tab Panels (Right Side) */}
-          <div className="lg:col-span-3 space-y-6">
-            
-            {/* Panel 1: Pending Deliveries */}
-            {activeTab === 'pending' && (
-              <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6">
-                <div>
-                  <h3 className="font-black text-slate-800 text-lg">Inventory Deliveries & Fulfillments</h3>
-                  <p className="text-slate-500 text-xs mt-0.5">
-                    Select open bills from previous orders and record the quantities delivered today.
-                  </p>
-                </div>
-
-                {invoicesLoading ? (
-                  <div className="flex flex-col items-center justify-center py-10">
-                    <Loader2 className="w-8 h-8 text-rose-500 animate-spin" />
-                    <p className="text-slate-500 text-xs mt-2">Fetching open bills...</p>
-                  </div>
-                ) : openInvoices.length === 0 ? (
-                  <div className="text-center py-12 text-slate-400 bg-slate-50/50 rounded-xl border border-slate-100">
-                    <FileText className="w-8 h-8 mx-auto mb-2 text-slate-300" />
-                    <p className="text-sm font-semibold">All bills fully fulfilled! No open items pending.</p>
-                  </div>
-                ) : (
-                  <div className="space-y-6">
-                    {openInvoices.map((inv) => {
-                      const hasOpenItems = inv.items.some(i => (i.fulfilledQuantity || 0) < i.quantity);
-                      if (!hasOpenItems) return null;
-
-                      return (
-                        <div key={inv.id} className="border border-slate-200 rounded-xl p-5 space-y-4 shadow-sm bg-slate-50/30">
-                          <div className="flex justify-between items-start flex-wrap gap-2">
-                            <div>
-                              <span className="bg-slate-200 text-slate-800 text-[10px] font-black px-2 py-0.5 rounded tracking-wide uppercase">
-                                Invoice: {inv.invoiceNo}
-                              </span>
-                              <div className="text-slate-500 text-xs mt-1">
-                                Order Date: {new Date(inv.createdAt).toLocaleDateString()}
-                              </div>
-                            </div>
-                            <div className="text-right">
-                              <span className="text-rose-500 font-extrabold text-sm block">₹{inv.totalAmount?.toLocaleString()}</span>
-                              <button
-                                onClick={() => startAdjusting(inv)}
-                                className="text-[10px] font-bold text-rose-500 hover:text-rose-600 underline mt-1 block"
-                              >
-                                Modify Items on this Invoice
-                              </button>
-                            </div>
-                          </div>
-
-                          {/* Items Table */}
-                          <div className="border border-slate-100 rounded-lg bg-white overflow-hidden text-xs">
-                            <table className="w-full text-left border-collapse">
-                              <thead>
-                                <tr className="bg-slate-50 border-b border-slate-100 text-slate-500 font-bold uppercase text-[9px] tracking-wider">
-                                  <th className="p-3">Product Name</th>
-                                  <th className="p-3 text-center">Billed Qty</th>
-                                  <th className="p-3 text-center">Prev Fulfilled</th>
-                                  <th className="p-3 text-center text-rose-500 font-bold">Pending Qty</th>
-                                  <th className="p-3 text-center w-28">Deliver Today</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {inv.items.map((item) => {
-                                  const pendingQty = item.quantity - (item.fulfilledQuantity || 0);
-                                  if (pendingQty <= 0) return null;
-
-                                  return (
-                                    <tr key={item.productId} className="border-b border-slate-50 hover:bg-slate-50/40">
-                                      <td className="p-3 font-semibold text-slate-700">{item.product?.name}</td>
-                                      <td className="p-3 text-center text-slate-500">{item.quantity}</td>
-                                      <td className="p-3 text-center text-slate-500">{item.fulfilledQuantity || 0}</td>
-                                      <td className="p-3 text-center text-rose-500 font-bold">{pendingQty}</td>
-                                      <td className="p-3 text-center">
-                                        <input
-                                          type="number"
-                                          min="0"
-                                          max={pendingQty}
-                                          value={deliveryInputs[inv.id]?.[item.productId] || ''}
-                                          onChange={(e) => handleDeliveryQtyChange(inv.id, item.productId, e.target.value)}
-                                          placeholder="0"
-                                          className="w-16 px-2 py-1 text-center border border-slate-200 rounded-lg text-xs font-bold focus:outline-none focus:ring-1 focus:ring-rose-500"
-                                        />
-                                      </td>
-                                    </tr>
-                                  );
-                                })}
-                              </tbody>
-                            </table>
-                          </div>
-
-                          <div className="text-right">
-                            <button
-                              onClick={() => handleConfirmFulfillment(inv.id)}
-                              disabled={loading}
-                              className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-xs py-2 px-4 rounded-xl shadow-sm transition active:scale-95 cursor-pointer"
-                            >
-                              Confirm Delivered Quantities
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Panel 2: Live Adjustments / Request revisions */}
-            {activeTab === 'adjust' && adjustingInvoice && (
-              <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6">
-                <div className="flex justify-between items-start flex-wrap gap-2">
+          {!activeVisit ? (
+            <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+              <div className="space-y-3 flex-1 w-full">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <h3 className="font-black text-slate-800 text-lg">Adjust Invoice: {adjustingInvoice.invoiceNo}</h3>
-                    <p className="text-slate-500 text-xs mt-0.5">
-                      Add/remove products or edit billed quantities directly on the store's open invoice.
-                    </p>
-                  </div>
-                  <button 
-                    onClick={() => { setAdjustingInvoice(null); setAdjustedItems([]); setActiveTab('pending'); }}
-                    className="text-xs text-rose-500 font-bold hover:underline"
-                  >
-                    Back to Deliveries
-                  </button>
-                </div>
-
-                {/* Add product to adjustment */}
-                <div className="bg-slate-50 border border-slate-100 p-4 rounded-xl space-y-2">
-                  <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wide">Add New Product Request</h4>
-                  <div className="flex gap-3">
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Select Dealer</label>
                     <select
-                      id="adj-prod-select"
-                      defaultValue=""
-                      onChange={(e) => {
-                        if (e.target.value) {
-                          addProductToAdjustment(e.target.value);
-                          e.target.value = '';
-                        }
-                      }}
-                      className="flex-1 px-3 py-2 border border-slate-200 rounded-xl text-xs bg-white focus:outline-none"
+                      value={selectedDealerId}
+                      onChange={(e) => { setSelectedDealerId(e.target.value); setSelectedStoreId(''); }}
+                      className="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-xs bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-rose-500/20"
                     >
-                      <option value="">Choose product to append...</option>
-                      {products.map(p => (
-                        <option key={p.id} value={p.id}>{p.name} (MRP: ₹{p.mrp})</option>
+                      <option value="">Select B2B Dealer...</option>
+                      {dealers.map(d => (
+                        <option key={d.id || d._id} value={d.id || d._id}>{d.companyName}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Select Store / Outlet</label>
+                    <select
+                      value={selectedStoreId}
+                      disabled={!selectedDealerId}
+                      onChange={(e) => setSelectedStoreId(e.target.value)}
+                      className="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-xs bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-rose-500/20 disabled:bg-slate-50 disabled:text-slate-400"
+                    >
+                      <option value="">Select Store Outlet...</option>
+                      {stores.map(s => (
+                        <option key={s.id || s._id} value={s.id || s._id}>{s.name} ({s.city || 'No Area'})</option>
                       ))}
                     </select>
                   </div>
                 </div>
 
-                {/* Adjusted items table */}
-                <div className="border border-slate-100 rounded-xl overflow-hidden text-xs">
-                  <table className="w-full text-left border-collapse">
-                    <thead>
-                      <tr className="bg-slate-50 border-b border-slate-100 text-slate-500 font-bold uppercase text-[9px] tracking-wider">
-                        <th className="p-3">Product Name</th>
-                        <th className="p-3 text-center">Billed Quantity</th>
-                        <th className="p-3 text-center">Margin %</th>
-                        <th className="p-3 text-center w-24">Unit</th>
-                        <th className="p-3 text-center">Remove</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {adjustedItems.map((item) => (
-                        <tr key={item.productId} className="border-b border-slate-50 hover:bg-slate-50/40">
-                          <td className="p-3 font-semibold text-slate-700">{item.productName}</td>
-                          <td className="p-3 text-center">
-                            <div className="inline-flex items-center space-x-2 bg-slate-50 border border-slate-200 rounded-lg p-0.5">
-                              <button 
-                                onClick={() => updateAdjustedQty(item.productId, -1)}
-                                className="p-1 hover:bg-slate-100 text-slate-600 rounded"
-                              >
-                                <Minus className="w-3 h-3" />
-                              </button>
-                              <span className="font-bold w-4 text-center">{item.quantity}</span>
-                              <button 
-                                onClick={() => updateAdjustedQty(item.productId, 1)}
-                                className="p-1 hover:bg-slate-100 text-slate-600 rounded"
-                              >
-                                <Plus className="w-3 h-3" />
-                              </button>
-                            </div>
-                          </td>
-                          <td className="p-3 text-center">
-                            <input 
-                              type="number"
-                              value={item.marginPct}
-                              onChange={(e) => {
-                                const val = parseFloat(e.target.value) || 0;
-                                setAdjustedItems(prev => prev.map(i => i.productId === item.productId ? { ...i, marginPct: val } : i));
-                              }}
-                              className="w-12 px-1.5 py-1 border border-slate-200 rounded text-center font-bold text-xs"
-                            />
-                          </td>
-                          <td className="p-3 text-center">
-                            <select
-                              value={item.unit}
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                setAdjustedItems(prev => prev.map(i => i.productId === item.productId ? { ...i, unit: val } : i));
-                              }}
-                              className="px-2 py-1 border border-slate-200 rounded bg-white text-xs"
-                            >
-                              <option value="PCS">PCS</option>
-                              <option value="CTN">CTN (Cartons)</option>
-                            </select>
-                          </td>
-                          <td className="p-3 text-center">
-                            <button
-                              onClick={() => removeProductFromAdjustment(item.productId)}
-                              className="text-rose-500 hover:text-rose-600"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                {locationError && (
+                  <div className="bg-red-50 text-red-700 p-2.5 rounded-xl border border-red-100 flex items-center gap-2 text-xs font-medium">
+                    <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                    <span>{locationError}</span>
+                  </div>
+                )}
+              </div>
 
-                <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-                  <button
-                    onClick={() => { setAdjustingInvoice(null); setAdjustedItems([]); setActiveTab('pending'); }}
-                    className="px-4 py-2 rounded-xl text-xs font-bold border border-slate-200 hover:bg-slate-50 transition"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleSaveAdjustment}
-                    disabled={loading}
-                    className="bg-rose-500 hover:bg-rose-600 disabled:opacity-50 text-white font-bold text-xs py-2 px-5 rounded-xl shadow-sm transition active:scale-95 flex items-center gap-1.5 cursor-pointer"
-                  >
-                    {loading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                    Save Invoice Changes
-                  </button>
+              <button
+                onClick={handleCheckIn}
+                disabled={locationLoading || !selectedStoreId}
+                className="flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white px-5 py-2.5 rounded-xl font-bold text-xs shadow-xs transition active:scale-95 whitespace-nowrap self-stretch md:self-end cursor-pointer"
+              >
+                {locationLoading ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <MapPin className="w-4 h-4" />
+                )}
+                Verify & Check-In
+              </button>
+            </div>
+          ) : (
+            <div className="bg-gradient-to-r from-rose-500 to-rose-600 rounded-xl p-4 text-white shadow-md flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 bg-emerald-400 rounded-full animate-ping"></span>
+                  <span className="text-[10px] uppercase font-black bg-white/20 px-2 py-0.5 rounded tracking-wider">Active Spot Visit</span>
+                </div>
+                <h2 className="text-lg font-black">{getVisitedStoreName()}</h2>
+                <p className="text-xs text-white/80 font-medium">Dealer: {getDealerName()}</p>
+                <div className="flex flex-wrap gap-3 mt-2 text-[11px] text-white/90">
+                  <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5" /> In: {new Date(activeVisit.checkInTime).toLocaleTimeString()}</span>
+                  <span className="flex items-center gap-1"><Map className="w-3.5 h-3.5" /> Coordinates: {activeVisit.latitude?.toFixed(4)}, {activeVisit.longitude?.toFixed(4)}</span>
                 </div>
               </div>
-            )}
 
-            {/* Panel: Create New Bill */}
-            {activeTab === 'new-bill' && (
-              <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6">
-                <div>
-                  <h3 className="font-black text-slate-800 text-lg">Create New Bill</h3>
-                  <p className="text-slate-500 text-xs mt-0.5">
-                    Generate a new credit bill for the store on the spot during this visit.
-                  </p>
-                </div>
+              <button
+                onClick={() => { setActiveTab('checkout'); }}
+                className="bg-white text-rose-600 hover:bg-rose-50 px-4 py-2 rounded-xl text-xs font-bold transition shadow-xs active:scale-95 cursor-pointer"
+              >
+                Finish Visit & Checkout
+              </button>
+            </div>
+          )}
 
-                {billSuccess && (
-                  <div className="bg-emerald-50 text-emerald-800 p-4 rounded-xl border border-emerald-100 font-medium text-xs">
-                    {billSuccess}
+          {/* Active Spot Visit Tabs & Content */}
+          {activeVisit && (
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 pt-2">
+              <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-xs h-fit space-y-1">
+                <button
+                  onClick={() => { setAdjustingInvoice(null); setActiveTab('pending'); }}
+                  className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-xs font-bold transition-all text-left cursor-pointer ${
+                    activeTab === 'pending'
+                      ? 'bg-rose-50 text-rose-700 border border-rose-100 font-black'
+                      : 'text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  <Truck className="w-4 h-4" />
+                  Pending Deliveries ({openInvoices.length})
+                </button>
+
+                <button
+                  onClick={() => { setAdjustingInvoice(null); setActiveTab('new-bill'); }}
+                  className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-xs font-bold transition-all text-left cursor-pointer ${
+                    activeTab === 'new-bill'
+                      ? 'bg-rose-50 text-rose-700 border border-rose-100 font-black'
+                      : 'text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  <PlusCircle className="w-4 h-4" />
+                  Create New Bill
+                </button>
+
+                <button
+                  onClick={() => { setActiveTab('checkout'); }}
+                  className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-xs font-bold transition-all text-left cursor-pointer ${
+                    activeTab === 'checkout'
+                      ? 'bg-rose-50 text-rose-700 border border-rose-100 font-black'
+                      : 'text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  <CheckCircle className="w-4 h-4" />
+                  Checkout & Payment
+                </button>
+              </div>
+
+              <div className="lg:col-span-3">
+                {activeTab === 'pending' && (
+                  <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs space-y-4">
+                    <h4 className="font-bold text-slate-800 text-sm">Pending Deliveries for {getVisitedStoreName()}</h4>
+                    {openInvoices.length === 0 ? (
+                      <p className="text-xs text-slate-500 py-4 text-center">No open invoices or pending deliveries for this outlet.</p>
+                    ) : (
+                      <div className="space-y-3">
+                        {openInvoices.map(inv => (
+                          <div key={inv.id} className="border border-slate-200 rounded-xl p-4 space-y-3">
+                            <div className="flex justify-between items-center text-xs">
+                              <span className="font-bold text-slate-800">Invoice #{inv.invoiceNo}</span>
+                              <span className="font-bold text-rose-600">₹{inv.totalAmount?.toLocaleString('en-IN')}</span>
+                            </div>
+                            <div className="space-y-2">
+                              {inv.items.map(item => (
+                                <div key={item.productId} className="flex justify-between items-center text-xs bg-slate-50 p-2 rounded-lg">
+                                  <span>{item.productName} ({item.quantity} {item.unit || 'PCS'})</span>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-[11px] text-slate-400">Fulfilled: {item.fulfilledQuantity || 0}</span>
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      max={item.quantity - (item.fulfilledQuantity || 0)}
+                                      placeholder="Qty"
+                                      value={deliveryInputs[inv.id]?.[item.productId] || ''}
+                                      onChange={(e) => handleDeliveryQtyChange(inv.id, item.productId, e.target.value)}
+                                      className="w-16 px-2 py-1 border border-slate-200 rounded text-center text-xs"
+                                    />
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                            <button
+                              onClick={() => handleFulfillDelivery(inv.id)}
+                              className="w-full bg-slate-900 hover:bg-slate-800 text-white py-1.5 rounded-lg text-xs font-bold cursor-pointer transition"
+                            >
+                              Deliver Selected Items
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
 
-                <form onSubmit={handleCreateNewBill} className="space-y-4">
-                  <div className="border border-slate-100 rounded-xl overflow-hidden text-xs max-h-[300px] overflow-y-auto">
-                    <table className="w-full text-left border-collapse">
-                      <thead>
-                        <tr className="bg-slate-50 border-b border-slate-100 text-slate-500 font-bold uppercase text-[9px] tracking-wider">
-                          <th className="p-3">Product Name</th>
-                          <th className="p-3 text-center">MRP (₹)</th>
-                          <th className="p-3 text-center w-24">Quantity</th>
-                          <th className="p-3 text-center w-24">Margin %</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {products.map((p) => (
-                          <tr key={p.id} className="border-b border-slate-50 hover:bg-slate-50/40">
-                            <td className="p-3 font-semibold text-slate-700">{p.name} ({p.packSize || p.size || 'Standard'})</td>
-                            <td className="p-3 text-center text-slate-555">₹{p.mrp}</td>
-                            <td className="p-3 text-center">
-                              <input
-                                type="number"
-                                min="0"
-                                placeholder="0"
-                                value={billQuantities[p.id] || ''}
-                                onChange={(e) => {
-                                  const val = e.target.value;
-                                  setBillQuantities(prev => ({ ...prev, [p.id]: val }));
-                                }}
-                                className="w-16 px-2 py-1 text-center border border-slate-200 rounded-lg text-xs font-bold focus:outline-none focus:ring-1 focus:ring-rose-500"
-                              />
-                            </td>
-                            <td className="p-3 text-center">
-                              <input
-                                type="number"
-                                min="0"
-                                max="100"
-                                step="0.1"
-                                placeholder="10"
-                                value={billMargins[p.id] || ''}
-                                onChange={(e) => {
-                                  const val = e.target.value;
-                                  setBillMargins(prev => ({ ...prev, [p.id]: val }));
-                                }}
-                                className="w-16 px-2 py-1 text-center border border-slate-200 rounded-lg text-xs font-bold focus:outline-none focus:ring-1 focus:ring-rose-500"
-                              />
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div>
-                      <label className="block text-xs font-bold text-slate-550 mb-1">Shipping Charges (₹)</label>
-                      <input
-                        type="number"
-                        min="0"
-                        placeholder="0"
-                        value={billShipping}
-                        onChange={e => setBillShipping(e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none"
-                      />
+                {activeTab === 'new-bill' && (
+                  <form onSubmit={handleCreateNewBill} className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs space-y-4">
+                    <h4 className="font-bold text-slate-800 text-sm">Generate Spot Bill</h4>
+                    {billSuccess && (
+                      <div className="p-3 bg-emerald-50 text-emerald-800 rounded-xl text-xs font-medium border border-emerald-100">
+                        {billSuccess}
+                      </div>
+                    )}
+                    <div className="max-h-60 overflow-y-auto space-y-2 pr-1">
+                      {products.map(p => (
+                        <div key={p.id} className="flex items-center justify-between p-2.5 bg-slate-50 rounded-xl text-xs">
+                          <div>
+                            <span className="font-bold text-slate-800">{p.name}</span>
+                            <span className="text-slate-400 ml-2">MRP: ₹{p.mrp}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="number"
+                              min="0"
+                              placeholder="Qty"
+                              value={billQuantities[p.id] || ''}
+                              onChange={(e) => setBillQuantities(prev => ({ ...prev, [p.id]: e.target.value }))}
+                              className="w-16 px-2 py-1 border border-slate-200 rounded-lg text-center text-xs"
+                            />
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                    <div>
-                      <label className="block text-xs font-bold text-slate-550 mb-1">Negotiated Discount (₹)</label>
-                      <input
-                        type="number"
-                        min="0"
-                        placeholder="0"
-                        value={billDiscount}
-                        onChange={e => setBillDiscount(e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none"
-                      />
-                    </div>
-                    <div className="flex items-center space-x-2 pt-5">
-                      <input
-                        type="checkbox"
-                        id="billIsGst"
-                        checked={billIsGst}
-                        onChange={e => setBillIsGst(e.target.checked)}
-                        className="w-4 h-4 text-rose-600 border-slate-300 rounded focus:ring-rose-500"
-                      />
-                      <label htmlFor="billIsGst" className="text-xs font-bold text-slate-700 cursor-pointer">Enable GST Billing</label>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-550 mb-1">Invoice Notes</label>
-                    <input
-                      type="text"
-                      placeholder="Special instructions or notes"
-                      value={billNotes}
-                      onChange={e => setBillNotes(e.target.value)}
-                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none"
-                    />
-                  </div>
-
-                  <div className="flex justify-end pt-4 border-t border-slate-100">
                     <button
                       type="submit"
                       disabled={loading}
-                      className="bg-rose-650 hover:bg-rose-700 disabled:opacity-50 text-white font-bold text-xs py-2.5 px-6 rounded-xl shadow-md transition active:scale-95 flex items-center gap-1.5 cursor-pointer"
+                      className="w-full bg-rose-500 hover:bg-rose-600 text-white py-2 rounded-xl text-xs font-bold cursor-pointer transition"
                     >
-                      {loading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                      Generate B2C Store Bill
+                      {loading ? 'Creating...' : 'Generate Bill for Store'}
                     </button>
-                  </div>
-                </form>
-              </div>
-            )}
+                  </form>
+                )}
 
-            {/* Panel: Collect Payments */}
-            {activeTab === 'payment' && (
-              <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6">
-                <div>
-                  <h3 className="font-black text-slate-800 text-lg">Collect Pending Payments</h3>
-                  <p className="text-slate-500 text-xs mt-0.5">
-                    Log payments collected during this visit. They will automatically be applied to clear the store's oldest open invoices first.
-                  </p>
-                </div>
-
-                {/* Open Invoices Outstanding Balances */}
-                <div className="bg-slate-50 border border-slate-150 p-4 rounded-xl space-y-3">
-                  <h4 className="text-xs font-black text-slate-800 uppercase tracking-wide">Outstanding Bills Summary</h4>
-                  {openInvoices.length === 0 ? (
-                    <p className="text-emerald-700 text-xs font-bold">✓ This store currently has no outstanding bills.</p>
-                  ) : (
-                    <div className="space-y-2 max-h-48 overflow-y-auto">
-                      {openInvoices.map((inv) => (
-                        <div key={inv.id} className="flex justify-between items-center text-xs text-slate-650 bg-white p-2 rounded-lg border border-slate-100">
-                          <span>{inv.invoiceNo} ({new Date(inv.createdAt).toLocaleDateString()})</span>
-                          <strong className="text-rose-600 font-extrabold">₹{parseFloat(inv.totalAmount || 0).toFixed(2)}</strong>
-                        </div>
-                      ))}
-                      <div className="flex justify-between items-center pt-2 border-t border-slate-200 font-black text-slate-800 text-xs">
-                        <span>Total Pending Balance:</span>
-                        <span className="text-rose-600 text-sm">
-                          ₹{openInvoices.reduce((sum, inv) => sum + (parseFloat(inv.totalAmount) || 0), 0).toFixed(2)}
-                        </span>
+                {activeTab === 'checkout' && (
+                  <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs space-y-4">
+                    <h4 className="font-bold text-slate-800 text-sm">Wrap-Up & Check-Out</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                      <div>
+                        <label className="block font-bold text-slate-700 mb-1">Collection Amount (₹)</label>
+                        <input
+                          type="number"
+                          placeholder="e.g. 5000"
+                          value={paymentAmount}
+                          onChange={(e) => setPaymentAmount(e.target.value)}
+                          className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="block font-bold text-slate-700 mb-1">Payment Method</label>
+                        <select
+                          value={paymentMethod}
+                          onChange={(e) => setPaymentMethod(e.target.value)}
+                          className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs"
+                        >
+                          <option value="CASH">Cash</option>
+                          <option value="ONLINE">Online / UPI</option>
+                        </select>
                       </div>
                     </div>
-                  )}
-                </div>
-
-                <div className="space-y-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Collected Amount (₹)</label>
-                      <input
-                        type="number"
-                        min="0"
-                        placeholder="e.g. 500"
-                        value={paymentAmount}
-                        onChange={e => setPaymentAmount(e.target.value)}
-                        className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
-                      />
+                      <label className="block font-bold text-slate-700 mb-1 text-xs">Visit Outcome Notes</label>
+                      <textarea
+                        rows="3"
+                        value={checkoutOutcome}
+                        onChange={(e) => setCheckoutOutcome(e.target.value)}
+                        placeholder="Details of delivery, shop keeper interaction, stock status..."
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs"
+                      ></textarea>
                     </div>
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Payment Method</label>
-                      <select
-                        value={paymentMethod}
-                        onChange={e => setPaymentMethod(e.target.value)}
-                        className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 bg-white"
-                      >
-                        <option value="CASH">CASH</option>
-                        <option value="ONLINE">ONLINE / UPI</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  {paymentAmount && parseFloat(paymentAmount) > 0 && (
-                    <div className="bg-emerald-50 border border-emerald-100 text-emerald-800 p-3.5 rounded-xl text-xs font-bold">
-                      ✓ ₹{parseFloat(paymentAmount).toFixed(2)} will be cleared from outstanding bills FIFO-style upon visit checkout.
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Panel 3: Checkout notes */}
-            {activeTab === 'checkout' && (
-              <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6">
-                <div>
-                  <h3 className="font-black text-slate-800 text-lg">Check-Out of Store Visit</h3>
-                  <p className="text-slate-500 text-xs mt-0.5">
-                    Mandatory visit wrap-up. Input the results, outcomes, or notes from today's physical check-in.
-                  </p>
-                </div>
-
-                <div className="space-y-4">
-                  {/* Summary of what has been configured during visit */}
-                  <div className="bg-slate-50 p-4 rounded-xl space-y-2 border border-slate-100 text-xs">
-                    <h4 className="font-bold text-slate-700 uppercase tracking-wider text-[10px]">Visit Configuration Summary</h4>
-                    <ul className="space-y-1 text-slate-650">
-                      <li>• Payments Logged: <strong className="text-slate-800">{paymentAmount ? `₹${parseFloat(paymentAmount).toFixed(2)} (${paymentMethod})` : 'None'}</strong></li>
-                      <li>• New Bill Created: <strong className="text-slate-800">{generatedInvoiceId ? 'Yes (Invoice ID Linked)' : 'No'}</strong></li>
-                    </ul>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Next Revisit Date</label>
-                      <input
-                        type="date"
-                        value={revisitDate}
-                        onChange={e => setRevisitDate(e.target.value)}
-                        className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Visit Outcome Notes</label>
-                    <textarea
-                      rows="4"
-                      value={checkoutOutcome}
-                      onChange={(e) => setCheckoutOutcome(e.target.value)}
-                      placeholder="e.g. Delivered 5 pieces of Porridge mix. Store requested 10 more boxes next week. Stall operator is doing well, customer traffic is high."
-                      required
-                      className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
-                    ></textarea>
-                  </div>
-
-                  <div className="flex justify-end pt-4 border-t border-slate-100">
                     <button
                       onClick={handleCheckOut}
                       disabled={loading}
-                      className="bg-rose-500 hover:bg-rose-600 disabled:opacity-50 text-white font-bold text-xs py-3 px-6 rounded-xl shadow-sm transition active:scale-95 flex items-center gap-1.5 cursor-pointer"
+                      className="w-full bg-rose-500 hover:bg-rose-600 text-white py-2.5 rounded-xl text-xs font-bold cursor-pointer transition"
                     >
-                      {loading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                      Verify Coordinates & Check-Out
+                      {loading ? 'Processing Checkout...' : 'Confirm Checkout & Close Visit'}
                     </button>
                   </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 4. TODAY'S VISITS FEED: CONTROLS & FILTER TOOLBAR */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs space-y-4">
+        
+        {/* Row 1: Date Navigator & Rep Filter */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+          
+          {/* Date Selector */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+              <Calendar className="w-4 h-4 text-rose-500" />
+              Visit Date:
+            </span>
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="px-3 py-1.5 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-rose-500/20"
+            />
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => handleQuickDate(-1)}
+                className="px-2.5 py-1.5 text-[11px] font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg cursor-pointer transition"
+              >
+                Yesterday
+              </button>
+              <button
+                type="button"
+                onClick={() => handleQuickDate(0)}
+                className={`px-2.5 py-1.5 text-[11px] font-bold rounded-lg cursor-pointer transition ${
+                  selectedDate === new Date().toISOString().split('T')[0]
+                    ? 'bg-rose-500 text-white'
+                    : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+                }`}
+              >
+                Today
+              </button>
+              <button
+                type="button"
+                onClick={() => handleQuickDate(1)}
+                className="px-2.5 py-1.5 text-[11px] font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg cursor-pointer transition"
+              >
+                Tomorrow
+              </button>
+            </div>
+          </div>
+
+          {/* Rep Filter & Search */}
+          <div className="flex flex-wrap items-center gap-2.5">
+            <div className="flex items-center gap-1.5">
+              <UserCheck className="w-4 h-4 text-slate-400" />
+              <select
+                value={selectedRepFilter}
+                onChange={(e) => setSelectedRepFilter(e.target.value)}
+                className="px-3 py-1.5 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-rose-500/20"
+              >
+                <option value="ALL">All Sales Executives ({salesTeam.length})</option>
+                {salesTeam.map(item => (
+                  <option key={item.user?._id} value={item.user?._id}>
+                    {item.user?.name} {item.profile?.employeeCode ? `(${item.profile.employeeCode})` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search store, rep, dealer, city..."
+                className="pl-8 pr-3 py-1.5 border border-slate-200 rounded-xl text-xs w-52 sm:w-64 focus:outline-none focus:ring-2 focus:ring-rose-500/20"
+              />
+            </div>
+          </div>
+
+        </div>
+
+        {/* Row 2: Status Tabs */}
+        <div className="flex items-center gap-1.5 border-t border-slate-100 pt-3 overflow-x-auto pb-1">
+          {[
+            { id: 'ALL', label: 'All Scheduled', count: todayStats.totalScheduled },
+            { id: 'SCHEDULED', label: 'Awaiting Arrival', count: todayStats.pendingCount },
+            { id: 'IN_PROGRESS', label: 'In Progress (GPS)', count: todayStats.inProgressCount },
+            { id: 'COMPLETED', label: 'Completed', count: todayStats.completedCount },
+            { id: 'CANCELLED', label: 'Missed / Cancelled', count: todayStats.cancelledCount }
+          ].map(tab => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setSelectedStatusTab(tab.id)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                selectedStatusTab === tab.id
+                  ? 'bg-slate-900 text-white shadow-xs'
+                  : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              <span>{tab.label}</span>
+              <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
+                selectedStatusTab === tab.id ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
+              }`}>
+                {tab.count}
+              </span>
+            </button>
+          ))}
+        </div>
+
+      </div>
+
+      {/* 5. TODAY'S VISITS FEED TABLE / BOARD */}
+      <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
+        
+        {visitsLoading ? (
+          <div className="p-12 text-center space-y-3">
+            <Loader2 className="w-8 h-8 text-rose-500 animate-spin mx-auto" />
+            <p className="text-xs font-bold text-slate-500">Loading today's field sales visits...</p>
+          </div>
+        ) : filteredVisits.length === 0 ? (
+          <div className="p-12 text-center space-y-3">
+            <div className="w-14 h-14 rounded-2xl bg-rose-50 text-rose-500 flex items-center justify-center mx-auto">
+              <StoreIcon className="w-7 h-7" />
+            </div>
+            <h3 className="font-black text-slate-800 text-base">No store visits found for this selection</h3>
+            <p className="text-slate-500 text-xs max-w-md mx-auto">
+              There are no allocated store visits matching this date and status filter. Click below to assign visits to your field sales team.
+            </p>
+            <button
+              type="button"
+              onClick={() => handleOpenAllocateModal()}
+              className="mt-2 bg-slate-900 hover:bg-slate-800 text-white font-bold px-4 py-2 rounded-xl text-xs inline-flex items-center gap-2 cursor-pointer shadow-xs active:scale-95 transition"
+            >
+              <PlusCircle className="w-4 h-4 text-amber-400" />
+              <span>Allocate Visit to Salesperson</span>
+            </button>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="bg-slate-50/80 border-b border-slate-200/80 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                  <th className="py-3.5 px-4">Store / Outlet</th>
+                  <th className="py-3.5 px-4">Assigned Executive</th>
+                  <th className="py-3.5 px-4">Timing & Status</th>
+                  <th className="py-3.5 px-4">Purpose & Priority</th>
+                  <th className="py-3.5 px-4">GPS Verification</th>
+                  <th className="py-3.5 px-4 text-right">Commercials</th>
+                  <th className="py-3.5 px-4 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filteredVisits.map((visit) => {
+                  const store = visit.storeId;
+                  const rep = visit.salespersonId;
+                  const dealer = visit.dealerId;
+                  const isLive = visit.status === 'IN_PROGRESS' || (visit.checkInTime && !visit.checkOutTime);
+                  const isDone = visit.status === 'COMPLETED' || (visit.checkOutTime && visit.outcome);
+                  const isScheduled = visit.status === 'SCHEDULED' && !visit.checkInTime;
+
+                  return (
+                    <tr key={visit._id || visit.id} className="hover:bg-slate-50/60 transition-colors">
+                      
+                      {/* Outlet Info */}
+                      <td className="py-3 px-4">
+                        <div className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
+                          <StoreIcon className="w-3.5 h-3.5 text-rose-500 flex-shrink-0" />
+                          <span>{store?.name || 'Retail Outlet'}</span>
+                        </div>
+                        <div className="text-[11px] text-slate-400 mt-0.5">
+                          {store?.city || store?.address || 'Area unassigned'}
+                        </div>
+                        {dealer?.companyName && (
+                          <span className="inline-block mt-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-600">
+                            Dealer: {dealer.companyName}
+                          </span>
+                        )}
+                      </td>
+
+                      {/* Assigned Executive */}
+                      <td className="py-3 px-4">
+                        <div className="font-bold text-slate-800 text-xs flex items-center gap-1.5">
+                          <User className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
+                          <span>{rep?.name || visit.visitorName || 'Unassigned Rep'}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          {visit.salespersonProfile?.employeeCode ? (
+                            <span className="text-[10px] font-black px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200/50">
+                              {visit.salespersonProfile.employeeCode}
+                            </span>
+                          ) : (
+                            <span className="text-[10px] text-slate-400">Field Exec</span>
+                          )}
+                          {rep?.phone && (
+                            <span className="text-[10px] text-slate-400 font-mono flex items-center gap-0.5">
+                              <Phone className="w-2.5 h-2.5" /> {rep.phone}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+
+                      {/* Timings & Status */}
+                      <td className="py-3 px-4">
+                        <div className="flex items-center gap-1.5">
+                          {isLive ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black bg-amber-100 text-amber-800 border border-amber-200">
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping"></span>
+                              IN PROGRESS
+                            </span>
+                          ) : isDone ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-200">
+                              <Check className="w-3 h-3" />
+                              COMPLETED
+                            </span>
+                          ) : visit.status === 'CANCELLED' ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black bg-red-100 text-red-800">
+                              CANCELLED
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black bg-blue-50 text-blue-700 border border-blue-200/60">
+                              <Clock className="w-3 h-3" />
+                              SCHEDULED
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="text-[11px] text-slate-500 mt-1 space-y-0.5">
+                          {visit.checkInTime && (
+                            <div>In: <strong className="text-slate-700">{new Date(visit.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</strong></div>
+                          )}
+                          {visit.checkOutTime && (
+                            <div>Out: <strong className="text-slate-700">{new Date(visit.checkOutTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</strong></div>
+                          )}
+                        </div>
+                      </td>
+
+                      {/* Purpose & Priority */}
+                      <td className="py-3 px-4">
+                        <div className="flex items-center gap-1.5">
+                          <span className={`text-[10px] font-black px-2 py-0.5 rounded uppercase tracking-wider ${
+                            visit.priority === 'URGENT' 
+                              ? 'bg-rose-100 text-rose-700 border border-rose-200' 
+                              : visit.priority === 'HIGH'
+                              ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                              : 'bg-slate-100 text-slate-700'
+                          }`}>
+                            {visit.priority || 'NORMAL'}
+                          </span>
+                        </div>
+                        <div className="font-semibold text-slate-800 text-xs mt-1">
+                          {visit.purpose}
+                        </div>
+                        {visit.remarks && (
+                          <div className="text-[11px] text-slate-400 truncate max-w-xs" title={visit.remarks}>
+                            "{visit.remarks}"
+                          </div>
+                        )}
+                      </td>
+
+                      {/* GPS Verification */}
+                      <td className="py-3 px-4">
+                        {visit.latitude && visit.longitude ? (
+                          <div>
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200/60">
+                              <ShieldCheck className="w-3 h-3 text-emerald-600" />
+                              GPS Verified
+                            </span>
+                            <div className="text-[10px] font-mono text-slate-400 mt-0.5">
+                              {visit.latitude.toFixed(4)}°, {visit.longitude.toFixed(4)}°
+                            </div>
+                            <a
+                              href={`https://www.google.com/maps?q=${visit.latitude},${visit.longitude}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-[10px] text-rose-600 hover:text-rose-700 font-bold inline-flex items-center gap-0.5 mt-0.5"
+                            >
+                              View on Map <ExternalLink className="w-2.5 h-2.5" />
+                            </a>
+                          </div>
+                        ) : (
+                          <span className="text-[11px] text-slate-400 italic">
+                            Pending check-in
+                          </span>
+                        )}
+                      </td>
+
+                      {/* Commercial Output */}
+                      <td className="py-3 px-4 text-right">
+                        <div>
+                          <span className="text-[11px] text-slate-400">Order: </span>
+                          <span className="font-bold text-slate-800">
+                            {visit.orderValue > 0 ? `₹${visit.orderValue.toLocaleString('en-IN')}` : '₹0'}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-[11px] text-slate-400">Collected: </span>
+                          <span className="font-bold text-emerald-600">
+                            {visit.paymentsCollected > 0 ? `₹${visit.paymentsCollected.toLocaleString('en-IN')}` : '₹0'}
+                          </span>
+                        </div>
+                        {visit.paymentMethod && visit.paymentMethod !== 'NONE' && (
+                          <span className="text-[10px] font-bold text-slate-500 uppercase">
+                            ({visit.paymentMethod})
+                          </span>
+                        )}
+                      </td>
+
+                      {/* Actions */}
+                      <td className="py-3 px-4 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedVisitDossier(visit)}
+                            className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs inline-flex items-center gap-1 cursor-pointer transition"
+                            title="View Complete Visit Dossier"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            <span className="hidden sm:inline">Details</span>
+                          </button>
+
+                          {visit.status === 'SCHEDULED' && (
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateVisitStatus(visit._id || visit.id, 'CANCELLED')}
+                              className="p-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 font-bold text-[11px] cursor-pointer transition"
+                              title="Cancel Visit"
+                            >
+                              Cancel
+                            </button>
+                          )}
+
+                          {visit.status === 'IN_PROGRESS' && (
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateVisitStatus(visit._id || visit.id, 'COMPLETED')}
+                              className="p-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-[11px] cursor-pointer transition"
+                              title="Mark Completed"
+                            >
+                              Complete
+                            </button>
+                          )}
+                        </div>
+                      </td>
+
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+      </div>
+
+      {/* ======================================================== */}
+      {/* 6. ALLOCATION MODAL: ASSIGN STORE VISIT TO SALESPERSON   */}
+      {/* ======================================================== */}
+      {isAllocateModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-xl w-full p-6 shadow-2xl border border-slate-200 space-y-5 animate-in fade-in zoom-in-95 duration-150">
+            
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-rose-500 to-amber-500 text-white flex items-center justify-center shadow-sm">
+                  <Truck className="w-4.5 h-4.5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-slate-900 text-base">Allocate Store Visit</h3>
+                  <p className="text-slate-500 text-xs">Assign target retail outlet visit to a sales executive.</p>
                 </div>
               </div>
-            )}
+              <button
+                type="button"
+                onClick={() => setIsAllocateModalOpen(false)}
+                className="p-2 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Form */}
+            <form onSubmit={handleAllocateSubmit} className="space-y-4">
+              
+              {/* Field 1: Salesperson */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Assigned Sales Executive <span className="text-rose-500">*</span>
+                </label>
+                <select
+                  required
+                  value={allocationForm.salespersonId}
+                  onChange={(e) => setAllocationForm(prev => ({ ...prev, salespersonId: e.target.value }))}
+                  className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-rose-500/20"
+                >
+                  <option value="">Select Sales Representative...</option>
+                  {salesTeam.map(item => (
+                    <option key={item.user?._id} value={item.user?._id}>
+                      {item.user?.name} {item.profile?.employeeCode ? `[${item.profile.employeeCode}]` : ''} - {item.profile?.designation || 'Field Exec'}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Field 2 & 3: Dealer & Store Outlet */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                    Filter By Dealer (Optional)
+                  </label>
+                  <select
+                    value={allocationForm.dealerId}
+                    onChange={(e) => setAllocationForm(prev => ({ ...prev, dealerId: e.target.value, storeId: '' }))}
+                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-rose-500/20"
+                  >
+                    <option value="">All Approved Dealers...</option>
+                    {dealers.map(d => (
+                      <option key={d.id || d._id} value={d.id || d._id}>{d.companyName}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                    Target Store / Outlet <span className="text-rose-500">*</span>
+                  </label>
+                  <select
+                    required
+                    value={allocationForm.storeId}
+                    onChange={(e) => setAllocationForm(prev => ({ ...prev, storeId: e.target.value }))}
+                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-rose-500/20"
+                  >
+                    <option value="">Select Target Store...</option>
+                    {allocationStoreOptions.map(s => (
+                      <option key={s.id || s._id} value={s.id || s._id}>
+                        {s.name} ({s.city || 'Tamil Nadu'})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Field 4 & 5: Scheduled Date & Purpose */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                    Scheduled Visit Date <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={allocationForm.scheduledDate}
+                    onChange={(e) => setAllocationForm(prev => ({ ...prev, scheduledDate: e.target.value }))}
+                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-rose-500/20"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                    Visit Purpose <span className="text-rose-500">*</span>
+                  </label>
+                  <select
+                    required
+                    value={allocationForm.purpose}
+                    onChange={(e) => setAllocationForm(prev => ({ ...prev, purpose: e.target.value }))}
+                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-rose-500/20"
+                  >
+                    <option value="Order Booking & Stock Audit">Order Booking & Stock Audit</option>
+                    <option value="Payment Collection & Reconciliation">Payment Collection & Reconciliation</option>
+                    <option value="New Product Sampling & Launch">New Product Sampling & Launch</option>
+                    <option value="Routine Beat Route Visit">Routine Beat Route Visit</option>
+                    <option value="Customer Relationship & Feedback">Customer Relationship & Feedback</option>
+                    <option value="Dispute & Return Resolution">Dispute & Return Resolution</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Field 6: Priority */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Visit Priority
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { id: 'NORMAL', label: 'Normal', color: 'border-slate-300 text-slate-700' },
+                    { id: 'HIGH', label: 'High Priority', color: 'border-amber-400 text-amber-700 bg-amber-50/50' },
+                    { id: 'URGENT', label: 'Urgent', color: 'border-rose-400 text-rose-700 bg-rose-50/50' }
+                  ].map(p => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => setAllocationForm(prev => ({ ...prev, priority: p.id }))}
+                      className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all cursor-pointer text-center ${
+                        allocationForm.priority === p.id 
+                          ? 'border-slate-900 bg-slate-900 text-white shadow-xs font-black' 
+                          : p.color
+                      }`}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Field 7: Instructions / Remarks */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Special Instructions / Admin Remarks
+                </label>
+                <textarea
+                  rows="3"
+                  value={allocationForm.remarks}
+                  onChange={(e) => setAllocationForm(prev => ({ ...prev, remarks: e.target.value }))}
+                  placeholder="e.g. Verify stock levels of Peanut Candies, collect overdue payment of ₹8,000, and introduce newly launched roasted snacks SKU."
+                  className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-rose-500/20"
+                ></textarea>
+              </div>
+
+              {/* Actions */}
+              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsAllocateModalOpen(false)}
+                  className="px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={allocationSubmitting}
+                  className="bg-gradient-to-r from-rose-600 to-amber-500 hover:from-rose-500 hover:to-amber-400 text-white font-bold px-5 py-2.5 rounded-xl text-xs flex items-center gap-2 cursor-pointer shadow-md shadow-rose-500/20 active:scale-95 transition"
+                >
+                  {allocationSubmitting ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Allocating...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Confirm & Allocate Visit</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+            </form>
 
           </div>
         </div>
       )}
+
+      {/* ======================================================== */}
+      {/* 7. VISIT DOSSIER MODAL: COMPLETE VISIT AUDIT BREAKDOWN    */}
+      {/* ======================================================== */}
+      {selectedVisitDossier && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl border border-slate-200 space-y-5 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
+            
+            {/* Dossier Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-rose-500">
+                  Store Visit Dossier #{(selectedVisitDossier._id || selectedVisitDossier.id)?.slice(-6).toUpperCase()}
+                </span>
+                <h3 className="font-black text-slate-900 text-lg">
+                  {selectedVisitDossier.storeId?.name || 'Retail Outlet'}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedVisitDossier(null)}
+                className="p-2 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Dossier Body */}
+            <div className="space-y-4 text-xs">
+              
+              {/* Executive & Outlet Banner */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                <div>
+                  <span className="text-[10px] font-bold uppercase text-slate-400">Assigned Executive</span>
+                  <div className="font-black text-slate-900 text-sm mt-0.5">
+                    {selectedVisitDossier.salespersonId?.name || selectedVisitDossier.visitorName}
+                  </div>
+                  <div className="text-slate-500 text-[11px] mt-0.5">
+                    {selectedVisitDossier.salespersonProfile?.employeeCode && (
+                      <span className="font-bold text-amber-700 mr-2">[{selectedVisitDossier.salespersonProfile.employeeCode}]</span>
+                    )}
+                    {selectedVisitDossier.salespersonId?.phone || 'No phone'}
+                  </div>
+                </div>
+
+                <div>
+                  <span className="text-[10px] font-bold uppercase text-slate-400">Outlet Location</span>
+                  <div className="font-black text-slate-900 text-sm mt-0.5">
+                    {selectedVisitDossier.storeId?.city || 'Tamil Nadu'}
+                  </div>
+                  <div className="text-slate-500 text-[11px] mt-0.5">
+                    Dealer: <strong className="text-slate-700">{selectedVisitDossier.dealerId?.companyName || 'Direct'}</strong>
+                  </div>
+                </div>
+              </div>
+
+              {/* Lifecycle & Verification Status */}
+              <div className="border border-slate-200 rounded-2xl p-4 space-y-3">
+                <h4 className="font-bold text-slate-800 uppercase tracking-wider text-[11px]">
+                  Lifecycle & GPS Verification
+                </h4>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+                  <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                    <span className="text-[10px] font-bold uppercase text-slate-400">Status</span>
+                    <div className="font-black text-slate-800 text-xs mt-1">
+                      {selectedVisitDossier.status || 'SCHEDULED'}
+                    </div>
+                  </div>
+                  <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                    <span className="text-[10px] font-bold uppercase text-slate-400">Scheduled Date</span>
+                    <div className="font-bold text-slate-800 text-xs mt-1">
+                      {selectedVisitDossier.scheduledDate ? new Date(selectedVisitDossier.scheduledDate).toLocaleDateString() : 'Today'}
+                    </div>
+                  </div>
+                  <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                    <span className="text-[10px] font-bold uppercase text-slate-400">Check-In Time</span>
+                    <div className="font-bold text-slate-800 text-xs mt-1">
+                      {selectedVisitDossier.checkInTime ? new Date(selectedVisitDossier.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}
+                    </div>
+                  </div>
+                  <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                    <span className="text-[10px] font-bold uppercase text-slate-400">Check-Out Time</span>
+                    <div className="font-bold text-slate-800 text-xs mt-1">
+                      {selectedVisitDossier.checkOutTime ? new Date(selectedVisitDossier.checkOutTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}
+                    </div>
+                  </div>
+                </div>
+
+                {selectedVisitDossier.latitude && selectedVisitDossier.longitude && (
+                  <div className="bg-emerald-50/60 border border-emerald-200/60 p-3 rounded-xl flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <ShieldCheck className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                      <span className="font-mono text-emerald-800 text-xs">
+                        GPS Check-In: {selectedVisitDossier.latitude.toFixed(5)}° N, {selectedVisitDossier.longitude.toFixed(5)}° E
+                      </span>
+                    </div>
+                    <a
+                      href={`https://www.google.com/maps?q=${selectedVisitDossier.latitude},${selectedVisitDossier.longitude}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-emerald-700 hover:text-emerald-900 font-bold text-xs inline-flex items-center gap-1"
+                    >
+                      Open in Maps <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </div>
+                )}
+              </div>
+
+              {/* Purpose & Outcome */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="border border-slate-200 rounded-2xl p-4 space-y-1.5">
+                  <span className="text-[10px] font-bold uppercase text-slate-400">Admin Instructions</span>
+                  <p className="text-slate-700 font-medium">
+                    {selectedVisitDossier.remarks || 'No special instructions specified.'}
+                  </p>
+                </div>
+                <div className="border border-slate-200 rounded-2xl p-4 space-y-1.5">
+                  <span className="text-[10px] font-bold uppercase text-slate-400">Field Outcome Notes</span>
+                  <p className="text-slate-700 font-medium">
+                    {selectedVisitDossier.outcome || 'Visit pending completion by salesperson.'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Financial Output */}
+              <div className="bg-gradient-to-r from-slate-900 to-slate-800 rounded-2xl p-4 text-white flex justify-between items-center">
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-slate-400">Order Value Booked</span>
+                  <div className="text-xl font-black text-white">
+                    ₹{(selectedVisitDossier.orderValue || 0).toLocaleString('en-IN')}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <span className="text-[10px] uppercase font-bold text-slate-400">Payments Collected</span>
+                  <div className="text-xl font-black text-emerald-400">
+                    ₹{(selectedVisitDossier.paymentsCollected || 0).toLocaleString('en-IN')}
+                  </div>
+                  {selectedVisitDossier.paymentMethod && (
+                    <span className="text-[10px] text-slate-300 uppercase">
+                      ({selectedVisitDossier.paymentMethod})
+                    </span>
+                  )}
+                </div>
+              </div>
+
+            </div>
+
+            {/* Dossier Footer */}
+            <div className="flex justify-end pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setSelectedVisitDossier(null)}
+                className="bg-slate-900 hover:bg-slate-800 text-white font-bold px-5 py-2.5 rounded-xl text-xs cursor-pointer"
+              >
+                Close Dossier
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

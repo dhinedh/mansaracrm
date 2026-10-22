@@ -36,7 +36,7 @@ const UserSchema = new Schema({
   password: { type: String, required: true },
   name: { type: String, required: true },
   phone: { type: String },
-  role: { type: String, enum: ['ADMIN', 'DEALER'], default: 'DEALER' },
+  role: { type: String, enum: ['ADMIN', 'DEALER', 'SALESPERSON'], default: 'DEALER' },
   staffRole: { type: String, enum: ['ADMIN', 'ECOM_MANAGER', 'B2B_MANAGER', 'SUPPORT_AGENT', 'FINANCE_OFFICER', 'VIEWER'], default: 'ADMIN' },
   isActive: { type: Boolean, default: true },
   lastLogin: { type: Date },
@@ -475,6 +475,7 @@ const MarginSchema = new Schema({
   dealerId: { type: Schema.Types.ObjectId, ref: 'Dealer' },
   storeId: { type: Schema.Types.ObjectId, ref: 'Store' },
   productId: { type: Schema.Types.ObjectId, ref: 'Product' },
+  salespersonId: { type: Schema.Types.ObjectId, ref: 'User' },
   categoryId: { type: String },
   marginPercent: { type: Number, required: true },
   isDefault: { type: Boolean, default: false },
@@ -570,6 +571,13 @@ MarginSchema.virtual('store', {
 MarginSchema.virtual('product', {
   ref: 'Product',
   localField: 'productId',
+  foreignField: '_id',
+  justOne: true
+});
+
+MarginSchema.virtual('salesperson', {
+  ref: 'User',
+  localField: 'salespersonId',
   foreignField: '_id',
   justOne: true
 });
@@ -727,20 +735,31 @@ const VisitSchema = new Schema({
   leadId: { type: Schema.Types.ObjectId, ref: 'Lead' },
   dealerId: { type: Schema.Types.ObjectId, ref: 'Dealer' },
   storeId: { type: Schema.Types.ObjectId, ref: 'Store' },
-  visitorName: { type: String, required: true },
+  salespersonId: { type: Schema.Types.ObjectId, ref: 'User' },
+  visitorName: { type: String, default: 'Field Sales Executive' },
   purpose: { type: String, required: true },
   outcome: { type: String },
   remarks: { type: String, default: '' },
   photos: [{ type: String }],
   latitude: { type: Number },
   longitude: { type: Number },
+  checkOutLatitude: { type: Number },
+  checkOutLongitude: { type: Number },
   checkInTime: { type: Date },
   checkOutTime: { type: Date },
+  durationMinutes: { type: Number, default: 0 },
   verified: { type: Boolean, default: false },
   date: { type: Date, default: Date.now },
+  status: { type: String, enum: ['SCHEDULED', 'IN_PROGRESS', 'COMPLETED', 'MISSED', 'CANCELLED'], default: 'SCHEDULED' },
+  priority: { type: String, enum: ['NORMAL', 'HIGH', 'URGENT'], default: 'NORMAL' },
+  scheduledDate: { type: Date, default: Date.now },
+  allocatedBy: { type: Schema.Types.ObjectId, ref: 'User' },
   paymentsCollected: { type: Number, default: 0 },
   paymentMethod: { type: String, enum: ['CASH', 'ONLINE', 'NONE'], default: 'NONE' },
+  paymentProofUrl: { type: String },
+  paymentReference: { type: String },
   newInvoiceId: { type: Schema.Types.ObjectId, ref: 'Invoice' },
+  orderValue: { type: Number, default: 0 },
   revisitDate: { type: Date },
   returns: [{
     productId: { type: Schema.Types.ObjectId, ref: 'Product' },
@@ -752,6 +771,196 @@ const VisitSchema = new Schema({
   timestamps: true,
   toJSON: { virtuals: true },
   toObject: { virtuals: true }
+});
+
+// SalespersonProfile Schema
+const SalespersonProfileSchema = new Schema({
+  userId: { type: Schema.Types.ObjectId, ref: 'User', unique: true, required: true },
+  employeeCode: { type: String, unique: true, sparse: true },
+  designation: { type: String, default: 'Field Sales Executive' },
+  assignedZones: [{ type: String }],
+  assignedDealers: [{ type: Schema.Types.ObjectId, ref: 'Dealer' }],
+  assignedStores: [{ type: Schema.Types.ObjectId, ref: 'Store' }],
+  phone: { type: String },
+  emergencyContact: { type: String },
+  monthlyTarget: { type: Number, default: 100000 },
+  monthlyVisitsTarget: { type: Number, default: 120 },
+  dailyVisitsTarget: { type: Number, default: 6 },
+  activeBeatRoute: { type: String, default: 'Default Route' },
+  lastKnownLocation: {
+    latitude: Number,
+    longitude: Number,
+    updatedAt: Date
+  },
+  status: { type: String, enum: ['ACTIVE', 'ON_LEAVE', 'INACTIVE'], default: 'ACTIVE' }
+}, {
+  timestamps: true,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
+});
+
+SalespersonProfileSchema.virtual('user', {
+  ref: 'User',
+  localField: 'userId',
+  foreignField: '_id',
+  justOne: true
+});
+
+// CompetitorIntel Schema
+const CompetitorIntelSchema = new Schema({
+  salespersonId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+  storeId: { type: Schema.Types.ObjectId, ref: 'Store' },
+  storeName: { type: String },
+  competitorBrand: { type: String, required: true },
+  productName: { type: String, required: true },
+  packSize: { type: String },
+  mrp: { type: Number },
+  retailerPrice: { type: Number },
+  schemes: { type: String },
+  customerFeedback: { type: String },
+  photos: [{ type: String }],
+  date: { type: Date, default: Date.now }
+}, {
+  timestamps: true,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
+});
+
+// Quotation Schema
+const QuotationSchema = new Schema({
+  quotationNo: { type: String, unique: true, required: true },
+  salespersonId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+  customerId: { type: Schema.Types.ObjectId, ref: 'Store' },
+  dealerId: { type: Schema.Types.ObjectId, ref: 'Dealer' },
+  customerName: { type: String, required: true },
+  customerPhone: { type: String },
+  items: [{
+    productId: { type: Schema.Types.ObjectId, ref: 'Product', required: true },
+    productName: { type: String, required: true },
+    quantity: { type: Number, required: true },
+    mrp: { type: Number, required: true },
+    unitPrice: { type: Number, required: true },
+    discountPercent: { type: Number, default: 0 },
+    taxPercent: { type: Number, default: 5 },
+    totalPrice: { type: Number, required: true }
+  }],
+  subtotal: { type: Number, required: true },
+  discountTotal: { type: Number, default: 0 },
+  taxTotal: { type: Number, default: 0 },
+  grandTotal: { type: Number, required: true },
+  validUntil: { type: Date },
+  specialTerms: { type: String },
+  status: { type: String, enum: ['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'REJECTED', 'CONVERTED'], default: 'DRAFT' },
+  adminRemarks: { type: String }
+}, {
+  timestamps: true,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
+});
+
+// OrderAmendment Schema (Amendments & Cancellation requests)
+const OrderAmendmentSchema = new Schema({
+  orderId: { type: Schema.Types.ObjectId, ref: 'Order' },
+  invoiceId: { type: Schema.Types.ObjectId, ref: 'Invoice' },
+  referenceNo: { type: String, required: true },
+  salespersonId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+  storeId: { type: Schema.Types.ObjectId, ref: 'Store' },
+  requestType: { type: String, enum: ['AMENDMENT', 'CANCELLATION', 'RETURN_REPLACEMENT'], required: true },
+  reason: { type: String, required: true },
+  proposedChanges: { type: Schema.Types.Mixed },
+  status: { type: String, enum: ['PENDING', 'APPROVED', 'REJECTED'], default: 'PENDING' },
+  reviewedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+  reviewedAt: { type: Date },
+  adminRemarks: { type: String }
+}, {
+  timestamps: true,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
+});
+
+// FollowUp Schema
+const FollowUpSchema = new Schema({
+  salespersonId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+  storeId: { type: Schema.Types.ObjectId, ref: 'Store' },
+  leadId: { type: Schema.Types.ObjectId, ref: 'Lead' },
+  title: { type: String, required: true },
+  contactPerson: { type: String },
+  phone: { type: String },
+  dueDate: { type: Date, required: true },
+  priority: { type: String, enum: ['LOW', 'MEDIUM', 'HIGH', 'URGENT'], default: 'MEDIUM' },
+  reason: { type: String, enum: ['PAYMENT_COLLECTION', 'ORDER_BOOKING', 'PROPOSAL_REVIEW', 'COMPLAINT', 'GENERAL'], default: 'GENERAL' },
+  notes: { type: String },
+  status: { type: String, enum: ['PENDING', 'COMPLETED', 'CANCELLED', 'RESCHEDULED'], default: 'PENDING' },
+  completedAt: { type: Date },
+  outcomeRemarks: { type: String }
+}, {
+  timestamps: true,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
+});
+
+// PaymentCommitment Schema
+const PaymentCommitmentSchema = new Schema({
+  salespersonId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+  storeId: { type: Schema.Types.ObjectId, ref: 'Store', required: true },
+  storeName: { type: String, required: true },
+  invoiceId: { type: Schema.Types.ObjectId, ref: 'Invoice' },
+  promisedAmount: { type: Number, required: true },
+  expectedDate: { type: Date, required: true },
+  customerRemarks: { type: String },
+  status: { type: String, enum: ['PENDING', 'FULFILLED', 'OVERDUE', 'DEFAULTED'], default: 'PENDING' },
+  fulfilledAmount: { type: Number, default: 0 },
+  fulfilledDate: { type: Date }
+}, {
+  timestamps: true,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
+});
+
+// FieldSalesOrder Schema (Secondary Sales booked by Sales Reps on field visits)
+const FieldSalesOrderSchema = new Schema({
+  orderNumber: { type: String, unique: true, required: true, index: true },
+  salespersonId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+  storeId: { type: Schema.Types.ObjectId, ref: 'Store', required: true, index: true },
+  storeName: { type: String },
+  dealerId: { type: Schema.Types.ObjectId, ref: 'Dealer', index: true },
+  items: [{
+    productId: { type: Schema.Types.ObjectId, ref: 'Product' },
+    productName: { type: String, required: true },
+    quantity: { type: Number, required: true },
+    price: { type: Number, required: true },
+    lineTotal: { type: Number }
+  }],
+  totalAmount: { type: Number, required: true },
+  paymentMethod: { type: String, enum: ['CASH', 'UPI', 'CREDIT', 'CHEQUE', 'NONE'], default: 'NONE' },
+  status: { type: String, enum: ['PENDING', 'APPROVED', 'DISPATCHED', 'DELIVERED', 'CANCELLED'], default: 'PENDING' },
+  notes: { type: String },
+  invoiceId: { type: Schema.Types.ObjectId, ref: 'Invoice' }
+}, {
+  timestamps: true,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
+});
+
+FieldSalesOrderSchema.virtual('salesperson', {
+  ref: 'User',
+  localField: 'salespersonId',
+  foreignField: '_id',
+  justOne: true
+});
+
+FieldSalesOrderSchema.virtual('store', {
+  ref: 'Store',
+  localField: 'storeId',
+  foreignField: '_id',
+  justOne: true
+});
+
+FieldSalesOrderSchema.virtual('dealer', {
+  ref: 'Dealer',
+  localField: 'dealerId',
+  foreignField: '_id',
+  justOne: true
 });
 
 // Stall Session (for location-based performance & investment tracking)
@@ -1374,6 +1583,13 @@ const PurchaseRequest = mongoose.model('PurchaseRequest', PurchaseRequestSchema,
 const PurchaseOrder = mongoose.model('PurchaseOrder', PurchaseOrderSchema, 'purchase_orders');
 const GoodsReceiptNote = mongoose.model('GoodsReceiptNote', GoodsReceiptNoteSchema, 'goods_receipt_notes');
 const PriceSimulation = mongoose.model('PriceSimulation', PriceSimulationSchema, 'price_simulations');
+const SalespersonProfile = mongoose.model('SalespersonProfile', SalespersonProfileSchema, 'salesperson_profiles');
+const CompetitorIntel = mongoose.model('CompetitorIntel', CompetitorIntelSchema, 'competitor_intel');
+const Quotation = mongoose.model('Quotation', QuotationSchema, 'quotations');
+const OrderAmendment = mongoose.model('OrderAmendment', OrderAmendmentSchema, 'order_amendments');
+const FollowUp = mongoose.model('FollowUp', FollowUpSchema, 'follow_ups');
+const PaymentCommitment = mongoose.model('PaymentCommitment', PaymentCommitmentSchema, 'payment_commitments');
+const FieldSalesOrder = mongoose.model('FieldSalesOrder', FieldSalesOrderSchema, 'field_sales_orders');
 
 // ─────────────────────────────────────────────
 // AUTOMATIC DATABASE SCHEMA MIGRATION RUNNER
@@ -1463,6 +1679,36 @@ async function runDatabaseMigrations() {
       }
     }
     
+    // Salesperson Seed Migration
+    const User = mongoose.model('User');
+    const SalespersonProfile = mongoose.model('SalespersonProfile');
+    const existingSales = await User.findOne({ email: 'sales@mansarafoods.com' });
+    if (!existingSales) {
+      const bcrypt = require('bcryptjs');
+      const hashedPassword = await bcrypt.hash('Sales@123', 10);
+      const salesUser = await User.create({
+        email: 'sales@mansarafoods.com',
+        password: hashedPassword,
+        name: 'Karthik Raja',
+        phone: '+91 98765 12345',
+        role: 'SALESPERSON',
+        staffRole: 'VIEWER',
+        isActive: true
+      });
+      await SalespersonProfile.create({
+        userId: salesUser._id,
+        employeeCode: 'SALES-001',
+        designation: 'Senior Area Sales Executive',
+        assignedZones: ['Chennai North', 'Chennai South', 'Central Hub'],
+        monthlyTarget: 150000,
+        monthlyVisitsTarget: 140,
+        dailyVisitsTarget: 7,
+        activeBeatRoute: 'Beat A - North Retail Hub',
+        status: 'ACTIVE'
+      });
+      console.log('[Migration] Created default demo salesperson: sales@mansarafoods.com / Sales@123');
+    }
+
     console.log('[Migration] Database migrations completed successfully.');
   } catch (err) {
     console.error('[Migration] Database migration error:', err);
@@ -2090,6 +2336,13 @@ const prisma = {
   purchaseOrder: new PrismaCollectionWrapper('PurchaseOrder'),
   goodsReceiptNote: new PrismaCollectionWrapper('GoodsReceiptNote'),
   priceSimulation: new PrismaCollectionWrapper('PriceSimulation'),
+  salespersonProfile: new PrismaCollectionWrapper('SalespersonProfile'),
+  competitorIntel: new PrismaCollectionWrapper('CompetitorIntel'),
+  quotation: new PrismaCollectionWrapper('Quotation'),
+  orderAmendment: new PrismaCollectionWrapper('OrderAmendment'),
+  followUp: new PrismaCollectionWrapper('FollowUp'),
+  paymentCommitment: new PrismaCollectionWrapper('PaymentCommitment'),
+  fieldSalesOrder: new PrismaCollectionWrapper('FieldSalesOrder'),
 
   $transaction: async (fn) => {
     // Run transactions sequentially on standalone local MongoDB instances
