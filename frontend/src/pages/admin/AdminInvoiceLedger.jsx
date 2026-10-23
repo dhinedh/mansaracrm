@@ -91,12 +91,12 @@ function InvoiceConfigModal({ isOpen, onClose, onSettingsUpdated }) {
   const [companyName, setCompanyName] = useState('Mansara Foods Pvt. Ltd.');
   const [logoBase64, setLogoBase64] = useState('');
   const [gstNumber, setGstNumber] = useState('27AABCM1234F1Z5');
-  const [address, setAddress] = useState('Mumbai, Maharashtra, India');
-  const [city, setCity] = useState('');
+  const [address, setAddress] = useState('Flat No. B4, No.13, Balaji Nagar 1st street extn, Noombal');
+  const [city, setCity] = useState('Chennai');
   const [state, setState] = useState('Tamil Nadu');
   const [pincode, setPincode] = useState('600077');
-  const [phone, setPhone] = useState('+91 98765 43210');
-  const [email, setEmail] = useState('info@mansarafoods.com');
+  const [phone, setPhone] = useState('+91-88388 87064');
+  const [email, setEmail] = useState('contact@mansarafoods.com');
   const [invoicePrefix, setInvoicePrefix] = useState('MF-INV');
   const [nextSequenceNumber, setNextSequenceNumber] = useState(38);
   const [placeOfSupply, setPlaceOfSupply] = useState('Tamil Nadu (33)');

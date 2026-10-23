@@ -27,12 +27,12 @@ const getCompanyDetails = async (dealer = null) => {
     logoBase64: settings?.logoBase64 || '',
     logoUrl: settings?.logoUrl || '',
     gstNumber: settings?.gstNumber || process.env.COMPANY_GST || '27AABCM1234F1Z5',
-    address: settings?.address || process.env.COMPANY_ADDRESS || 'Mumbai, Maharashtra, India',
-    city: settings?.city || '',
-    state: settings?.state || 'Tamil Nadu',
-    pincode: settings?.pincode || '600077',
-    phone: settings?.phone || process.env.COMPANY_PHONE || '+91 98765 43210',
-    email: settings?.email || process.env.COMPANY_EMAIL || 'info@mansarafoods.com',
+    address: settings?.address || process.env.COMPANY_ADDRESS || 'Flat No. B4, No.13, Balaji Nagar 1st street extn, Noombal',
+    city: settings?.city || process.env.COMPANY_CITY || 'Chennai',
+    state: settings?.state || process.env.COMPANY_STATE || 'Tamil Nadu',
+    pincode: settings?.pincode || process.env.COMPANY_PINCODE || '600077',
+    phone: settings?.phone || process.env.COMPANY_PHONE || '+91-88388 87064',
+    email: settings?.email || process.env.COMPANY_EMAIL || 'contact@mansarafoods.com',
     invoicePrefix: settings?.invoicePrefix || 'MF-INV',
     placeOfSupply: settings?.placeOfSupply || 'Tamil Nadu (33)',
     invoiceTerms: settings?.invoiceTerms || '1. Payment within 15 days.\n2. Interest @ 2% per month on delay.\n3. Claims if any must be reported at delivery.',
@@ -41,9 +41,9 @@ const getCompanyDetails = async (dealer = null) => {
     signatoryName: settings?.signatoryName || 'Mansara Foods Pvt. Ltd.'
   };
 
+  // Only non-identifying dealer overrides (e.g. custom retail prefix or terms) if needed;
+  // NEVER overwrite companyName, name or logo of Mansara Foods!
   if (dealer) {
-    if (dealer.companyName) base.companyName = dealer.companyName;
-    if (dealer.logoBase64) base.logoBase64 = dealer.logoBase64;
     if (dealer.invoicePrefix) base.invoicePrefix = dealer.invoicePrefix;
     if (dealer.invoiceTerms) base.invoiceTerms = dealer.invoiceTerms;
     if (dealer.bankDetails && Object.keys(dealer.bankDetails).length > 0) {
@@ -69,12 +69,12 @@ exports.getInvoiceSettings = async (req, res, next) => {
           logoBase64: '',
           logoUrl: '',
           gstNumber: '27AABCM1234F1Z5',
-          address: 'Mumbai, Maharashtra, India',
-          city: '',
+          address: 'Flat No. B4, No.13, Balaji Nagar 1st street extn, Noombal',
+          city: 'Chennai',
           state: 'Tamil Nadu',
           pincode: '600077',
-          phone: '+91 98765 43210',
-          email: 'info@mansarafoods.com',
+          phone: '+91-88388 87064',
+          email: 'contact@mansarafoods.com',
           invoicePrefix: 'MF-INV',
           nextSequenceNumber: 38,
           placeOfSupply: 'Tamil Nadu (33)',
@@ -741,7 +741,7 @@ exports.downloadPdf = async (req, res, next) => {
       return res.status(403).json({ success: false, message: 'Unauthorized' });
     }
 
-    const company = await getCompanyDetails(invoice.dealer);
+    const company = await getCompanyDetails(invoice.store ? invoice.dealer : null);
     // Use simple retail template for dealer→store invoices; full B2B template for warehouse→dealer invoices
     const html = invoice.store
       ? buildSimpleRetailInvoiceHtml(company, invoice)
@@ -789,7 +789,7 @@ exports.downloadAgreementPdf = async (req, res, next) => {
       return res.status(403).json({ success: false, message: 'Unauthorized' });
     }
 
-    const company = await getCompanyDetails(dealer);
+    const company = await getCompanyDetails();
     const html = buildAgreementHtml(company, dealer);
 
     try {
@@ -832,7 +832,7 @@ exports.downloadClosureAgreementPdf = async (req, res, next) => {
       return res.status(403).json({ success: false, message: 'Unauthorized' });
     }
 
-    const company = await getCompanyDetails(dealer);
+    const company = await getCompanyDetails();
     const html = buildClosureAgreementHtml(company, dealer);
 
     try {

@@ -41,14 +41,29 @@ const buildInvoiceHtml = (company, invoice) => {
 
   const isRetail = !!invoice.store;
 
-  // Determine billing entity
-  const billerName    = isRetail ? (invoice.dealer?.companyName || company.name) : (company.companyName || company.name);
+  // Determine billing entity: For B2B invoices (Mansara Foods -> Dealer), biller is ALWAYS Mansara Foods
+  const billerName    = isRetail ? (invoice.dealer?.companyName || company.companyName || company.name || 'Mansara Foods Pvt. Ltd.') : (company.companyName || company.name || 'Mansara Foods Pvt. Ltd.');
   const billerAddress = isRetail ? (invoice.dealer?.address || company.address) : company.address;
   const billerCity    = isRetail ? (invoice.dealer?.city || company.city || '') : (company.city || '');
   const billerState   = isRetail ? (invoice.dealer?.state || company.state || 'Tamil Nadu') : (company.state || 'Tamil Nadu');
   const billerPin     = isRetail ? (invoice.dealer?.pincode || company.pincode || '600077') : (company.pincode || '600077');
   const billerGst     = isRetail ? (invoice.dealer?.gstNumber || 'N/A') : (company.gstNumber || 'N/A');
   const billerPhone   = isRetail ? (invoice.dealer?.phone || company.phone) : company.phone;
+
+  // Clean address formatting without repeating state or city
+  const addrParts = [];
+  if (billerAddress) addrParts.push(billerAddress.trim().replace(/,\s*$/, ''));
+  if (billerCity && !billerAddress?.includes(billerCity)) addrParts.push(billerCity.trim());
+  if (billerState && !billerAddress?.includes(billerState)) {
+    if (billerPin && !billerAddress?.includes(billerPin)) {
+      addrParts.push(`${billerState.trim()} - ${billerPin.trim()}`);
+    } else {
+      addrParts.push(billerState.trim());
+    }
+  } else if (billerPin && !billerAddress?.includes(billerPin)) {
+    addrParts.push(billerPin.trim());
+  }
+  const formattedBillerAddress = addrParts.join(', ') + (addrParts.length ? '. India.' : '');
 
   const shipToName    = isRetail ? invoice.store?.name : invoice.dealer?.companyName;
   const shipToAddr    = isRetail ? invoice.store?.address : invoice.dealer?.address;
@@ -240,7 +255,7 @@ const buildInvoiceHtml = (company, invoice) => {
     <div class="company-cell">
       <div class="company-name">${billerName}</div>
       <div class="company-addr">
-        ${billerAddress}${billerCity ? ', ' + billerCity : ''}${billerState ? ', ' + billerState : ''}${billerPin ? ' - ' + billerPin : ''}. India.<br>
+        ${formattedBillerAddress}<br>
         Phone : ${billerPhone}<br>
         <span class="gst-row">GST No. ${billerGst}</span>
       </div>

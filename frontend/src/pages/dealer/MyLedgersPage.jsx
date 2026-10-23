@@ -106,9 +106,9 @@ export default function MyLedgersPage() {
     const company = {
       name: 'Mansara Foods Pvt. Ltd.',
       gstNumber: '27AABCM1234F1Z5',
-      address: 'Mumbai, Maharashtra, India',
-      phone: '+91 98765 43210',
-      email: 'info@mansarafoods.com'
+      address: 'Flat No. B4, No.13, Balaji Nagar 1st street extn, Noombal, Chennai – 600077',
+      phone: '+91-88388 87064',
+      email: 'contact@mansarafoods.com'
     };
 
     const isRetail = !!invoice.store;

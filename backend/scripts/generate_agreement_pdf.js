@@ -10,9 +10,9 @@ const getCompanyDetails = () => {
   return {
     name: process.env.COMPANY_NAME || 'Mansara Foods Pvt. Ltd.',
     gstNumber: process.env.COMPANY_GST || '27AABCM1234F1Z5',
-    address: process.env.COMPANY_ADDRESS || 'Mumbai, Maharashtra, India',
-    phone: process.env.COMPANY_PHONE || '+91 98765 43210',
-    email: process.env.COMPANY_EMAIL || 'info@mansarafoods.com'
+    address: process.env.COMPANY_ADDRESS || 'Flat No. B4, No.13, Balaji Nagar 1st street extn, Noombal, Chennai – 600077',
+    phone: process.env.COMPANY_PHONE || '+91-88388 87064',
+    email: process.env.COMPANY_EMAIL || 'contact@mansarafoods.com'
   };
 };
 
