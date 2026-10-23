@@ -993,9 +993,12 @@ export default function AdminInvoiceLedger() {
     setConfirmModal({ open: false, type: null, invoiceId: null, invoiceNo: '' });
     setActionLoading(true);
     try {
-      await axios.delete(`/billing/${invoiceId}`);
+      const res = await axios.delete(`/billing/${invoiceId}`);
       setShowDetailModal(false);
       await fetchInvoices();
+      if (res.data?.message) {
+        alert(res.data.message);
+      }
     } catch (err) {
       alert(err.response?.data?.message || 'Failed to delete invoice.');
     } finally { setActionLoading(false); }
@@ -1264,7 +1267,7 @@ export default function AdminInvoiceLedger() {
                               </button>
                             )}
                             <button onClick={() => setConfirmModal({ open: true, type: 'delete', invoiceId: inv.id, invoiceNo: inv.invoiceNo })}
-                              className="p-1.5 hover:bg-rose-50 border border-rose-100 rounded-lg text-rose-600 hover:text-rose-700 cursor-pointer transition-colors" title="Delete Invoice">
+                              className="p-1.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg text-rose-600 hover:text-rose-700 cursor-pointer transition-colors shadow-xs" title="Delete Invoice Bill">
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           </div>

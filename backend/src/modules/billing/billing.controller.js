@@ -643,15 +643,13 @@ exports.deleteInvoice = async (req, res, next) => {
         const seqId = invoice.dealerId && invoice.storeId ? `dealer_${invoice.dealerId}` : 'singleton';
 
         // Find all remaining invoices with this prefix
-        const remainingInvoices = await tx.invoice.findMany({
-          where: {
-            id: { not: id },
-            invoiceNo: { startsWith: `${prefix}-` }
-          }
-        });
-
+        const allInvoices = await tx.invoice.findMany({});
         let maxRemainingNumber = 0;
-        for (const rem of remainingInvoices) {
+        const targetIdStr = String(id);
+        for (const rem of allInvoices) {
+          const invIdStr = String(rem.id || rem._id);
+          if (invIdStr === targetIdStr) continue;
+
           const m = rem.invoiceNo ? rem.invoiceNo.match(/^(.*?)-(\d+)$/) : null;
           if (m && m[1] === prefix) {
             const n = parseInt(m[2], 10);

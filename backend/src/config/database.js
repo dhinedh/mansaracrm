@@ -1749,8 +1749,18 @@ function translateWhere(where) {
           if (val.mode === 'insensitive') {
             subQuery['$options'] = 'i';
           }
+        } else if (op === 'startsWith') {
+          subQuery['$regex'] = `^${opVal}`;
+          if (val.mode === 'insensitive') {
+            subQuery['$options'] = 'i';
+          }
+        } else if (op === 'endsWith') {
+          subQuery['$regex'] = `${opVal}$`;
+          if (val.mode === 'insensitive') {
+            subQuery['$options'] = 'i';
+          }
         } else if (op === 'mode') {
-          // handled in contains
+          // handled in contains / startsWith / endsWith
         } else if (op === 'gt') {
           subQuery['$gt'] = opVal;
         } else if (op === 'gte') {
