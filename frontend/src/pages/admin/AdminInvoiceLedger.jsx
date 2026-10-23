@@ -1,6 +1,6 @@
 // src/pages/admin/AdminInvoiceLedger.jsx
 import React, { useEffect, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, Link } from 'react-router-dom';
 import axios from 'axios';
 import {
   Receipt,
@@ -1056,13 +1056,21 @@ export default function AdminInvoiceLedger() {
             Master ledger for all invoices and stock transfer shipments across all dealer partners.
           </p>
         </div>
-        <button
-          onClick={() => setShowConfigModal(true)}
-          className="inline-flex items-center justify-center space-x-2 bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-700 hover:to-rose-800 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-md hover:shadow-lg transition-all cursor-pointer self-start sm:self-auto"
-        >
-          <SlidersHorizontal className="w-4 h-4 text-white" />
-          <span>Configure Invoice</span>
-        </button>
+        <div className="flex items-center gap-2.5">
+          <Link
+            to="/admin/invoice-template"
+            className="inline-flex items-center justify-center space-x-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-md hover:shadow-lg transition-all cursor-pointer self-start sm:self-auto"
+          >
+            <SlidersHorizontal className="w-4 h-4 text-rose-400" />
+            <span>Invoice Template Settings</span>
+          </Link>
+          <button
+            onClick={() => setShowConfigModal(true)}
+            className="inline-flex items-center justify-center space-x-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs px-4 py-2.5 rounded-xl border border-slate-250 transition-all cursor-pointer self-start sm:self-auto"
+          >
+            <span>Quick Modal</span>
+          </button>
+        </div>
       </div>
 
       {/* Tab Navigation */}
@@ -1250,17 +1258,15 @@ export default function AdminInvoiceLedger() {
                               <Download className="w-3.5 h-3.5" />
                             </button>
                             {inv.status === 'OPEN' && (
-                              <>
-                                <button onClick={() => setConfirmModal({ open: true, type: 'close', invoiceId: inv.id, invoiceNo: inv.invoiceNo })}
-                                  className="p-1.5 hover:bg-emerald-50 border border-emerald-100 rounded-lg text-emerald-600 cursor-pointer transition-colors" title="Close & Deduct Stock">
-                                  <Check className="w-3.5 h-3.5" />
-                                </button>
-                                <button onClick={() => setConfirmModal({ open: true, type: 'delete', invoiceId: inv.id, invoiceNo: inv.invoiceNo })}
-                                  className="p-1.5 hover:bg-rose-50 border border-rose-100 rounded-lg text-rose-600 cursor-pointer transition-colors" title="Delete Invoice">
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              </>
+                              <button onClick={() => setConfirmModal({ open: true, type: 'close', invoiceId: inv.id, invoiceNo: inv.invoiceNo })}
+                                className="p-1.5 hover:bg-emerald-50 border border-emerald-100 rounded-lg text-emerald-600 cursor-pointer transition-colors" title="Close & Deduct Stock">
+                                <Check className="w-3.5 h-3.5" />
+                              </button>
                             )}
+                            <button onClick={() => setConfirmModal({ open: true, type: 'delete', invoiceId: inv.id, invoiceNo: inv.invoiceNo })}
+                              className="p-1.5 hover:bg-rose-50 border border-rose-100 rounded-lg text-rose-600 hover:text-rose-700 cursor-pointer transition-colors" title="Delete Invoice">
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
                           </div>
                         </td>
                       </tr>
@@ -1592,19 +1598,17 @@ export default function AdminInvoiceLedger() {
                   <Pencil className="w-3.5 h-3.5 text-slate-600" /><span>Edit Invoice</span>
                 </button>
                 {selectedInvoice.status === 'OPEN' && (
-                  <>
-                    <button onClick={() => setConfirmModal({ open: true, type: 'close', invoiceId: selectedInvoice.id, invoiceNo: selectedInvoice.invoiceNo })}
-                      disabled={actionLoading}
-                      className="inline-flex items-center space-x-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-2 rounded-xl shadow-lg transition-all cursor-pointer disabled:opacity-50">
-                      <Check className="w-4 h-4" /><span>Close & Deduct Stock</span>
-                    </button>
-                    <button onClick={() => setConfirmModal({ open: true, type: 'delete', invoiceId: selectedInvoice.id, invoiceNo: selectedInvoice.invoiceNo })}
-                      disabled={actionLoading}
-                      className="inline-flex items-center space-x-2 bg-rose-100 hover:bg-rose-200 text-rose-700 font-bold text-xs px-4 py-2 rounded-xl transition-all cursor-pointer disabled:opacity-50">
-                      <Trash2 className="w-4 h-4" /><span>Delete Invoice</span>
-                    </button>
-                  </>
+                  <button onClick={() => setConfirmModal({ open: true, type: 'close', invoiceId: selectedInvoice.id, invoiceNo: selectedInvoice.invoiceNo })}
+                    disabled={actionLoading}
+                    className="inline-flex items-center space-x-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-2 rounded-xl shadow-lg transition-all cursor-pointer disabled:opacity-50">
+                    <Check className="w-4 h-4" /><span>Close & Deduct Stock</span>
+                  </button>
                 )}
+                <button onClick={() => setConfirmModal({ open: true, type: 'delete', invoiceId: selectedInvoice.id, invoiceNo: selectedInvoice.invoiceNo })}
+                  disabled={actionLoading}
+                  className="inline-flex items-center space-x-2 bg-rose-100 hover:bg-rose-200 text-rose-700 font-bold text-xs px-4 py-2 rounded-xl transition-all cursor-pointer disabled:opacity-50">
+                  <Trash2 className="w-4 h-4" /><span>Delete Invoice</span>
+                </button>
                 {selectedInvoice.status === 'CLOSED' && (
                   <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-100 px-3 py-1.5 rounded-lg flex items-center space-x-1">
                     <Lock className="w-3 h-3" /><span>Invoice Closed — Stock Deducted</span>
@@ -1641,7 +1645,7 @@ export default function AdminInvoiceLedger() {
               {confirmModal.type === 'close' ? (
                 <p>Closing this invoice will <strong className="text-slate-800">deduct the SKU quantities from dealer stock</strong> and lock the invoice as <strong className="text-emerald-700">CLOSED</strong>.<br /><br />This action <strong>cannot be undone</strong>.</p>
               ) : (
-                <p>Are you sure you want to <strong className="text-rose-700">permanently delete</strong> this OPEN invoice? No stock has been deducted yet.</p>
+                <p>Are you sure you want to <strong className="text-rose-700">permanently delete</strong> invoice <span className="font-mono font-bold text-slate-800">#{confirmModal.invoiceNo}</span>?<br /><br />The invoice sequence counter will automatically roll back so the next invoice generated will seamlessly continue from this invoice number.</p>
               )}
             </div>
             <div className="p-6 border-t border-slate-100 flex space-x-3">

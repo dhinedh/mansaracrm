@@ -39,7 +39,8 @@ import {
   MapPin,
   ShieldCheck,
   Calendar,
-  Search
+  Search,
+  SlidersHorizontal
 } from 'lucide-react';
 import axios from 'axios';
 
@@ -145,6 +146,7 @@ const getSalesMarketingMenuItems = (licensing) => {
 
 const getFinanceMenuItems = () => [
   { name: 'Invoice Ledger',        path: '/admin/invoice-ledger',      icon: FileText, allowedStaffRoles: ['ADMIN', 'FINANCE_OFFICER', 'B2B_MANAGER'] },
+  { name: 'Invoice Template',      path: '/admin/invoice-template',    icon: SlidersHorizontal, allowedStaffRoles: ['ADMIN', 'FINANCE_OFFICER'] },
   { name: 'Expenses Log',          path: '/admin/expenses',            icon: Receipt, allowedStaffRoles: ['ADMIN', 'FINANCE_OFFICER', 'B2B_MANAGER'] },
   { name: 'Offer Expenses',        path: '/admin/offers',              icon: Gift, allowedStaffRoles: ['ADMIN', 'FINANCE_OFFICER', 'B2B_MANAGER'] },
 ];

@@ -30,6 +30,7 @@ const ChannelIntegrationPage = lazy(() => import('./pages/admin/ChannelIntegrati
 const RnDPage = lazy(() => import('./pages/admin/RnDPage'));
 const InventoriesPage = lazy(() => import('./pages/admin/InventoriesPage'));
 const AdminInvoiceLedger = lazy(() => import('./pages/admin/AdminInvoiceLedger'));
+const AdminInvoiceTemplatePage = lazy(() => import('./pages/admin/AdminInvoiceTemplatePage'));
 const UserManagement = lazy(() => import('./pages/admin/UserManagement'));
 const ZoneMapPage = lazy(() => import('./pages/admin/ZoneMapPage'));
 const StallsPage = lazy(() => import('./pages/admin/StallsPage'));
@@ -194,6 +195,16 @@ export default function App() {
           <Route path="invoice-ledger" element={
             <ProtectedRoute allowedStaffRoles={['ADMIN', 'FINANCE_OFFICER', 'B2B_MANAGER']}>
               <AdminInvoiceLedger />
+            </ProtectedRoute>
+          } />
+          <Route path="invoice-template" element={
+            <ProtectedRoute allowedStaffRoles={['ADMIN', 'FINANCE_OFFICER']}>
+              <AdminInvoiceTemplatePage />
+            </ProtectedRoute>
+          } />
+          <Route path="invoice-settings" element={
+            <ProtectedRoute allowedStaffRoles={['ADMIN', 'FINANCE_OFFICER']}>
+              <AdminInvoiceTemplatePage />
             </ProtectedRoute>
           } />
           <Route path="returns" element={

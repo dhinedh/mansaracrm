@@ -597,23 +597,35 @@ exports.deleteInvoice = async (req, res, next) => {
     }
 
     const invoice = await prisma.invoice.findUnique({
-      where: { id }
+      where: { id },
+      include: {
+        dealer: true
+      }
     });
 
     if (!invoice) {
       return res.status(404).json({ success: false, message: 'Invoice not found' });
     }
 
-    // Verify ownership
+    // Verify ownership for DEALER
     if (req.user.role === 'DEALER' && invoice.dealerId !== dealerId) {
       return res.status(403).json({ success: false, message: 'Unauthorized' });
     }
 
-    if (invoice.status !== 'OPEN') {
-      return res.status(400).json({ success: false, message: 'Only OPEN invoices can be deleted' });
+    // Dealers can only delete their own OPEN or CANCELLED invoices; ADMIN can delete any
+    if (req.user.role === 'DEALER' && invoice.status !== 'OPEN' && invoice.status !== 'CANCELLED') {
+      return res.status(400).json({ success: false, message: 'Only OPEN or CANCELLED invoices can be deleted' });
     }
 
+    let nextSequenceNumber = null;
+
     await prisma.$transaction(async (tx) => {
+      // Unlink any stock transfers pointing to this invoice
+      await tx.stockTransfer.updateMany({
+        where: { invoiceId: id },
+        data: { invoiceId: null }
+      });
+
       // Delete invoice items
       await tx.invoiceItem.deleteMany({
         where: { invoiceId: id }
@@ -624,20 +636,70 @@ exports.deleteInvoice = async (req, res, next) => {
         where: { id }
       });
 
+      // Recalculate sequence counter so next invoice continues seamlessly from current number
+      const match = invoice.invoiceNo ? invoice.invoiceNo.match(/^(.*?)-(\d+)$/) : null;
+      if (match) {
+        const prefix = match[1];
+        const seqId = invoice.dealerId && invoice.storeId ? `dealer_${invoice.dealerId}` : 'singleton';
+
+        // Find all remaining invoices with this prefix
+        const remainingInvoices = await tx.invoice.findMany({
+          where: {
+            id: { not: id },
+            invoiceNo: { startsWith: `${prefix}-` }
+          }
+        });
+
+        let maxRemainingNumber = 0;
+        for (const rem of remainingInvoices) {
+          const m = rem.invoiceNo ? rem.invoiceNo.match(/^(.*?)-(\d+)$/) : null;
+          if (m && m[1] === prefix) {
+            const n = parseInt(m[2], 10);
+            if (!isNaN(n) && n > maxRemainingNumber) {
+              maxRemainingNumber = n;
+            }
+          }
+        }
+
+        // Update the sequence generator to max remaining
+        await tx.invoiceSequence.upsert({
+          where: { id: seqId },
+          update: { lastNumber: maxRemainingNumber, prefix },
+          create: { id: seqId, lastNumber: maxRemainingNumber, prefix }
+        });
+
+        // Also update invoice_settings nextSequenceNumber if this is the company singleton sequence
+        if (seqId === 'singleton') {
+          await tx.setting.updateMany({
+            where: { key: 'invoice_settings' },
+            data: { nextSequenceNumber: maxRemainingNumber + 1 }
+          });
+        }
+
+        nextSequenceNumber = maxRemainingNumber + 1;
+      }
+
       await tx.auditLog.create({
         data: {
           userId: req.user.id,
           action: 'DELETE_INVOICE',
           entity: 'Invoice',
           entityId: id,
-          newValues: { invoiceNo: invoice.invoiceNo }
+          newValues: {
+            invoiceNo: invoice.invoiceNo,
+            nextSequenceNumber
+          }
         }
       });
     });
 
     res.json({
       success: true,
-      message: 'Invoice deleted successfully'
+      message: `Invoice ${invoice.invoiceNo} deleted successfully. Next invoice will continue from ${nextSequenceNumber !== null ? `#${nextSequenceNumber}` : 'the current number'}.`,
+      data: {
+        deletedInvoiceNo: invoice.invoiceNo,
+        nextSequenceNumber
+      }
     });
   } catch (error) {
     next(error);
