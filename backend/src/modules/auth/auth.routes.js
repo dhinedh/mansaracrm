@@ -9,7 +9,7 @@ const router = express.Router();
 
 // Public routes
 router.post('/login', validate([
-  body('email').trim().isEmail().withMessage('Please enter a valid email'),
+  body('email').trim().notEmpty().withMessage('Please enter your registered email or phone number'),
   body('password').notEmpty().withMessage('Password is required')
 ]), authController.login);
 

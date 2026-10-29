@@ -75,6 +75,7 @@ exports.registerDealer = async (req, res, next) => {
           email,
           password: hashedPassword,
           name,
+          phone: phone || '',
           role: 'DEALER',
           isActive: true
         }
@@ -132,7 +133,7 @@ exports.registerDealer = async (req, res, next) => {
           userId: newUser.id,
           type: 'ACCOUNT_UPDATE',
           title: 'Welcome to Mansara Foods CRM!',
-          message: `Welcome ${name}! Your dealer partner account for ${companyName} has been registered successfully. Login Email: ${email}`,
+          message: `Welcome ${name}! Your dealer partner account for ${companyName} has been registered successfully. Login User ID: ${email}`,
           metadata: { 
             email, 
             companyName, 
@@ -151,7 +152,7 @@ exports.registerDealer = async (req, res, next) => {
             userId: admin.id,
             type: 'ACCOUNT_UPDATE',
             title: 'New Dealer Registration',
-            message: `Dealer ${companyName} (${name}) has registered and is pending approval.`,
+            message: `Dealer ${companyName} (${name}) has registered. User ID: ${email}`,
             metadata: { dealerId: newDealer.id }
           }
         });
@@ -164,7 +165,7 @@ exports.registerDealer = async (req, res, next) => {
     let whatsappResult = { success: false };
 
     // Send registration notifications via Email & WhatsApp
-    // 1. Send registration email with details
+    // 1. Send registration email with User ID & Password
     emailResult = await sendVendorRegistrationEmail({
       email: result.user.email,
       name: result.user.name,
@@ -182,7 +183,7 @@ exports.registerDealer = async (req, res, next) => {
       approvalStatus: result.dealer.approvalStatus
     });
 
-    // 2. Send registration message directly via WhatsApp Chatbot to vendor's WhatsApp phone number
+    // 2. Send registration message directly via WhatsApp to dealer's phone
     whatsappResult = await sendVendorWhatsAppRegistration({
       phone: result.dealer.phone,
       name: result.user.name,
@@ -198,9 +199,10 @@ exports.registerDealer = async (req, res, next) => {
 
     res.status(201).json({
       success: true,
-      message: 'Dealer registered successfully. Registration details message dispatched to vendor via Email & WhatsApp chatbot.',
+      message: 'Dealer registered successfully. User ID and Password have been dispatched via WhatsApp and Mail.',
       data: {
         id: result.dealer.id,
+        userId: result.user.email,
         email: result.user.email,
         name: result.user.name,
         password: rawPassword,
@@ -211,8 +213,11 @@ exports.registerDealer = async (req, res, next) => {
         defaultMargin: result.dealer.defaultMargin,
         approvalStatus: result.dealer.approvalStatus,
         emailNotificationSent: emailResult.success,
+        emailSimulated: emailResult.simulated || false,
         whatsappNotificationSent: whatsappResult.success,
-        whatsappUrl: whatsappResult.whatsappUrl
+        whatsappMethod: whatsappResult.method,
+        whatsappUrl: whatsappResult.whatsappUrl,
+        whatsappMessage: whatsappResult.messageText
       }
     });
   } catch (error) {
@@ -229,12 +234,48 @@ exports.registerDealer = async (req, res, next) => {
 
 exports.login = async (req, res, next) => {
   try {
-    const { email, password } = req.body;
+    const rawIdentifier = req.body.email || req.body.identifier || '';
+    const identifier = rawIdentifier.trim();
+    const { password } = req.body;
 
-    const user = await prisma.user.findUnique({
-      where: { email },
-      include: { dealer: true }
-    });
+    if (!identifier) {
+      return res.status(400).json({ success: false, message: 'Please enter your email or phone number' });
+    }
+
+    let user = null;
+    if (identifier.includes('@')) {
+      user = await prisma.user.findUnique({
+        where: { email: identifier.toLowerCase() },
+        include: { dealer: true }
+      });
+    } else {
+      // Find by phone number
+      const cleanPhone = identifier.replace(/\D/g, '');
+      const dealer = await prisma.dealer.findFirst({
+        where: {
+          $or: [
+            { phone: identifier },
+            { phone: cleanPhone },
+            { phone: { $regex: cleanPhone } }
+          ]
+        },
+        include: { user: true }
+      });
+      if (dealer && dealer.user) {
+        user = dealer.user;
+        user.dealer = dealer;
+      } else {
+        user = await prisma.user.findFirst({
+          where: {
+            $or: [
+              { phone: identifier },
+              { phone: cleanPhone }
+            ]
+          },
+          include: { dealer: true }
+        });
+      }
+    }
 
     if (!user) {
       return res.status(401).json({ success: false, message: 'Invalid credentials' });

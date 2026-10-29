@@ -2,6 +2,8 @@
 const prisma = require('../../config/database');
 const { generateInvoicePdf } = require('../../utils/pdfGenerator');
 const { buildInvoiceHtml, buildSimpleRetailInvoiceHtml, buildAgreementHtml, buildClosureAgreementHtml } = require('../../utils/pdfTemplate');
+const { getOrAssignDealerAgreementNumber, getOrAssignDealerClosureAgreementNumber } = require('../../utils/agreementSequence');
+const { mergeAppointmentTemplate, mergeClosureTemplate } = require('../../utils/defaultAgreementTemplates');
 const centralNotificationService = require('../../utils/centralNotificationService');
 
 
@@ -849,8 +851,16 @@ exports.downloadAgreementPdf = async (req, res, next) => {
       return res.status(403).json({ success: false, message: 'Unauthorized' });
     }
 
+    // Ensure sequential agreement number (MFD/DAA/YYYY/XXX)
+    const { agreementNumber, agreeSeq } = await getOrAssignDealerAgreementNumber(dealer.id);
+    dealer.agreementNumber = agreementNumber;
+    dealer.agreeSeq = agreeSeq;
+
     const company = await getCompanyDetails();
-    const html = buildAgreementHtml(company, dealer);
+    const agreementSettings = await prisma.setting.findFirst({
+      where: { key: 'agreement_templates' }
+    });
+    const html = buildAgreementHtml(company, dealer, agreementSettings?.appointment);
 
     try {
       const pdfBuffer = await generateInvoicePdf(html);
@@ -859,13 +869,9 @@ exports.downloadAgreementPdf = async (req, res, next) => {
       res.send(pdfBuffer);
     } catch (pdfErr) {
       console.warn(`PDF agreement generation failed for ${dealer.companyName}, falling back to HTML:`, pdfErr.message);
-      const printableHtml = html.replace(
-        '</body>',
-        '<script>window.onload=function(){window.print();}</script></body>'
-      );
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
-      res.setHeader('Content-Disposition', `inline; filename="Agreement_${dealer.companyName.replace(/\s+/g, '_')}.html"`);
-      res.send(printableHtml);
+      res.setHeader('Content-Disposition', `attachment; filename="Agreement_${dealer.companyName.replace(/\s+/g, '_')}.html"`);
+      res.send(html);
     }
   } catch (error) {
     next(error);
@@ -892,24 +898,204 @@ exports.downloadClosureAgreementPdf = async (req, res, next) => {
       return res.status(403).json({ success: false, message: 'Unauthorized' });
     }
 
+    // Ensure sequential closure agreement number (MFD/DCA/YYYY/XXX)
+    const { closureAgreementNumber, closureAgreeSeq } = await getOrAssignDealerClosureAgreementNumber(dealer.id);
+    dealer.closureAgreementNumber = closureAgreementNumber;
+    dealer.closureAgreeSeq = closureAgreeSeq;
+
     const company = await getCompanyDetails();
-    const html = buildClosureAgreementHtml(company, dealer);
+    const agreementSettings = await prisma.setting.findFirst({
+      where: { key: 'agreement_templates' }
+    });
+    const html = buildClosureAgreementHtml(company, dealer, agreementSettings?.closure);
 
     try {
       const pdfBuffer = await generateInvoicePdf(html);
       res.contentType('application/pdf');
-      res.setHeader('Content-Disposition', `attachment; filename="Closure_Agreement_${dealer.companyName.replace(/\\s+/g, '_')}.pdf"`);
+      res.setHeader('Content-Disposition', `attachment; filename="Closure_Agreement_${dealer.companyName.replace(/\s+/g, '_')}.pdf"`);
       res.send(pdfBuffer);
     } catch (pdfErr) {
       console.warn(`PDF closure agreement generation failed for ${dealer.companyName}, falling back to HTML:`, pdfErr.message);
-      const printableHtml = html.replace(
-        '</body>',
-        '<script>window.onload=function(){window.print();}</script></body>'
-      );
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
-      res.setHeader('Content-Disposition', `inline; filename="Closure_Agreement_${dealer.companyName.replace(/\\s+/g, '_')}.html"`);
-      res.send(printableHtml);
+      res.setHeader('Content-Disposition', `attachment; filename="Closure_Agreement_${dealer.companyName.replace(/\s+/g, '_')}.html"`);
+      res.send(html);
     }
+  } catch (error) {
+    next(error);
+  }
+};
+
+// GET /api/billing/agreement-templates
+exports.getAgreementTemplates = async (req, res, next) => {
+  try {
+    const settings = await prisma.setting.findFirst({
+      where: { key: 'agreement_templates' }
+    });
+
+    res.json({
+      success: true,
+      data: {
+        appointment: mergeAppointmentTemplate(settings?.appointment || {}),
+        closure: mergeClosureTemplate(settings?.closure || {})
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// PUT /api/billing/agreement-templates
+exports.updateAgreementTemplates = async (req, res, next) => {
+  try {
+    const { appointment, closure } = req.body;
+
+    let settings = await prisma.setting.findFirst({
+      where: { key: 'agreement_templates' }
+    });
+
+    const updatedAppointment = appointment ? mergeAppointmentTemplate(appointment) : (settings?.appointment || mergeAppointmentTemplate({}));
+    const updatedClosure = closure ? mergeClosureTemplate(closure) : (settings?.closure || mergeClosureTemplate({}));
+
+    if (settings) {
+      settings = await prisma.setting.update({
+        where: { id: settings.id },
+        data: {
+          key: 'agreement_templates',
+          appointment: updatedAppointment,
+          closure: updatedClosure
+        }
+      });
+    } else {
+      settings = await prisma.setting.create({
+        data: {
+          key: 'agreement_templates',
+          appointment: updatedAppointment,
+          closure: updatedClosure
+        }
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Agreement templates updated successfully',
+      data: {
+        appointment: settings.appointment,
+        closure: settings.closure
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// POST /api/billing/agreement-templates/reset
+exports.resetAgreementTemplates = async (req, res, next) => {
+  try {
+    const { type } = req.body; // 'appointment' | 'closure' | 'all'
+
+    let settings = await prisma.setting.findFirst({
+      where: { key: 'agreement_templates' }
+    });
+
+    const defaultAppointment = mergeAppointmentTemplate({});
+    const defaultClosure = mergeClosureTemplate({});
+
+    const newAppointment = (type === 'appointment' || type === 'all' || !type)
+      ? defaultAppointment
+      : (settings?.appointment || defaultAppointment);
+
+    const newClosure = (type === 'closure' || type === 'all' || !type)
+      ? defaultClosure
+      : (settings?.closure || defaultClosure);
+
+    if (settings) {
+      settings = await prisma.setting.update({
+        where: { id: settings.id },
+        data: {
+          key: 'agreement_templates',
+          appointment: newAppointment,
+          closure: newClosure
+        }
+      });
+    } else {
+      settings = await prisma.setting.create({
+        data: {
+          key: 'agreement_templates',
+          appointment: newAppointment,
+          closure: newClosure
+        }
+      });
+    }
+
+    res.json({
+      success: true,
+      message: `Agreement template ${type ? `(${type})` : ''} reset to official defaults`,
+      data: {
+        appointment: settings.appointment,
+        closure: settings.closure
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// POST /api/billing/agreement-templates/preview
+exports.previewAgreementPdf = async (req, res, next) => {
+  try {
+    const { type, templateConfig, dealerId, format = 'html' } = req.body;
+
+    let dealer = null;
+    if (dealerId) {
+      dealer = await prisma.dealer.findUnique({
+        where: { id: dealerId },
+        include: { user: true }
+      });
+    }
+
+    if (!dealer) {
+      dealer = {
+        companyName: 'M/S. CHENNAI SPICE DISTRIBUTORS',
+        user: { name: 'S. Rajasekaran', email: 'rajasekaran@chennaispice.com' },
+        phone: '+91 98401 23456',
+        gstNumber: '33ABCDE1234F1Z5',
+        udyamNo: 'UDYAM-TN-02-0098765',
+        address: 'No. 42, Trunk Road, Poonamallee',
+        city: 'Chennai',
+        state: 'Tamil Nadu',
+        dealerType: 'DISTRIBUTOR',
+        dealerCategory: 'GROWTH',
+        zones: ['Chennai West', 'Tiruvallur District'],
+        initialDeposit: 50000,
+        agreementNumber: 'MFD/DAA/2026/001',
+        agreeSeq: 1,
+        closureAgreementNumber: 'MFD/DCA/2026/001',
+        closureAgreeSeq: 1,
+        closureReason: 'Relocation & Business Restructuring',
+        closureNotes: 'Zero outstanding ledger balance. All promotional tabletop stands accounted for.',
+        closureSettlementStatus: 'SETTLED & RECONCILED'
+      };
+    }
+
+    const company = await getCompanyDetails();
+    let html = '';
+    if (type === 'closure') {
+      html = buildClosureAgreementHtml(company, dealer, templateConfig);
+    } else {
+      html = buildAgreementHtml(company, dealer, templateConfig);
+    }
+
+    if (format === 'pdf') {
+      const pdfBuffer = await generateInvoicePdf(html);
+      res.contentType('application/pdf');
+      res.setHeader('Content-Disposition', `inline; filename="${type || 'agreement'}_preview.pdf"`);
+      return res.send(pdfBuffer);
+    }
+
+    res.json({
+      success: true,
+      html
+    });
   } catch (error) {
     next(error);
   }

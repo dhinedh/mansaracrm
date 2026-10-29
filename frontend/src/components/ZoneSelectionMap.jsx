@@ -140,10 +140,9 @@ export default function ZoneSelectionMap({
     });
     mapInstance.current = map;
 
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
-      subdomains: 'abcd',
-      maxZoom: 20,
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      maxZoom: 19,
     }).addTo(map);
 
     const layerGroup = L.featureGroup().addTo(map);
@@ -171,19 +170,42 @@ export default function ZoneSelectionMap({
     else if (viewState === 'TRICHY') items = TRICHY_ZONES;
     else if (viewState === 'SALEM') items = SALEM_ZONES;
 
+    const handleItemClick = (item) => {
+      if (viewState === 'TN' && item.isCity) {
+        if (item.name === 'Chennai') {
+          mapInstance.current.setView([13.04, 80.22], 11);
+          setViewState('CHENNAI');
+        } else if (item.name === 'Coimbatore') {
+          mapInstance.current.setView([11.0168, 76.9558], 11);
+          setViewState('COIMBATORE');
+        } else if (item.name === 'Madurai') {
+          mapInstance.current.setView([9.9252, 78.1198], 11);
+          setViewState('MADURAI');
+        } else if (item.name === 'Tiruchirappalli') {
+          mapInstance.current.setView([10.7905, 78.7047], 11);
+          setViewState('TRICHY');
+        } else if (item.name === 'Salem') {
+          mapInstance.current.setView([11.6643, 78.1460], 11);
+          setViewState('SALEM');
+        }
+      } else {
+        onToggleZone(item.name);
+      }
+    };
+
     items.forEach((item) => {
       const isSelected = selectedZones.includes(item.name);
       const conflict = zoneConflicts.find((c) => c.zones && c.zones.includes(item.name));
 
-      let color = '#94a3b8';
-      let fillColor = '#e2e8f0';
-      let fillOpacity = 0.35;
+      let color = '#475569';
+      let fillColor = '#94a3b8';
+      let fillOpacity = 0.12;
       let weight = 1.5;
 
-      if (isSelected) { color = '#e11d48'; fillColor = '#fda4af'; fillOpacity = 0.55; weight = 3; }
-      if (conflict)  { color = '#d97706'; fillColor = '#fde68a'; fillOpacity = 0.65; weight = 3; }
+      if (isSelected) { color = '#e11d48'; fillColor = '#e11d48'; fillOpacity = 0.28; weight = 2.5; }
+      if (conflict)  { color = '#d97706'; fillColor = '#f59e0b'; fillOpacity = 0.28; weight = 2.5; }
 
-      const radius = viewState === 'TN' ? (item.isCity ? 12000 : 18000) : (viewState === 'CHENNAI' ? 1200 : 3000);
+      const radius = viewState === 'TN' ? (item.isCity ? 12000 : 16000) : (viewState === 'CHENNAI' ? 1200 : 2500);
 
       const circle = L.circle(item.coords, { color, fillColor, fillOpacity, weight, radius });
 
@@ -209,40 +231,35 @@ export default function ZoneSelectionMap({
 
       circle.bindPopup(popupHtml);
       circle.on('mouseover', function () { this.openPopup(); });
-      circle.on('click', () => {
-        if (viewState === 'TN' && item.isCity) {
-          if (item.name === 'Chennai') {
-            mapInstance.current.setView([13.04, 80.22], 11);
-            setViewState('CHENNAI');
-          } else if (item.name === 'Coimbatore') {
-            mapInstance.current.setView([11.0168, 76.9558], 11);
-            setViewState('COIMBATORE');
-          } else if (item.name === 'Madurai') {
-            mapInstance.current.setView([9.9252, 78.1198], 11);
-            setViewState('MADURAI');
-          } else if (item.name === 'Tiruchirappalli') {
-            mapInstance.current.setView([10.7905, 78.7047], 11);
-            setViewState('TRICHY');
-          } else if (item.name === 'Salem') {
-            mapInstance.current.setView([11.6643, 78.1460], 11);
-            setViewState('SALEM');
-          }
-        } else {
-          onToggleZone(item.name);
-        }
-      });
-
+      circle.on('click', () => handleItemClick(item));
       circle.addTo(layerGroup);
 
-      // Add a label marker for larger circles
-      if (viewState === 'TN') {
-        const labelIcon = L.divIcon({
-          className: '',
-          html: `<div style="font-size:9px;font-weight:800;color:#1e293b;white-space:nowrap;text-shadow:0 0 3px white,0 0 3px white;">${item.name}</div>`,
-          iconAnchor: [30, 5],
-        });
-        L.marker(item.coords, { icon: labelIcon, interactive: false }).addTo(layerGroup);
-      }
+      // Centered interactive badge pin on the map
+      const badgeBg = isSelected
+        ? 'background:#e11d48;color:#ffffff;border:1.5px solid #be123c;box-shadow:0 2px 6px rgba(225,29,72,0.4);'
+        : conflict
+          ? 'background:#d97706;color:#ffffff;border:1.5px solid #b45309;box-shadow:0 2px 6px rgba(217,119,6,0.4);'
+          : 'background:rgba(255,255,255,0.95);color:#0f172a;border:1px solid #cbd5e1;box-shadow:0 1px 4px rgba(0,0,0,0.18);';
+
+      const badgeHtml = `
+        <div style="transform:translate(-50%, -50%);display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:9999px;font-size:10px;font-weight:800;white-space:nowrap;cursor:pointer;user-select:none;transition:all 0.15s ease;${badgeBg}">
+          ${isSelected ? '<span>✓</span>' : conflict ? '<span>⚠️</span>' : item.isCity ? '<span>📍</span>' : '<span style="width:5px;height:5px;border-radius:50%;background:#64748b;display:inline-block;"></span>'}
+          <span>${item.name}</span>
+          ${item.isCity && viewState === 'TN' ? '<span style="font-size:8px;opacity:0.8;">🔍</span>' : ''}
+        </div>
+      `;
+
+      const labelIcon = L.divIcon({
+        className: 'zone-map-badge',
+        html: badgeHtml,
+        iconSize: [0, 0],
+        iconAnchor: [0, 0],
+      });
+      const marker = L.marker(item.coords, { icon: labelIcon, interactive: true });
+      marker.bindPopup(popupHtml);
+      marker.on('mouseover', function () { this.openPopup(); });
+      marker.on('click', () => handleItemClick(item));
+      marker.addTo(layerGroup);
     });
   }, [leafletLoaded, viewState, selectedZones, zoneConflicts, isGrowthPartner]);
 

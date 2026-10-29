@@ -39,24 +39,25 @@ const sendVendorWhatsAppRegistration = async (details) => {
     return { success: false, error: 'Invalid phone number' };
   }
 
-  // Construct message payload for WhatsApp Chatbot
+  // Construct message payload for WhatsApp Chatbot & Direct link
   const isApproved = approvalStatus === 'APPROVED';
   const statusHeadline = isApproved ? 'registered and APPROVED!' : 'registered successfully and is currently PENDING approval.';
   const noteText = isApproved
     ? 'Your account is verified. You now have full access to place stock orders & manage inventory. Thank you for partnering with Mansara Foods! 🌿'
-    : 'Your registration is under review by our administration team. You will be notified once your account is approved. Thank you for partnering with Mansara Foods! 🌿';
+    : 'Your registration is under review by our administration team. Once approved, you can log in to place stock orders & manage inventory. Thank you for partnering with Mansara Foods! 🌿';
 
   const messageText = 
 `🎉 *Welcome to Mansara Foods B2B Portal!* 🙏
 
-Hello *${name || 'Partner'}*, your vendor account for *${companyName || 'your firm'}* has been ${statusHeadline}
+Hello *${name || 'Partner'}*, your dealer partner account for *${companyName || 'your firm'}* has been ${statusHeadline}
 
-🔑 *Your Account Credentials & Details:*
-• *Registered Email:* ${email}
-${password ? `• *Password:* ${password}\n` : ''}• *Phone:* ${phone}
+🔑 *Your Login Credentials & Account Details:*
+• *User ID (Login ID):* ${email}
+• *Password:* ${password || 'Dealer@123'}
+• *Phone:* ${phone}
 ${dealerCategory ? `• *Category / Tier:* ${dealerCategory} (${dealerType || 'RETAIL'})\n` : ''}${defaultMargin !== undefined && defaultMargin !== null ? `• *Default Margin:* ${defaultMargin}%\n` : ''}${gstNumber ? `• *GSTIN:* ${gstNumber}\n` : ''}• *Status:* ${approvalStatus}
 
-🌐 *Log in to B2B Partner Portal:*
+🌐 *Log in to Partner Portal:*
 ${frontendUrl}/login
 
 📌 *Note:* ${noteText}`;
@@ -71,26 +72,50 @@ ${frontendUrl}/login
   sendAdminDealerRegistrationAlert(details)
     .catch(err => console.error('[ERROR] Admin Dealer Alert failed:', err.message));
 
-  // 1. Try sending via WhatsApp Bot Automation API
-  try {
-    console.log(`[WHATSAPP SERVICE] Sending registration message via Chatbot Bot API to ${normalizedPhone}...`);
-    const response = await axios.post(`${botUrl}/api/send-message`, {
-      phone: normalizedPhone,
-      message: messageText,
-      recipientName: name,
-      companyName
-    }, { timeout: 4000 });
-
-    console.log(`[WHATSAPP SERVICE] ✓ Registration message delivered to ${normalizedPhone} via Bot API`);
-    return { success: true, method: 'bot_api', data: response.data, whatsappUrl, messageText };
-  } catch (botError) {
-    console.warn(`[WHATSAPP SERVICE] Bot Automation API call failed (${botError.message}). Trying Meta Cloud API...`);
-  }
-
-  // 2. Fallback to direct Meta Cloud API if credentials exist
+  // 1. Direct Meta Cloud API (Fastest & Verified Official API)
   if (metaToken && phoneId) {
+    // Attempt 1A: Approved dealer_partner_approval_v4 template
     try {
-      const tierInfo = `${dealerCategory || 'STARTER'} (${defaultMargin || 10}% Margin)${password ? ` | Password: ${password}` : ''}`;
+      const accessDetails = `Password: ${password || 'Dealer@123'} | User ID: ${email} | Tier: ${dealerCategory || 'STARTER'} (${defaultMargin || 10}% Margin)`;
+      const metaRes = await axios({
+        method: 'POST',
+        url: `https://graph.facebook.com/v20.0/${phoneId}/messages`,
+        headers: {
+          'Authorization': `Bearer ${metaToken}`,
+          'Content-Type': 'application/json'
+        },
+        data: {
+          messaging_product: 'whatsapp',
+          recipient_type: 'individual',
+          to: normalizedPhone,
+          type: 'template',
+          template: {
+            name: 'dealer_partner_approval_v4',
+            language: { code: 'en_US' },
+            components: [
+              {
+                type: 'body',
+                parameters: [
+                  { type: 'text', text: name || 'Partner' },
+                  { type: 'text', text: companyName || 'Mansara Partner' },
+                  { type: 'text', text: email || 'dealer@mansarafoods.com' },
+                  { type: 'text', text: accessDetails }
+                ]
+              }
+            ]
+          }
+        },
+        timeout: 5000
+      });
+      console.log(`[WHATSAPP SERVICE] ✓ Delivered dealer_partner_approval_v4 template to ${normalizedPhone}`);
+      return { success: true, method: 'meta_cloud_api', template: 'dealer_partner_approval_v4', data: metaRes.data, whatsappUrl, messageText, normalizedPhone };
+    } catch (v4Err) {
+      console.warn(`[WHATSAPP SERVICE] dealer_partner_approval_v4 error (${v4Err.message}). Trying dealer_partner_approval_v2...`);
+    }
+
+    // Attempt 1B: Approved dealer_partner_approval_v2 template
+    try {
+      const tierInfo = `Password: ${password || 'Dealer@123'} | User ID: ${email} | Tier: ${dealerCategory || 'STARTER'}`;
       const metaRes = await axios({
         method: 'POST',
         url: `https://graph.facebook.com/v20.0/${phoneId}/messages`,
@@ -122,48 +147,66 @@ ${frontendUrl}/login
         timeout: 5000
       });
       console.log(`[WHATSAPP SERVICE] ✓ Delivered dealer_partner_approval_v2 template to ${normalizedPhone}`);
-      return { success: true, method: 'meta_cloud_api', data: metaRes.data, whatsappUrl, messageText };
-    } catch (primaryErr) {
-      console.warn(`[WHATSAPP SERVICE] dealer_partner_approval_v2 pending/error (${primaryErr.message}). Using approved sales_team_alert fallback...`);
-      try {
-        const bodyParams = [
-          name || 'Vendor Partner',
-          `${companyName || 'Mansara Foods Vendor'} (B2B Portal)`,
-          phone,
-          `Dealer Reg ${isApproved ? 'APPROVED!' : 'RECEIVED (Pending Approval)'} | Login Email: ${email}${password ? ` | Password: ${password}` : ''} | Status: ${approvalStatus}${dealerCategory ? ` | Tier: ${dealerCategory} (${dealerType || 'RETAIL'})` : ''}${defaultMargin !== undefined && defaultMargin !== null ? ` | Margin: ${defaultMargin}%` : ''} | Quick Action: Reply 'Approve ${email}' to activate dealer account!`
-        ];
-
-        const metaRes = await axios({
-          method: 'POST',
-          url: `https://graph.facebook.com/v20.0/${phoneId}/messages`,
-          headers: {
-            'Authorization': `Bearer ${metaToken}`,
-            'Content-Type': 'application/json'
-          },
-          data: {
-            messaging_product: 'whatsapp',
-            recipient_type: 'individual',
-            to: normalizedPhone,
-            type: 'template',
-            template: {
-              name: 'sales_team_alert',
-              language: { code: 'en_US' },
-              components: [
-                {
-                  type: 'body',
-                  parameters: bodyParams.map(text => ({ type: 'text', text }))
-                }
-              ]
-            }
-          },
-          timeout: 6000
-        });
-        console.log(`[WHATSAPP SERVICE] ✓ Delivered sales_team_alert fallback template to ${normalizedPhone}`);
-        return { success: true, method: 'meta_cloud_api', data: metaRes.data, whatsappUrl, messageText };
-      } catch (metaErr) {
-        console.warn(`[WHATSAPP SERVICE] Meta API error:`, metaErr.response?.data || metaErr.message);
-      }
+      return { success: true, method: 'meta_cloud_api', template: 'dealer_partner_approval_v2', data: metaRes.data, whatsappUrl, messageText, normalizedPhone };
+    } catch (v2Err) {
+      console.warn(`[WHATSAPP SERVICE] dealer_partner_approval_v2 error (${v2Err.message}). Trying sales_team_alert fallback...`);
     }
+
+    // Attempt 1C: sales_team_alert fallback
+    try {
+      const bodyParams = [
+        name || 'Vendor Partner',
+        `${companyName || 'Mansara Partner'} (B2B Portal)`,
+        phone,
+        `Dealer Account Credentials | User ID: ${email} | Password: ${password || 'Dealer@123'} | Status: ${approvalStatus} | Portal: ${frontendUrl}/login`
+      ];
+
+      const metaRes = await axios({
+        method: 'POST',
+        url: `https://graph.facebook.com/v20.0/${phoneId}/messages`,
+        headers: {
+          'Authorization': `Bearer ${metaToken}`,
+          'Content-Type': 'application/json'
+        },
+        data: {
+          messaging_product: 'whatsapp',
+          recipient_type: 'individual',
+          to: normalizedPhone,
+          type: 'template',
+          template: {
+            name: 'sales_team_alert',
+            language: { code: 'en_US' },
+            components: [
+              {
+                type: 'body',
+                parameters: bodyParams.map(text => ({ type: 'text', text }))
+              }
+            ]
+          }
+        },
+        timeout: 5000
+      });
+      console.log(`[WHATSAPP SERVICE] ✓ Delivered sales_team_alert fallback template to ${normalizedPhone}`);
+      return { success: true, method: 'meta_cloud_api', template: 'sales_team_alert', data: metaRes.data, whatsappUrl, messageText, normalizedPhone };
+    } catch (metaErr) {
+      console.warn(`[WHATSAPP SERVICE] Meta API error:`, metaErr.response?.data || metaErr.message);
+    }
+  }
+
+  // 2. Fallback to WhatsApp Bot Automation API
+  try {
+    console.log(`[WHATSAPP SERVICE] Sending registration message via Chatbot Bot API to ${normalizedPhone}...`);
+    const response = await axios.post(`${botUrl}/api/send-message`, {
+      phone: normalizedPhone,
+      message: messageText,
+      recipientName: name,
+      companyName
+    }, { timeout: 2500 });
+
+    console.log(`[WHATSAPP SERVICE] ✓ Registration message delivered to ${normalizedPhone} via Bot API`);
+    return { success: true, method: 'bot_api', data: response.data, whatsappUrl, messageText, normalizedPhone };
+  } catch (botError) {
+    console.warn(`[WHATSAPP SERVICE] Bot Automation API call failed (${botError.message}).`);
   }
 
   // 3. Simulation fallback (logs message details safely so API request never fails)

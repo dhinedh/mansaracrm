@@ -1,6 +1,11 @@
 // src/utils/pdfTemplate.js
 const fs = require('fs');
 const path = require('path');
+const {
+  mergeAppointmentTemplate,
+  mergeClosureTemplate,
+  interpolateTokens
+} = require('./defaultAgreementTemplates');
 
 /**
  * Converts number to Indian words (for "Amount in Words" field)
@@ -639,11 +644,23 @@ const buildSimpleRetailInvoiceHtml = (company, invoice) => {
 </html>`;
 };
 
+function getOrdinalSuffix(day) {
+  if (day > 3 && day < 21) return 'th';
+  switch (day % 10) {
+    case 1: return 'st';
+    case 2: return 'nd';
+    case 3: return 'rd';
+    default: return 'th';
+  }
+}
+
 /**
  * Builds the Dealer Appointment Agreement HTML
- * Matches the Mansara Foods agreement format with bold/underlined key terms
+ * Matches the Mansara Foods agreement format with customizable template clauses and terms
  */
-const buildAgreementHtml = (company, dealer) => {
+const buildAgreementHtml = (company, dealer, customTemplate = null) => {
+  const template = mergeAppointmentTemplate(customTemplate || {});
+
   let logoBase64 = '';
   try {
     const logoPath = path.join(__dirname, '../../public/logo.png');
@@ -661,19 +678,58 @@ const buildAgreementHtml = (company, dealer) => {
   const month = today.toLocaleString('en-IN', { month: 'long' }).toUpperCase();
   const year  = today.getFullYear();
 
-  // Agreement number: MFD/GD/YEAR/XXX
-  const agreeNo = `MFD/GD/${year}/${String(dealer.agreeSeq || 1).padStart(3, '0')}`;
+  // Agreement number: MFD/DAA/YEAR/XXX
+  const agreeNo = dealer.agreementNumber || `MFD/DAA/${year}/${String(dealer.agreeSeq || 1).padStart(3, '0')}`;
 
   const zones = Array.isArray(dealer.zones) ? dealer.zones.join(', ') : (dealer.zones || 'Chennai');
   const dealerCity = dealer.city || 'Chennai';
   const companyNameStr = (dealer?.companyName || 'B2B Partner').toString();
   const dealerAddrStr  = [dealer?.address, dealerCity, dealer?.state].filter(Boolean).join(', ') || 'Address Not Specified';
+  const dealerContactPerson = (dealer.user?.name || dealer.contactName || 'AUTHORIZED SIGNATORY').toString();
+
+  const tokens = {
+    DAY: day,
+    DAY_ORDINAL: `${day}${getOrdinalSuffix(day)}`,
+    MONTH: month,
+    YEAR: year,
+    AGREEMENT_NO: agreeNo,
+    DEALER_COMPANY_NAME: companyNameStr.toUpperCase(),
+    DEALER_ADDRESS: dealerAddrStr.toUpperCase(),
+    DEALER_CONTACT_NAME: dealerContactPerson.toUpperCase(),
+    TERRITORY: zones,
+    ZONES: zones,
+    DEALER_CITY: dealerCity,
+    DEALER_STATE: dealer?.state || 'Tamil Nadu',
+    DEALER_PHONE: dealer.phone || '—',
+    DEALER_EMAIL: dealer.user?.email || '—',
+    DEALER_GST: dealer.gstNumber || '—',
+    SECURITY_DEPOSIT: (dealer.initialDeposit || 0).toLocaleString('en-IN'),
+    COMPANY_NAME: company.name || company.companyName || 'Mansara Foods Pvt. Ltd.',
+    COMPANY_ADDRESS: company.address || 'B4, No.13, Balaji Nagar 1st street extn, Noombal, Chennai – 600077',
+    COMPANY_PHONE: company.phone || '+91-88388 87064',
+    COMPANY_GST: company.gstNumber || '27AABCM1234F1Z5'
+  };
+
+  const renderedRecitals = (template.recitals || [])
+    .map(r => `<p>${interpolateTokens(r, tokens)}</p>`)
+    .join('\n  ');
+
+  const renderedWitnesseth = template.witnesseth
+    ? `<h3>Now This Agreement Witnesseth as Follows:</h3>\n  ` +
+      template.witnesseth.split('\n\n').map(p => `<p>${interpolateTokens(p, tokens)}</p>`).join('\n  ')
+    : '';
+
+  const renderedClauses = (template.clauses || []).map((c, idx) => {
+    const num = c.num !== undefined ? c.num : idx + 1;
+    const titleHtml = c.title ? `<strong>${interpolateTokens(c.title, tokens)}:</strong> ` : '';
+    return `<div class="clause"><span class="clause-num">${num}.</span> ${titleHtml}${interpolateTokens(c.text, tokens)}</div>`;
+  }).join('\n  ');
 
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Dealer Appointment Agreement - ${companyNameStr}</title>
+<title>${interpolateTokens(template.title, tokens)} - ${companyNameStr}</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
@@ -689,7 +745,8 @@ const buildAgreementHtml = (company, dealer) => {
   .company-hdr { flex: 1; }
   .company-title { font-size: 26px; font-weight: 900; color: #D6295A; text-transform: uppercase; letter-spacing: 1px; }
   .company-sub { font-size: 10px; color: #555; margin-top: 3px; }
-  .agree-title { text-align: center; font-size: 14px; font-weight: 900; text-decoration: underline; text-transform: uppercase; margin-bottom: 16px; letter-spacing: 0.5px; }
+  .agree-title { text-align: center; font-size: 14px; font-weight: 900; text-decoration: underline; text-transform: uppercase; margin-bottom: 4px; letter-spacing: 0.5px; }
+  .agree-subtitle { text-align: center; font-size: 11px; font-weight: 700; text-transform: uppercase; margin-bottom: 16px; color: #555; }
   p { margin-bottom: 10px; text-align: justify; }
   .field { font-weight: 700; text-decoration: underline; }
   .bold { font-weight: 700; }
@@ -705,11 +762,14 @@ const buildAgreementHtml = (company, dealer) => {
   .sig-party { font-size: 10px; font-weight: 700; text-transform: uppercase; margin-bottom: 40px; }
   .sig-line { border-top: 1.5px solid #1a1a1a; padding-top: 5px; font-size: 10px; font-weight: 700; }
   .footer-strip { margin-top: 30px; border-top: 2px solid #D6295A; padding-top: 8px; text-align: center; font-size: 9px; color: #555; }
-  .watermark { position: fixed; top: 45%; left: 50%; transform: translate(-50%,-50%) rotate(-30deg); font-size: 80px; font-weight: 900; color: rgba(214,41,90,0.05); pointer-events: none; white-space: nowrap; z-index: 0; }
+  .watermark-container { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); display: flex; align-items: center; justify-content: center; pointer-events: none; z-index: 0; }
+  .watermark-logo { width: 340px; max-width: 70%; height: auto; opacity: 0.08; object-fit: contain; }
 </style>
 </head>
 <body>
-<div class="watermark">MANSARA FOODS</div>
+<div class="watermark-container">
+  ${logoBase64 ? `<img src="data:image/png;base64,${logoBase64}" class="watermark-logo" alt="Mansara Foods Watermark" />` : `<div style="font-size:70px;font-weight:900;color:rgba(214,41,90,0.05);transform:rotate(-30deg);white-space:nowrap;">MANSARA FOODS</div>`}
+</div>
 <div class="outer">
 
   <!-- Header -->
@@ -723,28 +783,21 @@ const buildAgreementHtml = (company, dealer) => {
   </div>
 
   <!-- Title -->
-  <div class="agree-title">Dealer Appointment Agreement</div>
+  <div class="agree-title">${interpolateTokens(template.title, tokens)}</div>
+  ${template.subtitle ? `<div class="agree-subtitle">${interpolateTokens(template.subtitle, tokens)}</div>` : ''}
 
   <p><strong>Agreement No.:</strong> <span class="field">${agreeNo}</span></p>
   <p><strong>Date:</strong> <span class="field"> ${day} / ${month} / ${year} </span></p>
   <br>
-  <p>This Dealer Appointment Agreement is executed at Chennai on this <span class="field">${day}th</span> day of <span class="field"> ${month}, ${year} </span>.</p>
+  <p>${interpolateTokens(template.preamble, tokens)}</p>
   <p><strong>BETWEEN</strong></p>
-  <p>MANSARA FOODS PRIVATE LIMITED, having its Registered Office at <span class="field"> NOOMBAL </span>, Chennai, Tamil Nadu,
-  hereinafter referred to as the "Company", which expression shall, unless repugnant to the context, include its successors,
-  administrators and assigns.</p>
+  <p>${interpolateTokens(template.companyDescription, tokens)}</p>
   <p><strong>AND</strong></p>
-  <p>M/s. <span class="field"> ${companyNameStr.toUpperCase()} </span>, a Proprietorship / <s>Partnership / LLP / Private Limited Company</s> having its place of
-  business at <span class="field"> ${dealerAddrStr.toUpperCase()} </span>, hereinafter referred to as the "Dealer", which expression
-  shall, unless repugnant to the context, include its proprietors, partners, legal heirs, successors and permitted assigns.</p>
+  <p>${interpolateTokens(template.dealerDescription, tokens)}</p>
 
-  <p>WHEREAS the Company is engaged in the manufacture and marketing of food products under the brand name MANSARA.</p>
-  <p>AND WHEREAS the Dealer has approached the Company for appointments as an authorized Dealer for the products marketed by the Company.</p>
-  <p>AND WHEREAS the Company, after evaluating the Dealer's credentials and infrastructure, has agreed to appoint the Dealer subject to the terms and conditions attached herewith.</p>
+  ${renderedRecitals}
 
-  <h3>Now This Agreement Witnesseth as Follows:</h3>
-  <p>The Company hereby appoints the Dealer as an Authorized Growth Dealer for the territory specified herein and the Dealer hereby accepts such appointment.</p>
-  <p>The Dealer shall be authorized to market and sell MANSARA products within the approved territory subject to compliance with the Company's policies, pricing structure, operational guidelines and the Terms &amp; Conditions annexed to this Agreement.</p>
+  ${renderedWitnesseth}
 
   <h3>Dealer Details</h3>
   <table class="details">
@@ -760,33 +813,25 @@ const buildAgreementHtml = (company, dealer) => {
   </table>
 
   <h3>Terms &amp; Conditions</h3>
-  <div class="clause"><span class="clause-num">1.</span> The Dealer shall maintain minimum monthly purchase commitment as agreed with the Company.</div>
-  <div class="clause"><span class="clause-num">2.</span> The Dealer shall not deal in any competing or similar food products without prior written consent of the Company.</div>
-  <div class="clause"><span class="clause-num">3.</span> All payments shall be made within <strong>15 days</strong> from the date of invoice. Interest at <strong>2% per month</strong> shall be levied on delayed payments.</div>
-  <div class="clause"><span class="clause-num">4.</span> The Dealer shall store products as per the Company's guidelines and maintain hygiene standards prescribed under FSSAI regulations.</div>
-  <div class="clause"><span class="clause-num">5.</span> The Dealer shall not alter, tamper with, or reproduce any labels, trademarks, or packaging of MANSARA products.</div>
-  <div class="clause"><span class="clause-num">6.</span> Either party may terminate this Agreement by giving <strong>30 days' written notice</strong>. The Company reserves the right to terminate immediately in case of breach.</div>
-  <div class="clause"><span class="clause-num">7.</span> This Agreement shall be governed by and construed in accordance with the laws of India, and disputes shall be subject to the jurisdiction of courts in <strong>Chennai, Tamil Nadu</strong>.</div>
-  <div class="clause"><span class="clause-num">8.</span> The initial security deposit of <strong>₹${(dealer.initialDeposit || 0).toLocaleString('en-IN')}</strong> paid by the Dealer shall be refundable upon termination, subject to no outstanding dues.</div>
+  ${renderedClauses}
 
   <!-- Signatures -->
   <div class="sig-section">
     <div class="sig-block">
-      <div class="sig-party">For M/s. ${dealer.companyName}</div>
-      <div class="sig-line">Authorized Signatory (Dealer)</div>
-      <div style="font-size:9px;color:#555;margin-top:3px;">Name: _________________ &nbsp; Date: _________________</div>
+      <div class="sig-party">${interpolateTokens(template.signatoryDealerParty, tokens)}</div>
+      <div class="sig-line">${interpolateTokens(template.signatoryDealerTitle, tokens)}</div>
+      <div style="font-size:9px;color:#555;margin-top:3px;">Name: ${(dealer.user?.name || dealer.contactName || '_________________')} &nbsp; Date: _________________</div>
     </div>
     <div class="sig-block" style="text-align:right;">
-      <div class="sig-party">For Mansara Foods Pvt. Ltd.</div>
-      <div class="sig-line">H. Deepika — Authorized Signatory</div>
+      <div class="sig-party">${interpolateTokens(template.signatoryCompanyParty, tokens)}</div>
+      <div class="sig-line">${interpolateTokens(template.signatoryCompanyTitle, tokens)}</div>
       <div style="font-size:9px;color:#555;margin-top:3px;">Date: ${day}/${month}/${year}</div>
     </div>
   </div>
 
   <!-- Footer -->
   <div class="footer-strip">
-    Regd. Office &amp; Operations : Flat No. B4, No.13, Balaji Nagar 1<sup>st</sup> street extn, Noombal, Chennai – 600077, Tamil Nadu, India Ph: +91-88388 87064. |
-    CIN- U10790TN2026PTC188398 | Email: contact@mansarafoods.com | Website: www.mansarafoods.com
+    ${interpolateTokens(template.footerText || 'Mansara Foods Private Limited • Confidential Dealer Legal Deed', tokens)}
   </div>
 </div>
 </body>
@@ -797,7 +842,9 @@ const buildAgreementHtml = (company, dealer) => {
  * Builds the Dealer Relationship Closure & Termination Agreement HTML
  * Matches the Mansara Foods formal agreement layout with mutual release and no-dues clauses
  */
-const buildClosureAgreementHtml = (company, dealer) => {
+const buildClosureAgreementHtml = (company, dealer, customTemplate = null) => {
+  const template = mergeClosureTemplate(customTemplate || {});
+
   let logoBase64 = '';
   try {
     const logoPath = path.join(__dirname, '../../public/logo.png');
@@ -816,8 +863,8 @@ const buildClosureAgreementHtml = (company, dealer) => {
   const year  = closureDate.getFullYear();
 
   const originalYear = dealer.approvedAt ? new Date(dealer.approvedAt).getFullYear() : (dealer.createdAt ? new Date(dealer.createdAt).getFullYear() : year);
-  const origAgreeNo = `MFD/GD/${originalYear}/${String(dealer.agreeSeq || 1).padStart(3, '0')}`;
-  const closeAgreeNo = dealer.closureAgreementNumber || `MFD/CLOSE/${year}/${String(dealer.agreeSeq || 1).padStart(3, '0')}`;
+  const origAgreeNo = dealer.agreementNumber || `MFD/DAA/${originalYear}/${String(dealer.agreeSeq || 1).padStart(3, '0')}`;
+  const closeAgreeNo = dealer.closureAgreementNumber || `MFD/DCA/${year}/${String(dealer.closureAgreeSeq || 1).padStart(3, '0')}`;
 
   const zones = Array.isArray(dealer.zones) ? dealer.zones.join(', ') : (dealer.zones || 'Chennai');
   const dealerCity = dealer.city || 'Chennai';
@@ -827,12 +874,51 @@ const buildClosureAgreementHtml = (company, dealer) => {
   const closureNotes   = dealer.closureNotes || 'Accounts reconciled with zero outstanding dues. Security deposit settled.';
   const depositStr     = (dealer.initialDeposit || 0).toLocaleString('en-IN');
   const settlementStatus = dealer.closureSettlementStatus || 'SETTLED & RECONCILED';
+  const dealerContactPerson = (dealer.user?.name || dealer.contactName || 'AUTHORIZED SIGNATORY').toString();
+
+  const tokens = {
+    DAY: day,
+    DAY_ORDINAL: `${day}${getOrdinalSuffix(day)}`,
+    MONTH: month,
+    YEAR: year,
+    ORIGINAL_AGREEMENT_NO: origAgreeNo,
+    CLOSURE_AGREEMENT_NO: closeAgreeNo,
+    CLOSURE_DATE: `${day} ${month} ${year}`,
+    CLOSURE_REASON: closureReason,
+    CLOSURE_NOTES: closureNotes,
+    SETTLEMENT_STATUS: settlementStatus,
+    DEALER_COMPANY_NAME: companyNameStr.toUpperCase(),
+    DEALER_ADDRESS: dealerAddrStr.toUpperCase(),
+    DEALER_CONTACT_NAME: dealerContactPerson.toUpperCase(),
+    TERRITORY: zones,
+    ZONES: zones,
+    DEALER_CITY: dealerCity,
+    DEALER_STATE: dealer?.state || 'Tamil Nadu',
+    DEALER_PHONE: dealer.phone || '—',
+    DEALER_EMAIL: dealer.user?.email || '—',
+    DEALER_GST: dealer.gstNumber || '—',
+    SECURITY_DEPOSIT: depositStr,
+    COMPANY_NAME: company.name || company.companyName || 'Mansara Foods Pvt. Ltd.',
+    COMPANY_ADDRESS: company.address || 'B4, No.13, Balaji Nagar 1st street extn, Noombal, Chennai – 600077',
+    COMPANY_PHONE: company.phone || '+91-88388 87064',
+    COMPANY_GST: company.gstNumber || '27AABCM1234F1Z5'
+  };
+
+  const renderedRecitals = (template.recitals || [])
+    .map(r => `<p>${interpolateTokens(r, tokens)}</p>`)
+    .join('\n  ');
+
+  const renderedClauses = (template.clauses || []).map((c, idx) => {
+    const num = c.num !== undefined ? c.num : idx + 1;
+    const titleHtml = c.title ? `<span class="clause-num">${num}. ${interpolateTokens(c.title, tokens)}:</span> ` : `<span class="clause-num">${num}.</span> `;
+    return `<div class="clause">${titleHtml}${interpolateTokens(c.text, tokens)}</div>`;
+  }).join('\n  ');
 
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Dealer Relationship Closure Agreement - ${companyNameStr}</title>
+<title>${interpolateTokens(template.title, tokens)} - ${companyNameStr}</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
@@ -866,11 +952,14 @@ const buildClosureAgreementHtml = (company, dealer) => {
   .sig-party { font-size: 10px; font-weight: 700; text-transform: uppercase; margin-bottom: 40px; }
   .sig-line { border-top: 1.5px solid #1a1a1a; padding-top: 5px; font-size: 10px; font-weight: 700; }
   .footer-strip { margin-top: 30px; border-top: 2px solid #D6295A; padding-top: 8px; text-align: center; font-size: 9px; color: #555; }
-  .watermark { position: fixed; top: 45%; left: 50%; transform: translate(-50%,-50%) rotate(-30deg); font-size: 65px; font-weight: 900; color: rgba(214,41,90,0.04); pointer-events: none; white-space: nowrap; z-index: 0; }
+  .watermark-container { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); display: flex; align-items: center; justify-content: center; pointer-events: none; z-index: 0; }
+  .watermark-logo { width: 340px; max-width: 70%; height: auto; opacity: 0.08; object-fit: contain; }
 </style>
 </head>
 <body>
-<div class="watermark">MANSARA CLOSURE</div>
+<div class="watermark-container">
+  ${logoBase64 ? `<img src="data:image/png;base64,${logoBase64}" class="watermark-logo" alt="Mansara Foods Watermark" />` : `<div style="font-size:65px;font-weight:900;color:rgba(214,41,90,0.04);transform:rotate(-30deg);white-space:nowrap;">MANSARA CLOSURE</div>`}
+</div>
 <div class="outer">
 
   <!-- Header -->
@@ -884,28 +973,23 @@ const buildClosureAgreementHtml = (company, dealer) => {
   </div>
 
   <!-- Title -->
-  <div class="agree-title">DEALER RELATIONSHIP CLOSURE &amp; NO-DUES CLEARANCE AGREEMENT</div>
-  <div class="agree-subtitle">Formal Dealership Termination, Mutual Release &amp; Account Settlement Deed</div>
+  <div class="agree-title">${interpolateTokens(template.title, tokens)}</div>
+  ${template.subtitle ? `<div class="agree-subtitle">${interpolateTokens(template.subtitle, tokens)}</div>` : ''}
 
   <p><strong>Closure Agreement Ref:</strong> <span class="field">${closeAgreeNo}</span> &nbsp;&nbsp;|&nbsp;&nbsp; <strong>Original Agreement Ref:</strong> <span class="field">${origAgreeNo}</span></p>
   <p><strong>Effective Date of Closure:</strong> <span class="field"> ${day} / ${month} / ${year} </span></p>
   <br>
-  <p>This Dealer Relationship Closure Agreement is executed at Chennai on this <span class="field">${day}th</span> day of <span class="field"> ${month}, ${year} </span>.</p>
+  <p>${interpolateTokens(template.preamble, tokens)}</p>
   <p><strong>BETWEEN</strong></p>
-  <p><strong>MANSARA FOODS PRIVATE LIMITED</strong>, having its Registered Office at <span class="field"> NOOMBAL </span>, Chennai, Tamil Nadu,
-  hereinafter referred to as the <strong>"Company"</strong> (which expression shall include its successors, administrators and assigns).</p>
+  <p>${interpolateTokens(template.companyDescription, tokens)}</p>
   <p><strong>AND</strong></p>
-  <p><strong>M/s. <span class="field"> ${companyNameStr.toUpperCase()} </span></strong>, having its principal place of business at <span class="field"> ${dealerAddrStr.toUpperCase()} </span>,
-  represented by its Proprietor / Authorized Signatory <span class="field"> ${(dealer.user?.name || dealer.contactName || 'AUTHORIZED SIGNATORY').toUpperCase()} </span>,
-  hereinafter referred to as the <strong>"Exiting Dealer"</strong> (which expression shall include its successors, legal heirs, and permitted assigns).</p>
+  <p>${interpolateTokens(template.dealerDescription, tokens)}</p>
 
   <p><strong>WHEREAS:</strong></p>
-  <p>1. The Company and Dealer entered into a Dealer Appointment Agreement for authorized distribution and marketing of MANSARA brand products across assigned territories.</p>
-  <p>2. Both parties have mutually resolved to conclude and formally terminate the dealership relationship with effect from <span class="field">${day} ${month} ${year}</span> due to: <strong>${closureReason}</strong>.</p>
-  <p>3. The parties have undertaken a complete reconciliation of accounts, trade balances, inventory returns, and security deposits.</p>
+  ${renderedRecitals}
 
   <div class="highlight-box">
-    <strong>Closure Summary:</strong> Dealership relationship stands officially closed with effect from <strong>${day} ${month} ${year}</strong>. Reason: <strong>${closureReason}</strong>. Account settlement status: <strong>${settlementStatus}</strong>.
+    <strong>Closure Summary:</strong> ${interpolateTokens(template.summaryBox || 'Dealership relationship stands officially closed with effect from {{CLOSURE_DATE}}.', tokens)}
   </div>
 
   <h3>Dealership Details at Closure</h3>
@@ -924,32 +1008,25 @@ const buildClosureAgreementHtml = (company, dealer) => {
   </table>
 
   <h3>Terms &amp; Conditions of Dealership Closure</h3>
-  <div class="clause"><span class="clause-num">1. Termination of Dealership Rights:</span> With effect from the date of this Agreement, all rights, authorizations, licenses, and privileges granted to the Dealer to stock, market, distribute, or sell MANSARA products stand permanently terminated and revoked.</div>
-  <div class="clause"><span class="clause-num">2. Brand Assets &amp; Intellectual Property:</span> The Dealer shall immediately cease the use of the trade name "MANSARA", brand logos, signs, marketing materials, and digital assets. All promotional collateral and company-supplied display assets have been returned or cleared.</div>
-  <div class="clause"><span class="clause-num">3. Account Reconciliation &amp; Final Settlement:</span> Both parties confirm that all trade invoices, billings, credit limits, and purchase ledgers have been audited and fully settled. Neither party has any outstanding dues or pending monetary liability against the other.</div>
-  <div class="clause"><span class="clause-num">4. Security Deposit Settlement:</span> The initial security deposit amount of <strong>₹${depositStr}</strong> has been fully reconciled and settled as per the agreed terms (Status: <strong>${settlementStatus}</strong>), leaving no further financial claims.</div>
-  <div class="clause"><span class="clause-num">5. Mutual Release &amp; No-Dues Clearance:</span> The Company and the Dealer hereby mutually, irrevocably, and unconditionally release, acquit, and forever discharge each other, their proprietors, directors, agents, and representatives from all claims, demands, disputes, liabilities, actions, or proceedings arising out of or connected with the dealership agreement.</div>
-  <div class="clause"><span class="clause-num">6. Confidentiality:</span> The Exiting Dealer covenants to maintain strict confidentiality regarding all proprietary formulas, recipes, wholesale pricing structures, dealer networks, and commercial terms learned during the course of the dealership tenure.</div>
-  <div class="clause"><span class="clause-num">7. Governing Law &amp; Jurisdiction:</span> This Agreement shall be governed by the laws of India, and any disputes arising herefrom shall be subject to the exclusive jurisdiction of the competent courts in <strong>Chennai, Tamil Nadu</strong>.</div>
+  ${renderedClauses}
 
   <!-- Signatures -->
   <div class="sig-section">
     <div class="sig-block">
-      <div class="sig-party">For M/s. ${dealer.companyName}</div>
-      <div class="sig-line">Authorized Signatory (Exiting Dealer)</div>
+      <div class="sig-party">${interpolateTokens(template.signatoryDealerParty, tokens)}</div>
+      <div class="sig-line">${interpolateTokens(template.signatoryDealerTitle, tokens)}</div>
       <div style="font-size:9px;color:#555;margin-top:3px;">Name: ${(dealer.user?.name || dealer.contactName || '_________________')} &nbsp; Date: ${day}/${month}/${year}</div>
     </div>
     <div class="sig-block" style="text-align:right;">
-      <div class="sig-party">For Mansara Foods Pvt. Ltd.</div>
-      <div class="sig-line">H. Deepika — Authorized Signatory</div>
+      <div class="sig-party">${interpolateTokens(template.signatoryCompanyParty, tokens)}</div>
+      <div class="sig-line">${interpolateTokens(template.signatoryCompanyTitle, tokens)}</div>
       <div style="font-size:9px;color:#555;margin-top:3px;">Date: ${day}/${month}/${year}</div>
     </div>
   </div>
 
   <!-- Footer -->
   <div class="footer-strip">
-    Regd. Office &amp; Operations : Flat No. B4, No.13, Balaji Nagar 1<sup>st</sup> street extn, Noombal, Chennai – 600077, Tamil Nadu, India Ph: +91-88388 87064. |
-    CIN- U10790TN2026PTC188398 | Email: contact@mansarafoods.com | Website: www.mansarafoods.com
+    ${interpolateTokens(template.footerText || 'Mansara Foods Private Limited • Dealership Termination & Mutual Settlement Deed', tokens)}
   </div>
 </div>
 </body>

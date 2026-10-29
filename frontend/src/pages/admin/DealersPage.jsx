@@ -1,6 +1,6 @@
 // src/pages/admin/DealersPage.jsx
 import React, { useEffect, useState, useRef } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 import { 
   Plus, 
@@ -31,7 +31,11 @@ import {
   UserX,
   FileX2,
   RotateCcw,
-  AlertTriangle
+  AlertTriangle,
+  FileSignature,
+  Send,
+  Copy,
+  Check
 } from 'lucide-react';
 import ZoneSelectionMap from '../../components/ZoneSelectionMap';
 
@@ -91,6 +95,7 @@ export default function DealersPage() {
   const [dealerDetail, setDealerDetail] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
+  const [downloadingAgreementType, setDownloadingAgreementType] = useState('');
   const [activeTab, setActiveTab] = useState('profile'); // 'profile' | 'stores' | 'inventory'
 
   // Change Password states (inside detail modal)
@@ -287,67 +292,68 @@ export default function DealersPage() {
   }, [editForm.zones, dealerDetail]);
 
   const downloadAgreement = async (dealerId, companyName) => {
+    if (downloadingAgreementType) return;
+    setDownloadingAgreementType('appointment');
     try {
       const response = await axios.get(`/billing/agreement/${dealerId}`, { responseType: 'blob' });
       const contentType = response.headers['content-type'] || response.data?.type || '';
+      const isHtml = contentType.includes('text/html');
+      const ext = isHtml ? 'html' : 'pdf';
+      const mime = isHtml ? 'text/html' : 'application/pdf';
 
-      if (contentType.includes('text/html')) {
-        // Fallback: If PDF generator is unavailable or returned HTML, open in a printable window
-        const fileURL = URL.createObjectURL(new Blob([response.data], { type: 'text/html' }));
-        const printWin = window.open(fileURL, '_blank');
-        if (!printWin) {
-          const link = document.createElement('a');
-          link.href = fileURL;
-          link.setAttribute('download', `Agreement_${(companyName || 'Dealer').replace(/\s+/g, '_')}.html`);
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
+      const file = new Blob([response.data], { type: mime });
+      const fileURL = window.URL.createObjectURL(file);
+      const link = document.createElement('a');
+      link.href = fileURL;
+      link.style.display = 'none';
+      link.setAttribute('download', `Agreement_${(companyName || 'Dealer').replace(/\s+/g, '_')}.${ext}`);
+      document.body.appendChild(link);
+      link.click();
+
+      setTimeout(() => {
+        if (link && link.parentNode) {
+          link.parentNode.removeChild(link);
         }
-      } else {
-        const file = new Blob([response.data], { type: 'application/pdf' });
-        const fileURL = URL.createObjectURL(file);
-        const link = document.createElement('a');
-        link.href = fileURL;
-        link.setAttribute('download', `Agreement_${(companyName || 'Dealer').replace(/\s+/g, '_')}.pdf`);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-      }
+        window.URL.revokeObjectURL(fileURL);
+      }, 350);
     } catch (err) {
       console.error('Failed to download agreement:', err);
-      alert('Failed to download agreement PDF. Please check server logs.');
+      alert('Failed to download agreement. Please check server logs.');
+    } finally {
+      setDownloadingAgreementType('');
     }
   };
 
   const downloadClosureAgreement = async (dealerId, companyName) => {
+    if (downloadingAgreementType) return;
+    setDownloadingAgreementType('closure');
     try {
       const response = await axios.get(`/billing/closure-agreement/${dealerId}`, { responseType: 'blob' });
       const contentType = response.headers['content-type'] || response.data?.type || '';
+      const isHtml = contentType.includes('text/html');
+      const ext = isHtml ? 'html' : 'pdf';
+      const mime = isHtml ? 'text/html' : 'application/pdf';
 
-      if (contentType.includes('text/html')) {
-        const fileURL = URL.createObjectURL(new Blob([response.data], { type: 'text/html' }));
-        const printWin = window.open(fileURL, '_blank');
-        if (!printWin) {
-          const link = document.createElement('a');
-          link.href = fileURL;
-          link.setAttribute('download', `Closure_Agreement_${(companyName || 'Dealer').replace(/\\s+/g, '_')}.html`);
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
+      const file = new Blob([response.data], { type: mime });
+      const fileURL = window.URL.createObjectURL(file);
+      const link = document.createElement('a');
+      link.href = fileURL;
+      link.style.display = 'none';
+      link.setAttribute('download', `Closure_Agreement_${(companyName || 'Dealer').replace(/\s+/g, '_')}.${ext}`);
+      document.body.appendChild(link);
+      link.click();
+
+      setTimeout(() => {
+        if (link && link.parentNode) {
+          link.parentNode.removeChild(link);
         }
-      } else {
-        const file = new Blob([response.data], { type: 'application/pdf' });
-        const fileURL = URL.createObjectURL(file);
-        const link = document.createElement('a');
-        link.href = fileURL;
-        link.setAttribute('download', `Closure_Agreement_${(companyName || 'Dealer').replace(/\\s+/g, '_')}.pdf`);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-      }
+        window.URL.revokeObjectURL(fileURL);
+      }, 350);
     } catch (err) {
       console.error('Failed to download closure agreement:', err);
-      alert('Failed to download closure agreement PDF. Please check server logs.');
+      alert('Failed to download closure agreement. Please check server logs.');
+    } finally {
+      setDownloadingAgreementType('');
     }
   };
 
@@ -660,6 +666,47 @@ export default function DealersPage() {
   const [formSuccess, setFormSuccess] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [registeredSummary, setRegisteredSummary] = useState(null);
+  const [copiedField, setCopiedField] = useState(null);
+  const [sendingCredsId, setSendingCredsId] = useState(null);
+
+  const copyToClipboard = (text, fieldName) => {
+    if (!text) return;
+    navigator.clipboard.writeText(String(text));
+    setCopiedField(fieldName);
+    setTimeout(() => setCopiedField(null), 2000);
+  };
+
+  const handleSendCredentials = async (dealer, customPassword = '') => {
+    const dealerName = dealer.companyName || dealer.name || 'this dealer';
+    const targetEmail = dealer.user?.email || dealer.email || '';
+    const targetPhone = dealer.phone || '';
+    const confirmSend = window.confirm(`Send login User ID & Password to "${dealerName}" (${targetPhone || targetEmail}) via WhatsApp and Mail?`);
+    if (!confirmSend) return;
+
+    try {
+      setSendingCredsId(dealer.id);
+      const res = await axios.post(`/dealers/${dealer.id}/send-credentials`, {
+        password: customPassword || undefined
+      });
+      if (res.data?.success) {
+        setMessage({
+          text: `✓ User ID and Password dispatched to ${dealerName} via WhatsApp & Mail!`,
+          type: 'success'
+        });
+        if (res.data.data?.whatsappUrl) {
+          window.open(res.data.data.whatsappUrl, '_blank');
+        }
+      }
+    } catch (err) {
+      console.error(err);
+      setMessage({
+        text: err.response?.data?.message || 'Failed to dispatch credentials',
+        type: 'error'
+      });
+    } finally {
+      setSendingCredsId(null);
+    }
+  };
 
   const handleRegister = async (e) => {
     e.preventDefault();
@@ -798,31 +845,41 @@ export default function DealersPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
         <div>
           <h2 className="text-xl font-black text-slate-800 tracking-tight">Partner Dealers Directory</h2>
           <p className="text-slate-500 text-xs">Manage verification pipeline, add details, and toggle dealer status.</p>
         </div>
-        <div className="flex items-center space-x-2.5 self-start sm:self-auto">
-          <button
-            type="button"
-            onClick={() => setShowDirectoryMap(!showDirectoryMap)}
-            className={`inline-flex items-center space-x-2 text-xs font-bold px-4 py-2.5 rounded-xl border transition-all cursor-pointer ${
-              showDirectoryMap
-                ? 'bg-rose-50 border-rose-200 text-rose-700 font-black shadow-sm'
-                : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-            }`}
-          >
-            <MapPin className="w-4 h-4" />
-            <span>{showDirectoryMap ? 'Hide Map Filter' : 'Proximity Map Filter'}</span>
-          </button>
-          
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-2.5 w-full sm:w-auto">
+          <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 w-full sm:w-auto">
+            <button
+              type="button"
+              onClick={() => setShowDirectoryMap(!showDirectoryMap)}
+              className={`inline-flex items-center justify-center space-x-1.5 text-xs font-bold px-3 py-2.5 rounded-xl border transition-all cursor-pointer ${
+                showDirectoryMap
+                  ? 'bg-rose-50 border-rose-200 text-rose-700 font-black shadow-xs'
+                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              <MapPin className="w-4 h-4 shrink-0" />
+              <span className="truncate">{showDirectoryMap ? 'Hide Map' : 'Map Filter'}</span>
+            </button>
+            
+            <Link
+              to="/admin/agreement-templates"
+              className="inline-flex items-center justify-center space-x-1.5 bg-white border border-slate-200 text-slate-700 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50/50 text-xs font-bold px-3 py-2.5 rounded-xl shadow-xs transition-all cursor-pointer"
+            >
+              <FileSignature className="w-4 h-4 text-rose-500 shrink-0" />
+              <span className="truncate">Agreement Templates</span>
+            </Link>
+          </div>
+
           <button
             type="button"
             onClick={openAddModal}
-            className="inline-flex items-center space-x-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-lg shadow-rose-200 transition-all cursor-pointer"
+            className="inline-flex items-center justify-center space-x-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-md shadow-rose-200 transition-all cursor-pointer w-full sm:w-auto"
           >
-            <Plus className="w-4 h-4" />
+            <Plus className="w-4 h-4 shrink-0" />
             <span>Register Dealer</span>
           </button>
         </div>
@@ -898,13 +955,13 @@ export default function DealersPage() {
             <div 
               key={dealer.id} 
               onClick={() => fetchDealerDetail(dealer.id)}
-              className="bg-white border border-slate-150 rounded-2xl shadow-sm p-6 space-y-4 hover:shadow-md hover:border-rose-300 hover:scale-[1.01] transition-all cursor-pointer relative overflow-hidden group"
+              className="bg-white border border-slate-150 rounded-2xl shadow-xs p-4 sm:p-5 space-y-3.5 hover:shadow-md hover:border-rose-300 transition-all cursor-pointer relative overflow-hidden group"
             >
-              <div className="flex items-start justify-between">
-                <div>
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0 flex-1">
                   <h3 className="font-bold text-slate-800 flex items-center space-x-1.5">
                     <Building2 className="w-4 h-4 text-rose-600 shrink-0" />
-                    <span className="truncate max-w-[180px]">{dealer.companyName}</span>
+                    <span className="truncate max-w-[190px] sm:max-w-[220px]">{dealer.companyName}</span>
                   </h3>
                   <p className="text-[10px] text-slate-400 font-medium">Type: {dealer.dealerType}</p>
                   {dealer.dealerCategory && (
@@ -920,11 +977,11 @@ export default function DealersPage() {
                 </div>
                 
                 {/* Status Badges */}
-                <div className="flex flex-col items-end space-y-1">
+                <div className="flex flex-col items-end space-y-1 shrink-0">
                   <div className="flex items-center space-x-1">
                     <span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${
-                      dealer.approvalStatus === 'APPROVED' ? 'bg-emerald-50 text-emerald-700' :
-                      dealer.approvalStatus === 'REJECTED' ? 'bg-rose-50 text-rose-700' : 'bg-amber-50 text-amber-700'
+                      dealer.approvalStatus === 'APPROVED' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' :
+                      dealer.approvalStatus === 'REJECTED' ? 'bg-rose-50 text-rose-700 border border-rose-100' : 'bg-amber-50 text-amber-700 border border-amber-100'
                     }`}>
                       {dealer.approvalStatus}
                     </span>
@@ -943,7 +1000,7 @@ export default function DealersPage() {
               </div>
 
               {/* Contacts */}
-              <div className="space-y-2 border-y border-slate-100 py-3 text-xs text-slate-600">
+              <div className="space-y-1.5 border-y border-slate-100 py-2.5 text-xs text-slate-600">
                 <p className="flex items-center space-x-2">
                   <ShieldCheck className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                   <span>GST: <strong className="text-slate-800">{dealer.gstNumber || 'N/A'}</strong></span>
@@ -963,7 +1020,7 @@ export default function DealersPage() {
               </div>
 
               {/* Action buttons */}
-              <div className="flex items-center justify-between gap-2 pt-2">
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
                 {dealer.approvalStatus === 'PENDING' && (
                   <div className="flex space-x-2">
                     <button
@@ -1034,6 +1091,20 @@ export default function DealersPage() {
                       <Truck className="w-3 h-3" />
                       <span>Transfer</span>
                     </button>
+
+                    <button
+                      type="button"
+                      disabled={sendingCredsId === dealer.id}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleSendCredentials(dealer);
+                      }}
+                      className="inline-flex items-center space-x-1 text-[10px] font-bold px-2 py-1.5 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition cursor-pointer"
+                      title="Send User ID & Password via WhatsApp and Mail"
+                    >
+                      <Send className="w-3 h-3 text-emerald-600" />
+                      <span>{sendingCredsId === dealer.id ? 'Sending...' : 'Credentials'}</span>
+                    </button>
                   </div>
                 )}
 
@@ -1062,16 +1133,16 @@ export default function DealersPage() {
 
       {/* Add Dealer Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 overflow-y-auto">
-          <div className="bg-white max-w-2xl w-full rounded-2xl shadow-xl overflow-hidden animate-zoom-in my-8 max-h-[90vh] flex flex-col">
-            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-rose-50">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-2.5 sm:p-4 overflow-y-auto">
+          <div className="bg-white max-w-2xl w-full rounded-2xl shadow-xl overflow-hidden animate-zoom-in my-auto sm:my-8 max-h-[94vh] sm:max-h-[90vh] flex flex-col">
+            <div className="p-4 sm:p-6 border-b border-slate-100 flex justify-between items-center bg-rose-50">
               <div>
                 <h3 className="font-black text-slate-800 text-sm uppercase tracking-wide">Register New Dealer Partner</h3>
                 <p className="text-[10px] text-slate-400 mt-0.5">All fields marked * are required</p>
               </div>
               <button 
                 onClick={() => { setShowAddModal(false); resetForm(); }} 
-                className="text-slate-400 hover:text-slate-600 font-bold text-xs px-3 py-1.5 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 transition-all"
+                className="text-slate-400 hover:text-slate-600 font-bold text-xs px-3 py-1.5 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 transition-all cursor-pointer"
               >
                 ✕ Close
               </button>
@@ -1079,7 +1150,7 @@ export default function DealersPage() {
 
             {/* Error Banner - shown prominently inside modal */}
             {formError && (
-              <div className="mx-6 mt-4 px-4 py-3 bg-rose-50 border border-rose-200 rounded-xl flex items-start space-x-3">
+              <div className="mx-4 sm:mx-6 mt-4 px-4 py-3 bg-rose-50 border border-rose-200 rounded-xl flex items-start space-x-3">
                 <div className="w-5 h-5 bg-rose-500 rounded-full flex items-center justify-center shrink-0 mt-0.5">
                   <span className="text-white text-[10px] font-black">!</span>
                 </div>
@@ -1095,7 +1166,7 @@ export default function DealersPage() {
 
             {/* Success Banner */}
             {formSuccess && (
-              <div className="mx-6 mt-4 px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center space-x-3">
+              <div className="mx-4 sm:mx-6 mt-4 px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center space-x-3">
                 <div className="w-5 h-5 bg-emerald-500 rounded-full flex items-center justify-center shrink-0">
                   <span className="text-white text-[10px] font-black">✓</span>
                 </div>
@@ -1104,99 +1175,166 @@ export default function DealersPage() {
             )}
             
             {registeredSummary ? (
-              <div className="p-6 space-y-5 animate-fade-in text-xs overflow-y-auto flex-1">
-                <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-2xl flex items-start space-x-3 shadow-sm">
-                  <div className="w-8 h-8 bg-emerald-600 text-white rounded-xl flex items-center justify-center font-bold text-sm shrink-0 shadow-sm">
+              <div className="p-4 sm:p-6 space-y-4 sm:space-y-5 animate-fade-in text-xs overflow-y-auto flex-1">
+                {/* Header Banner */}
+                <div className="bg-emerald-50 border-2 border-emerald-200 p-4 sm:p-5 rounded-2xl flex items-start space-x-3.5 shadow-sm">
+                  <div className="w-10 h-10 bg-emerald-600 text-white rounded-xl flex items-center justify-center font-bold text-base shrink-0 shadow-md">
                     ✓
                   </div>
-                  <div>
-                    <h4 className="font-black text-emerald-900 text-sm">Vendor Account Registered & Details Dispatched!</h4>
-                    <p className="text-emerald-800 text-xs mt-0.5">
-                      A registration email with account credentials has been sent to <strong>{registeredSummary.email}</strong>.
+                  <div className="flex-1">
+                    <h4 className="font-black text-emerald-950 text-sm sm:text-base">
+                      Dealer Registered & Credentials Dispatched!
+                    </h4>
+                    <p className="text-emerald-800 text-xs mt-1 leading-relaxed">
+                      Login credentials have been generated and dispatched via WhatsApp to <strong>{registeredSummary.phone}</strong> and via Email to <strong>{registeredSummary.email}</strong>.
                     </p>
-                  </div>
-                </div>
-
-                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-4 shadow-xs">
-                  <div className="flex items-center justify-between border-b border-slate-200 pb-2.5">
-                    <h5 className="font-black text-slate-800 text-xs uppercase tracking-wider flex items-center gap-2">
-                      <Building2 className="w-4 h-4 text-rose-600" />
-                      <span>Registered Vendor / Partner Details</span>
-                    </h5>
-                    <span className="bg-indigo-50 text-indigo-700 font-black text-[10px] px-2.5 py-0.5 rounded-full">
-                      ✓ Email & Notification Dispatched
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-slate-700">
-                    <div className="p-3 bg-white border border-slate-200 rounded-xl space-y-1">
-                      <span className="text-slate-400 font-bold block text-[10px] uppercase tracking-wider">Registered Email ID</span>
-                      <span className="font-black text-slate-900 text-xs select-all">{registeredSummary.email}</span>
-                    </div>
-
-                    <div className="p-3 bg-white border border-slate-200 rounded-xl space-y-1">
-                      <span className="text-slate-400 font-bold block text-[10px] uppercase tracking-wider">Login Password</span>
-                      <span className="font-mono font-black text-rose-600 text-xs select-all">{registeredSummary.password}</span>
-                    </div>
-
-                    <div className="p-3 bg-white border border-slate-200 rounded-xl space-y-1">
-                      <span className="text-slate-400 font-bold block text-[10px] uppercase tracking-wider">Company / Firm Name</span>
-                      <span className="font-bold text-slate-800">{registeredSummary.companyName}</span>
-                    </div>
-
-                    <div className="p-3 bg-white border border-slate-200 rounded-xl space-y-1">
-                      <span className="text-slate-400 font-bold block text-[10px] uppercase tracking-wider">Contact Person Name</span>
-                      <span className="font-bold text-slate-800">{registeredSummary.name}</span>
-                    </div>
-
-                    <div className="p-3 bg-white border border-slate-200 rounded-xl space-y-1">
-                      <span className="text-slate-400 font-bold block text-[10px] uppercase tracking-wider">Phone Number</span>
-                      <span className="font-semibold text-slate-800">{registeredSummary.phone || 'N/A'}</span>
-                    </div>
-
-                    <div className="p-3 bg-white border border-slate-200 rounded-xl space-y-1">
-                      <span className="text-slate-400 font-bold block text-[10px] uppercase tracking-wider">Dealer Tier & Type</span>
-                      <span className="font-black text-purple-700">{registeredSummary.dealerCategory || 'STARTER'} ({registeredSummary.dealerType || 'RETAIL'})</span>
-                    </div>
-
-                    <div className="p-3 bg-white border border-slate-200 rounded-xl space-y-1">
-                      <span className="text-slate-400 font-bold block text-[10px] uppercase tracking-wider">Default Margin</span>
-                      <span className="font-black text-emerald-600">{registeredSummary.defaultMargin || 10}%</span>
-                    </div>
-
-                    <div className="p-3 bg-white border border-slate-200 rounded-xl space-y-1">
-                      <span className="text-slate-400 font-bold block text-[10px] uppercase tracking-wider">Approval Status</span>
-                      <span className="inline-block bg-amber-100 text-amber-800 text-[10px] font-black px-2.5 py-0.5 rounded-full">
-                        {registeredSummary.approvalStatus || 'PENDING'}
+                    <div className="flex flex-wrap items-center gap-2 mt-2.5">
+                      <span className="inline-flex items-center space-x-1 bg-emerald-100 text-emerald-800 text-[10px] font-black px-2.5 py-1 rounded-lg">
+                        <span>📲 WhatsApp:</span>
+                        <span>{registeredSummary.whatsappNotificationSent ? 'Dispatched via Cloud API' : 'Direct Link Ready'}</span>
+                      </span>
+                      <span className="inline-flex items-center space-x-1 bg-indigo-100 text-indigo-800 text-[10px] font-black px-2.5 py-1 rounded-lg">
+                        <span>✉️ Mail:</span>
+                        <span>{registeredSummary.emailSimulated ? 'Queued (Dev Simulation)' : 'Dispatched'}</span>
                       </span>
                     </div>
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between gap-3 pt-2">
-                  <div className="flex items-center space-x-2">
+                {/* Prominent Login Credentials Card */}
+                <div className="bg-gradient-to-br from-rose-50 via-white to-amber-50/40 border-2 border-rose-200 rounded-2xl p-4 sm:p-5 shadow-xs space-y-4">
+                  <div className="flex items-center justify-between border-b border-rose-100 pb-2.5">
+                    <h5 className="font-black text-rose-950 text-xs sm:text-sm uppercase tracking-wider flex items-center gap-2">
+                      <KeyRound className="w-4 h-4 text-rose-600" />
+                      <span>Official Dealer Login Credentials</span>
+                    </h5>
+                    <span className="bg-rose-100 text-rose-800 font-black text-[10px] px-2.5 py-0.5 rounded-full">
+                      🔑 Share with Partner
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                    {/* User ID */}
+                    <div className="p-3.5 bg-white border border-rose-100 rounded-xl shadow-2xs space-y-1.5 relative group">
+                      <span className="text-slate-400 font-bold block text-[10px] uppercase tracking-wider">
+                        User ID / Login ID
+                      </span>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-mono font-black text-slate-900 text-sm select-all truncate">
+                          {registeredSummary.userId || registeredSummary.email}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => copyToClipboard(registeredSummary.userId || registeredSummary.email, 'userId')}
+                          className="p-1.5 hover:bg-rose-50 text-rose-600 rounded-lg transition-colors cursor-pointer shrink-0"
+                          title="Copy User ID"
+                        >
+                          {copiedField === 'userId' ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Password */}
+                    <div className="p-3.5 bg-white border border-rose-100 rounded-xl shadow-2xs space-y-1.5 relative group">
+                      <span className="text-slate-400 font-bold block text-[10px] uppercase tracking-wider">
+                        Login Password
+                      </span>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-mono font-black text-rose-600 text-sm select-all">
+                          {registeredSummary.password}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => copyToClipboard(registeredSummary.password, 'password')}
+                          className="p-1.5 hover:bg-rose-50 text-rose-600 rounded-lg transition-colors cursor-pointer shrink-0"
+                          title="Copy Password"
+                        >
+                          {copiedField === 'password' ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Login Portal URL */}
+                    <div className="p-3.5 bg-white border border-rose-100 rounded-xl shadow-2xs space-y-1.5 sm:col-span-2">
+                      <span className="text-slate-400 font-bold block text-[10px] uppercase tracking-wider">
+                        Portal Login URL
+                      </span>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-mono text-slate-700 text-xs truncate">
+                          {window.location.origin}/login
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => copyToClipboard(`${window.location.origin}/login`, 'url')}
+                          className="p-1.5 hover:bg-rose-50 text-rose-600 rounded-lg transition-colors cursor-pointer shrink-0"
+                          title="Copy Portal URL"
+                        >
+                          {copiedField === 'url' ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Additional Registered Details */}
+                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 sm:p-5 space-y-3 shadow-xs">
+                  <h5 className="font-black text-slate-800 text-xs uppercase tracking-wider flex items-center gap-2 border-b border-slate-200 pb-2">
+                    <Building2 className="w-4 h-4 text-slate-500" />
+                    <span>Registered Business Information</span>
+                  </h5>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-slate-700">
+                    <div className="p-2.5 bg-white border border-slate-200 rounded-xl space-y-0.5">
+                      <span className="text-slate-400 font-bold block text-[9px] uppercase">Company</span>
+                      <span className="font-bold text-slate-800 truncate block text-[11px]">{registeredSummary.companyName}</span>
+                    </div>
+
+                    <div className="p-2.5 bg-white border border-slate-200 rounded-xl space-y-0.5">
+                      <span className="text-slate-400 font-bold block text-[9px] uppercase">Contact Person</span>
+                      <span className="font-bold text-slate-800 truncate block text-[11px]">{registeredSummary.name}</span>
+                    </div>
+
+                    <div className="p-2.5 bg-white border border-slate-200 rounded-xl space-y-0.5">
+                      <span className="text-slate-400 font-bold block text-[9px] uppercase">Phone</span>
+                      <span className="font-bold text-slate-800 truncate block text-[11px]">{registeredSummary.phone || 'N/A'}</span>
+                    </div>
+
+                    <div className="p-2.5 bg-white border border-slate-200 rounded-xl space-y-0.5">
+                      <span className="text-slate-400 font-bold block text-[9px] uppercase">Tier & Margin</span>
+                      <span className="font-black text-purple-700 truncate block text-[11px]">
+                        {registeredSummary.dealerCategory || 'STARTER'} ({registeredSummary.defaultMargin || 10}%)
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Actions Bar */}
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
+                  <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                    {registeredSummary.phone && (
+                      <a
+                        href={registeredSummary.whatsappUrl || `https://wa.me/91${registeredSummary.phone.replace(/\D/g, '').slice(-10)}?text=${encodeURIComponent(`🎉 *Welcome to Mansara Foods B2B Portal!*\nHello ${registeredSummary.name}, your dealer partner account for ${registeredSummary.companyName} has been registered.\n\n🔑 *Your Login Credentials:*\n• *User ID / Login ID:* ${registeredSummary.userId || registeredSummary.email}\n• *Password:* ${registeredSummary.password}\n• *Portal Login URL:* ${window.location.origin}/login\n\nStatus: ${registeredSummary.approvalStatus || 'PENDING'}`)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex-1 sm:flex-none px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs transition cursor-pointer flex items-center justify-center space-x-2 shadow-md"
+                      >
+                        <Send className="w-3.5 h-3.5" />
+                        <span>📲 Open WhatsApp (Send Credentials)</span>
+                      </a>
+                    )}
+
                     <button
                       type="button"
                       onClick={() => {
-                        const text = `Mansara Foods - Vendor Account Credentials\nCompany: ${registeredSummary.companyName}\nContact Person: ${registeredSummary.name}\nEmail: ${registeredSummary.email}\nPassword: ${registeredSummary.password}\nPhone: ${registeredSummary.phone}\nStatus: ${registeredSummary.approvalStatus}`;
-                        navigator.clipboard.writeText(text);
-                        alert('✓ Vendor registration details copied to clipboard!');
+                        const fullText = `🎉 *Mansara Foods - Dealer Account Credentials*\nCompany: ${registeredSummary.companyName}\nContact: ${registeredSummary.name}\n\n🔑 *Login Credentials:*\n• User ID / Login ID: ${registeredSummary.userId || registeredSummary.email}\n• Password: ${registeredSummary.password}\n• Login Portal: ${window.location.origin}/login\n\nPhone: ${registeredSummary.phone}\nTier: ${registeredSummary.dealerCategory || 'STARTER'} (${registeredSummary.defaultMargin || 10}% margin)`;
+                        copyToClipboard(fullText, 'full');
+                        alert('✓ Full credentials & login details copied to clipboard!');
                       }}
                       className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-xl text-xs transition cursor-pointer flex items-center space-x-1.5"
                     >
-                      <span>📋 Copy Credentials</span>
+                      <Copy className="w-3.5 h-3.5" />
+                      <span>Copy Full Details</span>
                     </button>
-
-                    {registeredSummary.phone && (
-                      <a
-                        href={registeredSummary.whatsappUrl || `https://wa.me/91${registeredSummary.phone.replace(/\D/g, '').slice(-10)}?text=${encodeURIComponent(`🎉 Welcome to Mansara Foods B2B Portal!\nHello ${registeredSummary.name}, your account for ${registeredSummary.companyName} has been registered.\n\nEmail: ${registeredSummary.email}\nPassword: ${registeredSummary.password}\nPhone: ${registeredSummary.phone}\nStatus: ${registeredSummary.approvalStatus}`)}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs transition cursor-pointer flex items-center space-x-1.5 shadow-md"
-                      >
-                        <span>💬 Open WhatsApp Chat</span>
-                      </a>
-                    )}
                   </div>
 
                   <button
@@ -1205,15 +1343,15 @@ export default function DealersPage() {
                       setShowAddModal(false);
                       resetForm();
                     }}
-                    className="px-6 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-xs shadow-md transition cursor-pointer"
+                    className="w-full sm:w-auto px-6 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-xs shadow-md transition cursor-pointer"
                   >
                     Done & Return to Directory
                   </button>
                 </div>
               </div>
             ) : (
-              <form onSubmit={handleRegister} className="p-6 space-y-4 overflow-y-auto flex-1 text-xs">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <form onSubmit={handleRegister} className="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1 text-xs">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 sm:gap-4">
                   <div>
                     <label className="block text-slate-500 font-bold mb-1">Company / Firm Name *</label>
                     <input type="text" required value={companyName} onChange={e => setCompanyName(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none" />
@@ -1458,7 +1596,7 @@ export default function DealersPage() {
                   <textarea required value={address} onChange={e => setAddress(e.target.value)} rows="2" className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none"></textarea>
                 </div>
 
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
                   <div>
                     <label className="block text-slate-500 font-bold mb-1">City</label>
                     <input type="text" value={city} onChange={e => setCity(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none" />
@@ -1497,18 +1635,18 @@ export default function DealersPage() {
 
       {/* Dealer Detail Profile Modal */}
       {showDetailModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 overflow-y-auto">
-          <div className="bg-white max-w-4xl w-full rounded-2xl shadow-xl overflow-hidden animate-zoom-in my-8 max-h-[90vh] flex flex-col">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-2.5 sm:p-4 overflow-y-auto">
+          <div className="bg-white max-w-4xl w-full rounded-2xl shadow-xl overflow-hidden animate-zoom-in my-auto sm:my-8 max-h-[94vh] sm:max-h-[90vh] flex flex-col">
             {/* Modal Header */}
-            <div className="p-6 border-b border-slate-100 flex justify-between items-start bg-slate-50">
-              <div className="space-y-1">
-                <div className="flex items-center space-x-2.5">
+            <div className="p-4 sm:p-6 border-b border-slate-100 flex justify-between items-start bg-slate-50 gap-2">
+              <div className="space-y-1.5 flex-1 min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
                   <Building2 className="w-5 h-5 text-rose-600 shrink-0" />
-                  <h3 className="font-black text-slate-800 text-lg tracking-tight">
+                  <h3 className="font-black text-slate-800 text-base sm:text-lg tracking-tight truncate max-w-[200px] sm:max-w-none">
                     {dealerDetail ? dealerDetail.companyName : 'Loading Dealer details...'}
                   </h3>
                   {dealerDetail && (
-                    <div className="flex items-center space-x-1.5">
+                    <div className="flex items-center gap-1.5">
                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                         dealerDetail.approvalStatus === 'APPROVED' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' :
                         dealerDetail.approvalStatus === 'REJECTED' ? 'bg-rose-50 text-rose-700 border border-rose-100' : 
@@ -1518,14 +1656,14 @@ export default function DealersPage() {
                       </span>
                       {dealerDetail.relationshipStatus === 'CLOSED' && (
                         <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 border border-rose-300">
-                          RELATIONSHIP CLOSED
+                          CLOSED
                         </span>
                       )}
                     </div>
                   )}
                 </div>
                 {dealerDetail && (
-                  <p className="text-[11px] text-slate-500 font-medium flex items-center space-x-2">
+                  <div className="text-[11px] text-slate-500 font-medium flex flex-wrap items-center gap-x-2 gap-y-0.5">
                     <span>Type: <strong className="text-slate-700">{dealerDetail.dealerType}</strong></span>
                     <span className="text-slate-300">•</span>
                     <span>Zone: <strong className="text-slate-700">{dealerDetail.zone || 'N/A'}</strong></span>
@@ -1539,7 +1677,7 @@ export default function DealersPage() {
                         <span>Relationship: <strong className="text-rose-600 font-bold">Closed</strong></span>
                       </>
                     )}
-                  </p>
+                  </div>
                 )}
               </div>
               <button 
@@ -1552,7 +1690,7 @@ export default function DealersPage() {
                   setIsEditingProfile(false);
                   setEditError('');
                 }}
-                className="text-slate-400 hover:text-slate-600 p-1.5 hover:bg-slate-100 rounded-lg transition-colors"
+                className="text-slate-400 hover:text-slate-600 p-1.5 hover:bg-slate-200/60 rounded-xl transition-colors shrink-0 cursor-pointer"
               >
                 <XCircle className="w-5 h-5" />
               </button>
@@ -1566,55 +1704,55 @@ export default function DealersPage() {
             ) : dealerDetail ? (
               <>
                 {/* Modal Tabs Bar */}
-                <div className="flex border-b border-slate-100 bg-slate-50/50 px-6">
+                <div className="flex border-b border-slate-100 bg-slate-50/50 px-3 sm:px-6 overflow-x-auto no-scrollbar scroll-smooth gap-1">
                   <button
                     onClick={() => setActiveTab('profile')}
-                    className={`flex items-center space-x-2 px-4 py-3 text-xs font-bold border-b-2 -mb-px transition-all ${
+                    className={`flex items-center space-x-1.5 px-3.5 py-2.5 sm:py-3 text-xs font-bold border-b-2 -mb-px transition-all shrink-0 cursor-pointer ${
                       activeTab === 'profile'
                         ? 'border-rose-600 text-rose-600'
                         : 'border-transparent text-slate-500 hover:text-slate-700'
                     }`}
                   >
-                    <User className="w-4 h-4" />
-                    <span>Dealer Profile</span>
+                    <User className="w-4 h-4 shrink-0" />
+                    <span>Profile</span>
                   </button>
                   <button
                     onClick={() => setActiveTab('stores')}
-                    className={`flex items-center space-x-2 px-4 py-3 text-xs font-bold border-b-2 -mb-px transition-all ${
+                    className={`flex items-center space-x-1.5 px-3.5 py-2.5 sm:py-3 text-xs font-bold border-b-2 -mb-px transition-all shrink-0 cursor-pointer ${
                       activeTab === 'stores'
                         ? 'border-rose-600 text-rose-600'
                         : 'border-transparent text-slate-500 hover:text-slate-700'
                     }`}
                   >
-                    <Store className="w-4 h-4" />
-                    <span>Outlets / Stores ({dealerDetail.stores?.length || 0})</span>
+                    <Store className="w-4 h-4 shrink-0" />
+                    <span>Stores ({dealerDetail.stores?.length || 0})</span>
                   </button>
                   <button
                     onClick={() => setActiveTab('inventory')}
-                    className={`flex items-center space-x-2 px-4 py-3 text-xs font-bold border-b-2 -mb-px transition-all ${
+                    className={`flex items-center space-x-1.5 px-3.5 py-2.5 sm:py-3 text-xs font-bold border-b-2 -mb-px transition-all shrink-0 cursor-pointer ${
                       activeTab === 'inventory'
                         ? 'border-rose-600 text-rose-600'
                         : 'border-transparent text-slate-500 hover:text-slate-700'
                     }`}
                   >
-                    <Package className="w-4 h-4" />
-                    <span>Inventory Stock ({dealerDetail.inventory?.length || 0})</span>
+                    <Package className="w-4 h-4 shrink-0" />
+                    <span>Inventory ({dealerDetail.inventory?.length || 0})</span>
                   </button>
                   <button
                     onClick={() => setActiveTab('margins')}
-                    className={`flex items-center space-x-2 px-4 py-3 text-xs font-bold border-b-2 -mb-px transition-all ${
+                    className={`flex items-center space-x-1.5 px-3.5 py-2.5 sm:py-3 text-xs font-bold border-b-2 -mb-px transition-all shrink-0 cursor-pointer ${
                       activeTab === 'margins'
                         ? 'border-rose-600 text-rose-600'
                         : 'border-transparent text-slate-500 hover:text-slate-700'
                     }`}
                   >
-                    <Tag className="w-4 h-4" />
-                    <span>Price Margins</span>
+                    <Tag className="w-4 h-4 shrink-0" />
+                    <span>Margins</span>
                   </button>
                 </div>
 
                 {/* Modal Body Content */}
-                <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 sm:space-y-6">
                   
                   {/* Tab 1: Profile Info */}
                   {activeTab === 'profile' && (
@@ -1821,36 +1959,60 @@ export default function DealersPage() {
                               </div>
                               <button
                                 type="button"
-                                onClick={() => downloadClosureAgreement(dealerDetail.id, dealerDetail.companyName)}
-                                className="bg-rose-700 hover:bg-rose-800 text-white font-bold px-3 py-1.5 rounded-xl text-xs flex items-center space-x-1.5 shrink-0 shadow-sm cursor-pointer transition-all self-start sm:self-auto"
+                                disabled={!!downloadingAgreementType}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  downloadClosureAgreement(dealerDetail.id, dealerDetail.companyName);
+                                }}
+                                className="bg-rose-700 hover:bg-rose-800 disabled:opacity-60 text-white font-bold px-3 py-1.5 rounded-xl text-xs flex items-center space-x-1.5 shrink-0 shadow-sm cursor-pointer transition-all self-start sm:self-auto"
                               >
-                                <FileX2 className="w-3.5 h-3.5" />
-                                <span>Download Closer Agreement</span>
+                                {downloadingAgreementType === 'closure' ? (
+                                  <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                ) : (
+                                  <FileX2 className="w-3.5 h-3.5" />
+                                )}
+                                <span>{downloadingAgreementType === 'closure' ? 'Downloading...' : 'Download Closer Agreement'}</span>
                               </button>
                             </div>
                           )}
 
-                          <div className="flex justify-end mb-4 gap-2.5 flex-wrap items-center">
+                          <div className="grid grid-cols-1 sm:flex sm:flex-wrap sm:justify-end gap-2 mb-4">
                             {dealerDetail.approvalStatus === 'APPROVED' && (
                               <>
                                 <button
                                   type="button"
-                                  onClick={() => downloadAgreement(dealerDetail.id, dealerDetail.companyName)}
-                                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-4 py-2 rounded-xl shadow-md text-xs uppercase tracking-wide flex items-center space-x-1.5 cursor-pointer transition-all"
+                                  disabled={!!downloadingAgreementType}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    downloadAgreement(dealerDetail.id, dealerDetail.companyName);
+                                  }}
+                                  className="w-full sm:w-auto justify-center bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-bold px-4 py-2.5 sm:py-2 rounded-xl shadow-xs text-xs uppercase tracking-wide flex items-center space-x-1.5 cursor-pointer transition-all"
                                   title="Download Original Appointment Agreement PDF"
                                 >
-                                  <FileText className="w-4 h-4" />
-                                  <span>Download Agreement PDF</span>
+                                  {downloadingAgreementType === 'appointment' ? (
+                                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                  ) : (
+                                    <FileText className="w-3.5 h-3.5 shrink-0" />
+                                  )}
+                                  <span>{downloadingAgreementType === 'appointment' ? 'Downloading...' : 'Agreement PDF'}</span>
                                 </button>
 
                                 <button
                                   type="button"
-                                  onClick={() => downloadClosureAgreement(dealerDetail.id, dealerDetail.companyName)}
-                                  className="bg-rose-700 hover:bg-rose-800 text-white font-bold px-4 py-2 rounded-xl shadow-md text-xs uppercase tracking-wide flex items-center space-x-1.5 cursor-pointer transition-all"
+                                  disabled={!!downloadingAgreementType}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    downloadClosureAgreement(dealerDetail.id, dealerDetail.companyName);
+                                  }}
+                                  className="w-full sm:w-auto justify-center bg-rose-700 hover:bg-rose-800 disabled:opacity-60 text-white font-bold px-4 py-2.5 sm:py-2 rounded-xl shadow-xs text-xs uppercase tracking-wide flex items-center space-x-1.5 cursor-pointer transition-all"
                                   title="Download Dealership Relationship Closure Agreement PDF"
                                 >
-                                  <FileX2 className="w-4 h-4" />
-                                  <span>Download Closer Agreement PDF</span>
+                                  {downloadingAgreementType === 'closure' ? (
+                                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                  ) : (
+                                    <FileX2 className="w-3.5 h-3.5 shrink-0" />
+                                  )}
+                                  <span>{downloadingAgreementType === 'closure' ? 'Downloading...' : 'Closure Agreement PDF'}</span>
                                 </button>
                               </>
                             )}
@@ -1859,20 +2021,20 @@ export default function DealersPage() {
                               <button
                                 type="button"
                                 onClick={() => handleReopenRelationship(dealerDetail.id, dealerDetail.companyName)}
-                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-xl shadow-md text-xs uppercase tracking-wide flex items-center space-x-1.5 cursor-pointer transition-all"
+                                className="w-full sm:w-auto justify-center bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2.5 sm:py-2 rounded-xl shadow-xs text-xs uppercase tracking-wide flex items-center space-x-1.5 cursor-pointer transition-all"
                                 title="Restore & Reopen Dealer Relationship"
                               >
-                                <RotateCcw className="w-4 h-4" />
+                                <RotateCcw className="w-3.5 h-3.5 shrink-0" />
                                 <span>Reopen Relationship</span>
                               </button>
                             ) : (
                               <button
                                 type="button"
                                 onClick={() => handleOpenCloseModal(dealerDetail)}
-                                className="bg-amber-600 hover:bg-amber-700 text-white font-bold px-4 py-2 rounded-xl shadow-md text-xs uppercase tracking-wide flex items-center space-x-1.5 cursor-pointer transition-all"
+                                className="w-full sm:w-auto justify-center bg-amber-600 hover:bg-amber-700 text-white font-bold px-4 py-2.5 sm:py-2 rounded-xl shadow-xs text-xs uppercase tracking-wide flex items-center space-x-1.5 cursor-pointer transition-all"
                                 title="Officially close dealership relationship & record closure terms"
                               >
-                                <UserX className="w-4 h-4" />
+                                <UserX className="w-3.5 h-3.5 shrink-0" />
                                 <span>Close Relationship</span>
                               </button>
                             )}
@@ -1880,66 +2042,66 @@ export default function DealersPage() {
                             <button
                               type="button"
                               onClick={() => handleDeleteDealer(dealerDetail.id, dealerDetail.companyName)}
-                              className="bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold px-4 py-2 rounded-xl border border-rose-200 text-xs uppercase tracking-wide flex items-center space-x-1.5 cursor-pointer transition-all shadow-xs"
+                              className="w-full sm:w-auto justify-center bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold px-4 py-2.5 sm:py-2 rounded-xl border border-rose-200 text-xs uppercase tracking-wide flex items-center space-x-1.5 cursor-pointer transition-all shadow-xs"
                               title="Permanently delete dealer profile and user account"
                             >
-                              <Trash2 className="w-4 h-4 text-rose-600" />
-                              <span>Delete Profile & User</span>
+                              <Trash2 className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                              <span>Delete Profile</span>
                             </button>
 
                             <button
                               type="button"
                               onClick={startEditing}
-                              className="bg-rose-600 hover:bg-rose-700 text-white font-bold px-4 py-2 rounded-xl shadow-md text-xs uppercase tracking-wide flex items-center space-x-1.5 cursor-pointer"
+                              className="w-full sm:w-auto justify-center bg-rose-600 hover:bg-rose-700 text-white font-bold px-4 py-2.5 sm:py-2 rounded-xl shadow-sm text-xs uppercase tracking-wide flex items-center space-x-1.5 cursor-pointer transition-all"
                             >
-                              <span>Edit Profile Details</span>
+                              <span>Edit Details</span>
                             </button>
                           </div>
 
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                             {/* Box 1: Owner & Contact details */}
-                            <div className="bg-slate-50 border border-slate-200/60 rounded-xl p-5 space-y-4">
+                            <div className="bg-slate-50 border border-slate-200/60 rounded-xl p-4 sm:p-5 space-y-3.5 sm:space-y-4">
                               <h4 className="font-black text-slate-800 text-xs flex items-center space-x-2 border-b border-slate-200/60 pb-2">
-                                <User className="w-4 h-4 text-rose-600" />
+                                <User className="w-4 h-4 text-rose-600 shrink-0" />
                                 <span>PRIMARY CONTACT DETAILS</span>
                               </h4>
-                              <div className="grid grid-cols-3 gap-y-3">
-                                <span className="text-slate-400 font-medium">Dealer Contact Name</span>
-                                <span className="col-span-2 text-slate-800 font-semibold">{dealerDetail.user?.name || 'N/A'}</span>
+                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-y-2 sm:gap-y-3 gap-x-2 text-xs">
+                                <span className="text-slate-400 font-medium text-[11px] sm:text-xs">Dealer Contact Name</span>
+                                <span className="sm:col-span-2 text-slate-800 font-semibold break-words">{dealerDetail.user?.name || 'N/A'}</span>
 
                                 {DEALER_FIELDS.filter(f => f.section === 'contact').map(field => (
                                   <React.Fragment key={field.key}>
-                                    <span className="text-slate-400 font-medium">{field.label}</span>
-                                    <span className="col-span-2 text-slate-800 font-semibold">{dealerDetail[field.key] || 'N/A'}</span>
+                                    <span className="text-slate-400 font-medium text-[11px] sm:text-xs">{field.label}</span>
+                                    <span className="sm:col-span-2 text-slate-800 font-semibold break-words">{dealerDetail[field.key] || 'N/A'}</span>
                                   </React.Fragment>
                                 ))}
 
-                                <span className="text-slate-400 font-medium">Email Address</span>
-                                <span className="col-span-2 text-slate-800 font-semibold truncate">{dealerDetail.user?.email || 'N/A'}</span>
+                                <span className="text-slate-400 font-medium text-[11px] sm:text-xs">Email Address</span>
+                                <span className="sm:col-span-2 text-slate-800 font-semibold break-all">{dealerDetail.user?.email || 'N/A'}</span>
                                 
-                                <span className="text-slate-400 font-medium">Last Login</span>
-                                <span className="col-span-2 text-slate-800 font-semibold">
+                                <span className="text-slate-400 font-medium text-[11px] sm:text-xs">Last Login</span>
+                                <span className="sm:col-span-2 text-slate-800 font-semibold break-words">
                                   {dealerDetail.user?.lastLogin ? new Date(dealerDetail.user.lastLogin).toLocaleString() : 'Never logged in'}
                                 </span>
                               </div>
                             </div>
 
                             {/* Box 2: Billing & Location details */}
-                            <div className="bg-slate-50 border border-slate-200/60 rounded-xl p-5 space-y-4">
+                            <div className="bg-slate-50 border border-slate-200/60 rounded-xl p-4 sm:p-5 space-y-3.5 sm:space-y-4">
                               <h4 className="font-black text-slate-800 text-xs flex items-center space-x-2 border-b border-slate-200/60 pb-2">
-                                <MapPin className="w-4 h-4 text-rose-600" />
+                                <MapPin className="w-4 h-4 text-rose-600 shrink-0" />
                                 <span>OFFICE / BILLING ADDRESS</span>
                               </h4>
-                              <div className="grid grid-cols-3 gap-y-3">
+                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-y-2 sm:gap-y-3 gap-x-2 text-xs">
                                 {DEALER_FIELDS.filter(f => f.section === 'address').map(field => (
                                   <React.Fragment key={field.key}>
-                                    <span className="text-slate-400 font-medium">{field.label}</span>
-                                    <span className="col-span-2 text-slate-800 font-semibold">{dealerDetail[field.key] || 'N/A'}</span>
+                                    <span className="text-slate-400 font-medium text-[11px] sm:text-xs">{field.label}</span>
+                                    <span className="sm:col-span-2 text-slate-800 font-semibold break-words">{dealerDetail[field.key] || 'N/A'}</span>
                                   </React.Fragment>
                                 ))}
 
-                                <span className="text-slate-400 font-medium">Zones</span>
-                                <span className="col-span-2">
+                                <span className="text-slate-400 font-medium text-[11px] sm:text-xs">Zones</span>
+                                <span className="sm:col-span-2">
                                   {dealerDetail.zones && dealerDetail.zones.length > 0 ? (
                                     <div className="flex flex-wrap gap-1.5">
                                       {dealerDetail.zones.map(z => (
@@ -1954,20 +2116,20 @@ export default function DealersPage() {
                             </div>
 
                             {/* Box 3: Financial Details */}
-                            <div className="bg-slate-50 border border-slate-200/60 rounded-xl p-5 space-y-4">
+                            <div className="bg-slate-50 border border-slate-200/60 rounded-xl p-4 sm:p-5 space-y-3.5 sm:space-y-4">
                               <h4 className="font-black text-slate-800 text-xs flex items-center space-x-2 border-b border-slate-200/60 pb-2">
-                                <CreditCard className="w-4 h-4 text-rose-600" />
+                                <CreditCard className="w-4 h-4 text-rose-600 shrink-0" />
                                 <span>FINANCIAL & GST INFO</span>
                               </h4>
-                              <div className="grid grid-cols-3 gap-y-3">
+                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-y-2 sm:gap-y-3 gap-x-2 text-xs">
                                 {DEALER_FIELDS.filter(f => f.section === 'financial').map(field => {
                                   let value = dealerDetail[field.key];
                                   
                                   if (field.key === 'billingProfile') {
                                     return (
                                       <React.Fragment key={field.key}>
-                                        <span className="text-slate-400 font-medium">{field.label}</span>
-                                        <span className="col-span-2">
+                                        <span className="text-slate-400 font-medium text-[11px] sm:text-xs">{field.label}</span>
+                                        <span className="sm:col-span-2">
                                           {value === 'ADVANCE' ? (
                                             <span className="inline-flex items-center gap-1 text-[10px] font-black px-2.5 py-1 rounded-lg bg-indigo-100 text-indigo-700 border border-indigo-200">
                                               ⚡ ADVANCE — Payment before dispatch
@@ -1985,8 +2147,8 @@ export default function DealersPage() {
                                   if (field.key === 'dealerCategory') {
                                     return (
                                       <React.Fragment key={field.key}>
-                                        <span className="text-slate-400 font-medium">{field.label}</span>
-                                        <span className="col-span-2">
+                                        <span className="text-slate-400 font-medium text-[11px] sm:text-xs">{field.label}</span>
+                                        <span className="sm:col-span-2">
                                           {value ? (
                                             <span className={`text-[10px] font-black px-2.5 py-1 rounded-lg ${
                                               value === 'SUPER' ? 'bg-purple-100 text-purple-700 border border-purple-200' :
@@ -2016,14 +2178,14 @@ export default function DealersPage() {
 
                                   return (
                                     <React.Fragment key={field.key}>
-                                      <span className="text-slate-400 font-medium">{field.label}</span>
-                                      <span className="col-span-2 text-slate-800 font-semibold">{value ?? 'N/A'}</span>
+                                      <span className="text-slate-400 font-medium text-[11px] sm:text-xs">{field.label}</span>
+                                      <span className="sm:col-span-2 text-slate-800 font-semibold break-words">{value ?? 'N/A'}</span>
                                     </React.Fragment>
                                   );
                                 })}
 
-                                <span className="text-slate-400 font-medium">Categories</span>
-                                <span className="col-span-2">
+                                <span className="text-slate-400 font-medium text-[11px] sm:text-xs">Categories</span>
+                                <span className="sm:col-span-2">
                                   {dealerDetail.categoryDetails && dealerDetail.categoryDetails.length > 0 ? (
                                     <div className="flex flex-wrap gap-1.5">
                                       {dealerDetail.categoryDetails.map(cat => (
@@ -2038,27 +2200,29 @@ export default function DealersPage() {
                             </div>
 
                             {/* Box 4: Metadata / System Log */}
-                            <div className="bg-slate-50 border border-slate-200/60 rounded-xl p-5 space-y-4">
+                            <div className="bg-slate-50 border border-slate-200/60 rounded-xl p-4 sm:p-5 space-y-3.5 sm:space-y-4">
                               <h4 className="font-black text-slate-800 text-xs flex items-center space-x-2 border-b border-slate-200/60 pb-2">
-                                <Clock className="w-4 h-4 text-rose-600" />
+                                <Clock className="w-4 h-4 text-rose-600 shrink-0" />
                                 <span>VERIFICATION LOGS</span>
                               </h4>
-                              <div className="grid grid-cols-3 gap-y-3">
-                                <span className="text-slate-400 font-medium">Registered on</span>
-                                <span className="col-span-2 text-slate-800 font-semibold">
+                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-y-2 sm:gap-y-3 gap-x-2 text-xs">
+                                <span className="text-slate-400 font-medium text-[11px] sm:text-xs">Registered on</span>
+                                <span className="sm:col-span-2 text-slate-800 font-semibold break-words">
                                   {dealerDetail.createdAt ? new Date(dealerDetail.createdAt).toLocaleDateString() : 'N/A'}
                                 </span>
 
-                                <span className="text-slate-400 font-medium">Approved on</span>
-                                <span className="col-span-2 text-slate-800 font-semibold">
+                                <span className="text-slate-400 font-medium text-[11px] sm:text-xs">Approved on</span>
+                                <span className="sm:col-span-2 text-slate-800 font-semibold break-words">
                                   {dealerDetail.approvedAt ? new Date(dealerDetail.approvedAt).toLocaleString() : 'N/A'}
                                 </span>
 
-                                <span className="text-slate-400 font-medium">Approver User ID</span>
-                                <span className="col-span-2 text-slate-800 font-semibold truncate">{dealerDetail.approvedBy || 'N/A'}</span>
+                                <span className="text-slate-400 font-medium text-[11px] sm:text-xs">Agreement Ref</span>
+                                <span className="sm:col-span-2 font-mono text-[11px] text-indigo-700 font-bold break-all">
+                                  {dealerDetail.agreementNumber || 'Auto-generated on PDF download'}
+                                </span>
 
-                                <span className="text-slate-400 font-medium">Relationship</span>
-                                <span className="col-span-2">
+                                <span className="text-slate-400 font-medium text-[11px] sm:text-xs">Relationship</span>
+                                <span className="sm:col-span-2">
                                   {dealerDetail.relationshipStatus === 'CLOSED' ? (
                                     <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-700">
                                       Closed
@@ -2072,18 +2236,18 @@ export default function DealersPage() {
 
                                 {dealerDetail.relationshipStatus === 'CLOSED' && (
                                   <>
-                                    <span className="text-slate-400 font-medium">Closed On</span>
-                                    <span className="col-span-2 text-rose-700 font-bold text-xs">
+                                    <span className="text-slate-400 font-medium text-[11px] sm:text-xs">Closed On</span>
+                                    <span className="sm:col-span-2 text-rose-700 font-bold text-xs break-words">
                                       {dealerDetail.closedAt ? new Date(dealerDetail.closedAt).toLocaleDateString() : 'N/A'}
                                     </span>
 
-                                    <span className="text-slate-400 font-medium">Closure Reason</span>
-                                    <span className="col-span-2 text-slate-800 font-medium text-xs">
+                                    <span className="text-slate-400 font-medium text-[11px] sm:text-xs">Closure Reason</span>
+                                    <span className="sm:col-span-2 text-slate-800 font-medium text-xs break-words">
                                       {dealerDetail.closureReason || 'Mutual Agreement'}
                                     </span>
 
-                                    <span className="text-slate-400 font-medium">Closure Ref</span>
-                                    <span className="col-span-2 font-mono text-[11px] text-slate-800 font-bold">
+                                    <span className="text-slate-400 font-medium text-[11px] sm:text-xs">Closure Ref</span>
+                                    <span className="sm:col-span-2 font-mono text-[11px] text-slate-800 font-bold break-all">
                                       {dealerDetail.closureAgreementNumber || 'N/A'}
                                     </span>
                                   </>
@@ -2093,7 +2257,7 @@ export default function DealersPage() {
                           </div>
 
                           {/* Notes Section */}
-                          <div className="bg-slate-50 border border-slate-200/60 rounded-xl p-5 space-y-2">
+                          <div className="bg-slate-50 border border-slate-200/60 rounded-xl p-4 sm:p-5 space-y-2">
                             <h4 className="font-black text-slate-800 text-xs border-b border-slate-200/60 pb-2">ADMIN NOTES / REMARKS</h4>
                             <p className="text-slate-700 whitespace-pre-line leading-relaxed">
                               {dealerDetail.notes || 'No administrative notes added to this profile yet.'}
@@ -2101,9 +2265,9 @@ export default function DealersPage() {
                           </div>
 
                           {/* Change Password Section */}
-                          <div className="bg-amber-50 border border-amber-200 rounded-xl p-5 space-y-4">
+                          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 sm:p-5 space-y-3.5 sm:space-y-4">
                             <h4 className="font-black text-slate-800 text-xs flex items-center space-x-2 border-b border-amber-200 pb-2">
-                              <KeyRound className="w-4 h-4 text-amber-600" />
+                              <KeyRound className="w-4 h-4 text-amber-600 shrink-0" />
                               <span>RESET DEALER PASSWORD</span>
                             </h4>
                             <p className="text-[10px] text-amber-700 font-medium">
@@ -2219,6 +2383,16 @@ export default function DealersPage() {
                                 </>
                               )}
                             </button>
+
+                            <button
+                              type="button"
+                              disabled={sendingCredsId === dealerDetail.id}
+                              onClick={() => handleSendCredentials(dealerDetail)}
+                              className="w-full flex items-center justify-center space-x-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-bold text-xs py-2.5 rounded-xl transition-all shadow-sm cursor-pointer"
+                            >
+                              <Send className="w-3.5 h-3.5" />
+                              <span>{sendingCredsId === dealerDetail.id ? 'Dispatching...' : 'Dispatch Login Credentials via WhatsApp & Mail'}</span>
+                            </button>
                           </div>
                         </>
                       )}
@@ -2236,7 +2410,7 @@ export default function DealersPage() {
                       ) : (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           {dealerDetail.stores.map((store) => (
-                            <div key={store.id} className="bg-white border border-slate-200 rounded-xl p-5 space-y-3 relative overflow-hidden shadow-sm">
+                            <div key={store.id} className="bg-white border border-slate-200 rounded-xl p-4 sm:p-5 space-y-3 relative overflow-hidden shadow-xs">
                               <div className="flex justify-between items-start">
                                 <h5 className="font-black text-slate-800 text-xs flex items-center space-x-1.5">
                                   <Store className="w-4 h-4 text-rose-600 shrink-0" />
@@ -2281,58 +2455,86 @@ export default function DealersPage() {
                           <p className="font-semibold text-xs">No inventory stock allocated to this dealer partner.</p>
                         </div>
                       ) : (
-                        <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm">
-                          <div className="overflow-x-auto">
-                            <table className="w-full text-left border-collapse">
-                              <thead>
-                                <tr className="bg-slate-50 text-[10px] font-black uppercase text-slate-500 border-b border-slate-200">
-                                  <th className="p-3 px-4">Product Name</th>
-                                  <th className="p-3">SKU</th>
-                                  <th className="p-3 text-right">In-Stock Quantity</th>
-                                  <th className="p-3 text-right">Unit Price</th>
-                                  <th className="p-3 text-right">Total Est. Value</th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-slate-100 text-slate-700">
-                                {dealerDetail.inventory.map((inv) => {
-                                  const prod = inv.product || {};
-                                  const totalValue = (inv.quantity || 0) * (prod.price || 0);
-                                  return (
-                                    <tr key={inv.id} className="hover:bg-slate-50/50 transition-colors">
-                                      <td className="p-3 px-4 font-bold text-slate-800">
-                                        {prod.name || 'Unknown Product'}
-                                      </td>
-                                      <td className="p-3 font-mono text-[10px] text-slate-500">
-                                        {prod.sku || 'N/A'}
-                                      </td>
-                                      <td className="p-3 text-right font-black text-slate-800">
-                                        {inv.quantity} <span className="text-[10px] text-slate-400 font-normal">{prod.unit || 'PCS'}</span>
-                                      </td>
-                                      <td className="p-3 text-right font-semibold">
-                                        ₹{(prod.price || 0).toLocaleString('en-IN')}
-                                      </td>
-                                      <td className="p-3 text-right font-black text-rose-600">
-                                        ₹{totalValue.toLocaleString('en-IN')}
-                                      </td>
-                                    </tr>
-                                  );
-                                })}
-                              </tbody>
-                            </table>
+                        <>
+                          {/* Desktop/Tablet Table View */}
+                          <div className="hidden sm:block border border-slate-200 rounded-xl overflow-hidden bg-white shadow-xs">
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-left border-collapse">
+                                <thead>
+                                  <tr className="bg-slate-50 text-[10px] font-black uppercase text-slate-500 border-b border-slate-200">
+                                    <th className="p-3 px-4">Product Name</th>
+                                    <th className="p-3">SKU</th>
+                                    <th className="p-3 text-right">In-Stock Quantity</th>
+                                    <th className="p-3 text-right">Unit Price</th>
+                                    <th className="p-3 text-right">Total Est. Value</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 text-slate-700">
+                                  {dealerDetail.inventory.map((inv) => {
+                                    const prod = inv.product || {};
+                                    const totalValue = (inv.quantity || 0) * (prod.price || 0);
+                                    return (
+                                      <tr key={inv.id} className="hover:bg-slate-50/50 transition-colors">
+                                        <td className="p-3 px-4 font-bold text-slate-800">
+                                          {prod.name || 'Unknown Product'}
+                                        </td>
+                                        <td className="p-3 font-mono text-[10px] text-slate-500">
+                                          {prod.sku || 'N/A'}
+                                        </td>
+                                        <td className="p-3 text-right font-black text-slate-800">
+                                          {inv.quantity} <span className="text-[10px] text-slate-400 font-normal">{prod.unit || 'PCS'}</span>
+                                        </td>
+                                        <td className="p-3 text-right font-semibold">
+                                          ₹{(prod.price || 0).toLocaleString('en-IN')}
+                                        </td>
+                                        <td className="p-3 text-right font-black text-rose-600">
+                                          ₹{totalValue.toLocaleString('en-IN')}
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
                           </div>
-                        </div>
+
+                          {/* Mobile Cards View */}
+                          <div className="sm:hidden space-y-2.5">
+                            {dealerDetail.inventory.map((inv) => {
+                              const prod = inv.product || {};
+                              const totalValue = (inv.quantity || 0) * (prod.price || 0);
+                              return (
+                                <div key={inv.id} className="bg-white border border-slate-200 rounded-xl p-3.5 space-y-2 shadow-xs">
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div className="min-w-0 flex-1">
+                                      <h5 className="font-bold text-slate-800 text-xs truncate">{prod.name || 'Unknown Product'}</h5>
+                                      <p className="font-mono text-[10px] text-slate-400">SKU: {prod.sku || 'N/A'}</p>
+                                    </div>
+                                    <span className="bg-rose-50 border border-rose-100 text-rose-700 font-black text-xs px-2.5 py-1 rounded-lg shrink-0">
+                                      ₹{totalValue.toLocaleString('en-IN')}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1.5 border-t border-slate-100">
+                                    <span>Stock: <strong className="text-slate-800 font-bold">{inv.quantity}</strong> {prod.unit || 'PCS'}</span>
+                                    <span>Unit: <strong className="text-slate-700">₹{(prod.price || 0).toLocaleString('en-IN')}</strong></span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </>
                       )}
                     </div>
                   )}
 
                   {/* Tab 4: Price Margins */}
                   {activeTab === 'margins' && (
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fade-in text-xs">
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 animate-fade-in text-xs">
                       {/* Left Column: Margins List */}
                       <div className="lg:col-span-2 space-y-4">
-                        <div className="bg-slate-50 border border-slate-200/60 rounded-xl p-5 space-y-4">
+                        <div className="bg-slate-50 border border-slate-200/60 rounded-xl p-4 sm:p-5 space-y-3.5 sm:space-y-4">
                           <h4 className="font-black text-slate-800 text-xs flex items-center space-x-2 border-b border-slate-200/60 pb-2">
-                            <Tag className="w-4 h-4 text-rose-600" />
+                            <Tag className="w-4 h-4 text-rose-600 shrink-0" />
                             <span>DEALER MARGIN RULES</span>
                           </h4>
 
@@ -2346,7 +2548,7 @@ export default function DealersPage() {
                               <p className="font-semibold text-xs">No custom margin rules defined yet.</p>
                             </div>
                           ) : (
-                            <div className="space-y-3">
+                            <div className="space-y-2.5 sm:space-y-3">
                               {margins.map((rule) => {
                                 let typeLabel = 'Default Fallback';
                                 let targetName = 'Applies to all transactions';
@@ -2371,7 +2573,7 @@ export default function DealersPage() {
                                 }
 
                                 return (
-                                  <div key={rule.id} className="flex items-center justify-between p-4 bg-white border border-slate-150 rounded-2xl hover:shadow-sm transition-shadow">
+                                  <div key={rule.id} className="flex items-center justify-between p-3.5 sm:p-4 bg-white border border-slate-150 rounded-xl hover:shadow-xs transition-shadow">
                                     <div className="space-y-1">
                                       <div className="flex items-center space-x-2">
                                         <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full border ${badgeClass}`}>
@@ -2385,11 +2587,11 @@ export default function DealersPage() {
                                         <p className="text-slate-400 text-[10px]">{targetName}</p>
                                       )}
                                     </div>
-                                    <div className="flex items-center space-x-4">
+                                    <div className="flex items-center space-x-3 sm:space-x-4">
                                       <span className="text-sm font-black text-rose-600">{rule.marginPercent}%</span>
                                       <button
                                         onClick={() => handleDeleteMargin(rule.id)}
-                                        className="p-1.5 hover:bg-rose-50 rounded-lg text-rose-600 transition-colors"
+                                        className="p-1.5 hover:bg-rose-50 rounded-lg text-rose-600 transition-colors cursor-pointer"
                                         title="Delete Rule"
                                       >
                                         <Trash2 className="w-4 h-4" />
@@ -2405,7 +2607,7 @@ export default function DealersPage() {
 
                       {/* Right Column: Add Margin Form */}
                       <div className="space-y-4">
-                        <form onSubmit={handleAddMargin} className="bg-slate-50 border border-slate-200/60 rounded-xl p-5 space-y-4">
+                        <form onSubmit={handleAddMargin} className="bg-slate-50 border border-slate-200/60 rounded-xl p-4 sm:p-5 space-y-3.5 sm:space-y-4">
                           <h4 className="font-black text-slate-800 text-xs flex items-center space-x-2 border-b border-slate-200/60 pb-2">
                             <Plus className="w-4 h-4 text-rose-600" />
                             <span>ADD MARGIN RULE</span>
@@ -2535,15 +2737,15 @@ export default function DealersPage() {
 
       {/* Close Dealer Relationship Modal */}
       {showCloseModal && closingDealer && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4 overflow-y-auto">
-          <div className="bg-white max-w-xl w-full rounded-2xl shadow-2xl overflow-hidden animate-zoom-in my-8 flex flex-col border border-slate-150">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-2.5 sm:p-4 overflow-y-auto">
+          <div className="bg-white max-w-xl w-full rounded-2xl shadow-2xl overflow-hidden animate-zoom-in my-auto sm:my-8 flex flex-col border border-slate-150">
             {/* Modal Header */}
-            <div className="p-6 border-b border-rose-100 bg-linear-to-r from-rose-50 to-amber-50 flex justify-between items-start">
-              <div className="flex items-start space-x-3">
+            <div className="p-4 sm:p-6 border-b border-rose-100 bg-linear-to-r from-rose-50 to-amber-50 flex justify-between items-start gap-2">
+              <div className="flex items-start space-x-3 min-w-0">
                 <div className="w-10 h-10 bg-rose-600 text-white rounded-xl flex items-center justify-center font-bold text-base shadow-sm shrink-0 mt-0.5">
                   <UserX className="w-5 h-5" />
                 </div>
-                <div>
+                <div className="min-w-0 flex-1">
                   <h3 className="font-black text-slate-800 text-base">Close Dealer Relationship</h3>
                   <p className="text-slate-500 text-xs mt-0.5">
                     Formally terminate relationship with <strong className="text-slate-700">{closingDealer.companyName}</strong> and generate closure agreement.
@@ -2553,14 +2755,14 @@ export default function DealersPage() {
               <button
                 type="button"
                 onClick={() => { setShowCloseModal(false); setClosingDealer(null); }}
-                className="text-slate-400 hover:text-slate-600 p-1.5 hover:bg-white/80 rounded-lg transition-colors cursor-pointer"
+                className="text-slate-400 hover:text-slate-600 p-1.5 hover:bg-white/80 rounded-lg transition-colors cursor-pointer shrink-0"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             {/* Dealer Overview Strip */}
-            <div className="px-6 py-3.5 bg-slate-50 border-b border-slate-150 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+            <div className="px-4 sm:px-6 py-3 bg-slate-50 border-b border-slate-150 grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
               <div>
                 <span className="text-slate-400 font-semibold block text-[10px] uppercase">Dealer Type</span>
                 <strong className="text-slate-700 font-bold">{closingDealer.dealerType}</strong>
@@ -2580,14 +2782,14 @@ export default function DealersPage() {
             </div>
 
             {closeError && (
-              <div className="mx-6 mt-4 p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs font-semibold flex items-center space-x-2">
+              <div className="mx-4 sm:mx-6 mt-4 p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs font-semibold flex items-center space-x-2">
                 <AlertTriangle className="w-4 h-4 shrink-0 text-rose-600" />
                 <span>{closeError}</span>
               </div>
             )}
 
             {/* Form */}
-            <form onSubmit={handleConfirmCloseRelationship} className="p-6 space-y-4 overflow-y-auto max-h-[60vh] text-xs">
+            <form onSubmit={handleConfirmCloseRelationship} className="p-4 sm:p-6 space-y-3.5 sm:space-y-4 overflow-y-auto max-h-[60vh] text-xs">
               <div>
                 <label className="block text-slate-700 font-bold mb-1.5">
                   Reason for Relationship Closure <span className="text-rose-500">*</span>
@@ -2624,7 +2826,7 @@ export default function DealersPage() {
                 </div>
               )}
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 sm:gap-4">
                 <div>
                   <label className="block text-slate-700 font-bold mb-1.5">
                     Effective Closure Date <span className="text-rose-500">*</span>
@@ -2692,19 +2894,19 @@ export default function DealersPage() {
               </div>
 
               {/* Modal Actions */}
-              <div className="pt-2 border-t border-slate-150 flex items-center justify-end space-x-3">
+              <div className="pt-3 border-t border-slate-150 flex flex-col-reverse sm:flex-row items-stretch sm:items-center sm:justify-end gap-2 sm:space-x-3">
                 <button
                   type="button"
                   onClick={() => { setShowCloseModal(false); setClosingDealer(null); }}
                   disabled={closeLoading}
-                  className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors cursor-pointer"
+                  className="w-full sm:w-auto px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors cursor-pointer text-center justify-center flex items-center"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={closeLoading}
-                  className="px-6 py-2.5 bg-rose-600 hover:bg-rose-700 disabled:bg-rose-400 text-white font-bold rounded-xl text-xs transition-all shadow-md flex items-center space-x-1.5 cursor-pointer"
+                  className="w-full sm:w-auto px-6 py-2.5 bg-rose-600 hover:bg-rose-700 disabled:bg-rose-400 text-white font-bold rounded-xl text-xs transition-all shadow-md flex items-center justify-center space-x-1.5 cursor-pointer"
                 >
                   {closeLoading ? (
                     <>

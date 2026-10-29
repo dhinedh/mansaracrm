@@ -11,7 +11,7 @@ router.use(verifyToken);
 
 router.get('/', storesController.getDealerStores);
 
-router.post('/', requireRole('DEALER'), validate([
+router.post('/', requireRole('DEALER', 'ADMIN'), validate([
   body('name').notEmpty().withMessage('Store name is required'),
   body('address').notEmpty().withMessage('Address is required')
 ]), storesController.createStore);

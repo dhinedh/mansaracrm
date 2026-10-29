@@ -71,21 +71,21 @@ function AppTile({ module, onClick, badge }) {
   return (
     <button
       onClick={onClick}
-      className="group relative flex flex-col items-center text-center p-4 rounded-2xl bg-white border border-slate-100 hover:border-slate-200 hover:shadow-lg hover:-translate-y-1 transition-all duration-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-rose-300"
+      className="group relative flex flex-col items-center text-center p-2.5 sm:p-4 rounded-xl sm:rounded-2xl bg-white border border-slate-100 hover:border-slate-200 hover:shadow-lg hover:-translate-y-1 transition-all duration-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-rose-300"
       title={module.desc}
     >
       {badge > 0 && (
-        <span className="absolute top-2.5 right-2.5 bg-rose-600 text-white text-[9px] font-black w-5 h-5 rounded-full flex items-center justify-center border border-white animate-pulse z-10 shadow-sm">
+        <span className="absolute top-2 right-2 bg-rose-600 text-white text-[9px] font-black w-4.5 h-4.5 rounded-full flex items-center justify-center border border-white animate-pulse z-10 shadow-sm">
           {badge}
         </span>
       )}
       <div
-        className="w-14 h-14 rounded-2xl flex items-center justify-center mb-3 shadow-sm group-hover:scale-110 transition-transform duration-200"
+        className="w-11 h-11 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl flex items-center justify-center mb-2 sm:mb-3 shadow-sm group-hover:scale-110 transition-transform duration-200"
         style={{ backgroundColor: module.bg }}
       >
-        <Icon style={{ color: module.color }} className="w-7 h-7" strokeWidth={1.8} />
+        <Icon style={{ color: module.color }} className="w-5 h-5 sm:w-7 sm:h-7" strokeWidth={1.8} />
       </div>
-      <span className="text-[11px] font-bold text-slate-700 leading-tight group-hover:text-slate-900 transition-colors line-clamp-2">
+      <span className="text-[10px] sm:text-[11px] font-bold text-slate-700 leading-tight group-hover:text-slate-900 transition-colors line-clamp-2">
         {module.name}
       </span>
     </button>
@@ -161,68 +161,83 @@ export default function AdminDashboard() {
   return (
     <div className="space-y-8 animate-fade-in">
       {/* KPI Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
         {statsLoading ? (
           Array(4).fill(0).map((_, idx) => (
-            <div key={idx} className="bg-white border border-slate-150 rounded-2xl p-5 shadow-sm animate-pulse space-y-3">
-              <div className="h-4 bg-slate-100 rounded-full w-24"></div>
-              <div className="h-6 bg-slate-100 rounded-full w-16"></div>
+            <div key={idx} className="bg-white border border-slate-150 rounded-2xl p-3.5 sm:p-5 shadow-sm animate-pulse space-y-3">
+              <div className="w-9 h-9 sm:w-12 sm:h-12 bg-slate-100 rounded-xl"></div>
+              <div className="h-3 sm:h-4 bg-slate-100 rounded-full w-20 sm:w-24"></div>
+              <div className="h-5 sm:h-6 bg-slate-100 rounded-full w-14 sm:w-16"></div>
             </div>
           ))
         ) : (
           <>
             <button
               onClick={() => navigate('/admin/products')}
-              className="bg-white border border-slate-150 rounded-2xl p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 flex items-center gap-4 animate-fade-in cursor-pointer text-left w-full group"
+              className="bg-white border border-slate-150 rounded-2xl p-3.5 sm:p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 flex flex-col sm:flex-row items-start sm:items-center gap-2.5 sm:gap-4 animate-fade-in cursor-pointer text-left w-full group min-w-0 overflow-hidden"
             >
-              <div className="p-3.5 bg-sky-50 rounded-2xl shrink-0 group-hover:scale-110 transition-transform duration-200">
-                <ShoppingBag className="w-6 h-6 text-sky-600" />
+              <div className="p-2.5 sm:p-3.5 bg-sky-50 rounded-xl sm:rounded-2xl shrink-0 group-hover:scale-110 transition-transform duration-200">
+                <ShoppingBag className="w-5 h-5 sm:w-6 sm:h-6 text-sky-600" />
               </div>
-              <div>
-                <span className="block text-[10px] font-black uppercase tracking-widest text-slate-400">Available Products</span>
-                <strong className="text-xl font-black text-slate-800 mt-1 block">{stats.productsCount} SKUs</strong>
-                <span className="text-[9px] text-sky-500 font-semibold mt-0.5 block opacity-0 group-hover:opacity-100 transition-opacity">View Products →</span>
+              <div className="min-w-0 flex-1">
+                <span className="block text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-slate-400 truncate">Available Products</span>
+                <div className="flex items-baseline gap-1 mt-0.5 sm:mt-1 flex-wrap">
+                  <span className="text-base sm:text-xl font-black text-slate-800 leading-tight">{stats.productsCount}</span>
+                  <span className="text-xs sm:text-sm font-bold text-slate-500 leading-tight">SKUs</span>
+                </div>
+                <span className="text-[9px] text-sky-500 font-semibold mt-0.5 hidden sm:block opacity-0 group-hover:opacity-100 transition-opacity">View Products →</span>
               </div>
             </button>
             <button
               onClick={() => navigate('/admin/dealers')}
-              className="bg-white border border-slate-150 rounded-2xl p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 flex items-center gap-4 animate-fade-in cursor-pointer text-left w-full group"
+              className="bg-white border border-slate-150 rounded-2xl p-3.5 sm:p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 flex flex-col sm:flex-row items-start sm:items-center gap-2.5 sm:gap-4 animate-fade-in cursor-pointer text-left w-full group min-w-0 overflow-hidden"
             >
-              <div className="p-3.5 bg-rose-50 rounded-2xl shrink-0 group-hover:scale-110 transition-transform duration-200">
-                <Users className="w-6 h-6 text-rose-600" />
+              <div className="p-2.5 sm:p-3.5 bg-rose-50 rounded-xl sm:rounded-2xl shrink-0 group-hover:scale-110 transition-transform duration-200">
+                <Users className="w-5 h-5 sm:w-6 sm:h-6 text-rose-600" />
               </div>
-              <div>
-                <span className="block text-[10px] font-black uppercase tracking-widest text-slate-400">Active Dealers</span>
-                <strong className="text-xl font-black text-slate-800 mt-1 block">{stats.dealersCount} Partners</strong>
-                <span className="text-[9px] text-rose-500 font-semibold mt-0.5 block opacity-0 group-hover:opacity-100 transition-opacity">View Dealers →</span>
+              <div className="min-w-0 flex-1">
+                <span className="block text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-slate-400 truncate">Active Dealers</span>
+                <div className="flex items-baseline gap-1 mt-0.5 sm:mt-1 flex-wrap">
+                  <span className="text-base sm:text-xl font-black text-slate-800 leading-tight">{stats.dealersCount}</span>
+                  <span className="text-xs sm:text-sm font-bold text-slate-500 leading-tight">Partners</span>
+                </div>
+                <span className="text-[9px] text-rose-500 font-semibold mt-0.5 hidden sm:block opacity-0 group-hover:opacity-100 transition-opacity">View Dealers →</span>
               </div>
             </button>
             <button
               onClick={() => navigate('/admin/inventory')}
-              className="bg-white border border-slate-150 rounded-2xl p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 flex items-center gap-4 animate-fade-in cursor-pointer text-left w-full group"
+              className="bg-white border border-slate-150 rounded-2xl p-3.5 sm:p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 flex flex-col sm:flex-row items-start sm:items-center gap-2.5 sm:gap-4 animate-fade-in cursor-pointer text-left w-full group min-w-0 overflow-hidden"
             >
-              <div className="p-3.5 bg-emerald-50 rounded-2xl shrink-0 group-hover:scale-110 transition-transform duration-200">
-                <Boxes className="w-6 h-6 text-emerald-600" />
+              <div className="p-2.5 sm:p-3.5 bg-emerald-50 rounded-xl sm:rounded-2xl shrink-0 group-hover:scale-110 transition-transform duration-200">
+                <Boxes className="w-5 h-5 sm:w-6 sm:h-6 text-emerald-600" />
               </div>
-              <div>
-                <span className="block text-[10px] font-black uppercase tracking-widest text-slate-400">Total Stock Qty</span>
-                <strong className="text-xl font-black text-slate-800 mt-1 block">{stats.totalStock.toLocaleString()} Units</strong>
-                <span className="text-[9px] text-emerald-500 font-semibold mt-0.5 block opacity-0 group-hover:opacity-100 transition-opacity">View Inventory →</span>
+              <div className="min-w-0 flex-1">
+                <span className="block text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-slate-400 truncate">Total Stock Qty</span>
+                <div className="flex items-baseline gap-1 mt-0.5 sm:mt-1 flex-wrap">
+                  <span className="text-base sm:text-xl font-black text-slate-800 leading-tight">{stats.totalStock.toLocaleString()}</span>
+                  <span className="text-xs sm:text-sm font-bold text-slate-500 leading-tight">Units</span>
+                </div>
+                <span className="text-[9px] text-emerald-500 font-semibold mt-0.5 hidden sm:block opacity-0 group-hover:opacity-100 transition-opacity">View Inventory →</span>
               </div>
             </button>
             <button
               onClick={() => navigate('/admin/inventory', { state: { filter: 'low_stock' } })}
-              className="bg-white border border-slate-150 rounded-2xl p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 flex items-center gap-4 animate-fade-in cursor-pointer text-left w-full group"
+              className="bg-white border border-slate-150 rounded-2xl p-3.5 sm:p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 flex flex-col sm:flex-row items-start sm:items-center gap-2.5 sm:gap-4 animate-fade-in cursor-pointer text-left w-full group min-w-0 overflow-hidden"
             >
-              <div className="p-3.5 bg-amber-50 rounded-2xl shrink-0 group-hover:scale-110 transition-transform duration-200">
-                <AlertCircle className="w-6 h-6 text-amber-600" />
+              <div className="p-2.5 sm:p-3.5 bg-amber-50 rounded-xl sm:rounded-2xl shrink-0 group-hover:scale-110 transition-transform duration-200">
+                <AlertCircle className="w-5 h-5 sm:w-6 sm:h-6 text-amber-600" />
               </div>
-              <div>
-                <span className="block text-[10px] font-black uppercase tracking-widest text-slate-400">Low Stock Alerts</span>
-                <strong className={`text-xl font-black mt-1 block ${stats.lowStockCount > 0 ? 'text-amber-600 animate-pulse' : 'text-slate-800'}`}>
-                  {stats.lowStockCount} items
-                </strong>
-                <span className="text-[9px] text-amber-500 font-semibold mt-0.5 block opacity-0 group-hover:opacity-100 transition-opacity">View Low Stock →</span>
+              <div className="min-w-0 flex-1">
+                <span className="block text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-slate-400 truncate">Low Stock Alerts</span>
+                <div className="flex items-baseline gap-1 mt-0.5 sm:mt-1 flex-wrap">
+                  <span className={`text-base sm:text-xl font-black leading-tight ${stats.lowStockCount > 0 ? 'text-amber-600 animate-pulse' : 'text-slate-800'}`}>
+                    {stats.lowStockCount}
+                  </span>
+                  <span className={`text-xs sm:text-sm font-bold leading-tight ${stats.lowStockCount > 0 ? 'text-amber-600' : 'text-slate-500'}`}>
+                    items
+                  </span>
+                </div>
+                <span className="text-[9px] text-amber-500 font-semibold mt-0.5 hidden sm:block opacity-0 group-hover:opacity-100 transition-opacity">View Low Stock →</span>
               </div>
             </button>
           </>
@@ -230,14 +245,14 @@ export default function AdminDashboard() {
       </div>
 
       {/* CRM Modules Section */}
-      <div className="bg-white border border-slate-150 p-6 rounded-2xl shadow-sm space-y-4">
+      <div className="bg-white border border-slate-150 p-4 sm:p-6 rounded-2xl shadow-sm space-y-4">
         <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
           <h2 className="text-xs font-black text-rose-700 uppercase tracking-widest flex items-center gap-2">
             <LayoutGrid className="w-4 h-4" /> CRM Management Modules
           </h2>
           <span className="text-[10px] text-slate-400 font-semibold">{crmModules.length} Modules</span>
         </div>
-        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-4">
+        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-2.5 sm:gap-4">
           {crmModules.map(m => (
             <AppTile key={m.name} module={m} onClick={() => navigate(m.path)} badge={m.name === 'Notifications' ? unreadNotifications : 0} />
           ))}
@@ -245,14 +260,14 @@ export default function AdminDashboard() {
       </div>
 
       {/* E-Commerce Section */}
-      <div className="bg-white border border-slate-150 p-6 rounded-2xl shadow-sm space-y-4">
+      <div className="bg-white border border-slate-150 p-4 sm:p-6 rounded-2xl shadow-sm space-y-4">
         <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
           <h2 className="text-xs font-black text-blue-700 uppercase tracking-widest flex items-center gap-2">
             <LayoutGrid className="w-4 h-4" /> E-Commerce Modules
           </h2>
           <span className="text-[10px] text-slate-400 font-semibold">{ecomModules.length} Modules</span>
         </div>
-        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-4">
+        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-2.5 sm:gap-4">
           {ecomModules.map(m => (
             <AppTile key={m.name} module={m} onClick={() => navigate(m.path)} />
           ))}
@@ -270,14 +285,14 @@ export default function AdminDashboard() {
         if (activeFieldModules.length === 0) return null;
 
         return (
-          <div className="bg-white border border-slate-150 p-6 rounded-2xl shadow-sm space-y-4">
+          <div className="bg-white border border-slate-150 p-4 sm:p-6 rounded-2xl shadow-sm space-y-4">
             <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
               <h2 className="text-xs font-black text-rose-700 uppercase tracking-widest flex items-center gap-2">
                 <LayoutGrid className="w-4 h-4" /> Stalls & Field Sales
               </h2>
               <span className="text-[10px] text-slate-400 font-semibold">{activeFieldModules.length} Modules</span>
             </div>
-            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-4">
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-2.5 sm:gap-4">
               {activeFieldModules.map(m => (
                 <AppTile key={m.name} module={m} onClick={() => navigate(m.path)} />
               ))}

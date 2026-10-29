@@ -106,7 +106,10 @@ const DealerSchema = new Schema({
   closureReason: { type: String },
   closureNotes: { type: String },
   closureSettlementStatus: { type: String, default: 'SETTLED' },
-  closureAgreementNumber: { type: String }
+  agreementNumber: { type: String },
+  agreeSeq: { type: Number },
+  closureAgreementNumber: { type: String },
+  closureAgreeSeq: { type: Number }
 }, {
   timestamps: true,
   toJSON: { virtuals: true },

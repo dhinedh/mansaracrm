@@ -3,6 +3,7 @@ const prisma = require('../../config/database');
 const bcrypt = require('bcryptjs');
 const { sendVendorRegistrationEmail } = require('../../utils/emailService');
 const { sendVendorWhatsAppRegistration } = require('../../utils/whatsappService');
+const { getOrAssignDealerAgreementNumber, getOrAssignDealerClosureAgreementNumber } = require('../../utils/agreementSequence');
 const centralNotificationService = require('../../utils/centralNotificationService');
 
 
@@ -218,12 +219,24 @@ exports.approveDealer = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Dealer not found' });
     }
 
+    let assignedAgreementNumber = dealer.agreementNumber;
+    let assignedAgreeSeq = dealer.agreeSeq;
+    if (status === 'APPROVED' && !dealer.agreementNumber) {
+      const resSeq = await getOrAssignDealerAgreementNumber(id);
+      assignedAgreementNumber = resSeq.agreementNumber;
+      assignedAgreeSeq = resSeq.agreeSeq;
+    }
+
     const updatedDealer = await prisma.$transaction(async (tx) => {
       const updateData = {
         approvalStatus: status,
         approvedAt: status === 'APPROVED' ? new Date() : null,
         approvedBy: req.user.id
       };
+      if (assignedAgreementNumber) {
+        updateData.agreementNumber = assignedAgreementNumber;
+        updateData.agreeSeq = assignedAgreeSeq;
+      }
       if (notes) updateData.notes = notes;
 
       const d = await tx.dealer.update({
@@ -677,8 +690,8 @@ exports.closeDealerRelationship = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Dealer not found' });
     }
 
-    const year = new Date().getFullYear();
-    const closureAgreementNumber = dealer.closureAgreementNumber || `MFD/CLOSE/${year}/${String(dealer.agreeSeq || 1).padStart(3, '0')}`;
+    const year = closedAt ? new Date(closedAt).getFullYear() : new Date().getFullYear();
+    const { closureAgreementNumber, closureAgreeSeq } = await getOrAssignDealerClosureAgreementNumber(dealer.id, year);
     const effectiveClosedAt = closedAt ? new Date(closedAt) : new Date();
 
     const updatedDealer = await prisma.$transaction(async (tx) => {
@@ -692,7 +705,8 @@ exports.closeDealerRelationship = async (req, res, next) => {
           closureReason: closureReason || 'Mutual Agreement of both Parties',
           closureNotes: closureNotes || '',
           closureSettlementStatus: closureSettlementStatus || 'SETTLED',
-          closureAgreementNumber
+          closureAgreementNumber,
+          closureAgreeSeq
         },
         include: {
           user: true,
@@ -814,5 +828,83 @@ exports.reopenDealerRelationship = async (req, res, next) => {
     next(error);
   }
 };
+
+exports.sendDealerCredentials = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { password } = req.body;
+
+    const dealer = await prisma.dealer.findUnique({
+      where: { id },
+      include: { user: true }
+    });
+
+    if (!dealer || !dealer.user) {
+      return res.status(404).json({ success: false, message: 'Dealer or user account not found' });
+    }
+
+    const rawPassword = password || 'Dealer@123';
+
+    // If a new password was provided in request, update user password
+    if (password) {
+      const hashedPassword = await bcrypt.hash(rawPassword, 12);
+      await prisma.user.update({
+        where: { id: dealer.userId },
+        data: { password: hashedPassword }
+      });
+    }
+
+    const emailResult = await sendVendorRegistrationEmail({
+      email: dealer.user.email,
+      name: dealer.user.name,
+      companyName: dealer.companyName,
+      password: rawPassword,
+      phone: dealer.phone,
+      dealerType: dealer.dealerType,
+      dealerCategory: dealer.dealerCategory,
+      defaultMargin: dealer.defaultMargin,
+      gstNumber: dealer.gstNumber,
+      address: dealer.address,
+      city: dealer.city,
+      state: dealer.state,
+      pincode: dealer.pincode,
+      approvalStatus: dealer.approvalStatus
+    });
+
+    const whatsappResult = await sendVendorWhatsAppRegistration({
+      phone: dealer.phone,
+      name: dealer.user.name,
+      companyName: dealer.companyName,
+      email: dealer.user.email,
+      password: rawPassword,
+      dealerType: dealer.dealerType,
+      dealerCategory: dealer.dealerCategory,
+      defaultMargin: dealer.defaultMargin,
+      gstNumber: dealer.gstNumber,
+      approvalStatus: dealer.approvalStatus
+    });
+
+    res.json({
+      success: true,
+      message: `Credentials dispatched to ${dealer.companyName} via WhatsApp and Mail.`,
+      data: {
+        userId: dealer.user.email,
+        email: dealer.user.email,
+        name: dealer.user.name,
+        companyName: dealer.companyName,
+        phone: dealer.phone,
+        password: rawPassword,
+        emailNotificationSent: emailResult.success,
+        emailSimulated: emailResult.simulated || false,
+        whatsappNotificationSent: whatsappResult.success,
+        whatsappMethod: whatsappResult.method,
+        whatsappUrl: whatsappResult.whatsappUrl
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 
 

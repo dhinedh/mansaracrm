@@ -142,11 +142,9 @@ export default function ZoneMapPage() {
     });
     mapInstanceRef.current = map;
 
-    // Dark-ish map style for better contrast
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
-      subdomains: 'abcd',
-      maxZoom: 18,
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      maxZoom: 19,
     }).addTo(map);
 
     markersRef.current = L.featureGroup().addTo(map);
@@ -190,17 +188,27 @@ export default function ZoneMapPage() {
         radius,
       });
 
-      // Label
+      // Centered Label Badge
       const labelIcon = L.divIcon({
-        className: '',
+        className: 'zone-admin-badge',
         html: `<div style="
-          font-size:9px;font-weight:800;
-          color:${isAssigned ? '#065f46' : '#475569'};
-          white-space:nowrap;
-          text-shadow:0 0 4px white,0 0 4px white,0 0 4px white;
-          pointer-events:none;
-        ">${district.name}${isAssigned ? ' ✓' : ''}</div>`,
-        iconAnchor: [30, 4],
+          transform: translate(-50%, -50%);
+          display: inline-flex;
+          align-items: center;
+          gap: 3px;
+          padding: 2px 7px;
+          border-radius: 9999px;
+          font-size: 10px;
+          font-weight: 800;
+          white-space: nowrap;
+          background: ${isAssigned ? (hasConflict ? '#d97706' : '#16a34a') : 'rgba(255,255,255,0.92)'};
+          color: ${isAssigned ? '#ffffff' : '#0f172a'};
+          border: 1px solid ${isAssigned ? (hasConflict ? '#b45309' : '#15803d') : '#cbd5e1'};
+          box-shadow: 0 1px 4px rgba(0,0,0,0.18);
+          pointer-events: none;
+        ">${district.name}${isAssigned ? (hasConflict ? ' ⚠️' : ' ✓') : ''}</div>`,
+        iconSize: [0, 0],
+        iconAnchor: [0, 0],
       });
       L.marker(district.coords, { icon: labelIcon, interactive: false }).addTo(markersRef.current);
 

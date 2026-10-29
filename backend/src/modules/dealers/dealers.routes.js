@@ -45,6 +45,7 @@ router.patch('/:id/change-password', requireRole('ADMIN'), validate([
 router.patch('/:id/margin-credit', requireRole('ADMIN'), dealersController.updateDealerMarginOrCredit);
 router.patch('/:id/close-relationship', requireRole('ADMIN'), dealersController.closeDealerRelationship);
 router.patch('/:id/reopen-relationship', requireRole('ADMIN'), dealersController.reopenDealerRelationship);
+router.post('/:id/send-credentials', requireRole('ADMIN'), dealersController.sendDealerCredentials);
 router.post('/broadcast', requireRole('ADMIN'), dealersController.sendDealerBroadcast);
 router.delete('/:id', requireRole('ADMIN'), dealersController.deleteDealer);
 

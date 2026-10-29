@@ -40,7 +40,9 @@ import {
   ShieldCheck,
   Calendar,
   Search,
-  SlidersHorizontal
+  SlidersHorizontal,
+  FileSignature,
+  Home
 } from 'lucide-react';
 import axios from 'axios';
 
@@ -111,8 +113,9 @@ const getSalesMarketingMenuItems = (licensing) => {
       icon: Users,
       allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'],
       subItems: [
-        { name: 'Dealers',        path: '/admin/dealers',   icon: Users },
-        { name: 'Order Requests', path: '/admin/requests',  icon: FileText }
+        { name: 'Dealers',             path: '/admin/dealers',             icon: Users },
+        { name: 'Agreement Templates', path: '/admin/agreement-templates', icon: FileSignature },
+        { name: 'Order Requests',      path: '/admin/requests',            icon: FileText }
       ]
     },
     {
@@ -147,6 +150,7 @@ const getSalesMarketingMenuItems = (licensing) => {
 const getFinanceMenuItems = () => [
   { name: 'Invoice Ledger',        path: '/admin/invoice-ledger',      icon: FileText, allowedStaffRoles: ['ADMIN', 'FINANCE_OFFICER', 'B2B_MANAGER'] },
   { name: 'Invoice Template',      path: '/admin/invoice-template',    icon: SlidersHorizontal, allowedStaffRoles: ['ADMIN', 'FINANCE_OFFICER'] },
+  { name: 'Agreement Templates',   path: '/admin/agreement-templates', icon: FileSignature, allowedStaffRoles: ['ADMIN', 'FINANCE_OFFICER', 'B2B_MANAGER'] },
   { name: 'Expenses Log',          path: '/admin/expenses',            icon: Receipt, allowedStaffRoles: ['ADMIN', 'FINANCE_OFFICER', 'B2B_MANAGER'] },
   { name: 'Offer Expenses',        path: '/admin/offers',              icon: Gift, allowedStaffRoles: ['ADMIN', 'FINANCE_OFFICER', 'B2B_MANAGER'] },
 ];
@@ -360,6 +364,9 @@ export default function AdminLayout() {
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [licensing, setLicensing] = useState({ enableB2cStall: true, enableFieldSales: true });
   const isDashboard = location.pathname === '/admin/dashboard' || location.pathname === '/admin';
+  const isBillingActive = location.pathname.startsWith('/admin/invoice') || location.pathname === '/admin/price-simulator';
+  const isProductStockActive = location.pathname === '/admin/products' || location.pathname === '/admin/inventory' || location.pathname === '/admin/categories' || location.pathname === '/admin/inventories';
+  const isSummaryActive = location.pathname === '/admin/reports' || location.pathname === '/admin/analytics';
 
   const [submenusOpen, setSubmenusOpen] = useState(() => {
     const allItems = getAllMenuItems(0, { enableB2cStall: true, enableFieldSales: true });
@@ -436,7 +443,7 @@ export default function AdminLayout() {
 
   return (
     <div className="min-h-screen bg-slate-50 flex">
-      {/* Sidebar Nav (Only shown when not on Dashboard) */}
+      {/* Sidebar Nav (Only shown when not on Dashboard on desktop) */}
       {!isDashboard && (
         <aside className="hidden lg:flex lg:flex-col w-64 bg-white border-r border-slate-200 shrink-0 h-screen sticky top-0 overflow-hidden">
           {/* Logo / Header area for Sidebar */}
@@ -457,8 +464,8 @@ export default function AdminLayout() {
         </aside>
       )}
 
-      {/* Mobile Drawer (Only shown when not on Dashboard and mobileMenuOpen is true) */}
-      {!isDashboard && mobileMenuOpen && (
+      {/* Mobile Drawer (Accessible from mobile downbar on any page) */}
+      {mobileMenuOpen && (
         <div className="lg:hidden fixed inset-0 z-50 flex">
           {/* Backdrop */}
           <div 
@@ -466,17 +473,46 @@ export default function AdminLayout() {
             onClick={() => setMobileMenuOpen(false)}
           />
           {/* Sidebar content */}
-          <div className="relative w-64 bg-white h-full shadow-2xl flex flex-col z-10 animate-slide-in-left border-r border-slate-200">
-            <div className="h-16 border-b border-slate-200 flex items-center justify-between px-6 shrink-0">
-              <span className="font-black text-slate-800 text-sm tracking-wide uppercase">Menu</span>
+          <div className="relative w-72 max-w-[85vw] bg-white h-full shadow-2xl flex flex-col z-10 animate-slide-in-left border-r border-slate-200">
+            {/* Drawer Header */}
+            <div className="h-16 border-b border-slate-200 flex items-center justify-between px-5 shrink-0 bg-white">
+              <div className="flex items-center space-x-2.5">
+                <img src="/logo.png" alt="Mansara Foods" className="h-8 w-auto object-contain" />
+                <span className="font-black text-slate-800 text-xs tracking-wide uppercase">Admin Menu</span>
+              </div>
               <button 
                 onClick={() => setMobileMenuOpen(false)}
                 aria-label="Close Navigation Menu"
-                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
+
+            {/* Mobile User Profile & Notification Bar */}
+            <div className="px-5 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between shrink-0">
+              <div className="min-w-0 pr-2">
+                <p className="text-xs font-bold text-slate-800 truncate">{user?.name || 'Administrator'}</p>
+                <span className="text-[9px] bg-rose-100 text-rose-700 px-2 py-0.5 rounded-full font-bold uppercase inline-block mt-0.5">
+                  {user?.staffRole || user?.role || 'ADMIN'}
+                </span>
+              </div>
+              <Link
+                to="/admin/notifications"
+                onClick={() => setMobileMenuOpen(false)}
+                className="relative p-2 text-slate-500 hover:text-rose-600 hover:bg-white rounded-lg border border-slate-200/60"
+                title="Notifications"
+              >
+                <Bell className="w-4 h-4" />
+                {unreadNotifications > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-rose-600 text-white text-[8px] font-black w-4 h-4 rounded-full flex items-center justify-center">
+                    {unreadNotifications}
+                  </span>
+                )}
+              </Link>
+            </div>
+
+            {/* Navigation links */}
             <SidebarNav
               submenusOpen={submenusOpen}
               toggleSubmenu={toggleSubmenu}
@@ -485,14 +521,28 @@ export default function AdminLayout() {
               staffRole={user?.staffRole || 'ADMIN'}
               licensing={licensing}
             />
+
+            {/* Mobile Drawer Logout */}
+            <div className="p-4 border-t border-slate-200 bg-white shrink-0">
+              <button
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  handleLogout();
+                }}
+                className="w-full flex items-center justify-center space-x-2 py-2.5 text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-xl transition-all cursor-pointer border border-rose-200/50"
+              >
+                <LogOut className="w-4 h-4" />
+                <span>Sign Out</span>
+              </button>
+            </div>
           </div>
         </div>
       )}
 
       {/* ── Main Content ── */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden h-screen">
-        {/* Top Header */}
-        <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 z-10 shrink-0">
+        {/* Top Header - Hidden on mobile UI as top navbar is replaced by downbar */}
+        <header className="hidden lg:flex h-16 bg-white border-b border-slate-200 items-center justify-between px-6 z-10 shrink-0">
           <div className="flex items-center space-x-4">
             {isDashboard ? (
               <div className="flex items-center space-x-2.5">
@@ -501,14 +551,6 @@ export default function AdminLayout() {
               </div>
             ) : (
               <div className="flex items-center space-x-3">
-                <button
-                  onClick={() => setMobileMenuOpen(true)}
-                  aria-label="Open Navigation Menu"
-                  className="lg:hidden p-2 text-slate-500 hover:text-rose-600 hover:bg-slate-50 rounded-xl transition-all duration-200 cursor-pointer flex items-center justify-center border border-slate-100/50"
-                  title="Open Navigation Menu"
-                >
-                  <Menu className="w-4.5 h-4.5" />
-                </button>
                 <Link
                   to="/admin/dashboard"
                   aria-label="Return to Admin Dashboard"
@@ -556,10 +598,101 @@ export default function AdminLayout() {
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 overflow-y-auto p-6 md:p-8">
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 md:p-8 pb-24 lg:pb-8">
           <Outlet />
         </main>
       </div>
+
+      {/* ── Mobile Downbar (Bottom Navigation Bar) ── */}
+      <nav 
+        aria-label="Mobile Navigation"
+        className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur-xl border-t border-slate-200 shadow-[0_-4px_20px_rgba(0,0,0,0.06)] px-2 py-1.5 flex items-center justify-around"
+      >
+        {/* 1. Home */}
+        <Link
+          to="/admin/dashboard"
+          onClick={() => setMobileMenuOpen(false)}
+          className={`flex-1 flex flex-col items-center justify-center py-1 px-1 rounded-xl transition-all duration-200 active:scale-95 ${
+            isDashboard
+              ? 'text-rose-600 font-bold'
+              : 'text-slate-500 hover:text-slate-800 font-medium'
+          }`}
+        >
+          <div className={`p-1 rounded-lg transition-colors ${isDashboard ? 'bg-rose-50 text-rose-600' : ''}`}>
+            <Home className="w-5 h-5" />
+          </div>
+          <span className="text-[10px] tracking-tight leading-tight mt-0.5 truncate max-w-full">Home</span>
+        </Link>
+
+        {/* 2. Invoice Billing */}
+        <Link
+          to="/admin/price-simulator"
+          onClick={() => setMobileMenuOpen(false)}
+          className={`flex-1 flex flex-col items-center justify-center py-1 px-1 rounded-xl transition-all duration-200 active:scale-95 ${
+            isBillingActive
+              ? 'text-rose-600 font-bold'
+              : 'text-slate-500 hover:text-slate-800 font-medium'
+          }`}
+        >
+          <div className={`p-1 rounded-lg transition-colors ${isBillingActive ? 'bg-rose-50 text-rose-600' : ''}`}>
+            <Receipt className="w-5 h-5" />
+          </div>
+          <span className="text-[10px] tracking-tight leading-tight mt-0.5 truncate max-w-full">Invoice Billing</span>
+        </Link>
+
+        {/* 3. Product and Stock Page */}
+        <Link
+          to="/admin/products"
+          onClick={() => setMobileMenuOpen(false)}
+          className={`flex-1 flex flex-col items-center justify-center py-1 px-1 rounded-xl transition-all duration-200 active:scale-95 ${
+            isProductStockActive
+              ? 'text-rose-600 font-bold'
+              : 'text-slate-500 hover:text-slate-800 font-medium'
+          }`}
+        >
+          <div className={`p-1 rounded-lg transition-colors ${isProductStockActive ? 'bg-rose-50 text-rose-600' : ''}`}>
+            <ShoppingBag className="w-5 h-5" />
+          </div>
+          <span className="text-[10px] tracking-tight leading-tight mt-0.5 truncate max-w-full">Product & Stock</span>
+        </Link>
+
+        {/* 4. Summary */}
+        <Link
+          to="/admin/reports"
+          onClick={() => setMobileMenuOpen(false)}
+          className={`flex-1 flex flex-col items-center justify-center py-1 px-1 rounded-xl transition-all duration-200 active:scale-95 ${
+            isSummaryActive
+              ? 'text-rose-600 font-bold'
+              : 'text-slate-500 hover:text-slate-800 font-medium'
+          }`}
+        >
+          <div className={`p-1 rounded-lg transition-colors ${isSummaryActive ? 'bg-rose-50 text-rose-600' : ''}`}>
+            <BarChart3 className="w-5 h-5" />
+          </div>
+          <span className="text-[10px] tracking-tight leading-tight mt-0.5 truncate max-w-full">Summary</span>
+        </Link>
+
+        {/* 5. Menu Icon */}
+        <button
+          type="button"
+          onClick={() => setMobileMenuOpen(prev => !prev)}
+          className={`flex-1 flex flex-col items-center justify-center py-1 px-1 rounded-xl transition-all duration-200 active:scale-95 cursor-pointer relative ${
+            mobileMenuOpen
+              ? 'text-rose-600 font-bold'
+              : 'text-slate-500 hover:text-slate-800 font-medium'
+          }`}
+        >
+          <div className={`p-1 rounded-lg transition-colors relative ${mobileMenuOpen ? 'bg-rose-50 text-rose-600' : ''}`}>
+            <Menu className="w-5 h-5" />
+            {unreadNotifications > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 bg-rose-600 text-white text-[8px] font-black w-3.5 h-3.5 rounded-full flex items-center justify-center">
+                {unreadNotifications}
+              </span>
+            )}
+          </div>
+          <span className="text-[10px] tracking-tight leading-tight mt-0.5 truncate max-w-full">Menu</span>
+        </button>
+      </nav>
     </div>
   );
 }

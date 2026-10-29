@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { 
-  RefreshCw, CloudCheck, Wifi, WifiOff, CheckCircle2, 
+  RefreshCw, Wifi, WifiOff, CheckCircle2, 
   AlertCircle, Database, Smartphone, ArrowRight, ShieldCheck 
 } from 'lucide-react';
 

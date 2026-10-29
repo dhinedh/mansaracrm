@@ -71,50 +71,49 @@ const sendVendorRegistrationEmail = async (details) => {
         <!-- Greeting -->
         <h2 style="color: #0f172a; font-size: 18px; margin-top: 0;">Welcome, ${name}! 👋</h2>
         <p style="color: #475569; font-size: 14px; line-height: 1.6;">
-          Your vendor account for <strong>${companyName}</strong> has been registered in the Mansara Foods B2B CRM System. Below are your account details and login credentials:
+          Your dealer partner account for <strong>${companyName}</strong> has been registered in the Mansara Foods B2B CRM System. Below are your official login credentials and account access details:
         </p>
 
         <!-- Credentials & Details Box -->
-        <div style="background-color: #fff1f2; border: 1px solid #fecdd3; border-radius: 12px; padding: 20px; margin: 24px 0;">
-          <h3 style="color: #9f1239; margin-top: 0; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px;">🔑 Vendor Account Credentials</h3>
+        <div style="background-color: #fff1f2; border: 2px solid #fecdd3; border-radius: 14px; padding: 22px; margin: 24px 0;">
+          <h3 style="color: #9f1239; margin-top: 0; font-size: 13px; text-transform: uppercase; letter-spacing: 0.8px; font-weight: 800;">🔑 Dealer Login Credentials</h3>
           
-          <table style="width: 100%; font-size: 13px; border-collapse: collapse;">
-            <tr>
-              <td style="padding: 6px 0; color: #64748b; font-weight: bold; width: 140px;">Registered Email:</td>
-              <td style="padding: 6px 0; color: #0f172a; font-weight: bold;">${email}</td>
+          <table style="width: 100%; font-size: 13px; border-collapse: collapse; margin-top: 12px;">
+            <tr style="border-bottom: 1px solid #ffe4e6;">
+              <td style="padding: 10px 0; color: #64748b; font-weight: bold; width: 150px;">User ID / Login ID:</td>
+              <td style="padding: 10px 0; color: #0f172a; font-weight: 800; font-size: 14px;">${email}</td>
             </tr>
-            ${password ? `
-            <tr>
-              <td style="padding: 6px 0; color: #64748b; font-weight: bold;">Password:</td>
-              <td style="padding: 6px 0; color: #e11d48; font-family: monospace; font-weight: bold;">${password}</td>
-            </tr>` : ''}
-            <tr>
-              <td style="padding: 6px 0; color: #64748b; font-weight: bold;">Company Name:</td>
-              <td style="padding: 6px 0; color: #0f172a;">${companyName}</td>
+            <tr style="border-bottom: 1px solid #ffe4e6;">
+              <td style="padding: 10px 0; color: #64748b; font-weight: bold;">Login Password:</td>
+              <td style="padding: 10px 0; color: #e11d48; font-family: 'Courier New', Courier, monospace; font-weight: 800; font-size: 15px; letter-spacing: 0.5px;">${password || 'Dealer@123'}</td>
             </tr>
-            <tr>
-              <td style="padding: 6px 0; color: #64748b; font-weight: bold;">Phone Number:</td>
-              <td style="padding: 6px 0; color: #0f172a;">${phone || 'N/A'}</td>
+            <tr style="border-bottom: 1px solid #ffe4e6;">
+              <td style="padding: 8px 0; color: #64748b; font-weight: bold;">Company / Firm:</td>
+              <td style="padding: 8px 0; color: #0f172a; font-weight: 600;">${companyName}</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #ffe4e6;">
+              <td style="padding: 8px 0; color: #64748b; font-weight: bold;">Contact Phone:</td>
+              <td style="padding: 8px 0; color: #0f172a;">${phone || 'N/A'}</td>
             </tr>
             ${dealerType ? `
-            <tr>
-              <td style="padding: 6px 0; color: #64748b; font-weight: bold;">Dealer Category:</td>
-              <td style="padding: 6px 0; color: #0f172a;">${dealerType} (${dealerCategory || 'STARTER'})</td>
+            <tr style="border-bottom: 1px solid #ffe4e6;">
+              <td style="padding: 8px 0; color: #64748b; font-weight: bold;">Category / Tier:</td>
+              <td style="padding: 8px 0; color: #6b21a8; font-weight: bold;">${dealerCategory || 'STARTER'} (${dealerType})</td>
             </tr>` : ''}
             ${defaultMargin !== undefined && defaultMargin !== null ? `
-            <tr>
-              <td style="padding: 6px 0; color: #64748b; font-weight: bold;">Default Margin:</td>
-              <td style="padding: 6px 0; color: #059669; font-weight: bold;">${defaultMargin}%</td>
+            <tr style="border-bottom: 1px solid #ffe4e6;">
+              <td style="padding: 8px 0; color: #64748b; font-weight: bold;">Default Margin:</td>
+              <td style="padding: 8px 0; color: #059669; font-weight: bold;">${defaultMargin}%</td>
             </tr>` : ''}
             ${gstNumber ? `
-            <tr>
-              <td style="padding: 6px 0; color: #64748b; font-weight: bold;">GSTIN:</td>
-              <td style="padding: 6px 0; color: #0f172a;">${gstNumber}</td>
+            <tr style="border-bottom: 1px solid #ffe4e6;">
+              <td style="padding: 8px 0; color: #64748b; font-weight: bold;">GSTIN:</td>
+              <td style="padding: 8px 0; color: #0f172a;">${gstNumber}</td>
             </tr>` : ''}
             <tr>
-              <td style="padding: 6px 0; color: #64748b; font-weight: bold;">Status:</td>
-              <td style="padding: 6px 0;">
-                <span style="background-color: #dbeafe; color: #1e40af; font-size: 11px; font-weight: bold; padding: 2px 8px; border-radius: 9999px;">
+              <td style="padding: 10px 0; color: #64748b; font-weight: bold;">Account Status:</td>
+              <td style="padding: 10px 0;">
+                <span style="background-color: ${approvalStatus === 'APPROVED' ? '#dcfce7' : '#fef3c7'}; color: ${approvalStatus === 'APPROVED' ? '#15803d' : '#92400e'}; font-size: 11px; font-weight: 800; padding: 3px 10px; border-radius: 9999px;">
                   ${approvalStatus}
                 </span>
               </td>
@@ -124,13 +123,13 @@ const sendVendorRegistrationEmail = async (details) => {
 
         <p style="color: #475569; font-size: 13px; line-height: 1.5;">
           ${approvalStatus === 'PENDING' 
-            ? '📌 <em>Note: Your registration is currently under review by our administration team. Once approved, you will receive full access to place stock requests, build invoices, and manage inventory.</em>' 
-            : '✅ Your account is active and ready to log in.'}
+            ? '📌 <em>Note: Your registration is currently under review by our administration team. Once approved, you can log in using your User ID and Password above to place stock requests, build invoices, and manage inventory.</em>' 
+            : '✅ Your account is active and ready to log in right now.'}
         </p>
 
         <!-- CTA Button -->
         <div style="text-align: center; margin: 32px 0 24px 0;">
-          <a href="${frontendUrl}/login" style="background-color: #e11d48; color: #ffffff; padding: 12px 28px; text-decoration: none; border-radius: 10px; font-weight: bold; font-size: 14px; display: inline-block;">
+          <a href="${frontendUrl}/login" style="background-color: #e11d48; color: #ffffff; padding: 13px 32px; text-decoration: none; border-radius: 12px; font-weight: 800; font-size: 14px; display: inline-block; box-shadow: 0 4px 10px rgba(225, 29, 72, 0.3);">
             Log In to B2B Partner Portal →
           </a>
         </div>

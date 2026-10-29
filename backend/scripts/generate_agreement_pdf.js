@@ -3,6 +3,7 @@ require('dotenv').config();
 const prisma = require('../src/config/database');
 const { generateInvoicePdf } = require('../src/utils/pdfGenerator');
 const { buildAgreementHtml } = require('../src/utils/pdfTemplate');
+const { getOrAssignDealerAgreementNumber } = require('../src/utils/agreementSequence');
 const fs = require('fs');
 const path = require('path');
 
@@ -20,22 +21,33 @@ async function main() {
   try {
     console.log('Querying test dealer...');
     // Find dealer with user email = dealer@test.com
+    let dealer;
     const user = await prisma.user.findUnique({
       where: { email: 'dealer@test.com' },
       include: { dealer: true }
     });
 
-    if (!user || !user.dealer) {
-      console.error('Test dealer not found in the database. Please seed first.');
+    if (user && user.dealer) {
+      dealer = await prisma.dealer.findUnique({
+        where: { id: user.dealer.id },
+        include: { user: true }
+      });
+    } else {
+      dealer = await prisma.dealer.findFirst({
+        include: { user: true }
+      });
+    }
+
+    if (!dealer) {
+      console.error('No dealer found in the database. Please seed first.');
       process.exit(1);
     }
 
-    const dealer = await prisma.dealer.findUnique({
-      where: { id: user.dealer.id },
-      include: { user: true }
-    });
+    const { agreementNumber, agreeSeq } = await getOrAssignDealerAgreementNumber(dealer.id);
+    dealer.agreementNumber = agreementNumber;
+    dealer.agreeSeq = agreeSeq;
 
-    console.log(`Generating agreement for: ${dealer.companyName}...`);
+    console.log(`Generating agreement for: ${dealer.companyName} (${agreementNumber})...`);
     const company = getCompanyDetails();
     const html = buildAgreementHtml(company, dealer);
 
