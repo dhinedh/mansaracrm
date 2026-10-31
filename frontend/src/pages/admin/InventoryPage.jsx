@@ -25,8 +25,25 @@ import {
   Calculator,
   Sliders,
   Sparkles,
-  Scale
+  Scale,
+  BarChart3,
+  BarChart2,
+  TrendingUp,
+  Activity,
+  FileSpreadsheet
 } from 'lucide-react';
+import {
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip as ChartTooltip,
+  Legend
+} from 'recharts';
 import { convertAllUnits, formatVal, normalizeUnitKey, DEFAULT_CONVERSION_RATES } from '../../utils/unitConverter';
 
 export default function InventoryPage() {
@@ -66,6 +83,16 @@ export default function InventoryPage() {
   const [showIssueModal, setShowIssueModal] = useState(false);
   const [showFGModal, setShowFGModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+
+  // Sales & Movement Report Modal State
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [selectedReportItem, setSelectedReportItem] = useState(null); // null = overall inventory
+  const [reportPeriod, setReportPeriod] = useState('day'); // 'day' | 'week' | 'month'
+  const [reportRange, setReportRange] = useState('7d'); // '7d'|'14d'|'30d' or '4w'|'8w'|'12w' or '3m'|'6m'|'12m'
+  const [reportChartType, setReportChartType] = useState('area'); // 'area' | 'bar'
+  const [reportMetric, setReportMetric] = useState('quantity'); // 'quantity' | 'revenue'
+  const [reportLoading, setReportLoading] = useState(false);
+  const [reportData, setReportData] = useState(null);
 
   // Add Stock Form State (Supports Multiple Batches per Stock Item)
   const [addStockData, setAddStockData] = useState({
@@ -390,6 +417,71 @@ export default function InventoryPage() {
     document.body.removeChild(link);
   };
 
+  // ── SALES & MOVEMENT REPORT HANDLERS ──────────────────────────────────────
+  const fetchSalesReport = async (item = selectedReportItem, period = reportPeriod, range = reportRange) => {
+    setReportLoading(true);
+    try {
+      const params = {
+        period,
+        range
+      };
+      if (item) {
+        if (item.stockId) params.stockId = item.stockId;
+        if (item.itemName) params.itemName = item.itemName;
+        if (item.batchId) params.batchId = item.batchId;
+      }
+      const res = await axios.get('/inventory/sales-report', { params });
+      if (res.data?.success) {
+        setReportData(res.data.data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch sales report:', err);
+    } finally {
+      setReportLoading(false);
+    }
+  };
+
+  const handleOpenReport = (item = null) => {
+    setSelectedReportItem(item);
+    setShowReportModal(true);
+    // Default range depending on current period
+    const defaultRange = reportPeriod === 'day' ? '7d' : reportPeriod === 'week' ? '8w' : '6m';
+    setReportRange(defaultRange);
+    fetchSalesReport(item, reportPeriod, defaultRange);
+  };
+
+  const handlePeriodChange = (newPeriod) => {
+    setReportPeriod(newPeriod);
+    const newRange = newPeriod === 'day' ? '7d' : newPeriod === 'week' ? '8w' : '6m';
+    setReportRange(newRange);
+    fetchSalesReport(selectedReportItem, newPeriod, newRange);
+  };
+
+  const handleRangeChange = (newRange) => {
+    setReportRange(newRange);
+    fetchSalesReport(selectedReportItem, reportPeriod, newRange);
+  };
+
+  const handleExportReportCSV = () => {
+    if (!reportData || !reportData.timeline || reportData.timeline.length === 0) return;
+    const headers = ['Period / Date', 'Quantity Sold/Issued', 'Unit', 'Revenue (₹)', 'Transactions Count'];
+    const rows = reportData.timeline.map(t => [
+      `"${t.label || t.date || ''}"`,
+      t.quantity || 0,
+      reportData.unit || 'Cartons',
+      t.revenue || 0,
+      t.ordersCount || 1
+    ]);
+    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `Sales_Report_${reportPeriod}_${reportRange}_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   // ── GROUPING LOGIC: ONE STOCK ITEM -> MULTIPLE BATCHES ──────────────────────
   const groupedStockItems = useMemo(() => {
     const map = {};
@@ -509,86 +601,105 @@ export default function InventoryPage() {
   };
 
   return (
-    <div className="space-y-6 pb-12">
+    <div className="space-y-4 sm:space-y-6 pb-12">
       {/* Top Header Bar */}
-      <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-rose-950 p-6 rounded-3xl text-white shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div className="space-y-1">
+      <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-rose-950 p-4 sm:p-6 rounded-2xl sm:rounded-3xl text-white shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-3 sm:gap-4">
+        <div className="space-y-1 w-full md:w-auto">
           <div className="flex items-center space-x-2">
-            <Warehouse className="w-7 h-7 text-rose-400" />
-            <h1 className="text-xl font-black tracking-tight">Central Stock & Multi-Batch Traceability Hub</h1>
+            <div className="p-1.5 sm:p-2 bg-rose-500/20 rounded-xl border border-rose-500/30 shrink-0">
+              <Warehouse className="w-5 h-5 sm:w-7 sm:h-7 text-rose-400" />
+            </div>
+            <div>
+              <h1 className="text-base sm:text-xl font-black tracking-tight leading-snug">
+                Central Stock & Batch Hub
+              </h1>
+              <p className="text-[11px] text-slate-300 sm:hidden">
+                Multi-unit auto-conversion & batch traceability
+              </p>
+            </div>
           </div>
-          <p className="text-xs text-slate-300">
+          <p className="hidden sm:block text-xs text-slate-300">
             Multi-Unit Measurement Auto-Conversion Engine: Add stock in any unit (Cartons, Numbers, Packets, Boxes, kg) and auto-reflect conversions across all connected modules.
           </p>
         </div>
 
-        <div className="flex flex-wrap gap-2">
+        {/* Action Buttons: 2x2 Grid on Mobile, Flex on Desktop */}
+        <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 w-full md:w-auto">
           <button
             onClick={() => handleOpenAddStockModal()}
-            className="px-3.5 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center space-x-1.5 cursor-pointer"
+            className="px-3 py-2 bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center justify-center space-x-1.5 cursor-pointer"
           >
-            <Plus className="w-4 h-4" />
-            <span>+ Add New Stock</span>
+            <Plus className="w-4 h-4 shrink-0" />
+            <span className="truncate">+ Add Stock</span>
           </button>
 
           <button
             onClick={() => setShowIssueModal(true)}
-            className="px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center space-x-1.5 cursor-pointer"
+            className="px-3 py-2 bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center justify-center space-x-1.5 cursor-pointer"
           >
-            <ArrowRightLeft className="w-4 h-4" />
-            <span>Issue to Operations</span>
+            <ArrowRightLeft className="w-4 h-4 shrink-0" />
+            <span className="truncate">Issue Ops</span>
           </button>
 
           <button
             onClick={() => setShowFGModal(true)}
-            className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center space-x-1.5 cursor-pointer"
+            className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center justify-center space-x-1.5 cursor-pointer"
           >
-            <Boxes className="w-4 h-4" />
-            <span>+ Create Finished Goods</span>
+            <Boxes className="w-4 h-4 shrink-0" />
+            <span className="truncate">+ FG Goods</span>
           </button>
 
           <button
             onClick={handleExportCSV}
-            className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-xl border border-slate-700 shadow-sm transition flex items-center space-x-1.5 cursor-pointer"
+            className="px-3 py-2 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 text-slate-200 font-bold text-xs rounded-xl border border-slate-700 shadow-sm transition flex items-center justify-center space-x-1.5 cursor-pointer"
           >
-            <Download className="w-4 h-4" />
-            <span>Export CSV</span>
+            <Download className="w-4 h-4 shrink-0" />
+            <span className="truncate">Export CSV</span>
+          </button>
+
+          <button
+            onClick={() => handleOpenReport(null)}
+            className="col-span-2 sm:col-span-1 px-3.5 py-2 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 active:from-indigo-900 active:to-indigo-950 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center justify-center space-x-1.5 cursor-pointer"
+            title="Open Interactive Sales & Velocity Report (Day / Week / Month Wise)"
+          >
+            <BarChart3 className="w-4 h-4 shrink-0 text-indigo-200" />
+            <span className="truncate">Sales Report</span>
           </button>
         </div>
       </div>
 
-      {/* KPI Stats Bar with Multi-Unit Conversions Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
+      {/* KPI Stats Bar: 2x2 Grid on Mobile, 4 Cols on Desktop */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
+        <div className="bg-white border border-slate-200 rounded-2xl p-3 sm:p-4 shadow-sm flex flex-col justify-between">
           <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Total Stock Items</p>
-          <p className="text-2xl font-black text-slate-800 mt-1">{groupedStockItems.length}</p>
+          <p className="text-xl sm:text-2xl font-black text-slate-800 mt-1">{groupedStockItems.length}</p>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
+        <div className="bg-white border border-slate-200 rounded-2xl p-3 sm:p-4 shadow-sm flex flex-col justify-between">
           <p className="text-[10px] font-black uppercase tracking-wider text-indigo-600 flex items-center gap-1">
             <Tag className="w-3 h-3 text-indigo-500" />
             Active Batches
           </p>
-          <p className="text-2xl font-black text-slate-800 mt-1">{totalBatchesCount}</p>
+          <p className="text-xl sm:text-2xl font-black text-slate-800 mt-1">{totalBatchesCount}</p>
         </div>
 
-        <div className="bg-gradient-to-br from-rose-50 to-amber-50 border border-rose-200 rounded-2xl p-4 shadow-sm col-span-1 md:col-span-1">
-          <p className="text-[10px] font-black uppercase tracking-wider text-rose-800 flex items-center gap-1">
-            <Calculator className="w-3.5 h-3.5 text-rose-600" />
-            Total Converted Stock Count
-          </p>
-          <p className="text-xl font-black text-slate-900 mt-1">{grandConverted.formatted.cartons}</p>
-          <p className="text-[10px] font-mono text-slate-600 mt-0.5 font-bold">
-            = {grandConverted.formatted.kg} • {grandConverted.formatted.packets} • {grandConverted.formatted.boxes}
-          </p>
-        </div>
-
-        <div className={`bg-white border rounded-2xl p-4 shadow-sm ${lowStockCount > 0 ? 'border-rose-300 bg-rose-50/30' : 'border-slate-200'}`}>
+        <div className={`bg-white border rounded-2xl p-3 sm:p-4 shadow-sm flex flex-col justify-between ${lowStockCount > 0 ? 'border-rose-300 bg-rose-50/30' : 'border-slate-200'}`}>
           <p className="text-[10px] font-black uppercase tracking-wider text-rose-600 flex items-center gap-1">
             {lowStockCount > 0 && <AlertTriangle className="w-3.5 h-3.5 text-rose-500 animate-pulse" />}
             Low Stock Alerts
           </p>
-          <p className={`text-2xl font-black mt-1 ${lowStockCount > 0 ? 'text-rose-600' : 'text-slate-800'}`}>{lowStockCount}</p>
+          <p className={`text-xl sm:text-2xl font-black mt-1 ${lowStockCount > 0 ? 'text-rose-600' : 'text-slate-800'}`}>{lowStockCount}</p>
+        </div>
+
+        <div className="bg-gradient-to-br from-rose-50 to-amber-50 border border-rose-200 rounded-2xl p-3 sm:p-4 shadow-sm flex flex-col justify-between">
+          <p className="text-[10px] font-black uppercase tracking-wider text-rose-800 flex items-center gap-1">
+            <Calculator className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+            <span className="truncate">Converted Stock</span>
+          </p>
+          <p className="text-lg sm:text-xl font-black text-slate-900 mt-1 truncate">{grandConverted.formatted.cartons}</p>
+          <p className="text-[9px] sm:text-[10px] font-mono text-slate-600 mt-0.5 font-bold truncate">
+            = {grandConverted.formatted.kg} • {grandConverted.formatted.packets}
+          </p>
         </div>
       </div>
 
@@ -605,24 +716,24 @@ export default function InventoryPage() {
         </div>
       )}
 
-      {/* Search Bar & Multi-Unit Display View Selector */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col space-y-3">
-        <div className="flex flex-col md:flex-row gap-3 justify-between items-center">
-          <div className="relative w-full md:w-96">
+      {/* Search Bar & Controls */}
+      <div className="bg-white p-3 sm:p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col space-y-3">
+        <div className="flex flex-col sm:flex-row gap-2.5 sm:gap-3 justify-between items-stretch sm:items-center">
+          <div className="relative w-full sm:w-96">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input
               type="text"
-              placeholder="Search Stock ID, Batch ID, Item Name, Location..."
+              placeholder="Search Stock ID, Batch, Item, Location..."
               value={search}
               onChange={e => setSearch(e.target.value)}
               className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-rose-400 text-xs font-bold text-slate-700"
             />
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 w-full md:w-auto justify-end">
+          <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto">
             <button
               onClick={() => setFilterLowStock(!filterLowStock)}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold border transition cursor-pointer flex items-center space-x-1.5 ${
+              className={`flex-1 sm:flex-none px-3.5 py-2 rounded-xl text-xs font-bold border transition cursor-pointer flex items-center justify-center space-x-1.5 ${
                 filterLowStock ? 'bg-rose-600 text-white border-rose-600 shadow-sm' : 'bg-white text-rose-600 border-rose-200 hover:bg-rose-50'
               }`}
             >
@@ -634,8 +745,6 @@ export default function InventoryPage() {
             </button>
           </div>
         </div>
-
-
       </div>
 
       {/* Stock Items Multi-Batch Grouped Table */}
@@ -650,229 +759,445 @@ export default function InventoryPage() {
             <p className="text-xs font-bold">{search ? 'No stock items match your search filters.' : 'No stock entries found in inventory.'}</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs text-left border-collapse min-w-[950px]">
-              <thead>
-                <tr className="bg-slate-900 text-white font-black uppercase tracking-wider text-[10px]">
-                  <th className="p-4 w-10"></th>
-                  <th className="p-4">Stock ID</th>
-                  <th className="p-4">Item Name</th>
-                  <th className="p-4 text-center">Total Stock Count</th>
-                  <th className="p-4 text-center">Active Batches</th>
-                  <th className="p-4 text-center">Min Threshold</th>
-                  <th className="p-4 text-center">Overall Status</th>
-                  <th className="p-4 text-center">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
-                {groupedStockItems.map(stockGroup => {
-                  const isExpanded = !!expandedStockRows[stockGroup.stockKey];
-                  const isLow = stockGroup.totalQuantity <= (stockGroup.minQuantity || 10);
-                  const conv = stockGroup.converted;
+          <>
+            {/* Mobile View (< md): Native app-style responsive cards */}
+            <div className="md:hidden divide-y divide-slate-100">
+              {groupedStockItems.map(stockGroup => {
+                const isExpanded = !!expandedStockRows[stockGroup.stockKey];
+                const isLow = stockGroup.totalQuantity <= (stockGroup.minQuantity || 10);
+                const conv = stockGroup.converted;
 
-                  let displayPrimaryText = `${stockGroup.totalQuantity} ${stockGroup.unit}`;
+                return (
+                  <div key={stockGroup.stockKey} className={`p-4 space-y-3 transition-colors ${isLow ? 'bg-rose-50/30' : 'bg-white'}`}>
+                    {/* Header Row: Stock ID & Status Pill */}
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-mono text-xs font-black text-slate-900 bg-slate-100 px-2.5 py-1 rounded-xl border border-slate-200">
+                          {stockGroup.stockId}
+                        </span>
+                        {stockGroup.category && (
+                          <span className="text-[10px] font-bold text-slate-500 bg-slate-50 px-2 py-0.5 rounded-lg border border-slate-200">
+                            {stockGroup.category}
+                          </span>
+                        )}
+                      </div>
+                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider inline-flex items-center gap-1 shrink-0 ${
+                        isLow ? 'bg-rose-600 text-white shadow-xs animate-pulse' : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                      }`}>
+                        {isLow && <AlertTriangle className="w-3 h-3" />}
+                        {isLow ? 'LOW STOCK' : 'HEALTHY'}
+                      </span>
+                    </div>
 
-                  return (
-                    <React.Fragment key={stockGroup.stockKey}>
-                      {/* Master Stock Item Row */}
-                      <tr className={`hover:bg-slate-50 transition-colors ${isLow ? 'bg-rose-50/40' : 'bg-white'}`}>
-                        <td className="p-4 text-center">
+                    {/* Item Name & Stock Count */}
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-black text-slate-900 text-base leading-snug break-words">{stockGroup.itemName}</h4>
+                        <p className="text-xs text-slate-400 font-medium mt-0.5">
+                          Min Threshold: <span className="font-bold text-slate-600">{stockGroup.minQuantity} {stockGroup.unit}</span>
+                        </p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <span className={`text-lg font-black ${isLow ? 'text-rose-600' : 'text-slate-900'}`}>
+                          {stockGroup.totalQuantity} {stockGroup.unit}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Converted Units Pill */}
+                    {conv && (
+                      <div className="bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 text-[10px] font-mono text-slate-600 font-bold flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <span className="text-rose-600 font-black">≈</span>
+                        <span>{conv.formatted.kg}</span>
+                        <span>•</span>
+                        <span>{conv.formatted.packets}</span>
+                        <span>•</span>
+                        <span>{conv.formatted.boxes}</span>
+                      </div>
+                    )}
+
+                    {/* Action Row & Batches Toggle */}
+                    <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100">
+                      <button
+                        type="button"
+                        onClick={() => toggleExpandRow(stockGroup.stockKey)}
+                        className="inline-flex items-center gap-1.5 text-xs font-black text-rose-700 bg-rose-50 px-3 py-1.5 rounded-xl border border-rose-200 active:bg-rose-100 transition cursor-pointer"
+                      >
+                        <Tag className="w-3.5 h-3.5 text-rose-500" />
+                        <span>{stockGroup.batches.length} Batch{stockGroup.batches.length > 1 ? 'es' : ''}</span>
+                        {isExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                      </button>
+
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenReport(stockGroup)}
+                          className="p-1.5 bg-indigo-50 hover:bg-indigo-100 active:bg-indigo-200 text-indigo-700 font-bold text-xs rounded-xl border border-indigo-200 shadow-xs transition inline-flex items-center gap-1 cursor-pointer"
+                          title="View Sales & Movement Visual Report"
+                        >
+                          <BarChart3 className="w-3.5 h-3.5" />
+                          <span className="hidden xs:inline">Report</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleOpenAddStockModal(stockGroup)}
+                          className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white font-bold text-xs rounded-xl shadow-xs transition inline-flex items-center gap-1 cursor-pointer"
+                          title="Add batch"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>+ Batch</span>
+                        </button>
+
+                        {isLow && (
                           <button
-                            onClick={() => toggleExpandRow(stockGroup.stockKey)}
-                            className="p-1 rounded-lg hover:bg-slate-200 text-slate-600 transition cursor-pointer"
-                            title="Expand / Collapse Batches"
+                            type="button"
+                            onClick={() => handleTriggerPO(stockGroup)}
+                            className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white rounded-xl text-xs font-bold shadow-xs transition cursor-pointer inline-flex items-center gap-1"
+                            title="Auto-Generate Purchase Order"
                           >
-                            {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                            <Send className="w-3.5 h-3.5" />
+                            <span>PO</span>
                           </button>
-                        </td>
+                        )}
+                      </div>
+                    </div>
 
-                        <td className="p-4">
-                          <span className="font-mono text-xs font-black text-slate-900 bg-slate-100 px-2.5 py-1 rounded-xl border border-slate-200">
-                            {stockGroup.stockId}
+                    {/* Expandable Batches Cards Drawer */}
+                    {isExpanded && (
+                      <div className="mt-2 pt-2 border-t border-dashed border-slate-200 space-y-2">
+                        <div className="text-xs font-black text-slate-700 flex items-center justify-between">
+                          <span className="flex items-center gap-1 text-slate-800">
+                            <Tag className="w-3.5 h-3.5 text-rose-600" />
+                            Batches Breakdown ({stockGroup.batches.length})
                           </span>
-                        </td>
-
-                        <td className="p-4">
-                          <span className="font-black text-slate-900 text-sm block">{stockGroup.itemName}</span>
-                        </td>
-
-                        <td className="p-4 text-center">
-                          <div className="inline-flex flex-col items-center">
-                            <span className={`text-base font-black ${isLow ? 'text-rose-600' : 'text-slate-900'}`}>
-                              {displayPrimaryText}
-                            </span>
-                            {conv && (
-                              <span className="text-[10px] font-mono text-slate-600 bg-slate-100 px-2 py-0.5 rounded-lg border border-slate-200 mt-1 font-bold">
-                                = {conv.formatted.kg} • {conv.formatted.packets} • {conv.formatted.boxes}
-                              </span>
-                            )}
-                          </div>
-                        </td>
-
-                        <td className="p-4 text-center">
                           <button
-                            onClick={() => toggleExpandRow(stockGroup.stockKey)}
-                            className="inline-flex items-center gap-1 text-xs font-black text-rose-700 bg-rose-50 px-2.5 py-1 rounded-full border border-rose-200 hover:bg-rose-100 transition cursor-pointer"
-                          >
-                            <Tag className="w-3 h-3 text-rose-500" />
-                            {stockGroup.batches.length} Batch{stockGroup.batches.length > 1 ? 'es' : ''}
-                          </button>
-                        </td>
-
-                        <td className="p-4 text-center">
-                          <span className="text-xs font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded-lg">
-                            {stockGroup.minQuantity} {stockGroup.unit}
-                          </span>
-                        </td>
-
-                        <td className="p-4 text-center">
-                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider inline-flex items-center gap-1 ${
-                            isLow ? 'bg-rose-600 text-white shadow-sm animate-pulse' : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                          }`}>
-                            {isLow && <AlertTriangle className="w-3 h-3" />}
-                            {isLow ? 'LOW STOCK' : 'HEALTHY'}
-                          </span>
-                        </td>
-
-                        <td className="p-4 text-center space-x-1">
-                          <button
+                            type="button"
                             onClick={() => handleOpenAddStockModal(stockGroup)}
-                            className="px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-sm transition inline-flex items-center space-x-1 cursor-pointer"
-                            title="Add another Batch ID under this Stock Item"
+                            className="text-rose-600 font-bold hover:underline flex items-center gap-0.5 text-xs cursor-pointer"
                           >
-                            <Plus className="w-3 h-3" />
-                            <span>+ Add Batch</span>
+                            <Plus className="w-3 h-3" /> Add Batch
                           </button>
+                        </div>
 
-                          {isLow && (
+                        <div className="space-y-2">
+                          {stockGroup.batches.map((batchItem, bIdx) => {
+                            const isExpiring = batchItem.expiryDate && (new Date(batchItem.expiryDate) - Date.now()) < 30 * 24 * 60 * 60 * 1000;
+                            const batchUnit = (!batchItem.unit || batchItem.unit.toLowerCase() === 'kg') ? 'Cartons' : batchItem.unit;
+                            const batchConv = convertAllUnits(batchItem.quantity, batchUnit, customConversionRates);
+
+                            return (
+                              <div
+                                key={batchItem.id || batchItem._id || bIdx}
+                                className="bg-slate-50 border border-slate-200 rounded-2xl p-3 text-xs space-y-2"
+                              >
+                                <div className="flex items-center justify-between">
+                                  <span className="font-mono font-black text-rose-700 text-xs">
+                                    {batchItem.batchId || `BATCH-${bIdx + 1}`}
+                                  </span>
+                                  <div className="flex items-center gap-1.5">
+                                    <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${
+                                      batchItem.status === 'In Production' ? 'bg-purple-100 text-purple-800' :
+                                      batchItem.status === 'In Inspection' ? 'bg-blue-100 text-blue-800' :
+                                      'bg-emerald-100 text-emerald-800'
+                                    }`}>
+                                      {batchItem.status || 'AVAILABLE'}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenReport({ ...stockGroup, ...batchItem })}
+                                      className="p-1.5 text-indigo-600 hover:text-indigo-800 bg-white border border-indigo-200 rounded-lg cursor-pointer"
+                                      title="View Batch Report"
+                                    >
+                                      <BarChart3 className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => openEditModal(batchItem)}
+                                      className="p-1.5 text-slate-600 hover:text-rose-600 bg-white border border-slate-200 rounded-lg cursor-pointer"
+                                      title="Edit Batch"
+                                    >
+                                      <Edit3 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                </div>
+
+                                <div className="flex items-baseline justify-between">
+                                  <div className="font-black text-slate-900 text-sm">
+                                    {batchItem.quantity} {batchUnit}
+                                  </div>
+                                  <div className="text-[11px] font-medium text-slate-600 flex items-center gap-1">
+                                    <MapPin className="w-3 h-3 text-rose-500 shrink-0" />
+                                    <span className="truncate max-w-[140px]">{batchItem.storageLocation || 'Warehouse 1'}</span>
+                                  </div>
+                                </div>
+
+                                <div className="text-[10px] font-mono text-slate-600 bg-white px-2 py-1 rounded-lg border border-slate-200 font-bold">
+                                  = {batchConv.formatted.kg} • {batchConv.formatted.packets} • {batchConv.formatted.boxes}
+                                </div>
+
+                                <div className="flex items-center justify-between text-[10px] text-slate-500 pt-0.5">
+                                  <span>Mfg: {new Date(batchItem.mfgDate || batchItem.createdAt).toLocaleDateString()}</span>
+                                  {batchItem.expiryDate && (
+                                    <span className={isExpiring ? 'text-rose-600 font-bold' : ''}>
+                                      Exp: {new Date(batchItem.expiryDate).toLocaleDateString()}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Desktop View (md+): Full Wide Multi-Batch Table */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-xs text-left border-collapse min-w-[950px]">
+                <thead>
+                  <tr className="bg-slate-900 text-white font-black uppercase tracking-wider text-[10px]">
+                    <th className="p-4 w-10"></th>
+                    <th className="p-4">Stock ID</th>
+                    <th className="p-4">Item Name</th>
+                    <th className="p-4 text-center">Total Stock Count</th>
+                    <th className="p-4 text-center">Active Batches</th>
+                    <th className="p-4 text-center">Min Threshold</th>
+                    <th className="p-4 text-center">Overall Status</th>
+                    <th className="p-4 text-center">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
+                  {groupedStockItems.map(stockGroup => {
+                    const isExpanded = !!expandedStockRows[stockGroup.stockKey];
+                    const isLow = stockGroup.totalQuantity <= (stockGroup.minQuantity || 10);
+                    const conv = stockGroup.converted;
+
+                    let displayPrimaryText = `${stockGroup.totalQuantity} ${stockGroup.unit}`;
+
+                    return (
+                      <React.Fragment key={stockGroup.stockKey}>
+                        {/* Master Stock Item Row */}
+                        <tr className={`hover:bg-slate-50 transition-colors ${isLow ? 'bg-rose-50/40' : 'bg-white'}`}>
+                          <td className="p-4 text-center">
                             <button
-                              onClick={() => handleTriggerPO(stockGroup)}
-                              className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold shadow-sm transition cursor-pointer inline-flex items-center space-x-1"
-                              title="Auto-Generate Purchase Order to Vendor"
+                              onClick={() => toggleExpandRow(stockGroup.stockKey)}
+                              className="p-1 rounded-lg hover:bg-slate-200 text-slate-600 transition cursor-pointer"
+                              title="Expand / Collapse Batches"
                             >
-                              <Send className="w-3.5 h-3.5" />
-                              <span>Reorder PO</span>
+                              {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
                             </button>
-                          )}
-                        </td>
-                      </tr>
+                          </td>
 
-                      {/* Expanded Multiple Batches Breakdown Sub-Table */}
-                      {isExpanded && (
-                        <tr>
-                          <td colSpan={8} className="p-0 bg-slate-50/70 border-y border-slate-200">
-                            <div className="p-4 space-y-2">
-                              <div className="flex items-center justify-between">
-                                <span className="font-black text-slate-800 text-xs flex items-center gap-1.5">
-                                  <Tag className="w-4 h-4 text-rose-600" />
-                                  Multiple Batch IDs under "{stockGroup.itemName}" ({stockGroup.stockId}):
+                          <td className="p-4">
+                            <span className="font-mono text-xs font-black text-slate-900 bg-slate-100 px-2.5 py-1 rounded-xl border border-slate-200">
+                              {stockGroup.stockId}
+                            </span>
+                          </td>
+
+                          <td className="p-4">
+                            <span className="font-black text-slate-900 text-sm block">{stockGroup.itemName}</span>
+                          </td>
+
+                          <td className="p-4 text-center">
+                            <div className="inline-flex flex-col items-center">
+                              <span className={`text-base font-black ${isLow ? 'text-rose-600' : 'text-slate-900'}`}>
+                                {displayPrimaryText}
+                              </span>
+                              {conv && (
+                                <span className="text-[10px] font-mono text-slate-600 bg-slate-100 px-2 py-0.5 rounded-lg border border-slate-200 mt-1 font-bold">
+                                  = {conv.formatted.kg} • {conv.formatted.packets} • {conv.formatted.boxes}
                                 </span>
-                                <button
-                                  onClick={() => handleOpenAddStockModal(stockGroup)}
-                                  className="text-xs font-bold text-rose-600 hover:text-rose-800 flex items-center gap-1 cursor-pointer"
-                                >
-                                  <Plus className="w-3.5 h-3.5" />
-                                  <span>Add New Batch ID</span>
-                                </button>
-                              </div>
-
-                              <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-inner">
-                                <table className="w-full text-xs text-left">
-                                  <thead>
-                                    <tr className="bg-slate-100 text-slate-600 font-bold uppercase tracking-wider text-[9px]">
-                                      <th className="p-3">Batch ID</th>
-                                      <th className="p-3">Stock Count & Multi-Unit Breakdown</th>
-                                      <th className="p-3">Packaging Breakdown</th>
-                                      <th className="p-3">Mfg & Expiry Date</th>
-                                      <th className="p-3">Storage Location</th>
-                                      <th className="p-3 text-center">Batch Status</th>
-                                      <th className="p-3 text-center">Actions</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody className="divide-y divide-slate-100">
-                                    {stockGroup.batches.map((batchItem, bIdx) => {
-                                      const isExpiring = batchItem.expiryDate && (new Date(batchItem.expiryDate) - Date.now()) < 30 * 24 * 60 * 60 * 1000;
-                                      const batchUnit = (!batchItem.unit || batchItem.unit.toLowerCase() === 'kg') ? 'Cartons' : batchItem.unit;
-                                      const batchConv = convertAllUnits(batchItem.quantity, batchUnit, customConversionRates);
-
-                                      return (
-                                        <tr key={batchItem.id || batchItem._id || bIdx} className="hover:bg-slate-50">
-                                          <td className="p-3 font-mono font-black text-rose-700 text-xs">
-                                            {batchItem.batchId || `BATCH-${bIdx + 1}`}
-                                          </td>
-                                          <td className="p-3 font-bold text-slate-900">
-                                            <div>{batchItem.quantity} {batchUnit}</div>
-                                            <div className="text-[10px] text-slate-500 font-mono font-medium mt-0.5">
-                                              = {batchConv.formatted.kg} | {batchConv.formatted.numbers} | {batchConv.formatted.packets} | {batchConv.formatted.boxes}
-                                            </div>
-                                          </td>
-                                          <td className="p-3 text-slate-600">
-                                            {batchItem.packagingBreakdown || 'Direct Stock Batch'}
-                                          </td>
-                                          <td className="p-3 text-[11px]">
-                                            <div>Mfg: {new Date(batchItem.mfgDate || batchItem.createdAt).toLocaleDateString()}</div>
-                                            {batchItem.expiryDate && (
-                                              <div className={isExpiring ? 'text-rose-600 font-bold' : 'text-slate-500'}>
-                                                Exp: {new Date(batchItem.expiryDate).toLocaleDateString()}
-                                              </div>
-                                            )}
-                                          </td>
-                                          <td className="p-3 text-slate-700 flex items-center gap-1 font-medium">
-                                            <MapPin className="w-3 h-3 text-rose-500" />
-                                            {batchItem.storageLocation || 'Warehouse 1, Rack A'}
-                                          </td>
-                                          <td className="p-3 text-center">
-                                            <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${
-                                              batchItem.status === 'In Production' ? 'bg-purple-100 text-purple-800' :
-                                              batchItem.status === 'In Inspection' ? 'bg-blue-100 text-blue-800' :
-                                              'bg-emerald-100 text-emerald-800'
-                                            }`}>
-                                              {batchItem.status || 'AVAILABLE'}
-                                            </span>
-                                          </td>
-                                          <td className="p-3 text-center">
-                                            <button
-                                              onClick={() => openEditModal(batchItem)}
-                                              className="p-1 text-slate-600 hover:text-rose-600 cursor-pointer"
-                                              title="Edit Batch Count & Location"
-                                            >
-                                              <Edit3 className="w-3.5 h-3.5" />
-                                            </button>
-                                          </td>
-                                        </tr>
-                                      );
-                                    })}
-                                  </tbody>
-                                </table>
-                              </div>
+                              )}
                             </div>
                           </td>
+
+                          <td className="p-4 text-center">
+                            <button
+                              onClick={() => toggleExpandRow(stockGroup.stockKey)}
+                              className="inline-flex items-center gap-1 text-xs font-black text-rose-700 bg-rose-50 px-2.5 py-1 rounded-full border border-rose-200 hover:bg-rose-100 transition cursor-pointer"
+                            >
+                              <Tag className="w-3 h-3 text-rose-500" />
+                              {stockGroup.batches.length} Batch{stockGroup.batches.length > 1 ? 'es' : ''}
+                            </button>
+                          </td>
+
+                          <td className="p-4 text-center">
+                            <span className="text-xs font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded-lg">
+                              {stockGroup.minQuantity} {stockGroup.unit}
+                            </span>
+                          </td>
+
+                          <td className="p-4 text-center">
+                            <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider inline-flex items-center gap-1 ${
+                              isLow ? 'bg-rose-600 text-white shadow-sm animate-pulse' : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                            }`}>
+                              {isLow && <AlertTriangle className="w-3 h-3" />}
+                              {isLow ? 'LOW STOCK' : 'HEALTHY'}
+                            </span>
+                          </td>
+
+                          <td className="p-4 text-center space-x-1 whitespace-nowrap">
+                            <button
+                              onClick={() => handleOpenReport(stockGroup)}
+                              className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs rounded-xl border border-indigo-200 shadow-xs transition inline-flex items-center space-x-1 cursor-pointer"
+                              title="View Sales & Velocity Report (Day / Week / Month)"
+                            >
+                              <BarChart3 className="w-3.5 h-3.5 text-indigo-600" />
+                              <span>Report</span>
+                            </button>
+
+                            <button
+                              onClick={() => handleOpenAddStockModal(stockGroup)}
+                              className="px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-sm transition inline-flex items-center space-x-1 cursor-pointer"
+                              title="Add another Batch ID under this Stock Item"
+                            >
+                              <Plus className="w-3 h-3" />
+                              <span>+ Add Batch</span>
+                            </button>
+
+                            {isLow && (
+                              <button
+                                onClick={() => handleTriggerPO(stockGroup)}
+                                className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold shadow-sm transition cursor-pointer inline-flex items-center space-x-1"
+                                title="Auto-Generate Purchase Order to Vendor"
+                              >
+                                <Send className="w-3.5 h-3.5" />
+                                <span>Reorder PO</span>
+                              </button>
+                            )}
+                          </td>
                         </tr>
-                      )}
-                    </React.Fragment>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+
+                        {/* Expanded Multiple Batches Breakdown Sub-Table */}
+                        {isExpanded && (
+                          <tr>
+                            <td colSpan={8} className="p-0 bg-slate-50/70 border-y border-slate-200">
+                              <div className="p-4 space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <span className="font-black text-slate-800 text-xs flex items-center gap-1.5">
+                                    <Tag className="w-4 h-4 text-rose-600" />
+                                    Multiple Batch IDs under "{stockGroup.itemName}" ({stockGroup.stockId}):
+                                  </span>
+                                  <button
+                                    onClick={() => handleOpenAddStockModal(stockGroup)}
+                                    className="text-xs font-bold text-rose-600 hover:text-rose-800 flex items-center gap-1 cursor-pointer"
+                                  >
+                                    <Plus className="w-3.5 h-3.5" />
+                                    <span>Add New Batch ID</span>
+                                  </button>
+                                </div>
+
+                                <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-inner">
+                                  <table className="w-full text-xs text-left">
+                                    <thead>
+                                      <tr className="bg-slate-100 text-slate-600 font-bold uppercase tracking-wider text-[9px]">
+                                        <th className="p-3">Batch ID</th>
+                                        <th className="p-3">Stock Count & Multi-Unit Breakdown</th>
+                                        <th className="p-3">Packaging Breakdown</th>
+                                        <th className="p-3">Mfg & Expiry Date</th>
+                                        <th className="p-3">Storage Location</th>
+                                        <th className="p-3 text-center">Batch Status</th>
+                                        <th className="p-3 text-center">Actions</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                      {stockGroup.batches.map((batchItem, bIdx) => {
+                                        const isExpiring = batchItem.expiryDate && (new Date(batchItem.expiryDate) - Date.now()) < 30 * 24 * 60 * 60 * 1000;
+                                        const batchUnit = (!batchItem.unit || batchItem.unit.toLowerCase() === 'kg') ? 'Cartons' : batchItem.unit;
+                                        const batchConv = convertAllUnits(batchItem.quantity, batchUnit, customConversionRates);
+
+                                        return (
+                                          <tr key={batchItem.id || batchItem._id || bIdx} className="hover:bg-slate-50">
+                                            <td className="p-3 font-mono font-black text-rose-700 text-xs">
+                                              {batchItem.batchId || `BATCH-${bIdx + 1}`}
+                                            </td>
+                                            <td className="p-3 font-bold text-slate-900">
+                                              <div>{batchItem.quantity} {batchUnit}</div>
+                                              <div className="text-[10px] text-slate-500 font-mono font-medium mt-0.5">
+                                                = {batchConv.formatted.kg} | {batchConv.formatted.numbers} | {batchConv.formatted.packets} | {batchConv.formatted.boxes}
+                                              </div>
+                                            </td>
+                                            <td className="p-3 text-slate-600">
+                                              {batchItem.packagingBreakdown || 'Direct Stock Batch'}
+                                            </td>
+                                            <td className="p-3 text-[11px]">
+                                              <div>Mfg: {new Date(batchItem.mfgDate || batchItem.createdAt).toLocaleDateString()}</div>
+                                              {batchItem.expiryDate && (
+                                                <div className={isExpiring ? 'text-rose-600 font-bold' : 'text-slate-500'}>
+                                                  Exp: {new Date(batchItem.expiryDate).toLocaleDateString()}
+                                                </div>
+                                              )}
+                                            </td>
+                                            <td className="p-3 text-slate-700 flex items-center gap-1 font-medium">
+                                              <MapPin className="w-3 h-3 text-rose-500" />
+                                              {batchItem.storageLocation || 'Warehouse 1, Rack A'}
+                                            </td>
+                                            <td className="p-3 text-center">
+                                              <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${
+                                                batchItem.status === 'In Production' ? 'bg-purple-100 text-purple-800' :
+                                                batchItem.status === 'In Inspection' ? 'bg-blue-100 text-blue-800' :
+                                                'bg-emerald-100 text-emerald-800'
+                                              }`}>
+                                                {batchItem.status || 'AVAILABLE'}
+                                              </span>
+                                            </td>
+                                            <td className="p-3 text-center">
+                                              <div className="flex items-center justify-center gap-1">
+                                                <button
+                                                  onClick={() => handleOpenReport({ ...stockGroup, ...batchItem })}
+                                                  className="p-1 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-lg border border-indigo-200 cursor-pointer inline-flex items-center"
+                                                  title="View Batch Movement Report"
+                                                >
+                                                  <BarChart3 className="w-3.5 h-3.5" />
+                                                </button>
+                                                <button
+                                                  onClick={() => openEditModal(batchItem)}
+                                                  className="p-1 text-slate-600 hover:text-rose-600 cursor-pointer"
+                                                  title="Edit Batch Count & Location"
+                                                >
+                                                  <Edit3 className="w-3.5 h-3.5" />
+                                                </button>
+                                              </div>
+                                            </td>
+                                          </tr>
+                                        );
+                                      })}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
 
       {/* ── MODAL 1: ADD NEW STOCK & MULTIPLE BATCHES ── */}
       {showAddStockModal && (
-        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in overflow-y-auto">
-          <div className="bg-white border border-slate-200 rounded-3xl shadow-2xl max-w-2xl w-full p-6 space-y-4 my-auto">
+        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 z-50 animate-fade-in overflow-y-auto">
+          <div className="bg-white border border-slate-200 rounded-2xl sm:rounded-3xl shadow-2xl max-w-2xl w-full p-4 sm:p-6 space-y-4 my-auto">
             <div className="flex justify-between items-center border-b pb-3">
-              <h3 className="font-black text-slate-900 text-base flex items-center gap-2">
-                <Plus className="w-5 h-5 text-rose-600" />
-                Manual Stock Entry & Multi-Batch Assignment
+              <h3 className="font-black text-slate-900 text-sm sm:text-base flex items-center gap-2">
+                <Plus className="w-5 h-5 text-rose-600 shrink-0" />
+                <span>Manual Stock Entry & Multi-Batch Assignment</span>
               </h3>
-              <button onClick={() => setShowAddStockModal(false)} className="text-slate-400 hover:text-slate-600 cursor-pointer">✕</button>
+              <button onClick={() => setShowAddStockModal(false)} className="text-slate-400 hover:text-slate-600 cursor-pointer p-1">✕</button>
             </div>
 
             <form onSubmit={handleAddStockSubmit} className="space-y-4 text-xs">
               {/* Row 1: Stock ID & Item Name */}
-              <div className="grid grid-cols-2 gap-3 bg-slate-50 p-3 rounded-2xl border border-slate-200">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50 p-3 rounded-2xl border border-slate-200">
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">Stock ID *</label>
                   <input
@@ -898,7 +1223,7 @@ export default function InventoryPage() {
               </div>
 
               {/* Row 2: Unit Type & Min Threshold */}
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">Unit Measurement (Cartons / Numbers / kg) *</label>
                   <select
@@ -1054,7 +1379,7 @@ export default function InventoryPage() {
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-3 gap-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                         <div>
                           <label className="block font-bold text-slate-700 mb-1">Mfg Date</label>
                           <input
@@ -1114,14 +1439,14 @@ export default function InventoryPage() {
 
       {/* ── MODAL 2: ISSUE MATERIAL TO OPERATIONS & YIELD/SCRAP ENTRY ── */}
       {showIssueModal && (
-        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in overflow-y-auto">
-          <div className="bg-white border border-slate-200 rounded-3xl shadow-2xl max-w-lg w-full p-6 space-y-4 my-auto">
+        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 z-50 animate-fade-in overflow-y-auto">
+          <div className="bg-white border border-slate-200 rounded-2xl sm:rounded-3xl shadow-2xl max-w-lg w-full p-4 sm:p-6 space-y-4 my-auto">
             <div className="flex justify-between items-center border-b pb-3">
-              <h3 className="font-black text-slate-900 text-base flex items-center gap-2">
-                <ArrowRightLeft className="w-5 h-5 text-amber-600" />
-                Issue Stock to Operations
+              <h3 className="font-black text-slate-900 text-sm sm:text-base flex items-center gap-2">
+                <ArrowRightLeft className="w-5 h-5 text-amber-600 shrink-0" />
+                <span>Issue Stock to Operations</span>
               </h3>
-              <button onClick={() => setShowIssueModal(false)} className="text-slate-400 hover:text-slate-600 cursor-pointer">✕</button>
+              <button onClick={() => setShowIssueModal(false)} className="text-slate-400 hover:text-slate-600 cursor-pointer p-1">✕</button>
             </div>
 
             <form onSubmit={handleIssueSubmit} className="space-y-4 text-xs">
@@ -1145,7 +1470,7 @@ export default function InventoryPage() {
                 </select>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">Issue Count (Cartons / Numbers) *</label>
                   <input
@@ -1181,7 +1506,7 @@ export default function InventoryPage() {
                 />
               )}
 
-              <div className="grid grid-cols-2 gap-3 bg-amber-50 p-3 rounded-2xl border border-amber-200">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-amber-50 p-3 rounded-2xl border border-amber-200">
                 <div>
                   <label className="block font-bold text-amber-900 mb-1">Expected Yield Count</label>
                   <input
@@ -1226,14 +1551,14 @@ export default function InventoryPage() {
 
       {/* ── MODAL 3: CREATE FINISHED GOODS BATCH ── */}
       {showFGModal && (
-        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in overflow-y-auto">
-          <div className="bg-white border border-slate-200 rounded-3xl shadow-2xl max-w-lg w-full p-6 space-y-4 my-auto">
+        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 z-50 animate-fade-in overflow-y-auto">
+          <div className="bg-white border border-slate-200 rounded-2xl sm:rounded-3xl shadow-2xl max-w-lg w-full p-4 sm:p-6 space-y-4 my-auto">
             <div className="flex justify-between items-center border-b pb-3">
-              <h3 className="font-black text-slate-900 text-base flex items-center gap-2">
-                <Boxes className="w-5 h-5 text-emerald-600" />
-                Create Finished Goods Batch ID
+              <h3 className="font-black text-slate-900 text-sm sm:text-base flex items-center gap-2">
+                <Boxes className="w-5 h-5 text-emerald-600 shrink-0" />
+                <span>Create Finished Goods Batch ID</span>
               </h3>
-              <button onClick={() => setShowFGModal(false)} className="text-slate-400 hover:text-slate-600 cursor-pointer">✕</button>
+              <button onClick={() => setShowFGModal(false)} className="text-slate-400 hover:text-slate-600 cursor-pointer p-1">✕</button>
             </div>
 
             <form onSubmit={handleFGSubmit} className="space-y-4 text-xs">
@@ -1249,7 +1574,7 @@ export default function InventoryPage() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3 bg-emerald-50 p-3 rounded-2xl border border-emerald-200">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-emerald-50 p-3 rounded-2xl border border-emerald-200">
                 <div>
                   <label className="block font-bold text-emerald-900 mb-1">Number of Cartons *</label>
                   <input
@@ -1287,7 +1612,7 @@ export default function InventoryPage() {
                 />
               )}
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">Expiry Date</label>
                   <input
@@ -1319,15 +1644,15 @@ export default function InventoryPage() {
 
       {/* ── MODAL 4: EDIT STOCK COUNT & MULTI-UNIT QUANTITY TYPE ── */}
       {showEditModal && editItem && (
-        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in overflow-y-auto">
-          <div className="bg-white border border-slate-200 rounded-3xl shadow-2xl max-w-lg w-full p-6 space-y-4 my-auto">
+        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 z-50 animate-fade-in overflow-y-auto">
+          <div className="bg-white border border-slate-200 rounded-2xl sm:rounded-3xl shadow-2xl max-w-lg w-full p-4 sm:p-6 space-y-4 my-auto">
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-rose-50 flex items-center justify-center text-rose-600">
+                <div className="w-8 h-8 rounded-xl bg-rose-50 flex items-center justify-center text-rose-600 shrink-0">
                   <Sliders className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="font-black text-slate-900 text-sm">Edit Stock Count & Location</h3>
+                  <h3 className="font-black text-slate-900 text-xs sm:text-sm">Edit Stock Count & Location</h3>
                   <p className="text-[10px] text-slate-400">Choose quantity unit to edit in & update warehouse location</p>
                 </div>
               </div>
@@ -1370,7 +1695,7 @@ export default function InventoryPage() {
                 </div>
 
                 {/* 5 Segmented Unit Pill Buttons */}
-                <div className="grid grid-cols-5 gap-1.5 p-1 bg-slate-100 rounded-2xl border border-slate-200">
+                <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5 p-1 bg-slate-100 rounded-2xl border border-slate-200">
                   {[
                     { id: 'Cartons', label: 'Cartons (CTN)', short: 'Cartons' },
                     { id: 'Units', label: 'Units (PCS)', short: 'Units' },
@@ -1496,6 +1821,451 @@ export default function InventoryPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── SALES & MOVEMENT REPORT MODAL ─────────────────────────────────── */}
+      {showReportModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 z-50 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl max-w-4xl w-full max-h-[92vh] overflow-y-auto shadow-2xl border border-slate-200 flex flex-col">
+            {/* Modal Header */}
+            <div className="p-4 sm:p-6 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-t-3xl flex items-start justify-between">
+              <div>
+                <div className="flex items-center gap-2">
+                  <div className="p-2 bg-indigo-600/30 border border-indigo-400/40 rounded-xl text-indigo-300">
+                    <BarChart3 className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg sm:text-xl font-black text-white tracking-tight flex items-center gap-2">
+                      Sales & Movement Report
+                      {selectedReportItem?.stockId && (
+                        <span className="text-xs font-mono bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded-lg border border-indigo-400/30">
+                          {selectedReportItem.stockId}
+                        </span>
+                      )}
+                    </h2>
+                    <p className="text-xs text-indigo-200 font-medium mt-0.5">
+                      {selectedReportItem
+                        ? `${selectedReportItem.itemName || 'Stock Item'} ${selectedReportItem.batchId ? `• Batch ${selectedReportItem.batchId}` : ''}`
+                        : 'Overall Inventory Movement & Outflow Analytics'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowReportModal(false)}
+                className="text-slate-400 hover:text-white bg-white/10 hover:bg-white/20 p-2 rounded-xl text-xs font-bold transition cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-4 sm:p-6 space-y-5 flex-1">
+              {/* Period Selector Tabs & Controls Bar */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50 p-3 rounded-2xl border border-slate-200">
+                {/* Period Selector: Day / Week / Month */}
+                <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 shadow-xs">
+                  {[
+                    { id: 'day', label: 'Day Wise' },
+                    { id: 'week', label: 'Week Wise' },
+                    { id: 'month', label: 'Month Wise' }
+                  ].map(tab => (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => handlePeriodChange(tab.id)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer ${
+                        reportPeriod === tab.id
+                          ? 'bg-indigo-600 text-white shadow-xs'
+                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Range Selector & Chart View Toggles */}
+                <div className="flex flex-wrap items-center gap-2">
+                  {/* Range Selector */}
+                  <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 text-xs font-bold">
+                    <span className="text-[10px] text-slate-400 font-black uppercase px-1">Range:</span>
+                    {reportPeriod === 'day' && (
+                      <>
+                        {['7d', '14d', '30d'].map(r => (
+                          <button
+                            key={r}
+                            type="button"
+                            onClick={() => handleRangeChange(r)}
+                            className={`px-2 py-1 rounded-md text-[11px] font-bold cursor-pointer ${
+                              reportRange === r ? 'bg-indigo-100 text-indigo-700' : 'text-slate-600 hover:bg-slate-100'
+                            }`}
+                          >
+                            {r === '7d' ? '7 Days' : r === '14d' ? '14 Days' : '30 Days'}
+                          </button>
+                        ))}
+                      </>
+                    )}
+                    {reportPeriod === 'week' && (
+                      <>
+                        {['4w', '8w', '12w'].map(r => (
+                          <button
+                            key={r}
+                            type="button"
+                            onClick={() => handleRangeChange(r)}
+                            className={`px-2 py-1 rounded-md text-[11px] font-bold cursor-pointer ${
+                              reportRange === r ? 'bg-indigo-100 text-indigo-700' : 'text-slate-600 hover:bg-slate-100'
+                            }`}
+                          >
+                            {r === '4w' ? '4 Weeks' : r === '8w' ? '8 Weeks' : '12 Weeks'}
+                          </button>
+                        ))}
+                      </>
+                    )}
+                    {reportPeriod === 'month' && (
+                      <>
+                        {['3m', '6m', '12m'].map(r => (
+                          <button
+                            key={r}
+                            type="button"
+                            onClick={() => handleRangeChange(r)}
+                            className={`px-2 py-1 rounded-md text-[11px] font-bold cursor-pointer ${
+                              reportRange === r ? 'bg-indigo-100 text-indigo-700' : 'text-slate-600 hover:bg-slate-100'
+                            }`}
+                          >
+                            {r === '3m' ? '3 Months' : r === '6m' ? '6 Months' : '12 Months'}
+                          </button>
+                        ))}
+                      </>
+                    )}
+                  </div>
+
+                  {/* Chart Metric Toggle: Quantity vs Revenue */}
+                  <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 text-xs font-bold">
+                    <button
+                      type="button"
+                      onClick={() => setReportMetric('quantity')}
+                      className={`px-2 py-1 rounded-md text-[11px] font-bold cursor-pointer ${
+                        reportMetric === 'quantity' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100'
+                      }`}
+                    >
+                      Units ({reportData?.unit || 'Cartons'})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setReportMetric('revenue')}
+                      className={`px-2 py-1 rounded-md text-[11px] font-bold cursor-pointer ${
+                        reportMetric === 'revenue' ? 'bg-emerald-600 text-white' : 'text-slate-600 hover:bg-slate-100'
+                      }`}
+                    >
+                      Revenue (₹)
+                    </button>
+                  </div>
+
+                  {/* Chart Type Toggle: Area vs Bar */}
+                  <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => setReportChartType('area')}
+                      className={`p-1 rounded-md cursor-pointer ${
+                        reportChartType === 'area' ? 'bg-indigo-100 text-indigo-700' : 'text-slate-500 hover:bg-slate-100'
+                      }`}
+                      title="Area Trend"
+                    >
+                      <TrendingUp className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setReportChartType('bar')}
+                      className={`p-1 rounded-md cursor-pointer ${
+                        reportChartType === 'bar' ? 'bg-indigo-100 text-indigo-700' : 'text-slate-500 hover:bg-slate-100'
+                      }`}
+                      title="Bar Breakdown"
+                    >
+                      <BarChart2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* KPI Summary Cards */}
+              {reportData?.summary && (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="bg-indigo-50/60 border border-indigo-200 rounded-2xl p-3 shadow-xs">
+                    <p className="text-[10px] font-black uppercase tracking-wider text-indigo-700">Total Outflow / Sales</p>
+                    <p className="text-xl font-black text-slate-900 mt-1">
+                      {reportData.summary.totalQuantity?.toLocaleString()}{' '}
+                      <span className="text-xs font-bold text-slate-600">{reportData.unit || 'Cartons'}</span>
+                    </p>
+                    <p className="text-[10px] text-indigo-600 font-bold mt-0.5">
+                      {reportData.summary.totalOrders || 0} Transactions
+                    </p>
+                  </div>
+
+                  <div className="bg-emerald-50/60 border border-emerald-200 rounded-2xl p-3 shadow-xs">
+                    <p className="text-[10px] font-black uppercase tracking-wider text-emerald-700">Total Revenue / Value</p>
+                    <p className="text-xl font-black text-emerald-900 mt-1">
+                      ₹{reportData.summary.totalRevenue?.toLocaleString()}
+                    </p>
+                    <p className="text-[10px] text-emerald-600 font-bold mt-0.5">
+                      Avg ₹{Math.round((reportData.summary.totalRevenue || 0) / Math.max(1, reportData.summary.totalQuantity || 1))}/unit
+                    </p>
+                  </div>
+
+                  <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3 shadow-xs">
+                    <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Period Average</p>
+                    <p className="text-xl font-black text-slate-900 mt-1">
+                      {reportData.summary.avgQuantity?.toLocaleString()}{' '}
+                      <span className="text-xs font-bold text-slate-600">{reportData.unit || 'Cartons'}</span>
+                    </p>
+                    <p className="text-[10px] text-slate-500 font-medium mt-0.5">Per {reportPeriod}</p>
+                  </div>
+
+                  <div className="bg-amber-50/60 border border-amber-200 rounded-2xl p-3 shadow-xs">
+                    <p className="text-[10px] font-black uppercase tracking-wider text-amber-700">Peak Period</p>
+                    <p className="text-sm font-black text-amber-900 mt-2 truncate">
+                      {reportData.summary.peakPeriod || 'N/A'}
+                    </p>
+                    <p className="text-[10px] text-amber-600 font-bold mt-0.5">Highest Movement</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Visual Chart Representation */}
+              <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <Activity className="w-4 h-4 text-indigo-600" />
+                    <h3 className="text-xs font-black uppercase tracking-wider text-slate-700">
+                      Visual Velocity Timeline ({reportPeriod === 'day' ? 'Daily' : reportPeriod === 'week' ? 'Weekly' : 'Monthly'})
+                    </h3>
+                  </div>
+                  <span className="text-[11px] font-mono text-slate-500 font-bold">
+                    Showing: {reportMetric === 'quantity' ? `Quantity (${reportData?.unit || 'Cartons'})` : 'Revenue (₹ INR)'}
+                  </span>
+                </div>
+
+                {reportLoading ? (
+                  <div className="h-64 flex flex-col items-center justify-center space-y-2 text-slate-400">
+                    <RefreshCw className="w-6 h-6 animate-spin text-indigo-600" />
+                    <p className="text-xs font-bold">Loading visual trend data...</p>
+                  </div>
+                ) : !reportData?.timeline || reportData.timeline.length === 0 ? (
+                  <div className="h-64 flex flex-col items-center justify-center text-slate-400">
+                    <BarChart3 className="w-8 h-8 text-slate-300 mb-1" />
+                    <p className="text-xs font-bold">No sales data recorded for this selection.</p>
+                  </div>
+                ) : (
+                  <div className="h-64 sm:h-72 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      {reportChartType === 'area' ? (
+                        <AreaChart
+                          data={reportData.timeline}
+                          margin={{ top: 10, right: 10, left: 0, bottom: 20 }}
+                        >
+                          <defs>
+                            <linearGradient id="colorMetric" x1="0" y1="0" x2="0" y2="1">
+                              <stop
+                                offset="5%"
+                                stopColor={reportMetric === 'quantity' ? '#6366f1' : '#10b981'}
+                                stopOpacity={0.4}
+                              />
+                              <stop
+                                offset="95%"
+                                stopColor={reportMetric === 'quantity' ? '#6366f1' : '#10b981'}
+                                stopOpacity={0.0}
+                              />
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                          <XAxis
+                            dataKey="label"
+                            stroke="#94a3b8"
+                            fontSize={10}
+                            tickLine={false}
+                            axisLine={{ stroke: '#e2e8f0' }}
+                          />
+                          <YAxis
+                            stroke="#94a3b8"
+                            fontSize={10}
+                            tickLine={false}
+                            axisLine={false}
+                            tickFormatter={val => (reportMetric === 'revenue' ? `₹${val}` : val)}
+                          />
+                          <ChartTooltip
+                            content={({ active, payload, label }) => {
+                              if (active && payload && payload.length) {
+                                const dataPoint = payload[0].payload;
+                                return (
+                                  <div className="bg-slate-900 text-white p-2.5 rounded-xl text-xs shadow-xl border border-slate-700 space-y-1">
+                                    <p className="font-black text-indigo-300 border-b border-slate-800 pb-1">{label}</p>
+                                    <p className="font-bold flex justify-between gap-4">
+                                      <span className="text-slate-400">Quantity:</span>
+                                      <span className="font-mono text-white">{dataPoint.quantity} {reportData.unit || 'Cartons'}</span>
+                                    </p>
+                                    <p className="font-bold flex justify-between gap-4">
+                                      <span className="text-slate-400">Revenue:</span>
+                                      <span className="font-mono text-emerald-400">₹{dataPoint.revenue?.toLocaleString()}</span>
+                                    </p>
+                                    {dataPoint.ordersCount && (
+                                      <p className="font-bold flex justify-between gap-4 text-[10px] text-slate-400">
+                                        <span>Orders:</span>
+                                        <span>{dataPoint.ordersCount}</span>
+                                      </p>
+                                    )}
+                                  </div>
+                                );
+                              }
+                              return null;
+                            }}
+                          />
+                          <Area
+                            type="monotone"
+                            dataKey={reportMetric}
+                            stroke={reportMetric === 'quantity' ? '#4f46e5' : '#059669'}
+                            strokeWidth={3}
+                            fillOpacity={1}
+                            fill="url(#colorMetric)"
+                            activeDot={{ r: 6, fill: reportMetric === 'quantity' ? '#4f46e5' : '#059669' }}
+                          />
+                        </AreaChart>
+                      ) : (
+                        <BarChart
+                          data={reportData.timeline}
+                          margin={{ top: 10, right: 10, left: 0, bottom: 20 }}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                          <XAxis
+                            dataKey="label"
+                            stroke="#94a3b8"
+                            fontSize={10}
+                            tickLine={false}
+                            axisLine={{ stroke: '#e2e8f0' }}
+                          />
+                          <YAxis
+                            stroke="#94a3b8"
+                            fontSize={10}
+                            tickLine={false}
+                            axisLine={false}
+                            tickFormatter={val => (reportMetric === 'revenue' ? `₹${val}` : val)}
+                          />
+                          <ChartTooltip
+                            content={({ active, payload, label }) => {
+                              if (active && payload && payload.length) {
+                                const dataPoint = payload[0].payload;
+                                return (
+                                  <div className="bg-slate-900 text-white p-2.5 rounded-xl text-xs shadow-xl border border-slate-700 space-y-1">
+                                    <p className="font-black text-indigo-300 border-b border-slate-800 pb-1">{label}</p>
+                                    <p className="font-bold flex justify-between gap-4">
+                                      <span className="text-slate-400">Quantity:</span>
+                                      <span className="font-mono text-white">{dataPoint.quantity} {reportData.unit || 'Cartons'}</span>
+                                    </p>
+                                    <p className="font-bold flex justify-between gap-4">
+                                      <span className="text-slate-400">Revenue:</span>
+                                      <span className="font-mono text-emerald-400">₹{dataPoint.revenue?.toLocaleString()}</span>
+                                    </p>
+                                  </div>
+                                );
+                              }
+                              return null;
+                            }}
+                          />
+                          <Bar
+                            dataKey={reportMetric}
+                            fill={reportMetric === 'quantity' ? '#6366f1' : '#10b981'}
+                            radius={[6, 6, 0, 0]}
+                          />
+                        </BarChart>
+                      )}
+                    </ResponsiveContainer>
+                  </div>
+                )}
+              </div>
+
+              {/* Tabular Breakdown of Time Periods */}
+              {reportData?.timeline && reportData.timeline.length > 0 && (
+                <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
+                  <div className="p-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                    <span className="text-xs font-black text-slate-800 flex items-center gap-1.5">
+                      <FileSpreadsheet className="w-3.5 h-3.5 text-indigo-600" />
+                      Detailed Timeline Breakdown ({reportPeriod.toUpperCase()} WISE)
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleExportReportCSV}
+                      className="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 cursor-pointer"
+                    >
+                      <Download className="w-3 h-3" />
+                      <span>Export CSV</span>
+                    </button>
+                  </div>
+
+                  <div className="overflow-x-auto max-h-48">
+                    <table className="w-full text-xs text-left">
+                      <thead>
+                        <tr className="bg-slate-100 text-slate-600 font-bold uppercase tracking-wider text-[9px] sticky top-0">
+                          <th className="p-2.5">Timeline Period</th>
+                          <th className="p-2.5 text-center">Volume ({reportData.unit || 'Cartons'})</th>
+                          <th className="p-2.5 text-center">Revenue (₹)</th>
+                          <th className="p-2.5 text-center">Avg Price / Unit</th>
+                          <th className="p-2.5 text-center">Orders Count</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
+                        {reportData.timeline.map((point, pIdx) => {
+                          const avgP = point.quantity > 0 ? Math.round(point.revenue / point.quantity) : 0;
+                          return (
+                            <tr key={pIdx} className="hover:bg-slate-50">
+                              <td className="p-2.5 font-bold text-slate-900">{point.label || point.date}</td>
+                              <td className="p-2.5 text-center font-mono font-bold text-indigo-700">
+                                {point.quantity} {reportData.unit || 'Cartons'}
+                              </td>
+                              <td className="p-2.5 text-center font-mono font-bold text-emerald-700">
+                                ₹{point.revenue?.toLocaleString()}
+                              </td>
+                              <td className="p-2.5 text-center font-mono text-slate-600">
+                                ₹{avgP}
+                              </td>
+                              <td className="p-2.5 text-center text-slate-600">
+                                {point.ordersCount || 1}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 bg-slate-50 border-t border-slate-200 rounded-b-3xl flex items-center justify-between">
+              <span className="text-[11px] text-slate-500 font-medium">
+                Switch freely between Day, Week, and Month wise breakdowns.
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleExportReportCSV}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl font-bold text-xs flex items-center gap-1.5 transition cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Export Report CSV</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowReportModal(false)}
+                  className="px-5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold text-xs shadow-md transition cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

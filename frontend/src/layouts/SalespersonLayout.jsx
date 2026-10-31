@@ -78,8 +78,6 @@ export default function SalespersonLayout() {
       items: [
         { name: 'Dashboard', path: '/sales/dashboard', icon: Home, badge: 'Today' },
         { name: 'Beat & Shop Visits', path: '/sales/visits', icon: MapPin, badge: 'GPS' },
-        { name: 'Customer 360°', path: '/sales/customer-360', icon: User },
-        { name: 'Competitor Intel', path: '/sales/competitor-intel', icon: TrendingUp },
       ]
     },
     {

@@ -5,7 +5,8 @@ import {
   Users, Plus, Search, ShieldCheck, MapPin, 
   Phone, Mail, DollarSign, Target, Award, Edit3, X, Check,
   Eye, ExternalLink, ShoppingBag, Receipt, Calendar, TrendingUp,
-  Clock, CheckCircle2, AlertCircle, Truck, FileText, Building2
+  Clock, CheckCircle2, AlertCircle, Truck, FileText, Building2,
+  Store, Package, ListTodo, ChevronRight, BarChart3
 } from 'lucide-react';
 
 export default function AdminSalesTeamPage() {
@@ -55,7 +56,7 @@ export default function AdminSalesTeamPage() {
   const handleOpenDetails = async (idOrCode) => {
     setDetailModalOpen(true);
     setDetailLoading(true);
-    setDetailTab('overview');
+    setDetailTab('todo');
     try {
       const res = await axios.get(`/field-sales/admin/team/${idOrCode}/details`);
       if (res.data?.success) {
@@ -190,35 +191,35 @@ export default function AdminSalesTeamPage() {
         {filteredTeam.map((item) => (
           <div 
             key={item.user._id} 
-            className="bg-white border border-slate-200 hover:border-rose-300 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between group"
+            onClick={(e) => {
+              if (e.target.closest('.edit-target-btn')) return;
+              handleOpenDetails(item.user._id);
+            }}
+            className="bg-white border border-slate-200 hover:border-rose-400 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between group cursor-pointer"
           >
             <div>
               <div className="flex items-start justify-between gap-2 mb-3">
                 <div className="flex items-center gap-2.5">
                   <div 
-                    onClick={() => handleOpenDetails(item.user._id)}
-                    className="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-500 to-amber-600 flex items-center justify-center font-black text-white text-sm shadow-md shadow-amber-500/20 cursor-pointer hover:scale-105 transition-transform"
-                    title="Click to view full 360° profile"
+                    className="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-500 to-amber-600 flex items-center justify-center font-black text-white text-sm shadow-md shadow-amber-500/20 group-hover:scale-105 transition-transform"
+                    title="Click to view full performance dossier"
                   >
                     {item.user.name.slice(0, 2).toUpperCase()}
                   </div>
                   <div>
                     <h3 
-                      onClick={() => handleOpenDetails(item.user._id)}
-                      className="text-sm font-black text-slate-800 leading-tight hover:text-rose-600 cursor-pointer transition-colors"
-                      title="Click to view full 360° profile"
+                      className="text-sm font-black text-slate-800 leading-tight group-hover:text-rose-600 transition-colors"
+                      title="Click to view full performance dossier"
                     >
                       {item.user.name}
                     </h3>
-                    <button
-                      type="button"
-                      onClick={() => handleOpenDetails(item.user._id)}
-                      className="mt-0.5 inline-flex items-center gap-1 font-mono text-[11px] font-bold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 px-2 py-0.5 rounded-md transition-all cursor-pointer border border-rose-200/60"
-                      title="Click salesperson ID to view complete dossier"
+                    <div
+                      className="mt-0.5 inline-flex items-center gap-1 font-mono text-[11px] font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded-md border border-rose-200/60"
+                      title="Click salesperson to view complete performance"
                     >
                       <span>{item.profile?.employeeCode || 'SALES-001'}</span>
                       <ExternalLink className="w-2.5 h-2.5" />
-                    </button>
+                    </div>
                   </div>
                 </div>
 
@@ -267,8 +268,11 @@ export default function AdminSalesTeamPage() {
               </button>
               <button
                 type="button"
-                onClick={() => handleOpenEdit(item)}
-                className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2 rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-all"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleOpenEdit(item);
+                }}
+                className="edit-target-btn bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2 rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-all"
               >
                 <Edit3 className="w-3.5 h-3.5" />
                 <span>Edit Targets</span>
@@ -351,129 +355,579 @@ export default function AdminSalesTeamPage() {
                   </div>
                 </div>
 
-                {/* 4 Metric KPI Cards */}
+                {/* 4 Metric KPI Cards with Comprehensive Performance */}
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                  {/* KPI 1: Store Visit Target Set vs Target Achieved */}
                   <div className="bg-rose-50/60 border border-rose-100 p-3.5 rounded-2xl">
                     <div className="flex items-center justify-between text-rose-700 mb-1">
-                      <span className="text-[10px] font-bold uppercase tracking-wider">MTD Sales Target</span>
+                      <span className="text-[10px] font-bold uppercase tracking-wider">Store Visit Target & Quota</span>
                       <Target className="w-3.5 h-3.5" />
                     </div>
                     <div className="text-base font-black text-rose-900">
-                      ₹{(selectedRepData.metrics.actualSales || 0).toLocaleString('en-IN')}
+                      {selectedRepData.metrics.completedVisits || 0} / {selectedRepData.metrics.monthlyVisitsTarget || ((selectedRepData.metrics.dailyVisitsTarget || 6) * 26)} Visits
                     </div>
-                    <p className="text-[10px] text-rose-600 mt-0.5">
-                      Target: ₹{(selectedRepData.metrics.monthlyTarget || 0).toLocaleString('en-IN')}
+                    <p className="text-[10px] text-rose-600 mt-0.5 font-medium">
+                      Daily Target: <strong className="text-rose-800">{selectedRepData.metrics.dailyVisitsTarget || 6}</strong> stores/day
                     </p>
                     <div className="w-full bg-rose-200 h-1.5 rounded-full mt-2 overflow-hidden">
                       <div 
                         className="bg-rose-600 h-full rounded-full transition-all" 
-                        style={{ width: `${Math.min(selectedRepData.metrics.achievementPct || 0, 100)}%` }}
+                        style={{ width: `${Math.min(selectedRepData.metrics.monthVisitsAchievementPct || 0, 100)}%` }}
                       ></div>
                     </div>
-                    <span className="text-[9px] font-black text-rose-700 mt-1 block">
-                      {selectedRepData.metrics.achievementPct}% Quota Achieved
-                    </span>
+                    <div className="flex items-center justify-between text-[9px] font-black text-rose-700 mt-1">
+                      <span>{selectedRepData.metrics.monthVisitsAchievementPct || 0}% Monthly Achieved</span>
+                      <span>Today: {selectedRepData.metrics.todayCompletedVisits || 0}/{selectedRepData.metrics.dailyVisitsTarget || 6}</span>
+                    </div>
                   </div>
 
+                  {/* KPI 2: Today Store Visits & Sales */}
                   <div className="bg-emerald-50/60 border border-emerald-100 p-3.5 rounded-2xl">
                     <div className="flex items-center justify-between text-emerald-700 mb-1">
-                      <span className="text-[10px] font-bold uppercase tracking-wider">Visits Compliance</span>
+                      <span className="text-[10px] font-bold uppercase tracking-wider">Today Store Visits</span>
                       <CheckCircle2 className="w-3.5 h-3.5" />
                     </div>
                     <div className="text-base font-black text-emerald-900">
-                      {selectedRepData.metrics.completedVisits} Completed
+                      {selectedRepData.metrics.todayCompletedVisits || 0} Done Today
                     </div>
                     <p className="text-[10px] text-emerald-600 mt-0.5">
-                      Quota: {selectedRepData.metrics.dailyVisitsTarget} visits/day
+                      {selectedRepData.metrics.todayVisitsCount || 0} Logged • {selectedRepData.metrics.todayVisitsAchievementPct || 0}% Target
                     </p>
-                    <span className="text-[9px] font-bold text-emerald-700 mt-2 block">
-                      {selectedRepData.metrics.monthVisitsCount} logged this month
+                    <div className="mt-2 pt-1 border-t border-emerald-100/80 flex items-center justify-between text-[10px]">
+                      <span className="text-emerald-700 font-bold">Today Sales:</span>
+                      <strong className="text-emerald-950 font-mono font-bold">₹{(selectedRepData.metrics.todaySales || 0).toLocaleString('en-IN')}</strong>
+                    </div>
+                    <span className="text-[9px] font-bold text-emerald-700 mt-0.5 block">
+                      {selectedRepData.metrics.todayProductsSoldQty || 0} units saled today
                     </span>
                   </div>
 
-                  <div className="bg-amber-50/60 border border-amber-100 p-3.5 rounded-2xl">
-                    <div className="flex items-center justify-between text-amber-700 mb-1">
-                      <span className="text-[10px] font-bold uppercase tracking-wider">Collections</span>
-                      <Receipt className="w-3.5 h-3.5" />
-                    </div>
-                    <div className="text-base font-black text-amber-900">
-                      ₹{(selectedRepData.metrics.totalCollected || 0).toLocaleString('en-IN')}
-                    </div>
-                    <p className="text-[10px] text-amber-600 mt-0.5">
-                      Reconciled Cash & UPI
-                    </p>
-                    <span className="text-[9px] font-bold text-amber-700 mt-2 block">
-                      {selectedRepData.recentCollections.length} verified handovers
-                    </span>
-                  </div>
-
+                  {/* KPI 3: Totally How Many Stores Visited */}
                   <div className="bg-blue-50/60 border border-blue-100 p-3.5 rounded-2xl">
                     <div className="flex items-center justify-between text-blue-700 mb-1">
-                      <span className="text-[10px] font-bold uppercase tracking-wider">Secondary Orders</span>
-                      <ShoppingBag className="w-3.5 h-3.5" />
+                      <span className="text-[10px] font-bold uppercase tracking-wider">Total Stores Visited</span>
+                      <Store className="w-3.5 h-3.5" />
                     </div>
                     <div className="text-base font-black text-blue-900">
-                      {selectedRepData.metrics.ordersBookedCount} Booked
+                      {selectedRepData.metrics.allTimeVisitsCount || 0} Total Visits
                     </div>
-                    <p className="text-[10px] text-blue-600 mt-0.5">
-                      ₹{(selectedRepData.metrics.allTimeSales || 0).toLocaleString('en-IN')} Total Volume
+                    <p className="text-[10px] text-blue-600 mt-0.5 font-medium">
+                      Covered <strong className="text-blue-900 font-bold">{selectedRepData.metrics.totalUniqueStoresVisited || 0}</strong> Unique Outlets
                     </p>
-                    <span className="text-[9px] font-bold text-blue-700 mt-2 block">
-                      {selectedRepData.metrics.monthOrdersCount} booked this month
+                    <div className="mt-2 pt-1 border-t border-blue-100/80 flex items-center justify-between text-[10px]">
+                      <span className="text-blue-700 font-bold">This Month:</span>
+                      <strong className="text-blue-950 font-bold">{selectedRepData.metrics.monthVisitsCount || 0} visits</strong>
+                    </div>
+                    <span className="text-[9px] font-bold text-blue-700 mt-0.5 block">
+                      Collected ₹{(selectedRepData.metrics.totalCollected || 0).toLocaleString('en-IN')}
+                    </span>
+                  </div>
+
+                  {/* KPI 4: How Many Products Saled & Revenue */}
+                  <div className="bg-amber-50/60 border border-amber-100 p-3.5 rounded-2xl">
+                    <div className="flex items-center justify-between text-amber-700 mb-1">
+                      <span className="text-[10px] font-bold uppercase tracking-wider">Products Saled & Revenue</span>
+                      <Package className="w-3.5 h-3.5" />
+                    </div>
+                    <div className="text-base font-black text-amber-900">
+                      {(selectedRepData.metrics.totalProductsSoldQty || 0).toLocaleString()} Units Saled
+                    </div>
+                    <p className="text-[10px] text-amber-700 mt-0.5">
+                      MTD: {(selectedRepData.metrics.monthProductsSoldQty || 0).toLocaleString()} units • ₹{(selectedRepData.metrics.actualSales || 0).toLocaleString('en-IN')}
+                    </p>
+                    <div className="w-full bg-amber-200 h-1.5 rounded-full mt-2 overflow-hidden">
+                      <div 
+                        className="bg-amber-600 h-full rounded-full transition-all" 
+                        style={{ width: `${Math.min(selectedRepData.metrics.achievementPct || 0, 100)}%` }}
+                      ></div>
+                    </div>
+                    <span className="text-[9px] font-bold text-amber-800 mt-1 block">
+                      {selectedRepData.metrics.achievementPct || 0}% Sales Quota Achieved
                     </span>
                   </div>
                 </div>
 
                 {/* Subtabs Navigation */}
-                <div className="flex items-center gap-2 border-b border-slate-200 pb-2 text-xs overflow-x-auto">
+                <div className="flex items-center gap-1.5 border-b border-slate-200 pb-2 text-xs overflow-x-auto">
                   <button
                     type="button"
-                    onClick={() => setDetailTab('overview')}
-                    className={`px-3.5 py-1.5 rounded-xl font-bold cursor-pointer transition-all ${
-                      detailTab === 'overview' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'
+                    onClick={() => setDetailTab('todo')}
+                    className={`px-3 py-1.5 rounded-xl font-bold cursor-pointer transition-all flex items-center gap-1.5 whitespace-nowrap ${
+                      detailTab === 'todo' ? 'bg-rose-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'
                     }`}
                   >
-                    Territory & Beat Overview
+                    <ListTodo className="w-3.5 h-3.5" />
+                    <span>Today To-Do ({selectedRepData.todayToDo?.length || 0})</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDetailTab('today_visits')}
+                    className={`px-3 py-1.5 rounded-xl font-bold cursor-pointer transition-all flex items-center gap-1.5 whitespace-nowrap ${
+                      detailTab === 'today_visits' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>Today Store Visits ({selectedRepData.todayVisits?.length || 0})</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDetailTab('month_wise')}
+                    className={`px-3 py-1.5 rounded-xl font-bold cursor-pointer transition-all flex items-center gap-1.5 whitespace-nowrap ${
+                      detailTab === 'month_wise' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    <BarChart3 className="w-3.5 h-3.5" />
+                    <span>Month-Wise Performance</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDetailTab('products')}
+                    className={`px-3 py-1.5 rounded-xl font-bold cursor-pointer transition-all flex items-center gap-1.5 whitespace-nowrap ${
+                      detailTab === 'products' ? 'bg-amber-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    <Package className="w-3.5 h-3.5" />
+                    <span>Products Saled ({selectedRepData.topProductsSold?.length || 0})</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => setDetailTab('visits')}
-                    className={`px-3.5 py-1.5 rounded-xl font-bold cursor-pointer transition-all ${
-                      detailTab === 'visits' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'
+                    className={`px-3 py-1.5 rounded-xl font-bold cursor-pointer transition-all flex items-center gap-1.5 whitespace-nowrap ${
+                      detailTab === 'visits' ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'
                     }`}
                   >
-                    Recent Visits ({selectedRepData.recentVisits?.length || 0})
+                    <Store className="w-3.5 h-3.5" />
+                    <span>All Visits ({selectedRepData.recentVisits?.length || 0})</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => setDetailTab('orders')}
-                    className={`px-3.5 py-1.5 rounded-xl font-bold cursor-pointer transition-all ${
-                      detailTab === 'orders' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'
+                    className={`px-3 py-1.5 rounded-xl font-bold cursor-pointer transition-all flex items-center gap-1.5 whitespace-nowrap ${
+                      detailTab === 'orders' ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'
                     }`}
                   >
-                    Booked Orders ({selectedRepData.recentOrders?.length || 0})
+                    <ShoppingBag className="w-3.5 h-3.5" />
+                    <span>Orders ({selectedRepData.recentOrders?.length || 0})</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => setDetailTab('collections')}
-                    className={`px-3.5 py-1.5 rounded-xl font-bold cursor-pointer transition-all ${
-                      detailTab === 'collections' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'
+                    className={`px-3 py-1.5 rounded-xl font-bold cursor-pointer transition-all flex items-center gap-1.5 whitespace-nowrap ${
+                      detailTab === 'collections' ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'
                     }`}
                   >
-                    Collections ({selectedRepData.recentCollections?.length || 0})
+                    <Receipt className="w-3.5 h-3.5" />
+                    <span>Collections ({selectedRepData.recentCollections?.length || 0})</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDetailTab('overview')}
+                    className={`px-3 py-1.5 rounded-xl font-bold cursor-pointer transition-all flex items-center gap-1.5 whitespace-nowrap ${
+                      detailTab === 'overview' ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    <MapPin className="w-3.5 h-3.5" />
+                    <span>Territory & Quotas</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => setDetailTab('approvals')}
-                    className={`px-3.5 py-1.5 rounded-xl font-bold cursor-pointer transition-all ${
-                      detailTab === 'approvals' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'
+                    className={`px-3 py-1.5 rounded-xl font-bold cursor-pointer transition-all flex items-center gap-1.5 whitespace-nowrap ${
+                      detailTab === 'approvals' ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'
                     }`}
                   >
-                    Commercial ({selectedRepData.quotations?.length + selectedRepData.margins?.length})
+                    <ShieldCheck className="w-3.5 h-3.5" />
+                    <span>Commercial ({selectedRepData.quotations?.length + selectedRepData.margins?.length})</span>
                   </button>
                 </div>
 
-                {/* Tab 1: Territory & Beat Overview */}
+                {/* Tab: Today To-Do */}
+                {detailTab === 'todo' && (
+                  <div className="space-y-3">
+                    {/* Summary Counter Bar */}
+                    <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3 flex flex-wrap items-center justify-between gap-3 text-xs">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center font-black">
+                          <ListTodo className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-slate-800">Today's Field Action Plan & Daily Beat To-Do</h4>
+                          <p className="text-[11px] text-slate-500">Scheduled visits, daily beat stores, and priority follow-ups for today</p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <span className="bg-white border border-slate-200 px-2.5 py-1 rounded-lg text-[11px] font-bold text-slate-700">
+                          Total: <strong className="text-slate-900">{selectedRepData.todayToDo?.length || 0}</strong>
+                        </span>
+                        <span className="bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg text-[11px] font-bold text-emerald-700">
+                          Completed: <strong>{selectedRepData.todayToDo?.filter(t => t.isCompleted || t.status === 'COMPLETED').length || 0}</strong>
+                        </span>
+                        <span className="bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg text-[11px] font-bold text-amber-700">
+                          In Progress: <strong>{selectedRepData.todayToDo?.filter(t => t.status === 'IN_PROGRESS').length || 0}</strong>
+                        </span>
+                        <span className="bg-slate-100 border border-slate-200 px-2.5 py-1 rounded-lg text-[11px] font-bold text-slate-600">
+                          Pending: <strong>{selectedRepData.todayToDo?.filter(t => !t.isCompleted && t.status !== 'COMPLETED' && t.status !== 'IN_PROGRESS').length || 0}</strong>
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* To-Do Items List */}
+                    <div className="border border-slate-200 rounded-2xl overflow-hidden">
+                      <table className="w-full text-left text-xs">
+                        <thead className="bg-slate-50 text-slate-500 uppercase font-black text-[10px] tracking-wider border-b border-slate-200">
+                          <tr>
+                            <th className="px-3.5 py-2.5">Status</th>
+                            <th className="px-3.5 py-2.5">Store / Target</th>
+                            <th className="px-3.5 py-2.5">Schedule Type</th>
+                            <th className="px-3.5 py-2.5">Purpose to Visit</th>
+                            <th className="px-3.5 py-2.5">Priority</th>
+                            <th className="px-3.5 py-2.5">Contact</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 text-slate-700">
+                          {(!selectedRepData.todayToDo || selectedRepData.todayToDo.length === 0) ? (
+                            <tr>
+                              <td colSpan="6" className="p-8 text-center text-slate-400">
+                                <ListTodo className="w-8 h-8 mx-auto text-slate-300 mb-2" />
+                                No to-do tasks or scheduled beat stores registered for today.
+                              </td>
+                            </tr>
+                          ) : (
+                            selectedRepData.todayToDo.map((task, idx) => {
+                              const isDone = task.isCompleted || task.status === 'COMPLETED';
+                              const inProg = task.status === 'IN_PROGRESS';
+                              return (
+                                <tr key={task.id || idx} className={`hover:bg-slate-50 transition-colors ${isDone ? 'bg-emerald-50/20' : ''}`}>
+                                  <td className="px-3.5 py-2.5">
+                                    <span className={`inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full ${
+                                      isDone ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' :
+                                      inProg ? 'bg-amber-100 text-amber-800 border border-amber-200 animate-pulse' :
+                                      'bg-slate-100 text-slate-600 border border-slate-200'
+                                    }`}>
+                                      {isDone ? <Check className="w-3 h-3 text-emerald-700" /> : <Clock className="w-3 h-3" />}
+                                      {isDone ? 'Completed' : inProg ? 'In Progress' : 'Pending'}
+                                    </span>
+                                  </td>
+                                  <td className="px-3.5 py-2.5">
+                                    <span className="font-bold text-slate-900 block">{task.storeName}</span>
+                                    <p className="text-[10px] text-slate-400 truncate max-w-xs">{task.storeAddress || 'Daily Beat Route'}</p>
+                                  </td>
+                                  <td className="px-3.5 py-2.5">
+                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
+                                      task.type === 'BEAT_ROUTE_STORE' ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' :
+                                      task.type === 'SCHEDULED_VISIT' ? 'bg-blue-50 text-blue-700 border border-blue-200' :
+                                      'bg-rose-50 text-rose-700 border border-rose-200'
+                                    }`}>
+                                      {task.type === 'BEAT_ROUTE_STORE' ? 'Daily Beat Store' :
+                                       task.type === 'SCHEDULED_VISIT' ? 'Scheduled Visit' : 'Follow-Up Task'}
+                                    </span>
+                                  </td>
+                                  <td className="px-3.5 py-2.5 font-medium text-slate-700">
+                                    {task.purpose || 'Store Visit & Order Booking'}
+                                  </td>
+                                  <td className="px-3.5 py-2.5">
+                                    <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded ${
+                                      task.priority === 'URGENT' ? 'bg-rose-100 text-rose-700' :
+                                      task.priority === 'HIGH' ? 'bg-amber-100 text-amber-700' :
+                                      'bg-slate-100 text-slate-600'
+                                    }`}>
+                                      {task.priority || 'NORMAL'}
+                                    </span>
+                                  </td>
+                                  <td className="px-3.5 py-2.5 text-[11px] text-slate-500 font-mono">
+                                    {task.storePhone || '—'}
+                                  </td>
+                                </tr>
+                              );
+                            })
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* Tab: Today Store Visits */}
+                {detailTab === 'today_visits' && (
+                  <div className="space-y-3">
+                    {/* Today Visits Summary Bar */}
+                    <div className="bg-emerald-50/50 border border-emerald-100 rounded-2xl p-3 flex flex-wrap items-center justify-between gap-3 text-xs">
+                      <div>
+                        <h4 className="font-bold text-emerald-950 flex items-center gap-1.5">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                          <span>Today's Store Visits Log</span>
+                        </h4>
+                        <p className="text-[11px] text-emerald-700 mt-0.5">
+                          Visits conducted today with check-in, purpose, outcome, orders, and collections
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <div className="text-right">
+                          <span className="text-[10px] text-emerald-600 font-bold block uppercase">Today Booked</span>
+                          <span className="font-mono font-black text-emerald-900 text-sm">₹{(selectedRepData.metrics.todaySales || 0).toLocaleString('en-IN')}</span>
+                        </div>
+                        <div className="h-6 w-px bg-emerald-200"></div>
+                        <div className="text-right">
+                          <span className="text-[10px] text-emerald-600 font-bold block uppercase">Today Collected</span>
+                          <span className="font-mono font-black text-emerald-900 text-sm">₹{(selectedRepData.metrics.todayCollected || 0).toLocaleString('en-IN')}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="border border-slate-200 rounded-2xl overflow-hidden">
+                      <table className="w-full text-left text-xs">
+                        <thead className="bg-slate-50 text-slate-500 uppercase font-black text-[10px] tracking-wider border-b border-slate-200">
+                          <tr>
+                            <th className="px-3.5 py-2.5">Check-In / Out</th>
+                            <th className="px-3.5 py-2.5">Retail Store</th>
+                            <th className="px-3.5 py-2.5">Purpose to Visit</th>
+                            <th className="px-3.5 py-2.5">Outcome</th>
+                            <th className="px-3.5 py-2.5">Order Booked</th>
+                            <th className="px-3.5 py-2.5">Collected</th>
+                            <th className="px-3.5 py-2.5">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 text-slate-700">
+                          {(!selectedRepData.todayVisits || selectedRepData.todayVisits.length === 0) ? (
+                            <tr>
+                              <td colSpan="7" className="p-8 text-center text-slate-400">
+                                <Store className="w-8 h-8 mx-auto text-slate-300 mb-2" />
+                                No store visits logged by this salesperson today yet.
+                              </td>
+                            </tr>
+                          ) : (
+                            selectedRepData.todayVisits.map((v) => {
+                              const checkIn = v.checkInTime ? new Date(v.checkInTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '—';
+                              const checkOut = v.checkOutTime ? new Date(v.checkOutTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : null;
+                              return (
+                                <tr key={v._id} className="hover:bg-slate-50">
+                                  <td className="px-3.5 py-2.5 font-mono text-[11px]">
+                                    <span className="font-bold text-slate-800">{checkIn}</span>
+                                    {checkOut && <p className="text-[10px] text-emerald-600">Out: {checkOut}</p>}
+                                  </td>
+                                  <td className="px-3.5 py-2.5">
+                                    <span className="font-bold text-slate-900 block">{v.storeId?.name || v.storeName || 'Retail Outlet'}</span>
+                                    <p className="text-[10px] text-slate-400 truncate max-w-xs">{v.storeId?.address || 'Beat Route'}</p>
+                                  </td>
+                                  <td className="px-3.5 py-2.5 font-medium text-slate-700">
+                                    {v.purpose || 'Store Visit & Order Booking'}
+                                  </td>
+                                  <td className="px-3.5 py-2.5 text-slate-600 max-w-xs truncate">
+                                    {v.outcome || 'Check-in completed'}
+                                  </td>
+                                  <td className="px-3.5 py-2.5 font-mono font-bold text-slate-900">
+                                    {v.orderValue > 0 ? `₹${v.orderValue.toLocaleString('en-IN')}` : '—'}
+                                  </td>
+                                  <td className="px-3.5 py-2.5 font-mono font-bold text-emerald-600">
+                                    {v.paymentsCollected > 0 ? `₹${v.paymentsCollected.toLocaleString('en-IN')}` : '—'}
+                                  </td>
+                                  <td className="px-3.5 py-2.5">
+                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                      v.checkOutTime ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200 animate-pulse'
+                                    }`}>
+                                      {v.checkOutTime ? 'Completed' : 'In-Store Active'}
+                                    </span>
+                                  </td>
+                                </tr>
+                              );
+                            })
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* Tab: Month-Wise Performance Breakdown */}
+                {detailTab === 'month_wise' && (
+                  <div className="space-y-3">
+                    <div className="bg-indigo-50/50 border border-indigo-100 rounded-2xl p-3 flex items-center justify-between text-xs">
+                      <div>
+                        <h4 className="font-bold text-indigo-950 flex items-center gap-1.5">
+                          <BarChart3 className="w-4 h-4 text-indigo-600" />
+                          <span>Month-Wise Historical Performance Dossier</span>
+                        </h4>
+                        <p className="text-[11px] text-indigo-700 mt-0.5">
+                          Store visit quotas vs achieved, secondary sales targets, products saled, and collections (Last 6 Months)
+                        </p>
+                      </div>
+                      <span className="text-[11px] font-bold text-indigo-900 bg-white border border-indigo-200 px-2.5 py-1 rounded-lg">
+                        Quota Base: {selectedRepData.metrics.dailyVisitsTarget || 6} visits/day (~{(selectedRepData.metrics.dailyVisitsTarget || 6) * 26}/month)
+                      </span>
+                    </div>
+
+                    <div className="border border-slate-200 rounded-2xl overflow-hidden">
+                      <table className="w-full text-left text-xs">
+                        <thead className="bg-slate-50 text-slate-500 uppercase font-black text-[10px] tracking-wider border-b border-slate-200">
+                          <tr>
+                            <th className="px-3.5 py-2.5">Month</th>
+                            <th className="px-3.5 py-2.5">Store Visits (Target vs Achieved)</th>
+                            <th className="px-3.5 py-2.5">Sales Target vs Achieved</th>
+                            <th className="px-3.5 py-2.5">Products Saled</th>
+                            <th className="px-3.5 py-2.5">Collections Handover</th>
+                            <th className="px-3.5 py-2.5">Performance Rating</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 text-slate-700">
+                          {(!selectedRepData.monthWiseStats || selectedRepData.monthWiseStats.length === 0) ? (
+                            <tr>
+                              <td colSpan="6" className="p-8 text-center text-slate-400">
+                                No monthly performance history available yet.
+                              </td>
+                            </tr>
+                          ) : (
+                            selectedRepData.monthWiseStats.map((m, idx) => (
+                              <tr key={idx} className="hover:bg-slate-50">
+                                <td className="px-3.5 py-2.5 font-bold text-slate-900 whitespace-nowrap">
+                                  {m.month}
+                                  {idx === 0 && <span className="ml-1.5 text-[9px] bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded font-black">Current</span>}
+                                </td>
+                                <td className="px-3.5 py-2.5">
+                                  <div className="flex items-center justify-between text-[11px] font-mono">
+                                    <strong className="text-slate-900">{m.completedVisits}</strong>
+                                    <span className="text-slate-400">/ {m.visitsTarget} visits</span>
+                                  </div>
+                                  <div className="w-full bg-slate-100 h-1.5 rounded-full mt-1 overflow-hidden">
+                                    <div 
+                                      className="bg-emerald-500 h-full rounded-full" 
+                                      style={{ width: `${Math.min(m.visitsAchievementPct, 100)}%` }}
+                                    ></div>
+                                  </div>
+                                  <span className="text-[9px] font-bold text-emerald-700 mt-0.5 block">{m.visitsAchievementPct}% Visits Achieved</span>
+                                </td>
+                                <td className="px-3.5 py-2.5">
+                                  <div className="flex items-center justify-between text-[11px] font-mono">
+                                    <strong className="text-rose-600">₹{(m.actualSales || 0).toLocaleString('en-IN')}</strong>
+                                    <span className="text-slate-400">/ ₹{(m.salesTarget || 0).toLocaleString('en-IN')}</span>
+                                  </div>
+                                  <div className="w-full bg-slate-100 h-1.5 rounded-full mt-1 overflow-hidden">
+                                    <div 
+                                      className="bg-rose-500 h-full rounded-full" 
+                                      style={{ width: `${Math.min(m.salesAchievementPct, 100)}%` }}
+                                    ></div>
+                                  </div>
+                                  <span className="text-[9px] font-bold text-rose-700 mt-0.5 block">{m.salesAchievementPct}% Sales Achieved</span>
+                                </td>
+                                <td className="px-3.5 py-2.5 font-mono font-bold text-slate-800">
+                                  {(m.productsSoldQty || 0).toLocaleString()} units
+                                </td>
+                                <td className="px-3.5 py-2.5 font-mono font-bold text-emerald-600">
+                                  ₹{(m.totalCollected || 0).toLocaleString('en-IN')}
+                                </td>
+                                <td className="px-3.5 py-2.5">
+                                  <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${
+                                    m.salesAchievementPct >= 100 ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' :
+                                    m.salesAchievementPct >= 70 ? 'bg-blue-100 text-blue-800 border border-blue-200' :
+                                    m.salesAchievementPct >= 40 ? 'bg-amber-100 text-amber-800 border border-amber-200' :
+                                    'bg-slate-100 text-slate-600 border border-slate-200'
+                                  }`}>
+                                    {m.salesAchievementPct >= 100 ? '⭐ Overachieved' :
+                                     m.salesAchievementPct >= 70 ? 'On Track' :
+                                     m.salesAchievementPct >= 40 ? 'In Progress' : 'Needs Focus'}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* Tab: Products Saled */}
+                {detailTab === 'products' && (
+                  <div className="space-y-3">
+                    {/* Products Saled Metrics Strip */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
+                      <div className="bg-amber-50 border border-amber-200/80 p-3 rounded-xl">
+                        <span className="text-[10px] font-bold text-amber-700 uppercase">Total Products Saled</span>
+                        <div className="text-lg font-black text-amber-950 font-mono mt-0.5">
+                          {(selectedRepData.metrics.totalProductsSoldQty || 0).toLocaleString()} Units
+                        </div>
+                        <span className="text-[10px] text-amber-600">All-time volume</span>
+                      </div>
+                      <div className="bg-rose-50 border border-rose-200/80 p-3 rounded-xl">
+                        <span className="text-[10px] font-bold text-rose-700 uppercase">This Month Saled</span>
+                        <div className="text-lg font-black text-rose-950 font-mono mt-0.5">
+                          {(selectedRepData.metrics.monthProductsSoldQty || 0).toLocaleString()} Units
+                        </div>
+                        <span className="text-[10px] text-rose-600">Current MTD</span>
+                      </div>
+                      <div className="bg-emerald-50 border border-emerald-200/80 p-3 rounded-xl">
+                        <span className="text-[10px] font-bold text-emerald-700 uppercase">Today Saled</span>
+                        <div className="text-lg font-black text-emerald-950 font-mono mt-0.5">
+                          {(selectedRepData.metrics.todayProductsSoldQty || 0).toLocaleString()} Units
+                        </div>
+                        <span className="text-[10px] text-emerald-600">Booked today</span>
+                      </div>
+                      <div className="bg-blue-50 border border-blue-200/80 p-3 rounded-xl">
+                        <span className="text-[10px] font-bold text-blue-700 uppercase">Total Sales Value</span>
+                        <div className="text-lg font-black text-blue-950 font-mono mt-0.5">
+                          ₹{(selectedRepData.metrics.allTimeSales || 0).toLocaleString('en-IN')}
+                        </div>
+                        <span className="text-[10px] text-blue-600">{selectedRepData.metrics.ordersBookedCount || 0} orders total</span>
+                      </div>
+                    </div>
+
+                    <div className="border border-slate-200 rounded-2xl overflow-hidden">
+                      <table className="w-full text-left text-xs">
+                        <thead className="bg-slate-50 text-slate-500 uppercase font-black text-[10px] tracking-wider border-b border-slate-200">
+                          <tr>
+                            <th className="px-3.5 py-2.5">#</th>
+                            <th className="px-3.5 py-2.5">Product SKU / Name</th>
+                            <th className="px-3.5 py-2.5">Units / Quantity Saled</th>
+                            <th className="px-3.5 py-2.5">Revenue Generated (₹)</th>
+                            <th className="px-3.5 py-2.5">Volume Proportion</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 text-slate-700">
+                          {(!selectedRepData.topProductsSold || selectedRepData.topProductsSold.length === 0) ? (
+                            <tr>
+                              <td colSpan="5" className="p-8 text-center text-slate-400">
+                                <Package className="w-8 h-8 mx-auto text-slate-300 mb-2" />
+                                No product sales recorded for this representative yet.
+                              </td>
+                            </tr>
+                          ) : (
+                            selectedRepData.topProductsSold.map((prod, idx) => {
+                              const totalQty = selectedRepData.metrics.totalProductsSoldQty || 1;
+                              const sharePct = Math.round((prod.quantity / totalQty) * 100);
+                              return (
+                                <tr key={prod.name || idx} className="hover:bg-slate-50">
+                                  <td className="px-3.5 py-2.5 font-bold text-slate-400 text-[11px]">{idx + 1}</td>
+                                  <td className="px-3.5 py-2.5">
+                                    <span className="font-bold text-slate-900 block">{prod.name}</span>
+                                  </td>
+                                  <td className="px-3.5 py-2.5 font-mono font-black text-slate-800">
+                                    {prod.quantity.toLocaleString()} units
+                                  </td>
+                                  <td className="px-3.5 py-2.5 font-mono font-black text-amber-600">
+                                    ₹{prod.revenue.toLocaleString('en-IN')}
+                                  </td>
+                                  <td className="px-3.5 py-2.5">
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-24 bg-slate-100 h-2 rounded-full overflow-hidden">
+                                        <div 
+                                          className="bg-amber-500 h-full rounded-full" 
+                                          style={{ width: `${Math.min(sharePct * 2, 100)}%` }}
+                                        ></div>
+                                      </div>
+                                      <span className="text-[10px] font-bold text-slate-500">{sharePct}%</span>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* Tab: Territory & Beat Overview */}
                 {detailTab === 'overview' && (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
                     <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">

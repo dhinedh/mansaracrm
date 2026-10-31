@@ -1,10 +1,13 @@
 // src/pages/admin/CategoriesPage.jsx
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
-import { Tag, Plus, Search, RefreshCw, FolderPlus, CheckCircle2, AlertTriangle, Edit3, Trash2, Layers, X } from 'lucide-react';
+import { Tag, Plus, Search, RefreshCw, FolderPlus, CheckCircle2, AlertTriangle, Edit3, Trash2, Layers, X, Package } from 'lucide-react';
+
+const BACKEND_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/api$/, '');
 
 export default function CategoriesPage() {
   const [categories, setCategories] = useState([]);
+  const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   
@@ -26,16 +29,20 @@ export default function CategoriesPage() {
   const [message, setMessage] = useState({ text: '', type: '' });
 
   useEffect(() => {
-    fetchCategories();
+    fetchData();
   }, []);
 
-  const fetchCategories = async () => {
+  const fetchData = async () => {
     setLoading(true);
     try {
-      const res = await axios.get('/products/categories');
-      setCategories(res.data.data || []);
+      const [catRes, prodRes] = await Promise.all([
+        axios.get('/products/categories?limit=200').catch(() => ({ data: { data: [] } })),
+        axios.get('/products?limit=1000').catch(() => ({ data: { data: [] } }))
+      ]);
+      setCategories(catRes.data?.data || []);
+      setProducts(prodRes.data?.data || []);
     } catch (err) {
-      console.error('Failed to fetch categories:', err);
+      console.error('Failed to fetch categories & products:', err);
     } finally {
       setLoading(false);
     }
@@ -88,7 +95,7 @@ export default function CategoriesPage() {
       });
       setMessage({ text: 'Category created successfully!', type: 'success' });
       setShowAddModal(false);
-      fetchCategories();
+      fetchData();
     } catch (err) {
       setMessage({ text: err.response?.data?.message || 'Failed to create category', type: 'error' });
     } finally {
@@ -112,7 +119,7 @@ export default function CategoriesPage() {
       setMessage({ text: `Category "${name}" updated successfully!`, type: 'success' });
       setShowEditModal(false);
       setEditingCategory(null);
-      fetchCategories();
+      fetchData();
     } catch (err) {
       setMessage({ text: err.response?.data?.message || 'Failed to update category', type: 'error' });
     } finally {
@@ -126,7 +133,7 @@ export default function CategoriesPage() {
     try {
       await axios.delete(`/products/categories/${category.id}`);
       setMessage({ text: `Category "${category.name}" deleted successfully.`, type: 'success' });
-      fetchCategories();
+      fetchData();
     } catch (err) {
       setMessage({ text: err.response?.data?.message || 'Failed to delete category.', type: 'error' });
     }
@@ -165,16 +172,33 @@ export default function CategoriesPage() {
     }
   };
 
-  const filteredCategories = categories.filter(c => 
-    c.name.toLowerCase().includes(search.toLowerCase()) || 
-    (c.description && c.description.toLowerCase().includes(search.toLowerCase())) ||
-    (c.subCategories && c.subCategories.some(sub => sub.toLowerCase().includes(search.toLowerCase())))
-  );
+  // Filter categories by category name, description, sub-categories, or product name/SKU
+  const filteredCategories = categories.filter(c => {
+    const q = search.toLowerCase().trim();
+    if (!q) return true;
+
+    const nameMatch = c.name && c.name.toLowerCase().includes(q);
+    const descMatch = c.description && c.description.toLowerCase().includes(q);
+    const subMatch = c.subCategories && c.subCategories.some(sub => sub.toLowerCase().includes(q));
+    
+    // Check if any product in this category matches
+    const catProds = products.filter(p => 
+      p.categoryId === c.id || 
+      p.category?.id === c.id || 
+      (p.category?.name && p.category.name.toLowerCase() === c.name.toLowerCase())
+    );
+    const prodMatch = catProds.some(p => 
+      (p.name && p.name.toLowerCase().includes(q)) || 
+      (p.sku && p.sku.toLowerCase().includes(q))
+    );
+
+    return nameMatch || descMatch || subMatch || prodMatch;
+  });
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      {/* Header - Hidden on mobile view, visible on desktop */}
+      <div className="hidden sm:flex sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h2 className="text-xl font-black text-slate-800 tracking-tight flex items-center gap-2">
             <Tag className="w-5 h-5 text-rose-600" />
@@ -184,7 +208,7 @@ export default function CategoriesPage() {
         </div>
         <button
           onClick={handleOpenAddModal}
-          className="inline-flex items-center space-x-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-lg shadow-rose-200 transition-all self-start sm:self-auto cursor-pointer"
+          className="inline-flex items-center space-x-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-lg shadow-rose-200 transition-all cursor-pointer"
         >
           <Plus className="w-4 h-4" />
           <span>Add New Category</span>
@@ -204,23 +228,47 @@ export default function CategoriesPage() {
         </div>
       )}
 
-      {/* Controls */}
-      <div className="flex flex-col sm:flex-row gap-4 bg-white p-4 border border-slate-150 rounded-2xl shadow-sm">
+      {/* Controls row: Search input + mobile add/refresh icons */}
+      <div className="flex items-center gap-2 sm:gap-4 bg-white p-3 sm:p-4 border border-slate-150 rounded-2xl shadow-sm">
         <div className="relative flex-1">
-          <Search className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
+          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 sm:left-4 top-1/2 -translate-y-1/2" />
           <input
             type="text"
-            placeholder="Search categories or sub-categories..."
+            placeholder="Search categories, sub-categories, or products..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-11 pr-4 py-2 text-xs bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none transition-all"
+            className="w-full pl-10 sm:pl-11 pr-3 sm:pr-4 py-2 text-xs bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none transition-all font-medium"
           />
         </div>
+
+        {/* Mobile-only action icon buttons: [ + Add Category Icon ] [ Refresh Icon ] */}
+        <div className="flex sm:hidden items-center gap-1.5 shrink-0">
+          <button
+            type="button"
+            onClick={handleOpenAddModal}
+            className="w-9 h-9 flex items-center justify-center bg-rose-600 hover:bg-rose-700 text-white rounded-xl shadow-sm shadow-rose-200 active:scale-95 transition-all cursor-pointer shrink-0"
+            title="Add New Category"
+            aria-label="Add New Category"
+          >
+            <Plus className="w-4 h-4" />
+          </button>
+          <button
+            type="button"
+            onClick={fetchData}
+            className="w-9 h-9 flex items-center justify-center bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl active:scale-95 transition-all cursor-pointer shrink-0"
+            title="Refresh"
+            aria-label="Refresh"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-rose-600' : ''}`} />
+          </button>
+        </div>
+
+        {/* Desktop-only Refresh text button */}
         <button
-          onClick={fetchCategories}
-          className="inline-flex items-center space-x-1.5 text-xs bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-600 px-4 py-2 rounded-xl transition-colors cursor-pointer"
+          onClick={fetchData}
+          className="hidden sm:inline-flex items-center space-x-1.5 text-xs bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-600 px-4 py-2 rounded-xl transition-colors cursor-pointer shrink-0"
         >
-          <RefreshCw className="w-3.5 h-3.5" />
+          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-rose-600' : ''}`} />
           <span>Refresh</span>
         </button>
       </div>
@@ -232,114 +280,196 @@ export default function CategoriesPage() {
         </div>
       ) : filteredCategories.length === 0 ? (
         <div className="py-20 text-center text-xs text-slate-400 font-semibold italic bg-white border border-slate-150 rounded-2xl">
-          No product categories found. Click "Add New Category" to get started.
+          No product categories found. Click "Add New Category" or use the + button to get started.
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredCategories.map((cat) => (
-            <div key={cat.id} className="bg-white border border-slate-150 rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden flex flex-col justify-between space-y-4">
-              
-              {/* Header section */}
-              <div className="space-y-3">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-center space-x-2.5">
-                    <div className="p-2.5 bg-rose-50 rounded-xl text-rose-600 shrink-0">
-                      <Tag className="w-5 h-5" />
+          {filteredCategories.map((cat) => {
+            const catProducts = products.filter(p => 
+              p.categoryId === cat.id || 
+              p.category?.id === cat.id || 
+              (p.category?.name && p.category.name.toLowerCase() === cat.name.toLowerCase())
+            );
+
+            return (
+              <div key={cat.id} className="bg-white border border-slate-150 rounded-2xl p-5 sm:p-6 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden flex flex-col justify-between space-y-4">
+                
+                {/* Header section */}
+                <div className="space-y-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center space-x-2.5 min-w-0">
+                      <div className="p-2.5 bg-rose-50 rounded-xl text-rose-600 shrink-0">
+                        <Tag className="w-5 h-5" />
+                      </div>
+                      <div className="min-w-0">
+                        <h3 className="font-bold text-slate-800 text-sm leading-tight truncate">{cat.name}</h3>
+                        <span className="text-[10px] text-slate-400 font-medium">
+                          {catProducts.length} Product{catProducts.length === 1 ? '' : 's'} • {(cat.subCategories || []).length} Sub-categories
+                        </span>
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="font-bold text-slate-800 text-sm leading-tight">{cat.name}</h3>
-                      <span className="text-[10px] text-slate-400 font-medium">
-                        {(cat.subCategories || []).length} Sub-categories
+                    
+                    <div className="flex items-center space-x-1 shrink-0">
+                      <button
+                        onClick={() => handleOpenEditModal(cat)}
+                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                        title="Edit Category & Sub-categories"
+                      >
+                        <Edit3 className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteCategory(cat)}
+                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                        title="Delete Category"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-slate-500 leading-relaxed line-clamp-2">
+                    {cat.description || 'No description provided.'}
+                  </p>
+
+                  {/* Sub-categories tag area */}
+                  <div className="pt-2">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider flex items-center gap-1">
+                        <Layers className="w-3 h-3 text-rose-500" />
+                        Sub-Categories ({(cat.subCategories || []).length})
                       </span>
                     </div>
-                  </div>
-                  
-                  <div className="flex items-center space-x-1">
-                    <button
-                      onClick={() => handleOpenEditModal(cat)}
-                      className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                      title="Edit Category & Sub-categories"
-                    >
-                      <Edit3 className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => handleDeleteCategory(cat)}
-                      className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                      title="Delete Category"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
 
-                <p className="text-xs text-slate-500 leading-relaxed line-clamp-2">
-                  {cat.description || 'No description provided.'}
-                </p>
-
-                {/* Sub-categories tag area */}
-                <div className="pt-2">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider flex items-center gap-1">
-                      <Layers className="w-3 h-3 text-rose-500" />
-                      Sub-Categories
-                    </span>
-                  </div>
-
-                  <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto pr-1">
-                    {(cat.subCategories && cat.subCategories.length > 0) ? (
-                      cat.subCategories.map((sub, idx) => (
-                        <span 
-                          key={idx}
-                          className="inline-flex items-center space-x-1 bg-slate-100 hover:bg-rose-50 text-slate-700 hover:text-rose-700 px-2 py-1 rounded-lg text-[11px] font-semibold transition-colors border border-slate-200/60"
-                        >
-                          <span>{sub}</span>
-                          <button
-                            onClick={() => handleRemoveSubFromCard(cat, sub)}
-                            className="text-slate-400 hover:text-rose-600 p-0.5 hover:bg-rose-100 rounded cursor-pointer"
-                            title={`Remove "${sub}"`}
+                    <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto pr-1">
+                      {(cat.subCategories && cat.subCategories.length > 0) ? (
+                        cat.subCategories.map((sub, idx) => (
+                          <span 
+                            key={idx}
+                            className="inline-flex items-center space-x-1 bg-slate-100 hover:bg-rose-50 text-slate-700 hover:text-rose-700 px-2 py-0.5 rounded-lg text-[11px] font-semibold transition-colors border border-slate-200/60"
                           >
-                            <X className="w-3 h-3" />
-                          </button>
+                            <span>{sub}</span>
+                            <button
+                              onClick={() => handleRemoveSubFromCard(cat, sub)}
+                              className="text-slate-400 hover:text-rose-600 p-0.5 hover:bg-rose-100 rounded cursor-pointer"
+                              title={`Remove "${sub}"`}
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-[11px] text-slate-400 italic font-normal">No sub-categories added yet.</span>
+                      )}
+                    </div>
+
+                    {/* Quick Add Sub-Category inline input */}
+                    <div className="mt-2.5 flex items-center space-x-1.5">
+                      <input
+                        type="text"
+                        placeholder="+ Quick add sub-category..."
+                        value={cardSubInputs[cat.id] || ''}
+                        onChange={(e) => setCardSubInputs(prev => ({ ...prev, [cat.id]: e.target.value }))}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleInlineAddSubToCard(cat);
+                          }
+                        }}
+                        className="flex-1 px-2.5 py-1 text-[11px] bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-lg focus:outline-none font-medium"
+                      />
+                      <button
+                        onClick={() => handleInlineAddSubToCard(cat)}
+                        className="bg-rose-600 hover:bg-rose-700 text-white p-1 rounded-lg text-[10px] font-bold cursor-pointer transition-colors"
+                        title="Add sub-category"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Products Under this Category */}
+                  <div className="pt-3 border-t border-slate-100 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-black uppercase text-slate-500 tracking-wider flex items-center gap-1.5">
+                        <Package className="w-3.5 h-3.5 text-rose-500" />
+                        Products ({catProducts.length})
+                      </span>
+                      {catProducts.length > 0 && (
+                        <span className="text-[9px] text-slate-400 font-medium">
+                          Total {catProducts.length} SKU{catProducts.length === 1 ? '' : 's'}
                         </span>
-                      ))
+                      )}
+                    </div>
+
+                    {catProducts.length === 0 ? (
+                      <div className="py-2.5 px-3 bg-slate-50/70 border border-dashed border-slate-200 rounded-xl text-center text-[11px] text-slate-400 font-medium">
+                        No products under this category yet
+                      </div>
                     ) : (
-                      <span className="text-[11px] text-slate-400 italic font-normal">No sub-categories added yet.</span>
+                      <div className="max-h-40 overflow-y-auto space-y-1.5 pr-1 divide-y divide-slate-100/60">
+                        {catProducts.map((p) => {
+                          const img = p.imageUrl || p.image;
+                          const finalSrc = img
+                            ? (img.startsWith('http') || img.startsWith('data:') ? img : `${BACKEND_URL}${img.startsWith('/') ? '' : '/'}${img}`)
+                            : null;
+
+                          return (
+                            <div
+                              key={p.id}
+                              className="flex items-center justify-between p-2 rounded-xl bg-slate-50/80 hover:bg-rose-50/40 border border-slate-150/70 transition-colors group"
+                            >
+                              <div className="flex items-center space-x-2.5 min-w-0 pr-2">
+                                <div className="w-8 h-8 rounded-lg bg-white border border-slate-200 overflow-hidden flex items-center justify-center shrink-0">
+                                  {finalSrc ? (
+                                    <img
+                                      src={finalSrc}
+                                      alt={p.name}
+                                      className="w-full h-full object-cover"
+                                      onError={(e) => {
+                                        e.target.style.display = 'none';
+                                      }}
+                                    />
+                                  ) : (
+                                    <Package className="w-4 h-4 text-slate-300" />
+                                  )}
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="text-xs font-bold text-slate-800 truncate leading-tight group-hover:text-rose-600 transition-colors">
+                                    {p.name}
+                                  </p>
+                                  <div className="flex items-center space-x-1.5 text-[10px] text-slate-400 font-medium">
+                                    <span className="font-mono text-rose-500 font-semibold">{p.sku}</span>
+                                    {(p.weight || p.netWeight) && <span>• {p.weight || p.netWeight}</span>}
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="text-right shrink-0">
+                                <span className="block text-xs font-bold text-slate-800">
+                                  ₹{Number(p.price || 0).toLocaleString('en-IN')}
+                                </span>
+                                {p.mrp && Number(p.mrp) > Number(p.price) && (
+                                  <span className="block text-[9px] text-slate-400 line-through">
+                                    ₹{Number(p.mrp).toLocaleString('en-IN')}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
                     )}
                   </div>
+                </div>
 
-                  {/* Quick Add Sub-Category inline input */}
-                  <div className="mt-2.5 flex items-center space-x-1.5">
-                    <input
-                      type="text"
-                      placeholder="+ Quick add sub-category..."
-                      value={cardSubInputs[cat.id] || ''}
-                      onChange={(e) => setCardSubInputs(prev => ({ ...prev, [cat.id]: e.target.value }))}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          handleInlineAddSubToCard(cat);
-                        }
-                      }}
-                      className="flex-1 px-2.5 py-1 text-[11px] bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-lg focus:outline-none font-medium"
-                    />
-                    <button
-                      onClick={() => handleInlineAddSubToCard(cat)}
-                      className="bg-rose-600 hover:bg-rose-700 text-white p-1 rounded-lg text-[10px] font-bold cursor-pointer transition-colors"
-                      title="Add sub-category"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
+                {/* Footer info */}
+                <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-400 mt-2">
+                  <span>Created: {cat.createdAt ? new Date(cat.createdAt).toLocaleDateString('en-IN') : 'Active'}</span>
+                  <span className="bg-emerald-50 border border-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-black uppercase text-[8px]">Active</span>
                 </div>
               </div>
-
-              {/* Footer info */}
-              <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-400 mt-2">
-                <span>Created: {cat.createdAt ? new Date(cat.createdAt).toLocaleDateString('en-IN') : 'Active'}</span>
-                <span className="bg-emerald-50 border border-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-black uppercase text-[8px]">Active</span>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 

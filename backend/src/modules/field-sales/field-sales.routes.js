@@ -5,6 +5,9 @@ const { verifyToken } = require('../../middleware/auth');
 
 const router = express.Router();
 
+// Public geocode proxy (No CORS, No 429)
+router.get('/geocode/reverse', fieldSalesController.reverseGeocode);
+
 // Apply auth middleware to all field sales endpoints
 router.use(verifyToken);
 
@@ -21,6 +24,8 @@ router.get('/shops', fieldSalesController.getShops);
 router.post('/shops', fieldSalesController.registerShopLead);
 router.get('/shops/:id/360', fieldSalesController.getCustomer360);
 router.post('/visits/check-in', fieldSalesController.checkInVisit);
+router.put('/visits/:id/purpose', fieldSalesController.updateVisitPurpose);
+router.put('/visits/:id', fieldSalesController.updateVisit);
 router.post('/visits/:id/check-out', fieldSalesController.checkOutVisit);
 router.get('/visits', fieldSalesController.getVisits);
 
@@ -36,6 +41,7 @@ router.get('/schemes', fieldSalesController.getActiveSchemes);
 
 // 18–23. Orders, Quick Reorder, Quotations, Amendments, Returns (Modules 18–23)
 router.post('/orders', fieldSalesController.createSalesOrder);
+router.post('/orders/issue-bill', fieldSalesController.issueFieldBill);
 router.get('/orders', fieldSalesController.getSalesOrders);
 router.post('/quotations', fieldSalesController.createQuotation);
 router.get('/quotations', fieldSalesController.getQuotations);

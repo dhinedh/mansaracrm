@@ -679,6 +679,9 @@ export default function PriceSimulatorPage() {
   };
 
   const handleGenerateQuotation = () => {
+    // Dismiss quotation modal so parent UI remains unlocked and fully interactive
+    setShowQuotationModal(false);
+
     const shipToName = selectedCustomer?.companyName || selectedCustomer?.name || customClientName || 'Valued Dealer';
     const shipToAddr = selectedCustomer?.address || '';
     const shipToCity = selectedCustomer?.city || '';
@@ -990,32 +993,53 @@ export default function PriceSimulatorPage() {
     CIN- U10790TN2026PTC188398 | Email: contact@mansarafoods.com | Website: www.mansarafoods.com
   </div>
 </div>
-
-<script>
-  window.addEventListener('load', function() {
-    setTimeout(function() {
-      try {
-        window.focus();
-        window.print();
-      } catch (e) {
-        console.error(e);
-      }
-    }, 400);
-  });
-</script>
 </body>
 </html>`;
 
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) {
-      window.print();
-      return;
+    // Clean up any previously existing print iframe
+    const oldFrame = document.getElementById('mansara-quote-print-frame');
+    if (oldFrame) {
+      oldFrame.remove();
     }
 
-    printWindow.document.open();
-    printWindow.document.write(htmlContent);
-    printWindow.document.close();
-    setToastMessage({ text: 'Tax Invoice generated in exact dealer invoice format!', type: 'success' });
+    // Create an invisible iframe for direct, non-blocking native printing (prevents browser thread deadlock)
+    const printFrame = document.createElement('iframe');
+    printFrame.id = 'mansara-quote-print-frame';
+    printFrame.style.position = 'fixed';
+    printFrame.style.right = '0';
+    printFrame.style.bottom = '0';
+    printFrame.style.width = '0';
+    printFrame.style.height = '0';
+    printFrame.style.border = '0';
+    printFrame.style.opacity = '0';
+    printFrame.style.pointerEvents = 'none';
+    document.body.appendChild(printFrame);
+
+    const frameDoc = printFrame.contentWindow.document;
+    frameDoc.open();
+    frameDoc.write(htmlContent);
+    frameDoc.close();
+
+    // Trigger native print dialog safely after rendering
+    setTimeout(() => {
+      try {
+        printFrame.contentWindow.focus();
+        printFrame.contentWindow.print();
+      } catch (err) {
+        console.error('Error invoking print dialog:', err);
+        window.print();
+      } finally {
+        // Clean up the iframe after user completes or cancels print
+        setTimeout(() => {
+          const frameToRemove = document.getElementById('mansara-quote-print-frame');
+          if (frameToRemove) {
+            frameToRemove.remove();
+          }
+        }, 2000);
+      }
+    }, 400);
+
+    setToastMessage({ text: 'Tax Invoice quotation sent to print!', type: 'success' });
   };
 
   const handleCopyQuotationText = () => {
@@ -1967,8 +1991,14 @@ export default function PriceSimulatorPage() {
 
       {/* ─── PRINTABLE FORMAL QUOTATION MODAL ──────────────────────────────── */}
       {showQuotationModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/70 backdrop-blur-xs p-2.5 sm:p-5 overflow-hidden">
-          <div className="bg-white rounded-2xl sm:rounded-3xl max-w-3xl w-full max-h-[94vh] sm:max-h-[92vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden my-auto animate-zoom-in">
+        <div
+          onClick={() => setShowQuotationModal(false)}
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/70 backdrop-blur-xs p-2.5 sm:p-5 overflow-hidden"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-2xl sm:rounded-3xl max-w-3xl w-full max-h-[94vh] sm:max-h-[92vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden my-auto animate-zoom-in"
+          >
             {/* Pinned Modal Header */}
             <div className="px-4 sm:px-6 py-3.5 sm:py-4 border-b border-slate-100 flex items-center justify-between bg-white shrink-0">
               <div className="min-w-0 flex-1 pr-2">

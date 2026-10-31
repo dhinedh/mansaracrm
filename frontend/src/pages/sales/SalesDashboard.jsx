@@ -75,7 +75,7 @@ export default function SalesDashboard() {
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => navigate('/sales/visits')}
+              onClick={() => navigate('/sales/visits?gpsCheckIn=true')}
               className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-4 py-2.5 rounded-xl shadow-lg shadow-amber-500/20 active:scale-95 transition-all text-xs flex items-center gap-2 cursor-pointer"
             >
               <Navigation className="w-4 h-4" />

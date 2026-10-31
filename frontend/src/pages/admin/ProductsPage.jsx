@@ -17,6 +17,7 @@ import {
   CheckCircle2,
   AlertTriangle,
   XCircle,
+  X,
   FileText
 } from 'lucide-react';
 
@@ -102,6 +103,40 @@ export default function ProductsPage() {
   const [howToUse, setHowToUse] = useState('');
   const [storage, setStorage] = useState('');
   const [pacQuantity, setPacQuantity] = useState('');
+
+  // Quick category creation states
+  const [isAddingCategory, setIsAddingCategory] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [creatingCategory, setCreatingCategory] = useState(false);
+
+  const handleCreateQuickCategory = async () => {
+    const trimmed = newCategoryName.trim();
+    if (!trimmed) return;
+    setCreatingCategory(true);
+    try {
+      const res = await axios.post('/products/categories', {
+        name: trimmed
+      });
+      const newCat = res.data?.data;
+      if (newCat) {
+        setCategories(prev => {
+          if (prev.some(c => c.id === newCat.id)) return prev;
+          return [...prev, newCat];
+        });
+        setCategoryId(newCat.id);
+        setMessage({ text: `Category "${newCat.name}" created & selected!`, type: 'success' });
+      } else {
+        await fetchCategories();
+      }
+      setNewCategoryName('');
+      setIsAddingCategory(false);
+    } catch (err) {
+      console.error('Failed to create category:', err);
+      setMessage({ text: err.response?.data?.message || 'Failed to create category', type: 'error' });
+    } finally {
+      setCreatingCategory(false);
+    }
+  };
 
   useEffect(() => {
     fetchProducts();
@@ -253,6 +288,8 @@ export default function ProductsPage() {
     setHowToUse(p.howToUse || '');
     setStorage(p.storage || '');
     setPacQuantity(p.pacQuantity ? String(p.pacQuantity) : '');
+    setIsAddingCategory(false);
+    setNewCategoryName('');
     setShowEditModal(true);
   };
 
@@ -263,26 +300,31 @@ export default function ProductsPage() {
     setSlug(''); setOfferPrice(''); setWeight(''); setPacQuantity('');
     setIsFeatured(false); setIsNewArrival(false); setIsOffer(false);
     setIngredients(''); setHowToUse(''); setStorage('');
+    setIsAddingCategory(false);
+    setNewCategoryName('');
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div className="space-y-4 sm:space-y-6">
+      {/* Header (Hidden on mobile UI only) */}
+      <div className="hidden sm:flex sm:items-center sm:justify-between gap-4">
         <div>
           <h2 className="text-xl font-black text-slate-800 tracking-tight">Product Catalog</h2>
           <p className="text-slate-500 text-xs">Maintain SKUs, modify tax details, and manage warehouse products.</p>
         </div>
         <div className="flex space-x-3 self-start sm:self-auto">
           <button
+            type="button"
             onClick={() => { setBulkFile(null); setBulkResult(null); setBulkError(""); setShowBulkModal(true); }}
-            className="inline-flex items-center space-x-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-lg shadow-indigo-200 transition-all"
+            className="inline-flex items-center space-x-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-lg shadow-indigo-200 transition-all cursor-pointer"
           >
             <Upload className="w-4 h-4" />
             <span>Bulk Upload Products</span>
           </button>
           <button
+            type="button"
             onClick={() => { resetForm(); setShowAddModal(true); }}
-            className="inline-flex items-center space-x-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-lg shadow-rose-200 transition-all"
+            className="inline-flex items-center space-x-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-lg shadow-rose-200 transition-all cursor-pointer"
           >
             <Plus className="w-4 h-4" />
             <span>Add New SKU</span>
@@ -290,22 +332,47 @@ export default function ProductsPage() {
         </div>
       </div>
 
-      {/* Filter and search controls */}
-      <div className="flex flex-col sm:flex-row gap-4 bg-white p-4 border border-slate-150 rounded-2xl shadow-sm">
-        <div className="relative flex-1">
-          <Search className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            placeholder="Search by product name, SKU, HSN..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-11 pr-4 py-2 text-xs bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none transition-all"
-          />
+      {/* Filter and search controls (On mobile: search bar, upload icon, add icon) */}
+      <div className="flex flex-col sm:flex-row gap-2.5 sm:gap-4 bg-white p-3 sm:p-4 border border-slate-150 rounded-2xl shadow-sm">
+        <div className="flex items-center gap-2 flex-1">
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 sm:left-4 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              placeholder="Search by product name, SKU, HSN..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-10 sm:pl-11 pr-3 sm:pr-4 py-2 text-xs bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none transition-all font-medium"
+            />
+          </div>
+
+          {/* Mobile-only action icon buttons in order: [Upload Icon] [Add Icon] */}
+          <div className="flex sm:hidden items-center gap-1.5 shrink-0">
+            <button
+              type="button"
+              onClick={() => { setBulkFile(null); setBulkResult(null); setBulkError(""); setShowBulkModal(true); }}
+              className="w-9 h-9 flex items-center justify-center bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-sm shadow-indigo-200 active:scale-95 transition-all cursor-pointer shrink-0"
+              title="Bulk Upload Products"
+              aria-label="Bulk Upload Products"
+            >
+              <Upload className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => { resetForm(); setShowAddModal(true); }}
+              className="w-9 h-9 flex items-center justify-center bg-rose-600 hover:bg-rose-700 text-white rounded-xl shadow-sm shadow-rose-200 active:scale-95 transition-all cursor-pointer shrink-0"
+              title="Add New SKU"
+              aria-label="Add New SKU"
+            >
+              <Plus className="w-4 h-4" />
+            </button>
+          </div>
         </div>
+
         <select
           value={categoryFilter}
           onChange={(e) => setCategoryFilter(e.target.value)}
-          className="px-4 py-2 text-xs bg-slate-50 border border-slate-200 focus:border-rose-500 rounded-xl focus:outline-none transition-all font-semibold text-slate-600 cursor-pointer"
+          className="px-3 sm:px-4 py-2 text-xs bg-slate-50 border border-slate-200 focus:border-rose-500 rounded-xl focus:outline-none transition-all font-semibold text-slate-600 cursor-pointer w-full sm:w-auto"
         >
           <option value="">All Categories</option>
           {categories.map(c => (
@@ -446,13 +513,78 @@ export default function ProductsPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-slate-500 font-bold mb-1">Category *</label>
-                  <select required value={categoryId} onChange={e => setCategoryId(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 rounded-xl focus:outline-none cursor-pointer">
-                    <option value="">Select Category</option>
-                    {categories.map(c => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                  </select>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-slate-500 font-bold">Category *</label>
+                    {!isAddingCategory && (
+                      <button
+                        type="button"
+                        onClick={() => setIsAddingCategory(true)}
+                        className="text-[10px] font-extrabold text-rose-600 hover:text-rose-700 hover:underline flex items-center gap-0.5 cursor-pointer"
+                      >
+                        <Plus className="w-3 h-3" />
+                        <span>New Category</span>
+                      </button>
+                    )}
+                  </div>
+                  {isAddingCategory ? (
+                    <div className="space-y-1.5 animate-fade-in bg-rose-50/50 p-2 border border-rose-200 rounded-xl">
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="text"
+                          placeholder="Category name..."
+                          value={newCategoryName}
+                          onChange={e => setNewCategoryName(e.target.value)}
+                          className="flex-1 p-2 text-xs bg-white border border-rose-300 focus:border-rose-500 rounded-lg focus:outline-none font-semibold text-slate-800"
+                          autoFocus
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleCreateQuickCategory();
+                            } else if (e.key === 'Escape') {
+                              setIsAddingCategory(false);
+                              setNewCategoryName('');
+                            }
+                          }}
+                        />
+                        <button
+                          type="button"
+                          disabled={creatingCategory || !newCategoryName.trim()}
+                          onClick={handleCreateQuickCategory}
+                          className="px-3 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-bold text-xs shadow-xs disabled:opacity-50 cursor-pointer"
+                        >
+                          {creatingCategory ? 'Adding...' : 'Add'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setIsAddingCategory(false); setNewCategoryName(''); }}
+                          className="p-2 text-slate-400 hover:text-slate-600 hover:bg-white rounded-lg font-bold text-xs cursor-pointer"
+                          title="Cancel"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                      <p className="text-[10px] text-slate-400">Press Enter to save or Escape to cancel</p>
+                    </div>
+                  ) : (
+                    <select
+                      required
+                      value={categoryId}
+                      onChange={e => {
+                        if (e.target.value === '__NEW__') {
+                          setIsAddingCategory(true);
+                        } else {
+                          setCategoryId(e.target.value);
+                        }
+                      }}
+                      className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 rounded-xl focus:outline-none cursor-pointer"
+                    >
+                      <option value="">Select Category</option>
+                      {categories.map(c => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                      <option value="__NEW__" className="text-rose-600 font-bold">+ Add New Category...</option>
+                    </select>
+                  )}
                 </div>
                 <div>
                   <label className="block text-slate-500 font-bold mb-1">Unit of Measure</label>
@@ -584,12 +716,78 @@ export default function ProductsPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-slate-500 font-bold mb-1">Category</label>
-                  <select required value={categoryId} onChange={e => setCategoryId(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 rounded-xl focus:outline-none cursor-pointer">
-                    {categories.map(c => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                  </select>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-slate-500 font-bold">Category</label>
+                    {!isAddingCategory && (
+                      <button
+                        type="button"
+                        onClick={() => setIsAddingCategory(true)}
+                        className="text-[10px] font-extrabold text-rose-600 hover:text-rose-700 hover:underline flex items-center gap-0.5 cursor-pointer"
+                      >
+                        <Plus className="w-3 h-3" />
+                        <span>New Category</span>
+                      </button>
+                    )}
+                  </div>
+                  {isAddingCategory ? (
+                    <div className="space-y-1.5 animate-fade-in bg-rose-50/50 p-2 border border-rose-200 rounded-xl">
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="text"
+                          placeholder="Category name..."
+                          value={newCategoryName}
+                          onChange={e => setNewCategoryName(e.target.value)}
+                          className="flex-1 p-2 text-xs bg-white border border-rose-300 focus:border-rose-500 rounded-lg focus:outline-none font-semibold text-slate-800"
+                          autoFocus
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleCreateQuickCategory();
+                            } else if (e.key === 'Escape') {
+                              setIsAddingCategory(false);
+                              setNewCategoryName('');
+                            }
+                          }}
+                        />
+                        <button
+                          type="button"
+                          disabled={creatingCategory || !newCategoryName.trim()}
+                          onClick={handleCreateQuickCategory}
+                          className="px-3 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-bold text-xs shadow-xs disabled:opacity-50 cursor-pointer"
+                        >
+                          {creatingCategory ? 'Adding...' : 'Add'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setIsAddingCategory(false); setNewCategoryName(''); }}
+                          className="p-2 text-slate-400 hover:text-slate-600 hover:bg-white rounded-lg font-bold text-xs cursor-pointer"
+                          title="Cancel"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                      <p className="text-[10px] text-slate-400">Press Enter to save or Escape to cancel</p>
+                    </div>
+                  ) : (
+                    <select
+                      required
+                      value={categoryId}
+                      onChange={e => {
+                        if (e.target.value === '__NEW__') {
+                          setIsAddingCategory(true);
+                        } else {
+                          setCategoryId(e.target.value);
+                        }
+                      }}
+                      className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 rounded-xl focus:outline-none cursor-pointer"
+                    >
+                      <option value="">Select Category</option>
+                      {categories.map(c => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                      <option value="__NEW__" className="text-rose-600 font-bold">+ Add New Category...</option>
+                    </select>
+                  )}
                 </div>
                 <div>
                   <label className="block text-slate-500 font-bold mb-1">Unit</label>

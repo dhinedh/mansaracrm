@@ -259,26 +259,46 @@ ProductSchema.virtual('stockMovements', {
 // CompanyInventory
 const CompanyInventorySchema = new Schema({
   stockId: { type: String, index: true },
+  inventoryId: { type: String, index: true }, // Format: MIP/YYYY/MMDD/HHmm/0001
+  quotationId: { type: String, index: true },
   batchId: { type: String, index: true },
   productId: { type: Schema.Types.ObjectId, ref: 'Product' },
+  rawMaterialId: { type: Schema.Types.ObjectId, ref: 'RawMaterialItem' },
   itemName: { type: String, required: true },
   category: { 
     type: String, 
-    enum: ['Raw Material', 'WIP', 'Finished Goods', 'Packaging'], 
     default: 'Raw Material' 
   },
+  subCategory: { type: String, default: '' },
   quantity: { type: Number, default: 0 },
+  acceptedQty: { type: Number, default: 0 },
+  rejectedQty: { type: Number, default: 0 },
+  acceptanceStatus: { type: String, default: 'ACCEPTED' }, // 'ACCEPTED' | 'PARTIALLY_ACCEPTED' | 'REJECTED'
+  acceptReason: { type: String, default: '' },
+  rejectReason: { type: String, default: '' },
+  costPerUnit: { type: Number, default: 0 },
   unit: { type: String, default: 'kg' },
   packagingBreakdown: { type: String, default: '' },
   mfgDate: { type: Date, default: Date.now },
   expiryDate: { type: Date },
+  inwardTime: { type: Date, default: Date.now },
   storageLocation: { type: String, default: 'Warehouse 1, Main Rack' },
   status: { 
     type: String, 
-    enum: ['Available', 'In Inspection', 'Reserved', 'In Production', 'Low Stock'], 
     default: 'Available' 
   },
   minQuantity: { type: Number, default: 50 },
+  batches: [{
+    batchId: { type: String },
+    quantity: { type: Number, default: 0 },
+    availableQty: { type: Number, default: 0 },
+    costPrice: { type: Number, default: 0 },
+    unit: { type: String, default: 'PCS' },
+    mfgDate: { type: Date },
+    expiryDate: { type: Date },
+    storageLocation: { type: String },
+    label: { type: String }
+  }],
   grnNumber: { type: String, default: '' },
   vendorName: { type: String, default: '' },
   notes: { type: String, default: '' }
@@ -345,10 +365,21 @@ StockMovementSchema.virtual('product', {
 // StockTransfer
 const StockTransferSchema = new Schema({
   transferNo: { type: String, unique: true, required: true },
-  dealerId: { type: Schema.Types.ObjectId, ref: 'Dealer', required: true, index: true },
+  dealerId: { type: Schema.Types.ObjectId, ref: 'Dealer', index: true },
+  storeId: { type: Schema.Types.ObjectId, ref: 'Store', index: true },
+  recipientType: { type: String, enum: ['DEALER', 'STORE', 'OTHER'], default: 'DEALER' },
+  recipientName: { type: String },
+  recipientPhone: { type: String },
+  recipientAddress: { type: String },
+  transferReason: { type: String }, // 'RESTOCK' | 'NEW_OPENING' | 'REPLACEMENT' | 'SAMPLE' | 'DEMO' | 'OTHER'
   invoiceId: { type: Schema.Types.ObjectId, ref: 'Invoice', index: true },
   status: { type: String, enum: ['PENDING', 'IN_TRANSIT', 'DELIVERED', 'CANCELLED', 'DISCREPANCY'], default: 'PENDING' },
   notes: { type: String },
+  totalCostPrice: { type: Number, default: 0 },
+  totalProfit: { type: Number, default: 0 },
+  profitMarginPct: { type: Number, default: 0 },
+  oldStockTotal: { type: Number, default: 0 },
+  latestStockTotal: { type: Number, default: 0 },
   shippedAt: { type: Date },
   deliveredAt: { type: Date },
   createdBy: { type: String, required: true }
@@ -361,6 +392,13 @@ const StockTransferSchema = new Schema({
 StockTransferSchema.virtual('dealer', {
   ref: 'Dealer',
   localField: 'dealerId',
+  foreignField: '_id',
+  justOne: true
+});
+
+StockTransferSchema.virtual('store', {
+  ref: 'Store',
+  localField: 'storeId',
   foreignField: '_id',
   justOne: true
 });
@@ -383,6 +421,16 @@ const StockTransferItemSchema = new Schema({
   transferId: { type: Schema.Types.ObjectId, ref: 'StockTransfer', required: true, index: true },
   productId: { type: Schema.Types.ObjectId, ref: 'Product', required: true, index: true },
   quantity: { type: Number, required: true },
+  oldStockTaken: { type: Number, default: 0 },
+  latestStockTaken: { type: Number, default: 0 },
+  oldBatchId: { type: String, default: '' },
+  latestBatchId: { type: String, default: '' },
+  oldCostPrice: { type: Number, default: 0 },
+  latestCostPrice: { type: Number, default: 0 },
+  costPrice: { type: Number, default: 0 },
+  totalCost: { type: Number, default: 0 },
+  profit: { type: Number, default: 0 },
+  profitMarginPct: { type: Number, default: 0 },
   unitPrice: { type: Number, required: true },
   marginPct: { type: Number, default: 0 },
   receivedQuantity: { type: Number },
@@ -421,6 +469,10 @@ const StoreSchema = new Schema({
   pincode: { type: String },
   zone: { type: String },
   phone: { type: String },
+  latitude: { type: Number },
+  longitude: { type: Number },
+  locationName: { type: String },
+  googlePlaceId: { type: String },
   classification: { type: String, enum: ['RETAIL', 'KIRANA'], default: 'RETAIL' },
   initialInvestment: { type: Number, default: 0 },
   notes: { type: String, default: '' },
@@ -588,8 +640,11 @@ MarginSchema.virtual('salesperson', {
 // Invoice
 const InvoiceSchema = new Schema({
   invoiceNo: { type: String, unique: true, required: true, index: true },
-  dealerId: { type: Schema.Types.ObjectId, ref: 'Dealer', required: true, index: true },
+  dealerId: { type: Schema.Types.ObjectId, ref: 'Dealer', index: true },
   storeId: { type: Schema.Types.ObjectId, ref: 'Store', index: true },
+  customerName: { type: String },
+  customerPhone: { type: String },
+  customerAddress: { type: String },
   channel: { type: String, enum: ['B2B', 'WEBSITE', 'E_COMMERCE'], default: 'B2B' },
   subtotal: { type: Number, required: true },
   totalDiscount: { type: Number, default: 0 },
@@ -605,7 +660,10 @@ const InvoiceSchema = new Schema({
   isCredit: { type: Boolean, default: false },
   dueDate: { type: Date },
   paidAt: { type: Date },
-  invoiceType: { type: String, enum: ['NORMAL', 'ADVANCE'], default: 'NORMAL' }
+  invoiceType: { type: String, enum: ['NORMAL', 'ADVANCE'], default: 'NORMAL' },
+  totalCost: { type: Number, default: 0 },
+  totalProfit: { type: Number, default: 0 },
+  profitMarginPct: { type: Number, default: 0 }
 }, {
   timestamps: true,
   toJSON: { virtuals: true },
@@ -637,6 +695,12 @@ const InvoiceItemSchema = new Schema({
   invoiceId: { type: Schema.Types.ObjectId, ref: 'Invoice', required: true, index: true },
   productId: { type: Schema.Types.ObjectId, ref: 'Product', required: true, index: true },
   quantity: { type: Number, required: true },
+  oldStockTaken: { type: Number, default: 0 },
+  latestStockTaken: { type: Number, default: 0 },
+  costPrice: { type: Number, default: 0 },
+  totalCost: { type: Number, default: 0 },
+  profit: { type: Number, default: 0 },
+  profitMarginPct: { type: Number, default: 0 },
   fulfilledQuantity: { type: Number, default: 0 },
   unit: { type: String, enum: ['PCS', 'CTN'], default: 'PCS' },
   unitPrice: { type: Number, required: true },
@@ -1408,6 +1472,56 @@ const OrderSchema = new Schema({
   }
 }, { timestamps: true });
 
+// Raw Material Category Schema
+const RawMaterialCategorySchema = new Schema({
+  name: { type: String, unique: true, required: true, trim: true },
+  code: { type: String, unique: true, sparse: true, uppercase: true, trim: true },
+  description: { type: String, default: '' },
+  subCategories: [{ type: String, trim: true }],
+  status: { type: String, enum: ['ACTIVE', 'INACTIVE'], default: 'ACTIVE' }
+}, {
+  timestamps: true,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
+});
+
+RawMaterialCategorySchema.virtual('items', {
+  ref: 'RawMaterialItem',
+  localField: '_id',
+  foreignField: 'categoryId'
+});
+
+// Raw Material Product / Item Schema
+const RawMaterialItemSchema = new Schema({
+  name: { type: String, required: true, trim: true },
+  sku: { type: String, unique: true, sparse: true, uppercase: true, trim: true },
+  categoryId: { type: Schema.Types.ObjectId, ref: 'RawMaterialCategory', required: true, index: true },
+  categoryName: { type: String, default: '' },
+  subCategory: { type: String, trim: true, default: '' },
+  unit: { type: String, default: 'kg' },
+  costPerUnit: { type: Number, default: 0 },
+  currentStock: { type: Number, default: 0 },
+  minStockLevel: { type: Number, default: 10 },
+  hsnCode: { type: String, default: '' },
+  gstPercent: { type: Number, default: 5 },
+  storageCondition: { type: String, default: 'Cool & Dry' },
+  specifications: { type: String, default: '' },
+  notes: { type: String, default: '' },
+  status: { type: String, enum: ['ACTIVE', 'INACTIVE'], default: 'ACTIVE' }
+}, {
+  timestamps: true,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
+});
+
+RawMaterialItemSchema.virtual('category', {
+  ref: 'RawMaterialCategory',
+  localField: 'categoryId',
+  foreignField: '_id',
+  justOne: true
+});
+
+
 // Compile Models
 const User = mongoose.model('User', UserSchema, 'users');
 const Dealer = mongoose.model('Dealer', DealerSchema, 'dealers');
@@ -1593,6 +1707,8 @@ const OrderAmendment = mongoose.model('OrderAmendment', OrderAmendmentSchema, 'o
 const FollowUp = mongoose.model('FollowUp', FollowUpSchema, 'follow_ups');
 const PaymentCommitment = mongoose.model('PaymentCommitment', PaymentCommitmentSchema, 'payment_commitments');
 const FieldSalesOrder = mongoose.model('FieldSalesOrder', FieldSalesOrderSchema, 'field_sales_orders');
+const RawMaterialCategory = mongoose.model('RawMaterialCategory', RawMaterialCategorySchema, 'raw_material_categories');
+const RawMaterialItem = mongoose.model('RawMaterialItem', RawMaterialItemSchema, 'raw_material_items');
 
 // ─────────────────────────────────────────────
 // AUTOMATIC DATABASE SCHEMA MIGRATION RUNNER
@@ -1995,23 +2111,23 @@ class PrismaCollectionWrapper {
     return mongoose.model(this.modelName);
   }
 
-  async findUnique(args) {
-    const query = await resolveRelationFilters(args.where, this.modelName);
+  async findUnique(args = {}) {
+    const query = await resolveRelationFilters(args?.where, this.modelName);
     let q = this.model.findOne(query).lean();
-    if (args.include) {
+    if (args?.include) {
       q = q.populate(translateInclude(args.include));
     }
     const doc = await q.exec();
     return formatResult(doc);
   }
 
-  async findFirst(args) {
-    const query = await resolveRelationFilters(args.where, this.modelName);
+  async findFirst(args = {}) {
+    const query = await resolveRelationFilters(args?.where, this.modelName);
     let q = this.model.findOne(query).lean();
-    if (args.orderBy) {
+    if (args?.orderBy) {
       q = q.sort(translateOrderBy(args.orderBy));
     }
-    if (args.include) {
+    if (args?.include) {
       q = q.populate(translateInclude(args.include));
     }
     const doc = await q.exec();
@@ -2125,21 +2241,21 @@ class PrismaCollectionWrapper {
     return formatResult(result);
   }
 
-  async delete(args) {
-    const query = await resolveRelationFilters(args.where, this.modelName);
+  async delete(args = {}) {
+    const query = await resolveRelationFilters(args?.where, this.modelName);
     const doc = await this.model.findOneAndDelete(query);
     return formatResult(doc);
   }
 
   async deleteMany(args = {}) {
-    const query = await resolveRelationFilters(args.where, this.modelName);
+    const query = await resolveRelationFilters(args?.where, this.modelName);
     const res = await this.model.deleteMany(query);
     return { count: res.deletedCount };
   }
 
-  async updateMany(args) {
-    const query = await resolveRelationFilters(args.where, this.modelName);
-    const data = translateUpdateData(args.data);
+  async updateMany(args = {}) {
+    const query = await resolveRelationFilters(args?.where, this.modelName);
+    const data = translateUpdateData(args?.data || {});
 
     const updateQuery = {};
     if (data['$inc']) {
@@ -2158,11 +2274,11 @@ class PrismaCollectionWrapper {
     return { count: res.modifiedCount };
   }
 
-  async upsert(args) {
-    const query = await resolveRelationFilters(args.where, this.modelName);
+  async upsert(args = {}) {
+    const query = await resolveRelationFilters(args?.where, this.modelName);
     const existing = await this.model.findOne(query);
     if (existing) {
-      const data = translateUpdateData(args.update);
+      const data = translateUpdateData(args?.update || {});
       const updateQuery = {};
       if (data['$inc']) {
         updateQuery['$inc'] = data['$inc'];
@@ -2178,19 +2294,19 @@ class PrismaCollectionWrapper {
       const doc = await this.model.findOneAndUpdate(query, updateQuery, { new: true });
       return formatResult(doc);
     } else {
-      const data = translateCreateData({ ...args.where, ...args.create });
+      const data = translateCreateData({ ...(args?.where || {}), ...(args?.create || {}) });
       const doc = await this.model.create(data);
       return formatResult(doc);
     }
   }
 
   async count(args = {}) {
-    const query = await resolveRelationFilters(args.where, this.modelName);
+    const query = await resolveRelationFilters(args?.where, this.modelName);
     return await this.model.countDocuments(query);
   }
 
   async aggregate(args = {}) {
-    const query = await resolveRelationFilters(args.where, this.modelName);
+    const query = await resolveRelationFilters(args?.where, this.modelName);
     const pipeline = [];
     if (Object.keys(query).length > 0) {
       pipeline.push({ $match: query });
@@ -2199,7 +2315,7 @@ class PrismaCollectionWrapper {
     const groupStage = { _id: null };
     const result = { _sum: {}, _count: {} };
 
-    if (args._sum) {
+    if (args?._sum) {
       for (let k in args._sum) {
         if (args._sum[k]) {
           groupStage[`_sum_${k}`] = { $sum: `$${k}` };
@@ -2208,7 +2324,7 @@ class PrismaCollectionWrapper {
       }
     }
 
-    if (args._count) {
+    if (args?._count) {
       if (typeof args._count === 'object') {
         for (let k in args._count) {
           if (args._count[k]) {
@@ -2227,14 +2343,14 @@ class PrismaCollectionWrapper {
       const aggResult = await this.model.aggregate(pipeline);
       if (aggResult && aggResult.length > 0) {
         const row = aggResult[0];
-        if (args._sum) {
+        if (args?._sum) {
           for (let k in args._sum) {
             if (args._sum[k]) {
               result._sum[k] = row[`_sum_${k}`] || 0;
             }
           }
         }
-        if (args._count) {
+        if (args?._count) {
           if (typeof args._count === 'object') {
             for (let k in args._count) {
               if (args._count[k]) {
@@ -2251,8 +2367,8 @@ class PrismaCollectionWrapper {
     return result;
   }
 
-  async groupBy(args) {
-    const { data: docs } = await this.findMany({ where: args.where, take: 1000 });
+  async groupBy(args = {}) {
+    const { data: docs } = await this.findMany({ where: args?.where, take: 1000 });
     const groups = {};
     docs.forEach(doc => {
       const groupKey = args.by.map(k => doc[k]).join('|');
@@ -2356,6 +2472,8 @@ const prisma = {
   followUp: new PrismaCollectionWrapper('FollowUp'),
   paymentCommitment: new PrismaCollectionWrapper('PaymentCommitment'),
   fieldSalesOrder: new PrismaCollectionWrapper('FieldSalesOrder'),
+  rawMaterialCategory: new PrismaCollectionWrapper('RawMaterialCategory'),
+  rawMaterialItem: new PrismaCollectionWrapper('RawMaterialItem'),
 
   $transaction: async (fn) => {
     // Run transactions sequentially on standalone local MongoDB instances

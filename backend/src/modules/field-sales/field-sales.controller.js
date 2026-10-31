@@ -1,6 +1,72 @@
 // src/modules/field-sales/field-sales.controller.js
 const prisma = require('../../config/database');
 const mongoose = require('mongoose');
+const axios = require('axios');
+
+// In-memory geocode cache to avoid external API rate limits (429) and CORS
+const geoCache = new Map();
+
+exports.reverseGeocode = async (req, res, next) => {
+  try {
+    const { lat, lng } = req.query;
+    if (!lat || !lng) {
+      return res.status(400).json({ success: false, message: 'Latitude and Longitude are required' });
+    }
+
+    const cacheKey = `${parseFloat(lat).toFixed(3)},${parseFloat(lng).toFixed(3)}`;
+    if (geoCache.has(cacheKey)) {
+      return res.json({ success: true, data: geoCache.get(cacheKey) });
+    }
+
+    let result = null;
+
+    try {
+      const response = await axios.get(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1`,
+        {
+          headers: {
+            'User-Agent': 'MansaraFoodsCRM/1.0 (support@mansarafoods.com)'
+          },
+          timeout: 4500
+        }
+      );
+
+      if (response.data && response.data.address) {
+        const a = response.data.address;
+        const street = a.road || a.pedestrian || a.suburb || a.neighbourhood || '';
+        const city = a.city || a.town || a.village || a.county || 'Chennai';
+        const pincode = a.postcode || '';
+        const state = a.state || 'Tamil Nadu';
+        const area = a.suburb || a.neighbourhood || a.city_district || '';
+        const fullAddress = response.data.display_name || `${street ? street + ', ' : ''}${city} - ${pincode}`;
+        result = { fullAddress, street, city, pincode, state, area };
+      }
+    } catch (apiErr) {
+      // Nominatim failed or was rate limited, silently fallback
+    }
+
+    if (!result) {
+      result = {
+        fullAddress: `Near GPS (${parseFloat(lat).toFixed(4)}, ${parseFloat(lng).toFixed(4)}), Commercial Area`,
+        street: 'Market Main Road',
+        city: 'Chennai',
+        pincode: '600001',
+        state: 'Tamil Nadu',
+        area: 'Commercial Zone'
+      };
+    }
+
+    geoCache.set(cacheKey, result);
+    if (geoCache.size > 500) {
+      const firstKey = geoCache.keys().next().value;
+      geoCache.delete(firstKey);
+    }
+
+    res.json({ success: true, data: result });
+  } catch (error) {
+    next(error);
+  }
+};
 
 // ======================================================
 // STORE VISIT CHECK-IN / CHECK-OUT
@@ -54,10 +120,48 @@ exports.checkInVisit = async (req, res, next) => {
   }
 };
 
+exports.updateVisitPurpose = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { purpose } = req.body;
+    if (!purpose) {
+      return res.status(400).json({ success: false, message: 'Purpose is required' });
+    }
+    const visit = await prisma.visit.update({
+      where: { id },
+      data: { purpose }
+    });
+    res.json({ success: true, message: 'Visit purpose updated', data: visit });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.updateVisit = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { purpose, remarks, photos, outcome, revisitDate } = req.body;
+    const updateData = {};
+    if (purpose !== undefined) updateData.purpose = purpose;
+    if (remarks !== undefined) updateData.remarks = remarks;
+    if (photos !== undefined) updateData.photos = Array.isArray(photos) ? photos : [photos].filter(Boolean);
+    if (outcome !== undefined) updateData.outcome = outcome;
+    if (revisitDate !== undefined) updateData.revisitDate = revisitDate ? new Date(revisitDate) : null;
+
+    const visit = await prisma.visit.update({
+      where: { id },
+      data: updateData
+    });
+    res.json({ success: true, message: 'Visit updated', data: visit });
+  } catch (error) {
+    next(error);
+  }
+};
+
 exports.checkOutVisit = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { outcome, paymentsCollected = 0, paymentMethod = 'NONE', revisitDate, newInvoiceId, orderValue = 0 } = req.body;
+    const { outcome, paymentsCollected = 0, paymentMethod = 'NONE', revisitDate, newInvoiceId, orderValue = 0, remarks, photos } = req.body;
 
     if (!outcome) {
       return res.status(400).json({ success: false, message: 'Outcome is required to checkout.' });
@@ -72,18 +176,22 @@ exports.checkOutVisit = async (req, res, next) => {
 
     const updated = await prisma.$transaction(async (tx) => {
       // A. Update visit record
+      const updateData = {
+        outcome,
+        status: 'COMPLETED',
+        orderValue: parseFloat(orderValue || 0),
+        paymentsCollected: parseFloat(paymentsCollected || 0),
+        paymentMethod: paymentMethod || 'NONE',
+        newInvoiceId: newInvoiceId || null,
+        revisitDate: revisitDate ? new Date(revisitDate) : null,
+        checkOutTime: new Date()
+      };
+      if (remarks !== undefined) updateData.remarks = remarks;
+      if (photos !== undefined) updateData.photos = Array.isArray(photos) ? photos : [photos].filter(Boolean);
+
       const v = await tx.visit.update({
         where: { id },
-        data: {
-          outcome,
-          status: 'COMPLETED',
-          orderValue: parseFloat(orderValue || 0),
-          paymentsCollected: parseFloat(paymentsCollected || 0),
-          paymentMethod: paymentMethod || 'NONE',
-          newInvoiceId: newInvoiceId || null,
-          revisitDate: revisitDate ? new Date(revisitDate) : null,
-          checkOutTime: new Date()
-        }
+        data: updateData
       });
 
       // B. Update store's revisitDate
@@ -628,20 +736,57 @@ exports.getDashboardStats = async (req, res, next) => {
 // ======================================================
 exports.getShops = async (req, res, next) => {
   try {
-    const { search, category, zone } = req.query;
+    const { search, category, zone, lat, lng } = req.query;
     const query = {};
 
     if (search) {
       query.$or = [
         { name: { $regex: search, $options: 'i' } },
         { phone: { $regex: search, $options: 'i' } },
-        { address: { $regex: search, $options: 'i' } }
+        { address: { $regex: search, $options: 'i' } },
+        { city: { $regex: search, $options: 'i' } }
       ];
     }
     if (category) query.category = category;
 
     const StoreModel = mongoose.model('Store');
-    const stores = await StoreModel.find(query).populate('dealer', 'companyName phone').sort({ updatedAt: -1 }).limit(100);
+    let stores = await StoreModel.find(query).populate('dealer', 'companyName phone').sort({ updatedAt: -1 }).limit(100);
+
+    // If salesperson GPS coordinates are provided, compute distance in meters and sort by proximity
+    if (lat && lng) {
+      const userLat = parseFloat(lat);
+      const userLng = parseFloat(lng);
+
+      const toRad = (value) => (value * Math.PI) / 180;
+      const R = 6371000; // Earth radius in meters
+
+      stores = stores.map(store => {
+        const sObj = store.toObject ? store.toObject() : { ...store };
+        if (sObj.latitude != null && sObj.longitude != null) {
+          const dLat = toRad(sObj.latitude - userLat);
+          const dLon = toRad(sObj.longitude - userLng);
+          const a =
+            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(toRad(userLat)) * Math.cos(toRad(sObj.latitude)) *
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+          const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+          sObj.distanceMeters = Math.round(R * c);
+        } else {
+          sObj.distanceMeters = null;
+        }
+        return sObj;
+      });
+
+      // Sort nearby first
+      stores.sort((a, b) => {
+        if (a.distanceMeters !== null && b.distanceMeters !== null) {
+          return a.distanceMeters - b.distanceMeters;
+        }
+        if (a.distanceMeters !== null) return -1;
+        if (b.distanceMeters !== null) return 1;
+        return 0;
+      });
+    }
 
     res.json({ success: true, data: stores });
   } catch (error) {
@@ -651,7 +796,7 @@ exports.getShops = async (req, res, next) => {
 
 exports.registerShopLead = async (req, res, next) => {
   try {
-    const { name, ownerName, phone, address, gstNumber, dealerId, category = 'RETAIL', latitude, longitude } = req.body;
+    const { name, ownerName, phone, address, city, pincode, gstNumber, dealerId, category = 'RETAIL', latitude, longitude, locationName, googlePlaceId } = req.body;
 
     if (!name || !phone || !address) {
       return res.status(400).json({ success: false, message: 'Shop name, phone, and address are required' });
@@ -670,11 +815,15 @@ exports.registerShopLead = async (req, res, next) => {
       ownerName: ownerName || name,
       phone,
       address,
+      city: city || undefined,
+      pincode: pincode || undefined,
       gstNumber,
       dealerId: targetDealerId,
       category,
       latitude: latitude ? parseFloat(latitude) : undefined,
-      longitude: longitude ? parseFloat(longitude) : undefined
+      longitude: longitude ? parseFloat(longitude) : undefined,
+      locationName: locationName || undefined,
+      googlePlaceId: googlePlaceId || undefined
     });
 
     res.status(201).json({ success: true, message: 'Shop registered successfully', data: newStore });
@@ -692,6 +841,15 @@ exports.getCustomer360 = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Store not found' });
     }
 
+    let storeObjectId = id;
+    try {
+      if (mongoose.Types.ObjectId.isValid(id)) {
+        storeObjectId = new mongoose.Types.ObjectId(id);
+      }
+    } catch (e) {}
+
+    const storeQuery = { $or: [{ storeId: id }, { storeId: storeObjectId }] };
+
     // Previous visits
     const { data: previousVisits } = await prisma.visit.findMany({
       where: { storeId: id },
@@ -701,9 +859,31 @@ exports.getCustomer360 = async (req, res, next) => {
 
     // Invoices and outstanding balance
     const InvoiceModel = mongoose.model('Invoice');
-    const invoices = await InvoiceModel.find({ storeId: id }).sort({ createdAt: -1 }).limit(15);
+    const invoices = await InvoiceModel.find(storeQuery).sort({ createdAt: -1 }).limit(25);
     const outstandingInvoices = invoices.filter(inv => inv.status === 'OPEN');
     const totalOutstanding = outstandingInvoices.reduce((acc, inv) => acc + (parseFloat(inv.totalAmount) || 0), 0);
+
+    // Invoice items for stock analysis
+    const InvoiceItemModel = mongoose.model('InvoiceItem');
+    const invoiceIds = invoices.map(i => i._id);
+    const invoiceItems = await InvoiceItemModel.find({ invoiceId: { $in: invoiceIds } }).populate('productId');
+
+    // Field Orders for this store (Secondary Sales Bookings)
+    const FieldOrderModel = mongoose.model('FieldSalesOrder');
+    const fieldOrders = await FieldOrderModel.find(storeQuery).sort({ createdAt: -1 });
+
+    // Stock Transfers for this store (Deliveries from Dealer/Company)
+    let stockTransfers = [];
+    let transferItems = [];
+    try {
+      const StockTransferModel = mongoose.model('StockTransfer');
+      const StockTransferItemModel = mongoose.model('StockTransferItem');
+      stockTransfers = await StockTransferModel.find(storeQuery).sort({ createdAt: -1 });
+      const transferIds = stockTransfers.map(st => st._id);
+      transferItems = await StockTransferItemModel.find({ transferId: { $in: transferIds } }).populate('productId');
+    } catch (e) {
+      console.warn('Error fetching stock transfers in getCustomer360:', e.message);
+    }
 
     // Pending follow-ups
     const { data: followUps } = await prisma.followUp.findMany({
@@ -716,6 +896,124 @@ exports.getCustomer360 = async (req, res, next) => {
       where: { storeId: id }
     });
 
+    // --- Compute Stock & Billing Status Breakdown ---
+    const activeInvoices = invoices.filter(inv => inv.status !== 'CANCELLED');
+    let billedStockQty = 0;
+    let billedAmount = 0;
+    const productMap = {};
+
+    for (const inv of activeInvoices) {
+      billedAmount += (parseFloat(inv.totalAmount) || 0);
+    }
+
+    for (const item of invoiceItems) {
+      const qty = Number(item.quantity) || 0;
+      billedStockQty += qty;
+      const pId = item.productId?._id ? String(item.productId._id) : (item.productId ? String(item.productId) : 'item');
+      const pName = item.productId?.name || item.name || 'Product SKU';
+      const price = Number(item.unitPrice || item.sellingPrice) || 0;
+      if (!productMap[pId]) {
+        productMap[pId] = {
+          productId: pId,
+          productName: pName,
+          unit: item.unit || 'PCS',
+          price,
+          suppliedStock: 0,
+          billedStock: 0,
+          unbilledStock: 0,
+          billedAmount: 0,
+          unbilledAmount: 0
+        };
+      }
+      productMap[pId].billedStock += qty;
+      productMap[pId].billedAmount += (Number(item.lineTotal) || (qty * price));
+    }
+
+    // Unbilled stock: field orders without invoice or with status in PENDING / APPROVED / DELIVERED without invoice
+    const unbilledOrders = fieldOrders.filter(o => !o.invoiceId && o.status !== 'CANCELLED');
+    let unbilledStockQty = 0;
+    let unbilledAmount = 0;
+
+    for (const order of unbilledOrders) {
+      unbilledAmount += (parseFloat(order.totalAmount) || 0);
+      for (const item of (order.items || [])) {
+        const qty = Number(item.quantity) || 0;
+        unbilledStockQty += qty;
+        const pId = item.productId ? String(item.productId) : (item.productName || 'item');
+        const pName = item.productName || 'Product SKU';
+        const price = Number(item.price || item.unitPrice) || 0;
+        if (!productMap[pId]) {
+          productMap[pId] = {
+            productId: pId,
+            productName: pName,
+            unit: 'PCS',
+            price,
+            suppliedStock: 0,
+            billedStock: 0,
+            unbilledStock: 0,
+            billedAmount: 0,
+            unbilledAmount: 0
+          };
+        }
+        productMap[pId].unbilledStock += qty;
+        productMap[pId].unbilledAmount += (Number(item.lineTotal) || (qty * price));
+      }
+    }
+
+    // Stock Transfers delivered to store
+    let transferStockQty = 0;
+    for (const item of transferItems) {
+      const qty = Number(item.quantity) || 0;
+      transferStockQty += qty;
+      const pId = item.productId?._id ? String(item.productId._id) : (item.productId ? String(item.productId) : 'item');
+      const pName = item.productId?.name || item.productName || 'Product SKU';
+      const price = Number(item.unitPrice || item.sellingPrice) || 0;
+      if (!productMap[pId]) {
+        productMap[pId] = {
+          productId: pId,
+          productName: pName,
+          unit: item.unit || 'PCS',
+          price,
+          suppliedStock: 0,
+          billedStock: 0,
+          unbilledStock: 0,
+          billedAmount: 0,
+          unbilledAmount: 0
+        };
+      }
+      productMap[pId].suppliedStock += qty;
+    }
+
+    // Total on-hand / supplied stock at store
+    for (const k in productMap) {
+      const p = productMap[k];
+      if (p.suppliedStock < (p.billedStock + p.unbilledStock)) {
+        p.suppliedStock = p.billedStock + p.unbilledStock;
+      }
+    }
+
+    const totalStock = Math.max(transferStockQty, billedStockQty + unbilledStockQty);
+
+    const stockSummary = {
+      currentStock: totalStock,
+      billedStock: billedStockQty,
+      unbilledStock: unbilledStockQty,
+      billedAmount: Math.round(billedAmount * 100) / 100,
+      unbilledAmount: Math.round(unbilledAmount * 100) / 100,
+      totalStockValue: Math.round((billedAmount + unbilledAmount) * 100) / 100,
+      unbilledOrdersCount: unbilledOrders.length,
+      billedInvoicesCount: activeInvoices.length,
+      productsBreakdown: Object.values(productMap),
+      unbilledOrders: unbilledOrders.map(o => ({
+        id: o._id,
+        orderNumber: o.orderNumber,
+        totalAmount: o.totalAmount,
+        createdAt: o.createdAt,
+        status: o.status,
+        itemsCount: (o.items || []).length
+      }))
+    };
+
     res.json({
       success: true,
       data: {
@@ -723,6 +1021,8 @@ exports.getCustomer360 = async (req, res, next) => {
         totalOutstanding,
         outstandingInvoices,
         invoices,
+        fieldOrders,
+        stockSummary,
         previousVisits,
         followUps,
         customMargins
@@ -983,6 +1283,134 @@ exports.createSalesOrder = async (req, res, next) => {
       success: true,
       message: 'Sales order booked successfully',
       data: order
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.issueFieldBill = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const { storeId, orderIds, paymentMethod = 'CASH', notes, items } = req.body;
+
+    if (!storeId) {
+      return res.status(400).json({ success: false, message: 'Store ID is required to issue bill' });
+    }
+
+    const StoreModel = mongoose.model('Store');
+    const store = await StoreModel.findById(storeId).populate('dealer');
+    if (!store) {
+      return res.status(404).json({ success: false, message: 'Store not found' });
+    }
+
+    const InvoiceModel = mongoose.model('Invoice');
+    const InvoiceItemModel = mongoose.model('InvoiceItem');
+    const FieldOrderModel = mongoose.model('FieldSalesOrder');
+
+    let billingItems = [];
+    let linkedOrders = [];
+
+    // If orderIds provided or unbilled orders for this store
+    if (orderIds && orderIds.length > 0) {
+      linkedOrders = await FieldOrderModel.find({ _id: { $in: orderIds }, storeId });
+    } else if (items && items.length > 0) {
+      billingItems = items;
+    } else {
+      // Find all unbilled orders for this store
+      linkedOrders = await FieldOrderModel.find({ 
+        storeId, 
+        status: { $ne: 'CANCELLED' }, 
+        $or: [{ invoiceId: null }, { invoiceId: { $exists: false } }] 
+      });
+    }
+
+    if (linkedOrders.length > 0) {
+      for (const ord of linkedOrders) {
+        for (const it of (ord.items || [])) {
+          billingItems.push({
+            productId: it.productId,
+            productName: it.productName,
+            quantity: it.quantity,
+            unitPrice: it.price,
+            lineTotal: it.lineTotal || (it.quantity * it.price)
+          });
+        }
+      }
+    }
+
+    if (!billingItems || billingItems.length === 0) {
+      return res.status(400).json({ success: false, message: 'No items or unbilled orders found to generate bill' });
+    }
+
+    // Calculate subtotal, gst, grand total
+    let subtotal = 0;
+    for (const bit of billingItems) {
+      const q = Number(bit.quantity) || 1;
+      const p = Number(bit.unitPrice || bit.price) || 0;
+      subtotal += (q * p);
+    }
+
+    const totalGst = Math.round(subtotal * 0.05 * 100) / 100;
+    const grandTotal = Math.round((subtotal + totalGst) * 100) / 100;
+
+    const invoiceNo = 'INV-FS-' + Date.now().toString().slice(-6);
+    const isCredit = paymentMethod === 'CREDIT';
+    let dueDate = null;
+    if (isCredit) {
+      dueDate = new Date();
+      dueDate.setDate(dueDate.getDate() + 15);
+    }
+
+    const targetDealerId = store.dealerId?._id || store.dealerId || store.dealer?._id;
+
+    const invoice = await InvoiceModel.create({
+      invoiceNo,
+      dealerId: targetDealerId,
+      storeId: store._id,
+      customerName: store.name,
+      customerPhone: store.phone,
+      customerAddress: store.address,
+      subtotal,
+      totalGst,
+      cgst: totalGst / 2,
+      sgst: totalGst / 2,
+      isGstEnabled: true,
+      totalAmount: grandTotal,
+      status: isCredit ? 'OPEN' : 'PAID',
+      notes: notes || `Spot bill issued via Field Sales Portal by ${req.user.name || 'Sales Rep'}`,
+      isCredit,
+      dueDate,
+      paidAt: isCredit ? null : new Date()
+    });
+
+    // Create InvoiceItems
+    for (const bit of billingItems) {
+      await InvoiceItemModel.create({
+        invoiceId: invoice._id,
+        productId: (bit.productId && mongoose.Types.ObjectId.isValid(bit.productId)) ? bit.productId : undefined,
+        quantity: Number(bit.quantity) || 1,
+        unitPrice: Number(bit.unitPrice || bit.price) || 0,
+        sellingPrice: Number(bit.unitPrice || bit.price) || 0,
+        gstPercent: 5,
+        gstAmount: Math.round(((Number(bit.quantity) || 1) * (Number(bit.unitPrice || bit.price) || 0) * 0.05) * 100) / 100,
+        lineTotal: Math.round(((Number(bit.quantity) || 1) * (Number(bit.unitPrice || bit.price) || 0) * 1.05) * 100) / 100
+      });
+    }
+
+    // Link invoiceId to all linked orders
+    if (linkedOrders.length > 0) {
+      const orderIdsToUpdate = linkedOrders.map(o => o._id);
+      await FieldOrderModel.updateMany(
+        { _id: { $in: orderIdsToUpdate } },
+        { $set: { invoiceId: invoice._id, status: 'DELIVERED' } }
+      );
+    }
+
+    res.status(201).json({
+      success: true,
+      message: `Tax Invoice ${invoiceNo} issued successfully!`,
+      data: invoice
     });
   } catch (error) {
     next(error);
@@ -1568,17 +1996,50 @@ exports.getAdminSalespersonDetails = async (req, res, next) => {
 
     const userId = user._id;
     const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+    const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
-    // Month orders & actual sales
+    // Orders & actual sales
     const allOrders = await FieldOrderModel.find({ salespersonId: userId })
       .populate('storeId', 'name address phone')
       .populate('dealerId', 'companyName phone')
       .sort({ createdAt: -1 });
 
     const monthOrders = allOrders.filter(o => new Date(o.createdAt) >= monthStart);
+    const todayOrders = allOrders.filter(o => new Date(o.createdAt) >= todayStart);
     const actualSales = monthOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
+    const todaySales = todayOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
     const allTimeSales = allOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
+
+    // Product units sold calculations
+    let totalProductsSoldQty = 0;
+    let monthProductsSoldQty = 0;
+    let todayProductsSoldQty = 0;
+    const productSalesMap = {};
+
+    allOrders.forEach(order => {
+      const isMonth = new Date(order.createdAt) >= monthStart;
+      const isToday = new Date(order.createdAt) >= todayStart;
+
+      if (Array.isArray(order.items)) {
+        order.items.forEach(item => {
+          const qty = Number(item.quantity || 0);
+          totalProductsSoldQty += qty;
+          if (isMonth) monthProductsSoldQty += qty;
+          if (isToday) todayProductsSoldQty += qty;
+
+          const pKey = item.productName || 'General SKU';
+          if (!productSalesMap[pKey]) {
+            productSalesMap[pKey] = { name: pKey, quantity: 0, revenue: 0 };
+          }
+          productSalesMap[pKey].quantity += qty;
+          productSalesMap[pKey].revenue += Number(item.lineTotal || (item.price * qty) || 0);
+        });
+      }
+    });
+
+    const topProductsSold = Object.values(productSalesMap).sort((a, b) => b.quantity - a.quantity);
 
     // Visits & collections
     const allVisits = await VisitModel.find({ salespersonId: userId })
@@ -1586,13 +2047,165 @@ exports.getAdminSalespersonDetails = async (req, res, next) => {
       .populate('dealerId', 'companyName phone')
       .sort({ checkInTime: -1 });
 
-    const monthVisits = allVisits.filter(v => new Date(v.checkInTime) >= monthStart);
+    const monthVisits = allVisits.filter(v => new Date(v.checkInTime || v.date || v.createdAt) >= monthStart);
     const completedVisits = monthVisits.filter(v => v.checkOutTime != null).length;
+    const todayVisits = allVisits.filter(v => {
+      const vDate = new Date(v.checkInTime || v.date || v.createdAt);
+      return vDate >= todayStart && vDate <= todayEnd;
+    });
+    const todayCompletedVisits = todayVisits.filter(v => v.checkOutTime != null).length;
     const totalCollected = allVisits.reduce((sum, v) => sum + (v.paymentsCollected || 0), 0);
+    const monthCollected = monthVisits.reduce((sum, v) => sum + (v.paymentsCollected || 0), 0);
+    const todayCollected = todayVisits.reduce((sum, v) => sum + (v.paymentsCollected || 0), 0);
+
+    // Total distinct stores visited all time
+    const uniqueStoreIds = new Set(
+      allVisits.filter(v => v.storeId).map(v => String(v.storeId?._id || v.storeId))
+    );
+    const totalUniqueStoresVisited = uniqueStoreIds.size;
 
     const target = profile?.monthlyTarget || 100000;
     const dailyVisitsTarget = profile?.dailyVisitsTarget || 6;
+    const monthlyVisitsTarget = dailyVisitsTarget * 26; // 26 working days standard quota
+
     const achievementPct = target > 0 ? Math.round((actualSales / target) * 100) : 0;
+    const monthVisitsAchievementPct = monthlyVisitsTarget > 0 ? Math.round((completedVisits / monthlyVisitsTarget) * 100) : 0;
+    const todayVisitsAchievementPct = dailyVisitsTarget > 0 ? Math.round((todayCompletedVisits / dailyVisitsTarget) * 100) : 0;
+
+    // Month-wise historical performance breakdown (last 6 months)
+    const monthWiseStats = [];
+    for (let i = 0; i < 6; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const mStart = new Date(d.getFullYear(), d.getMonth(), 1);
+      const mEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59);
+      const monthLabel = mStart.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
+
+      const mVisits = allVisits.filter(v => {
+        const vDate = new Date(v.checkInTime || v.date || v.createdAt);
+        return vDate >= mStart && vDate <= mEnd;
+      });
+      const mCompletedVisits = mVisits.filter(v => v.checkOutTime != null).length;
+
+      const mOrders = allOrders.filter(o => {
+        const oDate = new Date(o.createdAt);
+        return oDate >= mStart && oDate <= mEnd;
+      });
+      const mSales = mOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
+
+      let mProdQty = 0;
+      mOrders.forEach(o => {
+        if (Array.isArray(o.items)) {
+          o.items.forEach(it => { mProdQty += Number(it.quantity || 0); });
+        }
+      });
+
+      const mColl = mVisits.reduce((sum, v) => sum + (v.paymentsCollected || 0), 0);
+
+      monthWiseStats.push({
+        month: monthLabel,
+        year: d.getFullYear(),
+        monthIndex: d.getMonth(),
+        visitsCount: mVisits.length,
+        completedVisits: mCompletedVisits,
+        visitsTarget: monthlyVisitsTarget,
+        visitsAchievementPct: monthlyVisitsTarget > 0 ? Math.round((mCompletedVisits / monthlyVisitsTarget) * 100) : 0,
+        actualSales: mSales,
+        salesTarget: target,
+        salesAchievementPct: target > 0 ? Math.round((mSales / target) * 100) : 0,
+        productsSoldQty: mProdQty,
+        totalCollected: mColl
+      });
+    }
+
+    // Today's To-Do: Scheduled visits, daily beat route stores, pending follow-ups
+    const StoreModel = mongoose.model('Store');
+    const FollowUpModel = mongoose.model('FollowUp');
+
+    const scheduledVisits = await VisitModel.find({
+      salespersonId: userId,
+      $or: [
+        { status: 'SCHEDULED' },
+        { scheduledDate: { $gte: todayStart, $lte: todayEnd } }
+      ]
+    }).populate('storeId', 'name address phone category');
+
+    let beatStores = [];
+    const assignedZones = profile?.assignedZones || [];
+    if (assignedZones.length > 0) {
+      beatStores = await StoreModel.find({
+        $or: [
+          { zone: { $in: assignedZones } },
+          { city: { $in: assignedZones } }
+        ]
+      }).limit(15);
+    }
+    if (beatStores.length === 0) {
+      beatStores = await StoreModel.find({}).limit(10);
+    }
+
+    const pendingFollowUps = await FollowUpModel.find({
+      salespersonId: userId,
+      status: 'PENDING'
+    }).populate('storeId', 'name phone').sort({ scheduledDate: 1 }).limit(10);
+
+    const todayToDo = [];
+
+    // Scheduled visits
+    scheduledVisits.forEach(sv => {
+      const isVisited = allVisits.some(v => 
+        String(v.storeId?._id || v.storeId) === String(sv.storeId?._id || sv.storeId) &&
+        new Date(v.checkInTime || v.date || v.createdAt) >= todayStart &&
+        v.checkOutTime != null
+      );
+      todayToDo.push({
+        id: sv._id,
+        type: 'SCHEDULED_VISIT',
+        title: `Scheduled Visit: ${sv.storeId?.name || 'Retail Outlet'}`,
+        storeName: sv.storeId?.name || 'Assigned Store',
+        storeAddress: sv.storeId?.address || 'Beat Route',
+        storePhone: sv.storeId?.phone,
+        purpose: sv.purpose || 'Store Visit & Order Booking',
+        priority: sv.priority || 'HIGH',
+        status: isVisited ? 'COMPLETED' : sv.status,
+        isCompleted: isVisited
+      });
+    });
+
+    // Beat Route Stores
+    beatStores.forEach(bs => {
+      const alreadyInTodo = todayToDo.some(td => td.storeName === bs.name);
+      if (!alreadyInTodo) {
+        const visited = todayVisits.find(v => String(v.storeId?._id || v.storeId) === String(bs._id));
+        const isCompleted = Boolean(visited && visited.checkOutTime);
+        todayToDo.push({
+          id: bs._id,
+          type: 'BEAT_ROUTE_STORE',
+          title: `Daily Beat Visit: ${bs.name}`,
+          storeName: bs.name,
+          storeAddress: bs.address || bs.city || 'Beat Route',
+          storePhone: bs.phone,
+          purpose: 'Order Booking & Payment Collection',
+          priority: 'NORMAL',
+          status: isCompleted ? 'COMPLETED' : (visited ? 'IN_PROGRESS' : 'PENDING'),
+          isCompleted
+        });
+      }
+    });
+
+    // Follow-ups
+    pendingFollowUps.forEach(fu => {
+      todayToDo.push({
+        id: fu._id,
+        type: 'FOLLOW_UP',
+        title: `Follow-up: ${fu.storeId?.name || 'Store'} (${fu.reason || 'Revisit'})`,
+        storeName: fu.storeId?.name || 'Store',
+        storePhone: fu.storeId?.phone,
+        purpose: fu.reason || 'Revisit discussion',
+        priority: 'URGENT',
+        status: fu.status,
+        isCompleted: false
+      });
+    });
 
     // Commercial documents
     const quotations = await QuotationModel.find({ salespersonId: userId })
@@ -1617,18 +2230,43 @@ exports.getAdminSalespersonDetails = async (req, res, next) => {
         user,
         profile,
         metrics: {
+          // Targets & achievement
           monthlyTarget: target,
           actualSales,
+          todaySales,
           allTimeSales,
           achievementPct,
+
+          // Store visits target & achievement
           dailyVisitsTarget,
+          monthlyVisitsTarget,
+          todayVisitsCount: todayVisits.length,
+          todayCompletedVisits,
+          todayVisitsAchievementPct,
           monthVisitsCount: monthVisits.length,
           completedVisits,
+          monthVisitsAchievementPct,
+
+          // Store counts
+          totalUniqueStoresVisited,
           allTimeVisitsCount: allVisits.length,
+
+          // Product quantities sold
+          totalProductsSoldQty,
+          monthProductsSoldQty,
+          todayProductsSoldQty,
+
+          // Collections
           totalCollected,
+          monthCollected,
+          todayCollected,
           ordersBookedCount: allOrders.length,
           monthOrdersCount: monthOrders.length
         },
+        topProductsSold: topProductsSold.slice(0, 10),
+        todayVisits: todayVisits.slice(0, 15),
+        todayToDo,
+        monthWiseStats,
         recentVisits: allVisits.slice(0, 15),
         recentOrders: allOrders.slice(0, 15),
         recentCollections: allVisits.filter(v => (v.paymentsCollected || 0) > 0).slice(0, 15),

@@ -42,7 +42,9 @@ import {
   Search,
   SlidersHorizontal,
   FileSignature,
-  Home
+  Home,
+  ArrowRightLeft,
+  Layers
 } from 'lucide-react';
 import axios from 'axios';
 
@@ -60,9 +62,7 @@ const getOverviewMenuItems = (unreadNotifications) => [
 
 const getRndMenuItems = () => [
   { name: 'R&D',                   path: '/admin/rnd',                 icon: Microscope, allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'] },
-];
-
-const getInventoryMenuItems = () => [
+  { name: 'Raw Material Category', path: '/admin/raw-material-categories', icon: Layers, allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'] },
   {
     name: 'Products',
     icon: ShoppingBag,
@@ -72,12 +72,16 @@ const getInventoryMenuItems = () => [
       { name: 'Categories',   path: '/admin/categories', icon: Tag }
     ]
   },
-  { name: 'Channel Integration',   path: '/admin/channel-integration', icon: Cable, allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'] },
+];
+
+const getInventoryMenuItems = () => [
+  { name: 'Multi Inventory',              path: '/admin/inventories',    icon: Boxes, allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'] },
+  { name: 'Material Issue for Products',  path: '/admin/material-issue', icon: ArrowRightLeft, allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'] },
+  { name: 'Channel Integration',          path: '/admin/channel-integration', icon: Cable, allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'] },
 ];
 
 const getStockMenuItems = () => [
   { name: 'Warehouse Stock',       path: '/admin/inventory',           icon: Warehouse, allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'] },
-  { name: 'Multi-Inventories',     path: '/admin/inventories',         icon: Boxes, allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'] },
   { name: 'Stock Transfers',       path: '/admin/transfers',           icon: Truck, allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'] },
 ];
 
@@ -343,7 +347,7 @@ function SidebarNav({ submenusOpen, toggleSubmenu, onLinkClick, unreadNotificati
     <nav className="flex-1 px-4 py-3 space-y-2 overflow-y-auto">
       {renderNavSection('Overview', overviewItems, 'slate')}
       {renderNavSection('R&D Department', rndItems, 'rose')}
-      {renderNavSection('Inventory & Products', inventoryItems, 'slate')}
+      {renderNavSection('Inventory', inventoryItems, 'slate')}
       {renderNavSection('Vendor & Procurement', vendorItems, 'slate')}
       {renderNavSection('Stock Management', stockItems, 'slate')}
       {renderNavSection('Sales & Marketing', salesMarketingItems, 'rose')}
@@ -365,7 +369,7 @@ export default function AdminLayout() {
   const [licensing, setLicensing] = useState({ enableB2cStall: true, enableFieldSales: true });
   const isDashboard = location.pathname === '/admin/dashboard' || location.pathname === '/admin';
   const isBillingActive = location.pathname.startsWith('/admin/invoice') || location.pathname === '/admin/price-simulator';
-  const isProductStockActive = location.pathname === '/admin/products' || location.pathname === '/admin/inventory' || location.pathname === '/admin/categories' || location.pathname === '/admin/inventories';
+  const isProductStockActive = location.pathname === '/admin/products' || location.pathname === '/admin/inventory' || location.pathname === '/admin/categories' || location.pathname === '/admin/inventories' || location.pathname === '/admin/material-issue';
   const isSummaryActive = location.pathname === '/admin/reports' || location.pathname === '/admin/analytics';
 
   const [submenusOpen, setSubmenusOpen] = useState(() => {

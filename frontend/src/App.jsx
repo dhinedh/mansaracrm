@@ -28,7 +28,9 @@ const ForecastingPage = lazy(() => import('./pages/admin/ForecastingPage'));
 const CategoriesPage = lazy(() => import('./pages/admin/CategoriesPage'));
 const ChannelIntegrationPage = lazy(() => import('./pages/admin/ChannelIntegrationPage'));
 const RnDPage = lazy(() => import('./pages/admin/RnDPage'));
+const RawMaterialCategoryPage = lazy(() => import('./pages/admin/RawMaterialCategoryPage'));
 const InventoriesPage = lazy(() => import('./pages/admin/InventoriesPage'));
+const MaterialIssuePage = lazy(() => import('./pages/admin/MaterialIssuePage'));
 const AdminInvoiceLedger = lazy(() => import('./pages/admin/AdminInvoiceLedger'));
 const AdminInvoiceTemplatePage = lazy(() => import('./pages/admin/AdminInvoiceTemplatePage'));
 const AdminAgreementTemplatesPage = lazy(() => import('./pages/admin/AdminAgreementTemplatesPage'));
@@ -173,6 +175,11 @@ export default function App() {
               <InventoriesPage />
             </ProtectedRoute>
           } />
+          <Route path="material-issue" element={
+            <ProtectedRoute allowedStaffRoles={['ADMIN', 'B2B_MANAGER']}>
+              <MaterialIssuePage />
+            </ProtectedRoute>
+          } />
           <Route path="channel-integration" element={
             <ProtectedRoute allowedStaffRoles={['ADMIN', 'B2B_MANAGER']}>
               <ChannelIntegrationPage />
@@ -181,6 +188,11 @@ export default function App() {
           <Route path="rnd" element={
             <ProtectedRoute allowedStaffRoles={['ADMIN', 'B2B_MANAGER']}>
               <RnDPage />
+            </ProtectedRoute>
+          } />
+          <Route path="raw-material-categories" element={
+            <ProtectedRoute allowedStaffRoles={['ADMIN', 'B2B_MANAGER']}>
+              <RawMaterialCategoryPage />
             </ProtectedRoute>
           } />
           <Route path="transfers" element={
