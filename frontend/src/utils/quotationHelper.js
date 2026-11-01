@@ -218,51 +218,112 @@ export const normalizeQuotationData = (raw) => {
  */
 export const buildQuotationHtml = (rawData) => {
   const data = normalizeQuotationData(rawData);
-  const { company, customer, refNo, dateStr, dueDateStr, items, subtotal, isWithGst, gstRate, cgst, sgst, shipping, grandTotal, specialTerms } = data;
+  const { company, customer, refNo, dateStr, dueDateStr, items, subtotal, isWithGst, gstRate, totalGst, cgst, sgst, shipping, grandTotal, specialTerms } = data;
+
+  const billerName = company.companyName || company.name || 'MANSARA FOODS PVT. LTD.';
+  const billerAddress = company.address || 'Flat No. B4, No.13, Balaji Nagar 1st street extn, Noombal';
+  const billerCity = company.city || 'Chennai';
+  const billerState = company.state || 'Tamil Nadu';
+  const billerPin = company.pincode || '600077';
+  const billerGst = company.gstNumber || '27AABCM1234F1Z5';
+  const billerPhone = company.phone || '+91-88388 87064';
+  const placeOfSupply = company.placeOfSupply || 'Tamil Nadu (33)';
+
+  const rawBd = company.bankDetails || {};
+  const bd = (rawBd.bankName && rawBd.accountNo) ? rawBd : {
+    bankName: rawBd.bankName || 'HDFC Bank Ltd.',
+    accountNo: rawBd.accountNo || '50200117036854',
+    ifscCode: rawBd.ifscCode || 'HDFC0001947',
+    branch: rawBd.branch || 'Iyyapanthangal Branch',
+    accountType: rawBd.accountType || 'Current',
+    upiId: rawBd.upiId || 'vyapar.175693710434@hdfcbank'
+  };
+  const signatoryTitle = company.signatoryTitle || 'Authorised Signatory';
+  const signatoryName = company.signatoryName || 'Mansara Foods Pvt. Ltd.';
+
+  const addrParts = [];
+  if (billerAddress) addrParts.push(billerAddress.trim().replace(/,\s*$/, ''));
+  if (billerCity && !billerAddress?.includes(billerCity)) addrParts.push(billerCity.trim());
+  if (billerState && !billerAddress?.includes(billerState)) {
+    if (billerPin && !billerAddress?.includes(billerPin)) {
+      addrParts.push(`${billerState.trim()} - ${billerPin.trim()}`);
+    } else {
+      addrParts.push(billerState.trim());
+    }
+  } else if (billerPin && !billerAddress?.includes(billerPin)) {
+    addrParts.push(billerPin.trim());
+  }
+  const formattedBillerAddress = addrParts.join(', ') + (addrParts.length ? '. India.' : '');
 
   const activeLogo = company.logoBase64 || company.logoUrl;
   let logoHtml = '';
   if (activeLogo) {
     const src = activeLogo.startsWith('data:') || activeLogo.startsWith('http')
       ? activeLogo
-      : (activeLogo.startsWith('/') ? `${window.location.origin}${activeLogo}` : `data:image/png;base64,${activeLogo}`);
-    logoHtml = `<img src="${src}" style="max-height:65px;max-width:180px;object-fit:contain;" alt="${company.companyName}" />`;
+      : (activeLogo.startsWith('/') ? `${typeof window !== 'undefined' ? window.location.origin : ''}${activeLogo}` : `data:image/png;base64,${activeLogo}`);
+    logoHtml = `<img src="${src}" style="max-height:65px;max-width:180px;object-fit:contain;" alt="${billerName}" />`;
   } else {
-    logoHtml = `<img src="${window.location.origin}/logo.png" style="max-height:65px;max-width:180px;object-fit:contain;" onerror="this.style.display='none'" alt="${company.companyName}" />`;
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    logoHtml = `<img src="${origin}/logo.png" style="max-height:65px;max-width:180px;object-fit:contain;" onerror="this.style.display='none'" alt="${billerName}" />`;
   }
 
-  const itemsRows = items.map((it) => `
-    <tr>
-      <td style="text-align:center;">${it.sno}</td>
-      <td style="text-align:center;">${it.hsn}</td>
-      <td style="text-align:left;padding-left:6px;"><strong>${it.name}</strong>${it.sku ? `<span style="font-size:9px;color:#777;display:block;">${it.sku}</span>` : ''}</td>
-      <td style="text-align:center;">${it.netWtG}</td>
-      <td style="text-align:right;padding-right:6px;">${Number(it.rate).toFixed(2)}</td>
-      <td style="text-align:center;">${it.pacSize}</td>
-      <td style="text-align:center;">${it.wtPerCtn}</td>
-      <td style="text-align:center;">${it.cartons}</td>
-      <td style="text-align:center;font-weight:700;">${it.quantity}</td>
-      <td style="text-align:center;">${it.totalNetWtKg}</td>
-      <td style="text-align:right;font-weight:700;padding-right:6px;">${Number(it.lineTotal).toFixed(2)}</td>
-    </tr>
-  `).join('');
+  const shipToName = customer.name || 'Valued Trade Partner';
+  const shipToAddr = customer.address || '';
+  const shipToCity = customer.city || '';
+  const shipToState = customer.state || '';
+  const shipToPin = customer.pincode || '';
+  const shipToGst = customer.gstNumber && customer.gstNumber !== 'N/A' ? customer.gstNumber : '';
+  const shipToPhone = customer.phone || '';
 
-  const emptyRowsCount = Math.max(0, 7 - items.length);
+  // Exact Mansara Dealer Format: S.NO | HSN | ITEM | NET WT (G) | RATE (RS.) | PAC | WT/ CTN (KG) | CTNS | TOT. QTY | TOTAL NT WT (KG) | PRICE
+  const itemsRows = items.map((item, idx) => {
+    const productName = item.name || 'Product';
+    const hsn = item.hsn || '1901';
+    const netWtG = item.netWtG || 250;
+    const pac = item.pacSize || 24;
+    const wtPerCtn = item.wtPerCtn || ((netWtG * pac) / 1000).toFixed(2);
+    const ctns = item.cartons !== undefined ? item.cartons : (item.quantity ? parseFloat((item.quantity / pac).toFixed(2)) : 0);
+    const totQty = item.quantity || 0;
+    const totalNtWtKg = item.totalNetWtKg || ((totQty * netWtG) / 1000).toFixed(2);
+    const rate = Number(item.rate || 0);
+    const lineTotal = Number(item.lineTotal || (rate * totQty));
+
+    return `
+      <tr>
+        <td style="text-align:center;">${idx + 1}</td>
+        <td style="text-align:center;">${hsn}</td>
+        <td style="text-align:left;padding-left:6px;">${productName}</td>
+        <td style="text-align:center;">${netWtG}</td>
+        <td style="text-align:right;padding-right:6px;">${rate.toFixed(1)}</td>
+        <td style="text-align:center;">${pac}</td>
+        <td style="text-align:center;">${wtPerCtn}</td>
+        <td style="text-align:center;">${ctns}</td>
+        <td style="text-align:center;">${totQty}</td>
+        <td style="text-align:center;">${totalNtWtKg}</td>
+        <td style="text-align:right;font-weight:600;padding-right:6px;">${lineTotal.toFixed(2)}</td>
+      </tr>`;
+  }).join('');
+
+  // Empty rows for spacing (exact dealer invoice count)
+  const emptyRowsCount = Math.max(0, 9 - items.length);
   const emptyRows = Array(emptyRowsCount).fill(0).map(() =>
-    `<tr><td colspan="11" style="height:20px;border-bottom:1px solid #eee;">&nbsp;</td></tr>`
+    `<tr><td colspan="11" style="height:22px;border-bottom:1px solid #eee;">&nbsp;</td></tr>`
   ).join('');
 
-  const termsFormatted = specialTerms
-    ? specialTerms.split('\n').filter(Boolean).map((t, i) => `${i + 1}. ${t.replace(/^\d+\.\s*/, '')}`).join('<br>')
-    : `1. Quotation valid for 15 days.<br>2. Wholesale rates are inclusive of packaging.<br>3. Delivery as per schedule.`;
+  const originalTotal = subtotal + (isWithGst ? (cgst + sgst) : 0) + shipping;
+  const discount = 0;
+  const grandRounded = Math.round(grandTotal);
 
-  const bd = company.bankDetails || {};
+  const rawTerms = specialTerms || company.invoiceTerms;
+  const terms = rawTerms
+    ? rawTerms.split('\n').filter(Boolean).map((t, i) => `${i + 1}. ${t.replace(/^\d+\.\s*/, '')}`).join('<br>')
+    : `1. Payment within 15 days.<br>2. Interest @ 2% per month on delay.<br>3. Claims if any must be reported at delivery.`;
 
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Quotation ${refNo}</title>
+<title>Invoice ${refNo}</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
@@ -287,119 +348,130 @@ export const buildQuotationHtml = (rawData) => {
   .header-row { display: flex; align-items: stretch; border-bottom: 1.5px solid #ccc; }
   .logo-cell { width: 220px; padding: 12px 14px; border-right: 1.5px solid #ccc; display: flex; align-items: center; justify-content: center; }
   .company-cell { flex: 1; padding: 10px 14px; border-right: 1.5px solid #ccc; }
-  .inv-meta-cell { width: 230px; padding: 10px 14px; text-align: right; }
+  .inv-meta-cell { width: 220px; padding: 10px 14px; text-align: right; }
   .company-name { font-size: 15px; font-weight: 900; color: #D6295A; text-transform: uppercase; margin-bottom: 3px; line-height: 1.2; }
   .company-addr { font-size: 9.5px; color: #333; line-height: 1.5; }
   .gst-row { font-size: 10px; font-weight: 700; color: #1a1a1a; margin-top: 4px; display: inline-block; }
-  .inv-title { font-size: 14px; font-weight: 900; color: #1a1a1a; margin-bottom: 8px; text-align: right; text-transform: uppercase; letter-spacing: 0.5px; }
+  .inv-title { font-size: 13px; font-weight: 700; color: #1a1a1a; margin-bottom: 8px; text-align: right; text-transform: uppercase; }
   .meta-line { font-size: 10px; color: #333; display: flex; justify-content: space-between; margin-bottom: 2px; }
   .meta-line strong { color: #1a1a1a; font-weight: 700; }
 
   .bill-ship-row { display: flex; border-bottom: 1.5px solid #ccc; }
   .bill-cell { flex: 1; padding: 8px 14px; border-right: 1.5px solid #ccc; }
   .ship-cell { flex: 1; padding: 8px 14px; }
-  .section-hdr { font-size: 10px; font-weight: 900; color: #555; text-transform: uppercase; margin-bottom: 3px; }
-  .bill-name { font-size: 12px; font-weight: 800; color: #111; margin-bottom: 2px; }
-  .bill-addr { font-size: 9.5px; color: #444; line-height: 1.4; }
+  .section-hdr { font-size: 9px; font-weight: 900; text-transform: uppercase; background: #D6295A; color: #fff; padding: 3px 8px; margin-bottom: 6px; letter-spacing: 0.5px; }
+  .bill-name { font-size: 12px; font-weight: 700; margin-bottom: 3px; color: #1a1a1a; }
+  .bill-addr { font-size: 9.5px; color: #333; line-height: 1.5; }
+  .gstin-line { font-size: 9.5px; font-weight: 700; margin-top: 3px; color: #1a1a1a; }
 
-  .items-table { width: 100%; border-collapse: collapse; font-size: 9.5px; }
-  .items-table th { background: #f2f2f2; color: #1a1a1a; font-weight: 800; border-bottom: 1.5px solid #ccc; border-right: 1px solid #ccc; padding: 6px 3px; text-align: center; }
+  .items-table { width: 100%; border-collapse: collapse; border-bottom: 1.5px solid #ccc; }
+  .items-table th {
+    background: #D6295A; color: #fff; font-size: 8.5px; font-weight: 700;
+    text-transform: uppercase; padding: 6px 3px; text-align: center;
+    border-right: 1px solid rgba(255,255,255,0.3);
+    letter-spacing: 0.3px; vertical-align: middle; line-height: 1.2;
+  }
   .items-table th:last-child { border-right: none; }
-  .items-table td { border-bottom: 1px solid #eee; border-right: 1px solid #eee; padding: 5px 3px; }
-  .items-table td:last-child { border-right: none; }
+  .items-table td { padding: 5px 4px; border-bottom: 1px solid #eee; font-size: 10px; color: #1a1a1a; }
 
-  .bottom-container { display: flex; border-top: 1.5px solid #ccc; border-bottom: 1.5px solid #ccc; }
+  .bottom-container { display: flex; border-bottom: 1.5px solid #ccc; }
   .bottom-left { flex: 1; border-right: 1.5px solid #ccc; display: flex; flex-direction: column; }
-  .words-cell { padding: 8px 12px; border-bottom: 1px solid #eee; background: #fafafa; }
-  .words-label { font-size: 9px; font-weight: 800; color: #555; text-transform: uppercase; }
-  .words-text { font-size: 10.5px; font-weight: 800; color: #D6295A; margin-top: 2px; }
-  .payment-cell { padding: 7px 12px; border-bottom: 1px solid #eee; }
-  .pay-label { font-size: 9px; font-weight: 800; color: #555; }
-  .pay-info { font-size: 9.5px; color: #333; margin-top: 1px; }
-  .terms-cell { padding: 8px 12px; flex: 1; }
-  .terms-label { font-size: 9px; font-weight: 800; color: #555; margin-bottom: 2px; }
-  .terms-text { font-size: 9px; color: #444; line-height: 1.4; }
+  .words-cell { flex: 1; padding: 10px 14px; border-bottom: 1px solid #ccc; display: flex; flex-direction: column; justify-content: center; }
+  .words-label { font-size: 9px; font-weight: 900; text-transform: uppercase; color: #1a1a1a; margin-bottom: 4px; letter-spacing: 0.3px; }
+  .words-text { font-size: 10px; font-weight: 700; color: #1a1a1a; text-transform: uppercase; line-height: 1.4; }
 
-  .bottom-right { width: 330px; display: flex; flex-direction: column; }
+  .payment-cell { flex: 1; padding: 10px 14px; border-bottom: 1px solid #ccc; display: flex; flex-direction: column; justify-content: center; }
+  .pay-label { font-size: 9px; font-weight: 900; text-transform: uppercase; margin-bottom: 4px; color: #1a1a1a; }
+  .pay-info { font-size: 9.5px; color: #444; font-style: italic; }
+
+  .terms-cell { flex: 1; padding: 10px 14px; display: flex; flex-direction: column; justify-content: center; }
+  .terms-label { font-size: 9px; font-weight: 900; text-decoration: underline; margin-bottom: 4px; color: #1a1a1a; }
+  .terms-text { font-size: 9.5px; color: #333; line-height: 1.5; }
+
+  .bottom-right { width: 280px; display: flex; flex-direction: column; }
   .totals-table { width: 100%; border-collapse: collapse; }
-  .totals-table td { padding: 4.5px 12px; font-size: 10px; }
-  .t-label { text-align: left; color: #444; border-bottom: 1px solid #eee; }
-  .t-value { text-align: right; font-weight: 700; color: #111; border-bottom: 1px solid #eee; border-left: 1px solid #eee; }
-  .grand-row { background: #D6295A !important; color: #fff !important; }
-  .grand-row td { font-size: 12px !important; font-weight: 900 !important; color: #fff !important; padding: 7px 12px !important; }
+  .totals-table td { padding: 3px 10px; font-size: 10px; }
+  .totals-table .t-label { text-align: right; color: #333; }
+  .totals-table .t-value { text-align: right; font-weight: 600; width: 85px; border-left: 1px solid #eee; }
+  .totals-table .grand-row td { background: #D6295A; color: #fff; font-weight: 700; font-size: 11px; padding: 5px 10px; }
 
-  .account-details-block { padding: 8px 12px; border-top: 1px solid #ccc; background: #fafafa; font-size: 9px; }
-  .account-header { font-size: 9.5px; font-weight: 800; color: #222; margin-bottom: 4px; text-transform: uppercase; }
-  .bank-table { width: 100%; border-collapse: collapse; font-size: 9px; }
-  .bank-table td { padding: 1.5px 2px; color: #333; }
-  .bank-table td:first-child { width: 75px; color: #666; font-weight: 600; }
+  .account-details-block { padding: 7px 12px; border-bottom: 1px solid #ccc; background: #fafafa; }
+  .account-header { font-weight: 700; font-size: 9.5px; text-decoration: underline; margin-bottom: 3px; color: #1a1a1a; }
+  .bank-table { width: 100%; border-collapse: collapse; }
+  .bank-table td { font-size: 9px; padding: 1.5px 0; color: #222; }
+  .bank-table td:first-child { font-weight: 700; padding-right: 6px; width: 68px; color: #555; }
 
-  .sig-section { padding: 12px; text-align: right; border-top: 1px solid #eee; }
-  .sig-company { font-size: 9px; font-weight: 700; color: #333; }
-  .sig-name { font-size: 10px; font-weight: 800; color: #D6295A; margin-top: 25px; }
-  .sig-title { font-size: 8.5px; color: #666; }
-
-  .footer-strip { padding: 8px 14px; text-align: center; font-size: 8.5px; color: #666; background: #f9f9f9; line-height: 1.4; }
+  .sig-section { padding: 8px 14px 10px 14px; text-align: right; margin-top: auto; }
+  .sig-company { font-size: 10px; font-weight: 700; font-style: italic; color: #D6295A; }
+  .sig-name { font-size: 10px; font-style: italic; color: #333; margin-top: 20px; margin-bottom: 2px; }
+  .sig-title { font-size: 9px; color: #555; }
+  .sig-line { font-size: 9px; font-weight: 700; text-decoration: underline; margin-top: 2px; color: #1a1a1a; }
+  .footer-strip { padding: 6px 14px; text-align: center; font-size: 8.5px; color: #555; background: #f9f9f9; line-height: 1.5; }
 </style>
 </head>
 <body>
 <div class="outer">
-  <!-- Header -->
+
+  <!-- ── Header ───────────────────────────────────────────────────────── -->
   <div class="header-row">
-    <div class="logo-cell">${logoHtml}</div>
+    <div class="logo-cell">
+      ${logoHtml}
+    </div>
     <div class="company-cell">
-      <div class="company-name">${company.companyName}</div>
+      <div class="company-name">${billerName}</div>
       <div class="company-addr">
-        ${company.address ? `${company.address}, ` : ''}${company.city} - ${company.pincode}, ${company.state}.<br>
-        Phone: ${company.phone} | Email: ${company.email}
+        ${formattedBillerAddress}<br>
+        Phone : ${billerPhone}<br>
+        <span class="gst-row">GST No. ${billerGst}</span>
       </div>
-      <div class="gst-row">GSTIN / UIN: ${company.gstNumber}</div>
     </div>
     <div class="inv-meta-cell">
-      <div class="inv-title">PRICE QUOTATION</div>
-      <div class="meta-line"><span>Quote Ref #:</span> <strong>${refNo}</strong></div>
-      <div class="meta-line"><span>Date:</span> <strong>${dateStr}</strong></div>
-      <div class="meta-line"><span>Valid Until:</span> <strong>${dueDateStr}</strong></div>
+      <div class="inv-title">TAX INVOICE</div>
+      <div class="meta-line"><span>Invoice #</span><strong>${refNo}</strong></div>
+      <div class="meta-line"><span>Invoice Date :</span><strong>${dateStr}</strong></div>
+      <div class="meta-line"><span>Due Date :</span><strong>${dueDateStr}</strong></div>
+      <div class="meta-line" style="margin-top:6px;">
+        <span>Place of Supply :</span><strong>${placeOfSupply}</strong>
+      </div>
     </div>
   </div>
 
-  <!-- Customer / Consignee -->
+  <!-- ── Bill To / Ship To ─────────────────────────────────────────────── -->
   <div class="bill-ship-row">
     <div class="bill-cell">
-      <div class="section-hdr">QUOTATION ISSUED TO</div>
-      <div class="bill-name">${customer.name}</div>
+      <div class="section-hdr">BILL TO</div>
+      <div class="bill-name">${shipToName}</div>
       <div class="bill-addr">
-        ${customer.address ? `${customer.address}, ` : ''}${customer.city} ${customer.state ? `, ${customer.state}` : ''} ${customer.pincode ? `- ${customer.pincode}` : ''}<br>
-        ${customer.phone ? `Phone: ${customer.phone}<br>` : ''}
-        ${customer.gstNumber ? `GSTIN: ${customer.gstNumber}` : ''}
+        ${[shipToAddr, shipToCity, shipToState, shipToPin].filter(Boolean).join(', ')}<br>
+        ${shipToPhone ? 'PH. ' + shipToPhone : ''}
       </div>
+      ${shipToGst ? `<div class="gstin-line">GSTIN: ${shipToGst}</div>` : ''}
     </div>
     <div class="ship-cell">
-      <div class="section-hdr">DISPATCH &amp; SUPPLY TERMS</div>
-      <div class="bill-addr" style="margin-top:2px;">
-        <strong>Place of Supply:</strong> ${company.state || 'Tamil Nadu (33)'}<br>
-        <strong>Payment Mode:</strong> NEFT / RTGS / Online Transfer / UPI / Cheque<br>
-        <strong>Lead Time:</strong> 1-3 Business Days upon PO acceptance<br>
-        <strong>Price Validity:</strong> 15 Days from quote issuance
+      <div class="section-hdr">SHIP TO</div>
+      <div class="bill-name">${shipToName}</div>
+      <div class="bill-addr">
+        ${[shipToAddr, shipToCity, shipToState, shipToPin].filter(Boolean).join(', ')}<br>
+        ${shipToPhone ? 'PH. ' + shipToPhone : ''}
       </div>
     </div>
   </div>
 
-  <!-- Table -->
+  <!-- ── Items Table (Exact Dealer Invoice 11-column format) ───────────── -->
   <table class="items-table">
     <thead>
       <tr>
         <th style="width:4%;">S.NO</th>
         <th style="width:6%;">HSN</th>
-        <th style="width:28%;text-align:left;padding-left:6px;">ITEM DESCRIPTION</th>
+        <th style="width:28%;text-align:left;padding-left:6px;">ITEM</th>
         <th style="width:7%;">NET WT<br>(G)</th>
-        <th style="width:8%;text-align:right;padding-right:6px;">RATE<br>(₹)</th>
+        <th style="width:8%;text-align:right;padding-right:6px;">RATE<br>(RS.)</th>
         <th style="width:5%;">PAC</th>
         <th style="width:8%;">WT/ CTN<br>(KG)</th>
         <th style="width:6%;">CTNS</th>
         <th style="width:7%;">TOT.<br>QTY</th>
         <th style="width:9%;">TOTAL NT<br>WT (KG)</th>
-        <th style="width:12%;text-align:right;padding-right:6px;">PRICE (₹)</th>
+        <th style="width:12%;text-align:right;padding-right:6px;">PRICE</th>
       </tr>
     </thead>
     <tbody>
@@ -408,55 +480,63 @@ export const buildQuotationHtml = (rawData) => {
     </tbody>
   </table>
 
-  <!-- Bottom Container -->
+  <!-- ── Bottom Summary & Details ──────────────────────────────────────── -->
   <div class="bottom-container">
     <div class="bottom-left">
       <div class="words-cell">
         <div class="words-label">TOTAL AMOUNT IN WORDS:</div>
-        <div class="words-text">${numberToWords(grandTotal)}</div>
+        <div class="words-text">${numberToWords(grandRounded)}</div>
       </div>
       <div class="payment-cell">
-        <div class="pay-label">ACCEPTED PAYMENT MODES:</div>
-        <div class="pay-info">Cheque / Demand Draft / NEFT / RTGS / Direct Bank Transfer / UPI</div>
+        <div class="pay-label">MODE OF PAYMENT (DETAILS):</div>
+        <div class="pay-info">Cheque / Demand Draft / NEFT / RTGS / Online Transfer / UPI</div>
       </div>
       <div class="terms-cell">
         <div class="terms-label">Terms &amp; Conditions:</div>
-        <div class="terms-text">${termsFormatted}</div>
+        <div class="terms-text">${terms}</div>
       </div>
     </div>
 
     <div class="bottom-right">
       <table class="totals-table">
-        <tr><td class="t-label">Sub Total (Without Tax)</td><td class="t-value">${subtotal.toFixed(2)}</td></tr>
+        <tr><td class="t-label">Sub Total<br><span style="font-size:8px;color:#777;">(Without Tax)</span></td><td class="t-value">${subtotal.toFixed(2)}</td></tr>
         ${isWithGst ? `
         <tr><td class="t-label">CGST (${(gstRate / 2).toFixed(1).replace(/\.0$/, '')}%)</td><td class="t-value">${cgst.toFixed(2)}</td></tr>
         <tr><td class="t-label">SGST (${(gstRate / 2).toFixed(1).replace(/\.0$/, '')}%)</td><td class="t-value">${sgst.toFixed(2)}</td></tr>
-        ` : `<tr><td class="t-label">GST Status</td><td class="t-value">0.00</td></tr>`}
-        ${shipping > 0 ? `<tr><td class="t-label">Shipping / Freight</td><td class="t-value">${shipping.toFixed(2)}</td></tr>` : ''}
-        <tr class="grand-row"><td class="t-label">Amount Payable</td><td class="t-value">₹${grandTotal.toLocaleString('en-IN')}</td></tr>
+        ` : `<tr><td class="t-label">GST</td><td class="t-value">0.00</td></tr>`}
+        ${shipping > 0 ? `<tr><td class="t-label">Shipping</td><td class="t-value">${shipping.toFixed(2)}</td></tr>` : ''}
+        <tr><td class="t-label">Original Amount</td><td class="t-value">${originalTotal.toFixed(2)}</td></tr>
+        ${discount > 0 ? `<tr><td class="t-label" style="color:#d97706;">Discount</td><td class="t-value" style="color:#d97706;">- ${discount.toFixed(2)}</td></tr>` : ''}
+        <tr class="grand-row"><td class="t-label" style="color:#fff;">Amount To be Paid</td><td class="t-value" style="color:#fff;border-left:1px solid rgba(255,255,255,0.3);">${grandRounded}</td></tr>
       </table>
 
+      <!-- Under Amount To be Paid: Account Details -->
       <div class="account-details-block">
-        <div class="account-header">Bank Account Details:</div>
+        <div class="account-header">Account Details:</div>
         <table class="bank-table">
-          <tr><td>Account Name:</td><td><strong>${company.companyName}</strong></td></tr>
-          <tr><td>Bank:</td><td>${bd.bankName || 'HDFC Bank Ltd.'}${bd.branch ? `, ${bd.branch}` : ''}</td></tr>
-          <tr><td>A/C No:</td><td style="font-family:monospace;font-weight:700;">${bd.accountNo || '50200117036854'}</td></tr>
-          <tr><td>IFSC Code:</td><td style="font-family:monospace;font-weight:700;">${bd.ifscCode || 'HDFC0001947'}</td></tr>
+          ${billerName ? `<tr><td colspan="2" style="font-weight:700;padding-bottom:2px;color:#D6295A;font-size:9.5px;">${billerName}</td></tr>` : ''}
+          ${bd.accountNo ? `<tr><td>A/C No.</td><td>${bd.accountNo}</td></tr>` : ''}
+          ${bd.ifscCode  ? `<tr><td>IFSC Code :</td><td style="font-weight:700;">${bd.ifscCode}</td></tr>` : ''}
+          ${bd.bankName  ? `<tr><td>Bank :</td><td>${bd.bankName}${bd.branch ? ', ' + bd.branch : ''}</td></tr>` : ''}
+          ${bd.accountType ? `<tr><td>Type :</td><td>${bd.accountType}</td></tr>` : ''}
           ${bd.upiId ? `<tr><td>UPI ID:</td><td>${bd.upiId}</td></tr>` : ''}
         </table>
       </div>
 
+      <!-- Under Account Details: Signature -->
       <div class="sig-section">
-        <div class="sig-company">For ${company.companyName}</div>
-        <div class="sig-name">${company.signatoryName || 'Mansara Foods Pvt. Ltd.'}</div>
-        <div class="sig-title">${company.signatoryTitle || 'Authorised Signatory'}</div>
+        <div class="sig-company">For ${billerName}..</div>
+        <div class="sig-name">${signatoryName}</div>
+        <div class="sig-title">${signatoryTitle}</div>
+        <div class="sig-line">Authorized signature</div>
       </div>
     </div>
   </div>
 
+  <!-- ── Footer Strip ──────────────────────────────────────────────────── -->
   <div class="footer-strip">
-    ${company.address ? `${company.address}, ${company.city} – ${company.pincode}. ` : ''}Phone: ${company.phone} | CIN: ${company.cin || 'U10790TN2026PTC188398'} | Email: ${company.email} | ${company.website}
+    Regd. Office &amp; Operations : Flat No. B4, No.13, Balaji Nagar 1<sup>st</sup> street extn, Noombal, Chennai – 600077, Tamil Nadu, India Ph: ${billerPhone}. |
+    CIN- ${company.cin || 'U10790TN2026PTC188398'} | Email: ${company.email || 'contact@mansarafoods.com'} | Website: ${company.website || 'www.mansarafoods.com'}
   </div>
 </div>
 </body>
@@ -615,21 +695,31 @@ export const generateQuotationPdfBlob = async (rawData) => {
     container.style.position = 'fixed';
     container.style.left = '-9999px';
     container.style.top = '0';
-    container.style.width = '794px';
+    container.style.width = '820px';
     container.style.background = '#ffffff';
     container.style.zIndex = '-9999';
     container.innerHTML = html;
     document.body.appendChild(container);
 
+    const img = container.querySelector('img');
+    if (img && !img.complete) {
+      await new Promise(resolve => {
+        img.onload = resolve;
+        img.onerror = resolve;
+        setTimeout(resolve, 600);
+      });
+    }
+
     const opt = {
-      margin: [6, 6, 6, 6],
+      margin: [4, 4, 4, 4],
       filename: fileName,
       image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true, logging: false },
+      html2canvas: { scale: 2, useCORS: true, allowTaint: true, logging: false },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
     };
 
-    const pdfBlob = await html2pdf().set(opt).from(container).outputPdf('blob');
+    const targetElement = container.querySelector('.outer') || container;
+    const pdfBlob = await html2pdf().set(opt).from(targetElement).outputPdf('blob');
     document.body.removeChild(container);
 
     if (pdfBlob && pdfBlob.size > 1000) {

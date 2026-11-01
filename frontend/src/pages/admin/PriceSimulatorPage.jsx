@@ -43,6 +43,7 @@ import {
   buildQuotationHtml,
   triggerPrintQuotation,
   downloadQuotationHtml,
+  downloadQuotationPdf,
   formatQuotationWhatsAppText
 } from '../../utils/quotationHelper';
 
@@ -718,387 +719,9 @@ export default function PriceSimulatorPage() {
   const handleGenerateQuotation = () => {
     // Dismiss quotation modal so parent UI remains unlocked and fully interactive
     setShowQuotationModal(false);
-
-    const shipToName = selectedCustomer?.companyName || selectedCustomer?.name || customClientName || 'Valued Dealer';
-    const shipToAddr = selectedCustomer?.address || '';
-    const shipToCity = selectedCustomer?.city || '';
-    const shipToState = selectedCustomer?.state || '';
-    const shipToPin = selectedCustomer?.pincode || '';
-    const shipToGst = selectedCustomer?.gstNumber || 'N/A';
-    const shipToPhone = selectedCustomer?.phone || '';
-
-    const billerName = companySettings.companyName || companySettings.name || 'MANSARA FOODS PVT. LTD.';
-    const billerAddress = companySettings.address || 'Flat No. B4, No.13, Balaji Nagar 1st street extn, Noombal';
-    const billerCity = companySettings.city || 'Chennai';
-    const billerState = companySettings.state || 'Tamil Nadu';
-    const billerPin = companySettings.pincode || '600077';
-    const billerGst = companySettings.gstNumber || '27AABCM1234F1Z5';
-    const billerPhone = companySettings.phone || '+91-88388 87064';
-    const placeOfSupply = companySettings.placeOfSupply || 'Tamil Nadu (33)';
-    
-    // Ensure bank details always exist and fall back to official Mansara Foods account details
-    const rawBd = companySettings.bankDetails || {};
-    const bd = (rawBd.bankName && rawBd.accountNo) ? rawBd : {
-      bankName: rawBd.bankName || 'HDFC Bank Ltd.',
-      accountNo: rawBd.accountNo || '50200117036854',
-      ifscCode: rawBd.ifscCode || 'HDFC0001947',
-      branch: rawBd.branch || 'Iyyapanthangal Branch',
-      accountType: rawBd.accountType || 'Current',
-      upiId: rawBd.upiId || 'vyapar.175693710434@hdfcbank'
-    };
-    const signatoryTitle = companySettings.signatoryTitle || 'Authorised Signatory';
-    const signatoryName = companySettings.signatoryName || 'Mansara Foods Pvt. Ltd.';
-
-    // Clean address formatting without repeating state or city (exact dealer invoice logic)
-    const addrParts = [];
-    if (billerAddress) addrParts.push(billerAddress.trim().replace(/,\s*$/, ''));
-    if (billerCity && !billerAddress?.includes(billerCity)) addrParts.push(billerCity.trim());
-    if (billerState && !billerAddress?.includes(billerState)) {
-      if (billerPin && !billerAddress?.includes(billerPin)) {
-        addrParts.push(`${billerState.trim()} - ${billerPin.trim()}`);
-      } else {
-        addrParts.push(billerState.trim());
-      }
-    } else if (billerPin && !billerAddress?.includes(billerPin)) {
-      addrParts.push(billerPin.trim());
-    }
-    const formattedBillerAddress = addrParts.join(', ') + (addrParts.length ? '. India.' : '');
-
-    const invDate = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' });
-    const dueDate = new Date(Date.now() + 15 * 86400000).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' });
-
-    let logoHtml = '';
-    const activeLogo = companySettings.logoBase64 || companySettings.logoUrl;
-    if (activeLogo) {
-      const src = activeLogo.startsWith('data:') || activeLogo.startsWith('http')
-        ? activeLogo
-        : (activeLogo.startsWith('/') ? `${window.location.origin}${activeLogo}` : `data:image/png;base64,${activeLogo}`);
-      logoHtml = `<img src="${src}" style="max-height:65px;max-width:180px;object-fit:contain;" alt="${billerName}" />`;
-    } else {
-      logoHtml = `<img src="${window.location.origin}/logo.png" style="max-height:65px;max-width:180px;object-fit:contain;" onerror="this.style.display='none'" alt="${billerName}" />`;
-    }
-
-    const isGstEnabled = calculationSummary.isWithGst;
-    const currentGstRate = calculationSummary.gstRate || 0;
-
-    // Exact Mansara Dealer Format: S.NO | HSN | ITEM | NET WT (G) | RATE (RS.) | PAC | WT/ CTN (KG) | CTNS | TOT. QTY | TOTAL NT WT (KG) | PRICE
-    const itemsRows = calculationSummary.items.map((item, idx) => {
-      const productName = item.name || 'Product';
-      const hsn = item.hsnCode || '1901';
-      const netWtG = parseWeightG(item.netWeightG);
-      const pac = item.pacSize || 24;
-      const wtPerCtn = item.wtPerCartonKg || ((netWtG * pac) / 1000).toFixed(2);
-      const ctns = parseFloat((item.pieces / pac).toFixed(2));
-      const totQty = item.pieces || 0;
-      const totalNtWtKg = ((totQty * netWtG) / 1000).toFixed(2);
-      const rate = item.wholesalePricePerUnit || 0;
-      const lineSubtotal = rate * totQty;
-      const lineGst = isGstEnabled ? (lineSubtotal * (parseFloat(item.gstPercent || currentGstRate) / 100)) : 0;
-      const lineTotal = lineSubtotal + lineGst;
-
-      return `
-        <tr>
-          <td style="text-align:center;">${idx + 1}</td>
-          <td style="text-align:center;">${hsn}</td>
-          <td style="text-align:left;padding-left:6px;">${productName}</td>
-          <td style="text-align:center;">${netWtG}</td>
-          <td style="text-align:right;padding-right:6px;">${rate.toFixed(1)}</td>
-          <td style="text-align:center;">${pac}</td>
-          <td style="text-align:center;">${wtPerCtn}</td>
-          <td style="text-align:center;">${ctns}</td>
-          <td style="text-align:center;">${totQty}</td>
-          <td style="text-align:center;">${totalNtWtKg}</td>
-          <td style="text-align:right;font-weight:600;padding-right:6px;">${lineTotal.toFixed(2)}</td>
-        </tr>`;
-    }).join('');
-
-    // Empty rows for spacing (exact dealer invoice count)
-    const emptyRowsCount = Math.max(0, 9 - calculationSummary.items.length);
-    const emptyRows = Array(emptyRowsCount).fill(0).map(() =>
-      `<tr><td colspan="11" style="height:22px;border-bottom:1px solid #eee;">&nbsp;</td></tr>`).join('');
-
-    const subtotal = calculationSummary.subtotalWithoutGst || 0;
-    const totalGst = calculationSummary.totalGstAmount || 0;
-    const cgst = isGstEnabled ? (totalGst / 2) : 0;
-    const sgst = isGstEnabled ? (totalGst / 2) : 0;
-    const shipping = calculationSummary.shippingCharges || 0;
-    const originalTotal = subtotal + (isGstEnabled ? (cgst + sgst) : 0) + shipping;
-    const discount = 0;
-    const grandRounded = Math.round(calculationSummary.grandTotal);
-
-    // Terms formatting matching dealer invoice
-    const rawTerms = companySettings.invoiceTerms;
-    const terms = rawTerms
-      ? rawTerms.split('\n').filter(Boolean).map((t, i) => `${i + 1}. ${t.replace(/^\d+\.\s*/, '')}`).join('<br>')
-      : `1. Payment within 15 days.<br>2. Interest @ 2% per month on delay.<br>3. Claims if any must be reported at delivery.`;
-
-    const htmlContent = `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<title>Invoice ${quotationRefNumber}</title>
-<style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    font-family: Arial, Helvetica, sans-serif;
-    font-size: 11px;
-    color: #1a1a1a;
-    background: #fff;
-    padding: 20px 24px;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-  }
-  @page {
-    size: A4 portrait;
-    margin: 10mm;
-  }
-  @media print {
-    body { padding: 0 !important; margin: 0 !important; }
-    .outer { max-width: 100% !important; border: 1.5px solid #ccc !important; }
-  }
-  .outer { max-width: 820px; margin: auto; border: 1.5px solid #ccc; background: #fff; }
-  .header-row { display: flex; align-items: stretch; border-bottom: 1.5px solid #ccc; }
-  .logo-cell { width: 220px; padding: 12px 14px; border-right: 1.5px solid #ccc; display: flex; align-items: center; justify-content: center; }
-  .company-cell { flex: 1; padding: 10px 14px; border-right: 1.5px solid #ccc; }
-  .inv-meta-cell { width: 220px; padding: 10px 14px; text-align: right; }
-  .company-name { font-size: 15px; font-weight: 900; color: #D6295A; text-transform: uppercase; margin-bottom: 3px; line-height: 1.2; }
-  .company-addr { font-size: 9.5px; color: #333; line-height: 1.5; }
-  .gst-row { font-size: 10px; font-weight: 700; color: #1a1a1a; margin-top: 4px; display: inline-block; }
-  .inv-title { font-size: 13px; font-weight: 700; color: #1a1a1a; margin-bottom: 8px; text-align: right; text-transform: uppercase; }
-  .meta-line { font-size: 10px; color: #333; display: flex; justify-content: space-between; margin-bottom: 2px; }
-  .meta-line strong { color: #1a1a1a; font-weight: 700; }
-
-  .bill-ship-row { display: flex; border-bottom: 1.5px solid #ccc; }
-  .bill-cell { flex: 1; padding: 8px 14px; border-right: 1.5px solid #ccc; }
-  .ship-cell { flex: 1; padding: 8px 14px; }
-  .section-hdr { font-size: 9px; font-weight: 900; text-transform: uppercase; background: #D6295A; color: #fff; padding: 3px 8px; margin-bottom: 6px; letter-spacing: 0.5px; }
-  .bill-name { font-size: 12px; font-weight: 700; margin-bottom: 3px; color: #1a1a1a; }
-  .bill-addr { font-size: 9.5px; color: #333; line-height: 1.5; }
-  .gstin-line { font-size: 9.5px; font-weight: 700; margin-top: 3px; color: #1a1a1a; }
-
-  .items-table { width: 100%; border-collapse: collapse; border-bottom: 1.5px solid #ccc; }
-  .items-table th {
-    background: #D6295A; color: #fff; font-size: 8.5px; font-weight: 700;
-    text-transform: uppercase; padding: 6px 3px; text-align: center;
-    border-right: 1px solid rgba(255,255,255,0.3);
-    letter-spacing: 0.3px; vertical-align: middle; line-height: 1.2;
-  }
-  .items-table th:last-child { border-right: none; }
-  .items-table td { padding: 5px 4px; border-bottom: 1px solid #eee; font-size: 10px; color: #1a1a1a; }
-
-  .bottom-container { display: flex; border-bottom: 1.5px solid #ccc; }
-  .bottom-left { flex: 1; border-right: 1.5px solid #ccc; display: flex; flex-direction: column; }
-  .words-cell { flex: 1; padding: 10px 14px; border-bottom: 1px solid #ccc; display: flex; flex-direction: column; justify-content: center; }
-  .words-label { font-size: 9px; font-weight: 900; text-transform: uppercase; color: #1a1a1a; margin-bottom: 4px; letter-spacing: 0.3px; }
-  .words-text { font-size: 10px; font-weight: 700; color: #1a1a1a; text-transform: uppercase; line-height: 1.4; }
-
-  .payment-cell { flex: 1; padding: 10px 14px; border-bottom: 1px solid #ccc; display: flex; flex-direction: column; justify-content: center; }
-  .pay-label { font-size: 9px; font-weight: 900; text-transform: uppercase; margin-bottom: 4px; color: #1a1a1a; }
-  .pay-info { font-size: 9.5px; color: #444; font-style: italic; }
-
-  .terms-cell { flex: 1; padding: 10px 14px; display: flex; flex-direction: column; justify-content: center; }
-  .terms-label { font-size: 9px; font-weight: 900; text-decoration: underline; margin-bottom: 4px; color: #1a1a1a; }
-  .terms-text { font-size: 9.5px; color: #333; line-height: 1.5; }
-
-  .bottom-right { width: 280px; display: flex; flex-direction: column; }
-  .totals-table { width: 100%; border-collapse: collapse; }
-  .totals-table td { padding: 3px 10px; font-size: 10px; }
-  .totals-table .t-label { text-align: right; color: #333; }
-  .totals-table .t-value { text-align: right; font-weight: 600; width: 85px; border-left: 1px solid #eee; }
-  .totals-table .grand-row td { background: #D6295A; color: #fff; font-weight: 700; font-size: 11px; padding: 5px 10px; }
-
-  .account-details-block { padding: 7px 12px; border-bottom: 1px solid #ccc; background: #fafafa; }
-  .account-header { font-weight: 700; font-size: 9.5px; text-decoration: underline; margin-bottom: 3px; color: #1a1a1a; }
-  .bank-table { width: 100%; border-collapse: collapse; }
-  .bank-table td { font-size: 9px; padding: 1.5px 0; color: #222; }
-  .bank-table td:first-child { font-weight: 700; padding-right: 6px; width: 68px; color: #555; }
-
-  .sig-section { padding: 8px 14px 10px 14px; text-align: right; margin-top: auto; }
-  .sig-company { font-size: 10px; font-weight: 700; font-style: italic; color: #D6295A; }
-  .sig-name { font-size: 10px; font-style: italic; color: #333; margin-top: 20px; margin-bottom: 2px; }
-  .sig-title { font-size: 9px; color: #555; }
-  .sig-line { font-size: 9px; font-weight: 700; text-decoration: underline; margin-top: 2px; color: #1a1a1a; }
-  .footer-strip { padding: 6px 14px; text-align: center; font-size: 8.5px; color: #555; background: #f9f9f9; line-height: 1.5; }
-</style>
-</head>
-<body>
-<div class="outer">
-
-  <!-- ── Header ───────────────────────────────────────────────────────── -->
-  <div class="header-row">
-    <div class="logo-cell">
-      ${logoHtml}
-    </div>
-    <div class="company-cell">
-      <div class="company-name">${billerName}</div>
-      <div class="company-addr">
-        ${formattedBillerAddress}<br>
-        Phone : ${billerPhone}<br>
-        <span class="gst-row">GST No. ${billerGst}</span>
-      </div>
-    </div>
-    <div class="inv-meta-cell">
-      <div class="inv-title">TAX INVOICE</div>
-      <div class="meta-line"><span>Invoice #</span><strong>${quotationRefNumber}</strong></div>
-      <div class="meta-line"><span>Invoice Date :</span><strong>${invDate}</strong></div>
-      <div class="meta-line"><span>Due Date :</span><strong>${dueDate}</strong></div>
-      <div class="meta-line" style="margin-top:6px;">
-        <span>Place of Supply :</span><strong>${placeOfSupply}</strong>
-      </div>
-    </div>
-  </div>
-
-  <!-- ── Bill To / Ship To ─────────────────────────────────────────────── -->
-  <div class="bill-ship-row">
-    <div class="bill-cell">
-      <div class="section-hdr">BILL TO</div>
-      <div class="bill-name">${shipToName}</div>
-      <div class="bill-addr">
-        ${[shipToAddr, shipToCity, shipToState, shipToPin].filter(Boolean).join(', ')}<br>
-        ${shipToPhone ? 'PH. ' + shipToPhone : ''}
-      </div>
-      ${shipToGst && shipToGst !== 'N/A' ? `<div class="gstin-line">GSTIN: ${shipToGst}</div>` : ''}
-    </div>
-    <div class="ship-cell">
-      <div class="section-hdr">SHIP TO</div>
-      <div class="bill-name">${shipToName}</div>
-      <div class="bill-addr">
-        ${[shipToAddr, shipToCity, shipToState, shipToPin].filter(Boolean).join(', ')}<br>
-        ${shipToPhone ? 'PH. ' + shipToPhone : ''}
-      </div>
-    </div>
-  </div>
-
-  <!-- ── Items Table (Exact Dealer Invoice 11-column format) ───────────── -->
-  <table class="items-table">
-    <thead>
-      <tr>
-        <th style="width:4%;">S.NO</th>
-        <th style="width:6%;">HSN</th>
-        <th style="width:28%;text-align:left;padding-left:6px;">ITEM</th>
-        <th style="width:7%;">NET WT<br>(G)</th>
-        <th style="width:8%;text-align:right;padding-right:6px;">RATE<br>(RS.)</th>
-        <th style="width:5%;">PAC</th>
-        <th style="width:8%;">WT/ CTN<br>(KG)</th>
-        <th style="width:6%;">CTNS</th>
-        <th style="width:7%;">TOT.<br>QTY</th>
-        <th style="width:9%;">TOTAL NT<br>WT (KG)</th>
-        <th style="width:12%;text-align:right;padding-right:6px;">PRICE</th>
-      </tr>
-    </thead>
-    <tbody>
-      ${itemsRows}
-      ${emptyRows}
-    </tbody>
-  </table>
-
-  <!-- ── Bottom Summary & Details (Left: Words, Mode of Payment, Terms | Right: Totals, Account Details, Signature) ──── -->
-  <div class="bottom-container">
-    <!-- Left Column: Total in Words, Mode of Payment, Terms & Conditions -->
-    <div class="bottom-left">
-      <div class="words-cell">
-        <div class="words-label">TOTAL AMOUNT IN WORDS:</div>
-        <div class="words-text">${numberToWords(grandRounded)}</div>
-      </div>
-      <div class="payment-cell">
-        <div class="pay-label">MODE OF PAYMENT (DETAILS):</div>
-        <div class="pay-info">Cheque / Demand Draft / NEFT / RTGS / Online Transfer / UPI</div>
-      </div>
-      <div class="terms-cell">
-        <div class="terms-label">Terms &amp; Conditions:</div>
-        <div class="terms-text">${terms}</div>
-      </div>
-    </div>
-
-    <!-- Right Column: Totals Table, Account Details, Signature -->
-    <div class="bottom-right">
-      <table class="totals-table">
-        <tr><td class="t-label">Sub Total<br><span style="font-size:8px;color:#777;">(Without Tax)</span></td><td class="t-value">${subtotal.toFixed(2)}</td></tr>
-        ${isGstEnabled ? `
-        <tr><td class="t-label">CGST (${(currentGstRate / 2).toFixed(1).replace(/\.0$/, '')}%)</td><td class="t-value">${cgst.toFixed(2)}</td></tr>
-        <tr><td class="t-label">SGST (${(currentGstRate / 2).toFixed(1).replace(/\.0$/, '')}%)</td><td class="t-value">${sgst.toFixed(2)}</td></tr>
-        ` : `<tr><td class="t-label">GST</td><td class="t-value">0.00</td></tr>`}
-        ${shipping > 0 ? `<tr><td class="t-label">Shipping</td><td class="t-value">${shipping.toFixed(2)}</td></tr>` : ''}
-        <tr><td class="t-label">Original Amount</td><td class="t-value">${originalTotal.toFixed(2)}</td></tr>
-        ${discount > 0 ? `<tr><td class="t-label" style="color:#d97706;">Discount</td><td class="t-value" style="color:#d97706;">- ${discount.toFixed(2)}</td></tr>` : ''}
-        <tr class="grand-row"><td class="t-label" style="color:#fff;">Amount To be Paid</td><td class="t-value" style="color:#fff;border-left:1px solid rgba(255,255,255,0.3);">${grandRounded}</td></tr>
-      </table>
-
-      <!-- Under Amount To be Paid: Account Details -->
-      <div class="account-details-block">
-        <div class="account-header">Account Details:</div>
-        <table class="bank-table">
-          ${billerName ? `<tr><td colspan="2" style="font-weight:700;padding-bottom:2px;color:#D6295A;font-size:9.5px;">${billerName}</td></tr>` : ''}
-          ${bd.accountNo ? `<tr><td>A/C No.</td><td>${bd.accountNo}</td></tr>` : ''}
-          ${bd.ifscCode  ? `<tr><td>IFSC Code :</td><td style="font-weight:700;">${bd.ifscCode}</td></tr>` : ''}
-          ${bd.bankName  ? `<tr><td>Bank :</td><td>${bd.bankName}${bd.branch ? ', ' + bd.branch : ''}</td></tr>` : ''}
-          ${bd.accountType ? `<tr><td>Type :</td><td>${bd.accountType}</td></tr>` : ''}
-          ${bd.upiId ? `<tr><td>UPI ID:</td><td>${bd.upiId}</td></tr>` : ''}
-        </table>
-      </div>
-
-      <!-- Under Account Details: Signature -->
-      <div class="sig-section">
-        <div class="sig-company">For ${billerName}..</div>
-        <div class="sig-name">${signatoryName}</div>
-        <div class="sig-title">${signatoryTitle}</div>
-        <div class="sig-line">Authorized signature</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ── Footer Strip ──────────────────────────────────────────────────── -->
-  <div class="footer-strip">
-    Regd. Office &amp; Operations : Flat No. B4, No.13, Balaji Nagar 1<sup>st</sup> street extn, Noombal, Chennai – 600077, Tamil Nadu, India Ph: +91-88388 87064. |
-    CIN- U10790TN2026PTC188398 | Email: contact@mansarafoods.com | Website: www.mansarafoods.com
-  </div>
-</div>
-</body>
-</html>`;
-
-    // Clean up any previously existing print iframe
-    const oldFrame = document.getElementById('mansara-quote-print-frame');
-    if (oldFrame) {
-      oldFrame.remove();
-    }
-
-    // Create an invisible iframe for direct, non-blocking native printing (prevents browser thread deadlock)
-    const printFrame = document.createElement('iframe');
-    printFrame.id = 'mansara-quote-print-frame';
-    printFrame.style.position = 'fixed';
-    printFrame.style.right = '0';
-    printFrame.style.bottom = '0';
-    printFrame.style.width = '0';
-    printFrame.style.height = '0';
-    printFrame.style.border = '0';
-    printFrame.style.opacity = '0';
-    printFrame.style.pointerEvents = 'none';
-    document.body.appendChild(printFrame);
-
-    const frameDoc = printFrame.contentWindow.document;
-    frameDoc.open();
-    frameDoc.write(htmlContent);
-    frameDoc.close();
-
-    // Trigger native print dialog safely after rendering
-    setTimeout(() => {
-      try {
-        printFrame.contentWindow.focus();
-        printFrame.contentWindow.print();
-      } catch (err) {
-        console.error('Error invoking print dialog:', err);
-        window.print();
-      } finally {
-        // Clean up the iframe after user completes or cancels print
-        setTimeout(() => {
-          const frameToRemove = document.getElementById('mansara-quote-print-frame');
-          if (frameToRemove) {
-            frameToRemove.remove();
-          }
-        }, 2000);
-      }
-    }, 400);
-
+    const payload = getQuotationPayload();
+    const htmlContent = buildQuotationHtml(payload);
+    triggerPrintQuotation(htmlContent);
     setToastMessage({ text: 'Tax Invoice quotation sent to print!', type: 'success' });
   };
 
@@ -1131,25 +754,35 @@ export default function PriceSimulatorPage() {
     });
   };
 
-  const getQuotationPayload = () => ({
-    calculationSummary,
-    selectedCustomer,
-    customClientName,
-    companySettings,
-    quotationRefNumber,
-    quotationNotes
-  });
+  const getQuotationPayload = () => {
+    const prefix = companySettings.invoicePrefix || 'MF/INV/25-26';
+    const seqNum = companySettings.nextSequenceNumber !== undefined ? companySettings.nextSequenceNumber : 10;
+    const resolvedRef = quotationRefNumber || formatInvoiceNumber(prefix, seqNum);
+    return {
+      calculationSummary,
+      selectedCustomer,
+      customClientName,
+      companySettings,
+      quotationRefNumber: resolvedRef,
+      quotationNotes
+    };
+  };
 
-  const handleDownloadQuotation = () => {
+  const handleDownloadQuotation = async () => {
     if (!calculationSummary.items || calculationSummary.items.length === 0) {
       setToastMessage({ text: 'Please add at least one product before downloading quotation', type: 'error' });
       return;
     }
-    const htmlContent = buildQuotationHtml(getQuotationPayload());
-    const fileName = `Quotation_${(quotationRefNumber || 'Mansara').replace(/[^a-zA-Z0-9_-]/g, '_')}.html`;
-    downloadQuotationHtml(htmlContent, fileName);
-    triggerPrintQuotation(htmlContent);
-    setToastMessage({ text: 'Quotation file downloaded & print dialog opened!', type: 'success' });
+    const payload = getQuotationPayload();
+    setToastMessage({ text: 'Generating & downloading official Quotation PDF...', type: 'info' });
+    try {
+      await downloadQuotationPdf(payload);
+      setToastMessage({ text: 'Official Quotation PDF downloaded successfully!', type: 'success' });
+    } catch (err) {
+      console.error('Error downloading quotation PDF, falling back to print dialog:', err);
+      const htmlContent = buildQuotationHtml(payload);
+      triggerPrintQuotation(htmlContent);
+    }
   };
 
   const handleOpenWhatsAppShare = () => {
@@ -1992,7 +1625,7 @@ export default function PriceSimulatorPage() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {/* 1. Generate & Preview */}
           <button
             type="button"
@@ -2009,7 +1642,23 @@ export default function PriceSimulatorPage() {
             </div>
           </button>
 
-          {/* 2. Share on WhatsApp */}
+          {/* 2. Download Quotation */}
+          <button
+            type="button"
+            disabled={calculationSummary.items.length === 0}
+            onClick={handleDownloadQuotation}
+            className="flex items-center gap-3 p-4 rounded-2xl border-2 border-rose-200 bg-rose-50 hover:bg-rose-100/80 disabled:opacity-40 text-rose-900 transition-all cursor-pointer group shadow-xs active:scale-[0.99]"
+          >
+            <div className="w-10 h-10 rounded-xl bg-rose-600 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-xs">
+              <Download className="w-5 h-5 text-white" />
+            </div>
+            <div className="min-w-0 text-left">
+              <h3 className="font-black text-xs sm:text-sm text-rose-950">Download Quotation</h3>
+              <p className="text-[10px] text-rose-700/80">Save offline file &amp; print PDF</p>
+            </div>
+          </button>
+
+          {/* 3. Share via WhatsApp */}
           <button
             type="button"
             disabled={calculationSummary.items.length === 0}
