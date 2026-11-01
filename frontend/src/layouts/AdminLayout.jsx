@@ -77,7 +77,6 @@ const getRndMenuItems = () => [
 const getInventoryMenuItems = () => [
   { name: 'Multi Inventory',              path: '/admin/inventories',    icon: Boxes, allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'] },
   { name: 'Material Issue for Products',  path: '/admin/material-issue', icon: ArrowRightLeft, allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'] },
-  { name: 'Channel Integration',          path: '/admin/channel-integration', icon: Cable, allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'] },
 ];
 
 const getStockMenuItems = () => [
@@ -172,6 +171,10 @@ const getAnalyticsMenuItems = () => [
   { name: 'Ecom Analytics',        path: '/admin/ecom/analytics',      icon: TrendingUp, allowedStaffRoles: ['ADMIN', 'ECOM_MANAGER'] },
 ];
 
+const getIntegrationMenuItems = () => [
+  { name: 'Channel Integration', path: '/admin/channel-integration', icon: Cable, allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'] },
+];
+
 const getSystemMenuItems = () => [
   { name: 'Privilege Management',  path: '/admin/users',               icon: Settings, allowedStaffRoles: ['ADMIN'] },
   { name: 'Store Settings',        path: '/admin/ecom/settings',       icon: Settings, allowedStaffRoles: ['ADMIN', 'ECOM_MANAGER'] },
@@ -187,6 +190,7 @@ const getAllMenuItems = (unreadNotifications, licensing = { enableB2cStall: true
   ...getFinanceMenuItems(),
   ...getSupportMenuItems(),
   ...getAnalyticsMenuItems(),
+  ...getIntegrationMenuItems(),
   ...getSystemMenuItems(),
 ];
 
@@ -319,6 +323,7 @@ function SidebarNav({ submenusOpen, toggleSubmenu, onLinkClick, unreadNotificati
   const financeItems = getFinanceMenuItems();
   const supportItems = getSupportMenuItems();
   const analyticsItems = getAnalyticsMenuItems();
+  const integrationItems = getIntegrationMenuItems();
   const systemItems = getSystemMenuItems();
 
   const renderNavSection = (label, items, color = 'slate') => {
@@ -354,6 +359,7 @@ function SidebarNav({ submenusOpen, toggleSubmenu, onLinkClick, unreadNotificati
       {renderNavSection('Finance & Accounting', financeItems, 'slate')}
       {renderNavSection('Customer Support', supportItems, 'slate')}
       {renderNavSection('Analytics & Reports', analyticsItems, 'blue')}
+      {renderNavSection('Integrations', integrationItems, 'slate')}
       {renderNavSection('System & Settings', systemItems, 'slate')}
     </nav>
   );
