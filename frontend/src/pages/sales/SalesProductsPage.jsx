@@ -175,21 +175,21 @@ export default function SalesProductsPage() {
     <div className="space-y-6">
       {/* Top Header */}
       <div>
-        <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight">
+        <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
           Product & Pricing Management
         </h1>
-        <p className="text-xs text-slate-400 mt-1">
+        <p className="text-xs text-slate-500 mt-1">
           Modules 11–17: Catalogue, Price Simulator, Customer Margin Request & Trade Schemes
         </p>
       </div>
 
       {/* Tabs */}
-      <div className="flex flex-wrap items-center gap-2 border-b border-white/10 pb-3">
+      <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 pb-3">
         <button
           type="button"
           onClick={() => handleTabClick('catalogue')}
           className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-            activeSubTab === 'catalogue' ? 'bg-amber-500 text-slate-950' : 'text-slate-400 hover:bg-white/5 hover:text-white'
+            activeSubTab === 'catalogue' ? 'bg-amber-500 text-slate-950 shadow-xs' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
           }`}
         >
           Product Catalogue ({products.length})
@@ -198,7 +198,7 @@ export default function SalesProductsPage() {
           type="button"
           onClick={() => handleTabClick('simulator')}
           className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-            activeSubTab === 'simulator' ? 'bg-amber-500 text-slate-950' : 'text-slate-400 hover:bg-white/5 hover:text-white'
+            activeSubTab === 'simulator' ? 'bg-amber-500 text-slate-950 shadow-xs' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
           }`}
         >
           Price Simulator
@@ -207,7 +207,7 @@ export default function SalesProductsPage() {
           type="button"
           onClick={() => handleTabClick('schemes')}
           className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-            activeSubTab === 'schemes' ? 'bg-amber-500 text-slate-950' : 'text-slate-400 hover:bg-white/5 hover:text-white'
+            activeSubTab === 'schemes' ? 'bg-amber-500 text-slate-950 shadow-xs' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
           }`}
         >
           Trade Schemes ({schemes.length})
@@ -216,10 +216,10 @@ export default function SalesProductsPage() {
           type="button"
           onClick={() => handleTabClick('margins')}
           className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-            activeSubTab === 'margins' ? 'bg-amber-500 text-slate-950' : 'text-slate-400 hover:bg-white/5 hover:text-white'
+            activeSubTab === 'margins' ? 'bg-amber-500 text-slate-950 shadow-xs' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
           }`}
         >
-          Margin Approval Request
+          Margin Approval ({marginSubmitting ? '...' : 'Request'})
         </button>
       </div>
 
@@ -234,14 +234,14 @@ export default function SalesProductsPage() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search products by title..."
-                className="w-full pl-11 pr-4 py-2 bg-slate-800/80 border border-white/10 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
+                className="w-full pl-11 pr-4 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-amber-500"
               />
             </div>
 
             <select
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
-              className="bg-slate-800 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
+              className="bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-amber-500"
             >
               <option value="ALL">All Categories</option>
               {categories.map((c) => (
@@ -254,32 +254,32 @@ export default function SalesProductsPage() {
             {filteredProducts.map((p) => (
               <div 
                 key={p._id} 
-                className="bg-slate-800/80 border border-white/10 hover:border-amber-500/40 p-4 rounded-2xl flex flex-col justify-between transition-all"
+                className="bg-white border border-slate-200 hover:border-amber-400 p-4 rounded-2xl flex flex-col justify-between transition-all shadow-xs"
               >
                 <div>
-                  <div className="w-full h-32 bg-slate-900 rounded-xl overflow-hidden mb-3 flex items-center justify-center border border-white/5">
+                  <div className="w-full h-32 bg-slate-100 rounded-xl overflow-hidden mb-3 flex items-center justify-center border border-slate-200">
                     {p.images?.[0] ? (
                       <img src={p.images[0]} alt={p.name} className="w-full h-full object-cover" />
                     ) : (
-                      <Package className="w-10 h-10 text-slate-600" />
+                      <Package className="w-10 h-10 text-slate-400" />
                     )}
                   </div>
 
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/10 text-slate-300 uppercase">
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 uppercase">
                     {p.category?.name || 'General'}
                   </span>
-                  <h3 className="text-sm font-black text-white mt-1.5">{p.name}</h3>
-                  <p className="text-xs text-slate-400 line-clamp-1 mt-0.5">{p.description || 'Premium Mansara FMCG Product'}</p>
+                  <h3 className="text-sm font-black text-slate-900 mt-1.5">{p.name}</h3>
+                  <p className="text-xs text-slate-500 line-clamp-1 mt-0.5">{p.description || 'Premium Mansara FMCG Product'}</p>
                 </div>
 
-                <div className="mt-4 pt-3 border-t border-white/5 flex items-center justify-between">
+                <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
                   <div>
                     <span className="text-[10px] text-slate-400 uppercase">Retail MRP</span>
-                    <div className="text-base font-black text-amber-400">₹{(p.mrp || 0).toLocaleString('en-IN')}</div>
+                    <div className="text-base font-black text-amber-600">₹{(p.mrp || 0).toLocaleString('en-IN')}</div>
                   </div>
                   <div className="text-right">
                     <span className="text-[10px] text-slate-400 uppercase">Pack / Carton</span>
-                    <div className="text-xs font-bold text-slate-200">{p.unit || '10 Pcs/Box'}</div>
+                    <div className="text-xs font-bold text-slate-700">{p.unit || '10 Pcs/Box'}</div>
                   </div>
                 </div>
               </div>
@@ -301,22 +301,22 @@ export default function SalesProductsPage() {
           {schemes.map((scheme) => (
             <div 
               key={scheme.id} 
-              className="bg-slate-800/80 border border-amber-500/30 p-5 rounded-2xl flex flex-col justify-between relative overflow-hidden"
+              className="bg-white border border-amber-200 p-5 rounded-2xl flex flex-col justify-between relative overflow-hidden shadow-xs"
             >
-              <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/10 rounded-full blur-2xl pointer-events-none"></div>
+              <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/5 rounded-full blur-2xl pointer-events-none"></div>
 
               <div>
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/20 text-[10px] font-black uppercase mb-3">
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 text-[10px] font-black uppercase mb-3">
                   <Tag className="w-3 h-3" />
                   <span>Active Scheme</span>
                 </div>
-                <h3 className="text-base font-black text-white">{scheme.title}</h3>
-                <p className="text-xs text-slate-300 mt-2 leading-relaxed">{scheme.description}</p>
+                <h3 className="text-base font-black text-slate-900">{scheme.title}</h3>
+                <p className="text-xs text-slate-600 mt-2 leading-relaxed">{scheme.description}</p>
               </div>
 
-              <div className="mt-5 pt-3 border-t border-white/10 flex items-center justify-between text-xs">
-                <span className="text-slate-400">Valid Until:</span>
-                <span className="font-mono text-emerald-400 font-bold">{scheme.validUntil}</span>
+              <div className="mt-5 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+                <span className="text-slate-500">Valid Until:</span>
+                <span className="font-mono text-emerald-600 font-bold">{scheme.validUntil}</span>
               </div>
             </div>
           ))}
@@ -325,24 +325,24 @@ export default function SalesProductsPage() {
 
       {/* SubTab 4: Margin Request & Approval (Module 14, 15) */}
       {activeSubTab === 'margins' && (
-        <div className="max-w-xl mx-auto bg-slate-800/80 border border-white/10 p-6 rounded-3xl space-y-5">
-          <div className="flex items-center gap-3 pb-3 border-b border-white/10">
-            <div className="p-3 bg-amber-500/10 text-amber-400 rounded-2xl border border-amber-500/20">
+        <div className="max-w-xl mx-auto bg-white border border-slate-200 p-6 rounded-3xl space-y-5 shadow-xs">
+          <div className="flex items-center gap-3 pb-3 border-b border-slate-200">
+            <div className="p-3 bg-amber-50 text-amber-600 rounded-2xl border border-amber-200">
               <DollarSign className="w-6 h-6" />
             </div>
             <div>
-              <h3 className="text-base font-black text-white">Customer-Specific Margin Request</h3>
-              <p className="text-xs text-slate-400">Submit special retailer margin request for Admin approval</p>
+              <h3 className="text-base font-black text-slate-900">Customer-Specific Margin Request</h3>
+              <p className="text-xs text-slate-500">Submit special retailer margin request for Admin approval</p>
             </div>
           </div>
 
           <form onSubmit={handleSubmitMarginRequest} className="space-y-4 text-xs">
             <div>
-              <label className="block font-bold text-slate-300 uppercase mb-1">Applicable Product (Optional)</label>
+              <label className="block font-bold text-slate-700 uppercase mb-1">Applicable Product (Optional)</label>
               <select
                 value={marginReqProduct}
                 onChange={(e) => setMarginReqProduct(e.target.value)}
-                className="w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
+                className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-amber-500"
               >
                 <option value="">Apply to Entire Order / All Products</option>
                 {products.map((p) => (
@@ -352,32 +352,32 @@ export default function SalesProductsPage() {
             </div>
 
             <div>
-              <label className="block font-bold text-slate-300 uppercase mb-1">Proposed Margin Percentage (%) *</label>
+              <label className="block font-bold text-slate-700 uppercase mb-1">Proposed Margin Percentage (%) *</label>
               <input
                 type="number"
                 required
                 value={marginReqPercent}
                 onChange={(e) => setMarginReqPercent(e.target.value)}
                 placeholder="e.g. 15"
-                className="w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
+                className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-amber-500"
               />
             </div>
 
             <div>
-              <label className="block font-bold text-slate-300 uppercase mb-1">Remarks & Commercial Justification</label>
+              <label className="block font-bold text-slate-700 uppercase mb-1">Remarks & Commercial Justification</label>
               <textarea
                 rows="3"
                 value={marginReqRemarks}
                 onChange={(e) => setMarginReqRemarks(e.target.value)}
                 placeholder="High volume retail placement, competitor scheme match..."
-                className="w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
+                className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-amber-500"
               ></textarea>
             </div>
 
             <button
               type="submit"
               disabled={marginSubmitting}
-              className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-3 rounded-xl flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-amber-500/20 active:scale-95 transition-all"
+              className="w-full bg-amber-500 hover:bg-amber-600 text-white font-black py-3 rounded-xl flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-amber-500/20 active:scale-95 transition-all"
             >
               <Send className="w-4 h-4" />
               <span>{marginSubmitting ? 'Submitting Request...' : 'Submit Margin for Approval'}</span>

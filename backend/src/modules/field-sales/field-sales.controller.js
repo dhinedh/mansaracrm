@@ -2,6 +2,7 @@
 const prisma = require('../../config/database');
 const mongoose = require('mongoose');
 const axios = require('axios');
+const { generateInvoicePdf } = require('../../utils/pdfGenerator');
 
 // In-memory geocode cache to avoid external API rate limits (429) and CORS
 const geoCache = new Map();
@@ -835,6 +836,9 @@ exports.registerShopLead = async (req, res, next) => {
 exports.getCustomer360 = async (req, res, next) => {
   try {
     const { id } = req.params;
+    if (!id || id === 'undefined' || id === 'null' || !mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: 'Valid Store ID is required' });
+    }
     const StoreModel = mongoose.model('Store');
     const store = await StoreModel.findById(id).populate('dealer');
     if (!store) {
@@ -1498,6 +1502,22 @@ exports.getQuotations = async (req, res, next) => {
     });
     res.json({ success: true, data: quotes });
   } catch (error) {
+    next(error);
+  }
+};
+
+exports.exportQuotationPdf = async (req, res, next) => {
+  try {
+    const { html, quotationNo } = req.body;
+    if (!html) {
+      return res.status(400).json({ success: false, message: 'Quotation HTML content is required' });
+    }
+    const pdfBuffer = await generateInvoicePdf(html);
+    res.contentType('application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="Quotation_${quotationNo || 'Mansara'}.pdf"`);
+    res.send(pdfBuffer);
+  } catch (error) {
+    console.error('Field sales quotation PDF generation failed:', error);
     next(error);
   }
 };

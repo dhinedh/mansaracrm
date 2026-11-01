@@ -93,74 +93,74 @@ export default function SalesProfilePage() {
     <div className="space-y-6 max-w-4xl mx-auto">
       {/* Top Header */}
       <div>
-        <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight">
+        <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
           Salesperson Profile & Account Settings
         </h1>
-        <p className="text-xs text-slate-400 mt-1">
+        <p className="text-xs text-slate-500 mt-1">
           Module 1 & 34: Manage profile credentials, security password and assigned beat configuration
         </p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Profile Card */}
-        <div className="bg-slate-800/80 border border-white/10 p-6 rounded-3xl space-y-4">
-          <div className="flex items-center gap-3 pb-3 border-b border-white/10">
-            <div className="p-3 bg-amber-500/10 text-amber-400 rounded-2xl">
+        <div className="bg-white border border-slate-200 p-6 rounded-3xl space-y-4 shadow-xs">
+          <div className="flex items-center gap-3 pb-3 border-b border-slate-200">
+            <div className="p-3 bg-amber-50 text-amber-600 rounded-2xl border border-amber-200">
               <User className="w-6 h-6" />
             </div>
             <div>
-              <h3 className="text-base font-black text-white">Employee Information</h3>
-              <p className="text-xs text-slate-400">{profile?.employeeCode || 'SALES-001'} • {profile?.designation || 'Field Executive'}</p>
+              <h3 className="text-base font-black text-slate-900">Employee Information</h3>
+              <p className="text-xs text-slate-500">{profile?.employeeCode || 'SALES-001'} • {profile?.designation || 'Field Executive'}</p>
             </div>
           </div>
 
           <form onSubmit={handleUpdateProfile} className="space-y-3 text-xs">
             <div>
-              <label className="block font-bold text-slate-300 uppercase mb-1">Full Name</label>
+              <label className="block font-bold text-slate-600 uppercase mb-1">Full Name</label>
               <input
                 type="text"
                 required
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
+                className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-amber-500 shadow-2xs"
               />
             </div>
 
             <div>
-              <label className="block font-bold text-slate-300 uppercase mb-1">Official Email Address</label>
+              <label className="block font-bold text-slate-600 uppercase mb-1">Official Email Address</label>
               <input
                 type="email"
                 disabled
                 value={profile?.user?.email || 'sales@mansarafoods.com'}
-                className="w-full bg-slate-900/50 border border-white/5 rounded-xl px-3 py-2 text-xs text-slate-400 cursor-not-allowed"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-500 cursor-not-allowed"
               />
             </div>
 
             <div>
-              <label className="block font-bold text-slate-300 uppercase mb-1">Mobile Phone Number</label>
+              <label className="block font-bold text-slate-600 uppercase mb-1">Mobile Phone Number</label>
               <input
                 type="tel"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="+91 98765 12345"
-                className="w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
+                className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-amber-500 shadow-2xs"
               />
             </div>
 
             <div>
-              <label className="block font-bold text-slate-300 uppercase mb-1">Emergency Contact / Remarks</label>
+              <label className="block font-bold text-slate-600 uppercase mb-1">Emergency Contact / Remarks</label>
               <input
                 type="text"
                 value={emergencyContact}
                 onChange={(e) => setEmergencyContact(e.target.value)}
                 placeholder="Name & Contact number"
-                className="w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
+                className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-amber-500 shadow-2xs"
               />
             </div>
 
             <div className="pt-2">
-              <span className="text-[10px] font-bold text-slate-400 uppercase">Assigned Territory Beat:</span>
-              <p className="text-xs font-semibold text-amber-400 mt-0.5">
+              <span className="text-[10px] font-bold text-slate-500 uppercase">Assigned Territory Beat:</span>
+              <p className="text-xs font-semibold text-amber-700 mt-0.5">
                 {profile?.activeBeatRoute || 'Beat A - North Chennai Commercial Beat'}
               </p>
             </div>
@@ -177,58 +177,58 @@ export default function SalesProfilePage() {
         </div>
 
         {/* Change Password Card */}
-        <div className="bg-slate-800/80 border border-white/10 p-6 rounded-3xl space-y-4">
-          <div className="flex items-center gap-3 pb-3 border-b border-white/10">
-            <div className="p-3 bg-rose-500/10 text-rose-400 rounded-2xl">
+        <div className="bg-white border border-slate-200 p-6 rounded-3xl space-y-4 shadow-xs">
+          <div className="flex items-center gap-3 pb-3 border-b border-slate-200">
+            <div className="p-3 bg-rose-50 text-rose-600 rounded-2xl border border-rose-200">
               <Lock className="w-6 h-6" />
             </div>
             <div>
-              <h3 className="text-base font-black text-white">Security & Password</h3>
-              <p className="text-xs text-slate-400">Update your salesperson sign-in password</p>
+              <h3 className="text-base font-black text-slate-900">Security & Password</h3>
+              <p className="text-xs text-slate-500">Update your salesperson sign-in password</p>
             </div>
           </div>
 
           <form onSubmit={handleChangePassword} className="space-y-3 text-xs">
             <div>
-              <label className="block font-bold text-slate-300 uppercase mb-1">Current Password *</label>
+              <label className="block font-bold text-slate-600 uppercase mb-1">Current Password *</label>
               <input
                 type="password"
                 required
                 value={currentPassword}
                 onChange={(e) => setCurrentPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-rose-500"
+                className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-rose-500 shadow-2xs"
               />
             </div>
 
             <div>
-              <label className="block font-bold text-slate-300 uppercase mb-1">New Password *</label>
+              <label className="block font-bold text-slate-600 uppercase mb-1">New Password *</label>
               <input
                 type="password"
                 required
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-rose-500"
+                className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-rose-500 shadow-2xs"
               />
             </div>
 
             <div>
-              <label className="block font-bold text-slate-300 uppercase mb-1">Confirm New Password *</label>
+              <label className="block font-bold text-slate-600 uppercase mb-1">Confirm New Password *</label>
               <input
                 type="password"
                 required
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-rose-500"
+                className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-rose-500 shadow-2xs"
               />
             </div>
 
             <button
               type="submit"
               disabled={changingPass}
-              className="w-full bg-rose-600 hover:bg-rose-500 text-white font-black py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 cursor-pointer transition-all shadow-md active:scale-95 mt-6"
+              className="w-full bg-rose-600 hover:bg-rose-500 text-white font-black py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 cursor-pointer transition-all shadow-md active:scale-95 mt-6 text-white-forced"
             >
               <ShieldCheck className="w-4 h-4" />
               <span>{changingPass ? 'Updating Security...' : 'Change Password'}</span>

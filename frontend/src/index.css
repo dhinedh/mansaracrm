@@ -55,3 +55,113 @@
   animation: slideInLeft 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
+/* ==========================================================================
+   Salesperson Portal - White / Light Theme
+   ========================================================================== */
+.sales-portal-light {
+  background-color: #F8FAFC !important;
+  color: #0F172A !important;
+}
+
+/* Surfaces */
+.sales-portal-light .bg-slate-900,
+.sales-portal-light .bg-slate-950,
+.sales-portal-light .bg-slate-800,
+.sales-portal-light .bg-slate-850,
+.sales-portal-light [class*="bg-slate-800/"],
+.sales-portal-light [class*="bg-slate-900/"],
+.sales-portal-light [class*="bg-slate-950/"] {
+  background-color: #FFFFFF !important;
+  color: #0F172A;
+}
+
+/* Secondary subtle surfaces, table headers, pills */
+.sales-portal-light .bg-slate-700,
+.sales-portal-light [class*="bg-slate-700/"],
+.sales-portal-light [class*="bg-white/5"],
+.sales-portal-light [class*="bg-white/10"],
+.sales-portal-light [class*="bg-white/15"] {
+  background-color: #F1F5F9 !important;
+  color: #334155;
+}
+
+/* Hover effects */
+.sales-portal-light [class*="hover:bg-white/5"]:hover,
+.sales-portal-light [class*="hover:bg-white/10"]:hover,
+.sales-portal-light [class*="hover:bg-white/15"]:hover,
+.sales-portal-light [class*="hover:bg-slate-700"]:hover,
+.sales-portal-light [class*="hover:bg-slate-800"]:hover {
+  background-color: #E2E8F0 !important;
+}
+
+/* Borders */
+.sales-portal-light [class*="border-white/"],
+.sales-portal-light .border-slate-800,
+.sales-portal-light .border-slate-700,
+.sales-portal-light [class*="border-slate-700/"] {
+  border-color: #E2E8F0 !important;
+}
+
+/* Typography */
+.sales-portal-light .text-white,
+.sales-portal-light .text-slate-100 {
+  color: #0F172A !important;
+}
+
+.sales-portal-light .text-slate-200,
+.sales-portal-light .text-slate-300 {
+  color: #334155 !important;
+}
+
+.sales-portal-light .text-slate-400,
+.sales-portal-light .text-slate-500 {
+  color: #64748B !important;
+}
+
+/* Preserve contrast on solid colored buttons & badges */
+.sales-portal-light button.bg-amber-500,
+.sales-portal-light button.bg-amber-400,
+.sales-portal-light a.bg-amber-500,
+.sales-portal-light [class*="bg-amber-500"] {
+  color: #0F172A !important;
+}
+
+.sales-portal-light button.bg-rose-600,
+.sales-portal-light button.bg-rose-500,
+.sales-portal-light button.bg-emerald-600,
+.sales-portal-light button.bg-emerald-500,
+.sales-portal-light button.bg-blue-600,
+.sales-portal-light button.bg-indigo-600,
+.sales-portal-light .text-white-forced {
+  color: #FFFFFF !important;
+}
+
+/* Form Inputs, Selects, and Textareas */
+.sales-portal-light input:not([type="checkbox"]):not([type="radio"]),
+.sales-portal-light select,
+.sales-portal-light textarea {
+  background-color: #FFFFFF !important;
+  color: #0F172A !important;
+  border-color: #CBD5E1 !important;
+}
+
+.sales-portal-light input::placeholder,
+.sales-portal-light textarea::placeholder {
+  color: #94A3B8 !important;
+}
+
+/* Modal Backdrops */
+.sales-portal-light .fixed.inset-0[class*="bg-slate-950"],
+.sales-portal-light .fixed.inset-0[class*="bg-slate-900"],
+.sales-portal-light .fixed.inset-0[class*="bg-black"] {
+  background-color: rgba(15, 23, 42, 0.45) !important;
+  backdrop-filter: blur(4px);
+}
+
+/* Elevated cards */
+.sales-portal-light .rounded-2xl,
+.sales-portal-light .rounded-3xl {
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.05), 0 1px 2px -1px rgb(0 0 0 / 0.05);
+}
+
+

@@ -4,8 +4,16 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { 
   ShoppingBag, Plus, Trash2, Clock, CheckCircle2, 
-  FileText, Send, ArrowRight, RefreshCw, X, AlertCircle 
+  FileText, Send, ArrowRight, RefreshCw, X, AlertCircle,
+  Download, Eye, Printer, Copy
 } from 'lucide-react';
+import WhatsAppShareModal from '../../components/WhatsAppShareModal';
+import {
+  buildQuotationHtml,
+  triggerPrintQuotation,
+  downloadQuotationHtml,
+  formatQuotationWhatsAppText
+} from '../../utils/quotationHelper';
 
 export default function SalesOrdersPage() {
   const location = useLocation();
@@ -37,6 +45,11 @@ export default function SalesOrdersPage() {
   const [quotations, setQuotations] = useState([]);
   const [quoteCustomerName, setQuoteCustomerName] = useState('');
   const [quoteCustomerPhone, setQuoteCustomerPhone] = useState('');
+  const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
+  const [whatsAppPhone, setWhatsAppPhone] = useState('');
+  const [whatsAppMessage, setWhatsAppMessage] = useState('');
+  const [activeQuotationData, setActiveQuotationData] = useState(null);
+  const [previewQuote, setPreviewQuote] = useState(null);
 
   // Amendments & returns state (Module 22, 23)
   const [amendments, setAmendments] = useState([]);
@@ -158,6 +171,22 @@ export default function SalesOrdersPage() {
     }
   };
 
+  const handleDownloadQuotation = (q) => {
+    const htmlContent = buildQuotationHtml(q);
+    const fileName = `Quotation_${(q.quotationNo || 'Mansara').replace(/[^a-zA-Z0-9_-]/g, '_')}.html`;
+    downloadQuotationHtml(htmlContent, fileName);
+    triggerPrintQuotation(htmlContent);
+  };
+
+  const handleShareWhatsApp = (q) => {
+    setActiveQuotationData(q);
+    const text = formatQuotationWhatsAppText(q);
+    const phone = q.customerPhone || '';
+    setWhatsAppPhone(phone);
+    setWhatsAppMessage(text);
+    setShowWhatsAppModal(true);
+  };
+
   // Submit Quotation (Module 20)
   const handleCreateQuotation = async (e) => {
     e.preventDefault();
@@ -174,11 +203,14 @@ export default function SalesOrdersPage() {
       });
 
       if (res.data?.success) {
-        alert('Quotation submitted for review! Quotation No: ' + res.data.data.quotationNo);
+        const createdQuote = res.data.data;
+        alert('Quotation submitted for review! Quotation No: ' + createdQuote.quotationNo);
         setQuoteCustomerName('');
         setQuoteCustomerPhone('');
         const qRes = await axios.get('/field-sales/quotations');
         if (qRes.data?.success) setQuotations(qRes.data.data);
+        // Automatically open WhatsApp share modal with the newly created quote
+        handleShareWhatsApp(createdQuote);
       }
     } catch (err) {
       alert('Failed to create quotation');
@@ -215,10 +247,10 @@ export default function SalesOrdersPage() {
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight">
+          <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
             Sales & Order Management
           </h1>
-          <p className="text-xs text-slate-400 mt-1">
+          <p className="text-xs text-slate-500 mt-1">
             Modules 18–23: Order Booking, Quick Reorder, Quotations, Tracking & Amendments
           </p>
         </div>
@@ -226,20 +258,20 @@ export default function SalesOrdersPage() {
         <button
           type="button"
           onClick={() => setAmendModalOpen(true)}
-          className="bg-slate-800 hover:bg-slate-700 border border-white/10 text-white font-bold px-3.5 py-2 rounded-xl text-xs flex items-center gap-2 cursor-pointer transition-all"
+          className="bg-white hover:bg-slate-50 border border-slate-200 text-slate-800 font-bold px-3.5 py-2 rounded-xl text-xs flex items-center gap-2 cursor-pointer transition-all shadow-xs"
         >
-          <AlertCircle className="w-4 h-4 text-amber-400" />
+          <AlertCircle className="w-4 h-4 text-amber-600" />
           <span>Request Amendment / Return</span>
         </button>
       </div>
 
       {/* Tabs */}
-      <div className="flex items-center gap-2 border-b border-white/10 pb-3">
+      <div className="flex items-center gap-2 border-b border-slate-200 pb-3 overflow-x-auto">
         <button
           type="button"
           onClick={() => handleTabClick('new')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-            activeTab === 'new' ? 'bg-amber-500 text-slate-950' : 'text-slate-400 hover:bg-white/5 hover:text-white'
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+            activeTab === 'new' ? 'bg-amber-500 text-slate-950 shadow-xs' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
           }`}
         >
           Create Sales Order
@@ -247,8 +279,8 @@ export default function SalesOrdersPage() {
         <button
           type="button"
           onClick={() => handleTabClick('orders')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-            activeTab === 'orders' ? 'bg-amber-500 text-slate-950' : 'text-slate-400 hover:bg-white/5 hover:text-white'
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+            activeTab === 'orders' ? 'bg-amber-500 text-slate-950 shadow-xs' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
           }`}
         >
           Booked Orders ({bookedOrders.length})
@@ -256,8 +288,8 @@ export default function SalesOrdersPage() {
         <button
           type="button"
           onClick={() => handleTabClick('quotations')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-            activeTab === 'quotations' ? 'bg-amber-500 text-slate-950' : 'text-slate-400 hover:bg-white/5 hover:text-white'
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+            activeTab === 'quotations' ? 'bg-amber-500 text-slate-950 shadow-xs' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
           }`}
         >
           Quotations ({quotations.length})
@@ -265,8 +297,8 @@ export default function SalesOrdersPage() {
         <button
           type="button"
           onClick={() => handleTabClick('amendments')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-            activeTab === 'amendments' ? 'bg-amber-500 text-slate-950' : 'text-slate-400 hover:bg-white/5 hover:text-white'
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+            activeTab === 'amendments' ? 'bg-amber-500 text-slate-950 shadow-xs' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
           }`}
         >
           Amendments & Returns ({amendments.length})
@@ -497,28 +529,83 @@ export default function SalesOrdersPage() {
       {/* Tab 2: Quotations (Module 20) */}
       {activeTab === 'quotations' && (
         <div className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {quotations.map((q) => (
-              <div key={q._id} className="bg-slate-800/80 border border-white/10 p-5 rounded-2xl space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-white/10 text-slate-300">
-                    {q.quotationNo}
-                  </span>
-                  <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 uppercase">
-                    {q.status}
-                  </span>
-                </div>
+          {quotations.length === 0 ? (
+            <div className="bg-slate-800/80 border border-white/10 rounded-2xl p-8 text-center text-slate-400">
+              <FileText className="w-10 h-10 text-slate-500 mx-auto mb-2" />
+              <p className="font-bold text-white text-sm">No quotations created yet</p>
+              <p className="text-xs text-slate-400 mt-1">Use the "Book New Order" form to draft a commercial quote for review.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {quotations.map((q) => (
+                <div key={q._id} className="bg-slate-800/80 border border-white/10 p-5 rounded-2xl space-y-3 hover:border-amber-500/30 transition flex flex-col justify-between">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-white/10 text-slate-200">
+                        {q.quotationNo}
+                      </span>
+                      <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase ${
+                        q.status === 'APPROVED' ? 'bg-emerald-500/20 text-emerald-400' :
+                        q.status === 'REJECTED' ? 'bg-rose-500/20 text-rose-400' : 'bg-amber-500/10 text-amber-400'
+                      }`}>
+                        {q.status}
+                      </span>
+                    </div>
 
-                <h3 className="text-sm font-black text-white">{q.customerName}</h3>
-                <p className="text-xs text-slate-400">Total Items: {q.items?.length || 0}</p>
+                    <div>
+                      <h3 className="text-sm font-black text-white">{q.customerName}</h3>
+                      {q.customerPhone && (
+                        <p className="text-[11px] text-slate-400 font-mono mt-0.5">Ph: {q.customerPhone}</p>
+                      )}
+                      <p className="text-[10px] text-slate-400 mt-0.5">
+                        {q.items?.length || 0} {q.items?.length === 1 ? 'Item' : 'Items'} &bull; {new Date(q.createdAt || Date.now()).toLocaleDateString('en-IN')}
+                      </p>
+                    </div>
+                  </div>
 
-                <div className="pt-2 border-t border-white/10 flex justify-between items-center text-xs">
-                  <span className="text-slate-400">Quotation Value:</span>
-                  <span className="font-black text-amber-400 text-sm">₹{(q.grandTotal || 0).toLocaleString('en-IN')}</span>
+                  <div className="space-y-2.5 pt-2 border-t border-white/10">
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-slate-400">Total Value:</span>
+                      <span className="font-black text-amber-400 text-sm">₹{(q.grandTotal || 0).toLocaleString('en-IN')}</span>
+                    </div>
+
+                    {/* Quick Action Buttons */}
+                    <div className="grid grid-cols-3 gap-1.5 text-xs">
+                      <button
+                        type="button"
+                        onClick={() => handleShareWhatsApp(q)}
+                        className="py-1.5 px-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold flex items-center justify-center gap-1 shadow-sm active:scale-95 transition cursor-pointer text-[11px]"
+                        title="Share on WhatsApp"
+                      >
+                        <svg className="w-3.5 h-3.5 fill-current shrink-0" viewBox="0 0 24 24">
+                          <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.582 2.128 2.182-.573c.978.58 1.911.928 3.145.929 3.178 0 5.767-2.587 5.768-5.766.001-3.187-2.575-5.77-5.764-5.771zm3.392 8.244c-.144.405-.837.774-1.17.824-.299.045-.677.063-1.092-.069-.252-.08-.575-.187-.988-.365-1.739-.751-2.874-2.502-2.961-2.617-.087-.116-.708-.94-.708-1.793s.448-1.273.607-1.446c.159-.173.346-.217.462-.217l.332.006c.106.005.249-.04.39.298.144.347.491 1.2.534 1.287.043.087.072.188.014.304-.058.116-.087.188-.173.289l-.26.304c-.087.086-.177.18-.076.354.101.174.449.741.964 1.201.662.591 1.221.774 1.394.86s.275.072.376-.043c.101-.116.433-.506.549-.68.116-.173.231-.145.39-.087s1.011.477 1.184.564.289.13.332.202c.043.073.043.419-.101.825zM12 2C6.477 2 2 6.477 2 12c0 1.891.524 3.66 1.436 5.176L2 22l4.981-1.306A9.957 9.957 0 0012 22c5.523 0 10-4.477 10-10S17.523 2 12 2z"/>
+                        </svg>
+                        <span>WhatsApp</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDownloadQuotation(q)}
+                        className="py-1.5 px-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold flex items-center justify-center gap-1 shadow-sm active:scale-95 transition cursor-pointer text-[11px]"
+                        title="Download Quotation Document & Print"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        <span>Download</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPreviewQuote(q)}
+                        className="py-1.5 px-2 bg-white/10 hover:bg-white/20 text-slate-200 rounded-xl font-bold flex items-center justify-center gap-1 active:scale-95 transition cursor-pointer text-[11px]"
+                        title="Preview Details"
+                      >
+                        <Eye className="w-3.5 h-3.5 text-amber-400" />
+                        <span>View</span>
+                      </button>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -629,6 +716,107 @@ export default function SalesOrdersPage() {
           </div>
         </div>
       )}
+
+      {/* ─── QUOTATION PREVIEW MODAL ─────────────────────────────────────── */}
+      {previewQuote && (
+        <div
+          onClick={() => setPreviewQuote(null)}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xs animate-fade-in"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-slate-900 border border-white/10 rounded-3xl max-w-lg w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto"
+          >
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <div>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 font-bold">
+                  {previewQuote.quotationNo}
+                </span>
+                <h3 className="text-base font-black text-white mt-1">{previewQuote.customerName}</h3>
+                {previewQuote.customerPhone && (
+                  <p className="text-xs text-slate-400">Phone: {previewQuote.customerPhone}</p>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => setPreviewQuote(null)}
+                className="p-1 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Items List */}
+            <div className="space-y-2">
+              <h4 className="text-[10px] font-black uppercase tracking-wider text-slate-400">Itemized Products</h4>
+              <div className="divide-y divide-white/5 border border-white/5 rounded-2xl overflow-hidden bg-slate-950/40">
+                {(previewQuote.items || []).map((it, idx) => (
+                  <div key={idx} className="p-3 flex items-center justify-between text-xs">
+                    <div>
+                      <p className="font-bold text-white">{it.productName || 'Product'}</p>
+                      <p className="text-[10px] text-slate-400 font-mono">Qty: {it.quantity} &bull; Rate: ₹{(it.unitPrice || 0).toFixed(2)}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-black text-amber-400">₹{(it.totalPrice || (it.quantity * it.unitPrice) || 0).toLocaleString('en-IN')}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Financials */}
+            <div className="p-3.5 bg-white/5 rounded-2xl space-y-1.5 text-xs">
+              <div className="flex justify-between text-slate-400">
+                <span>Subtotal:</span>
+                <span className="font-mono text-white">₹{(previewQuote.subtotal || 0).toLocaleString('en-IN')}</span>
+              </div>
+              <div className="flex justify-between text-slate-400">
+                <span>GST (Tax):</span>
+                <span className="font-mono text-white">₹{(previewQuote.taxTotal || 0).toLocaleString('en-IN')}</span>
+              </div>
+              <div className="flex justify-between text-white font-bold pt-1.5 border-t border-white/10 text-sm">
+                <span>Grand Total:</span>
+                <span className="text-amber-400 font-black">₹{(previewQuote.grandTotal || 0).toLocaleString('en-IN')}</span>
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-white/10">
+              <button
+                type="button"
+                onClick={() => {
+                  const q = previewQuote;
+                  setPreviewQuote(null);
+                  handleShareWhatsApp(q);
+                }}
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shadow-md shadow-emerald-600/20 active:scale-95"
+              >
+                <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
+                  <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.582 2.128 2.182-.573c.978.58 1.911.928 3.145.929 3.178 0 5.767-2.587 5.768-5.766.001-3.187-2.575-5.77-5.764-5.771zm3.392 8.244c-.144.405-.837.774-1.17.824-.299.045-.677.063-1.092-.069-.252-.08-.575-.187-.988-.365-1.739-.751-2.874-2.502-2.961-2.617-.087-.116-.708-.94-.708-1.793s.448-1.273.607-1.446c.159-.173.346-.217.462-.217l.332.006c.106.005.249-.04.39.298.144.347.491 1.2.534 1.287.043.087.072.188.014.304-.058.116-.087.188-.173.289l-.26.304c-.087.086-.177.18-.076.354.101.174.449.741.964 1.201.662.591 1.221.774 1.394.86s.275.072.376-.043c.101-.116.433-.506.549-.68.116-.173.231-.145.39-.087s1.011.477 1.184.564.289.13.332.202c.043.073.043.419-.101.825zM12 2C6.477 2 2 6.477 2 12c0 1.891.524 3.66 1.436 5.176L2 22l4.981-1.306A9.957 9.957 0 0012 22c5.523 0 10-4.477 10-10S17.523 2 12 2z"/>
+                </svg>
+                <span>Share WhatsApp</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDownloadQuotation(previewQuote)}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shadow-md shadow-rose-600/20 active:scale-95"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>Download / Print</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── WHATSAPP SHARE MODAL ─────────────────────────────────────────── */}
+      <WhatsAppShareModal
+        isOpen={showWhatsAppModal}
+        onClose={() => setShowWhatsAppModal(false)}
+        defaultPhone={whatsAppPhone}
+        defaultMessage={whatsAppMessage}
+        quotationData={activeQuotationData}
+      />
     </div>
   );
 }

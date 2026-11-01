@@ -318,28 +318,28 @@ export default function SalesGpsCheckInPage() {
   };
 
   return (
-    <div className="space-y-4 sm:space-y-5 pb-24 font-sans text-slate-100 max-w-4xl mx-auto">
+    <div className="space-y-4 sm:space-y-5 pb-24 font-sans text-slate-900 max-w-4xl mx-auto">
       {/* ─── PAGE HEADER & NAVIGATION BAR ─────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-800/80 border border-white/10 rounded-2xl p-4 shadow-xl">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
         <div className="flex items-center gap-3">
           <Link
             to="/sales/visits"
-            className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition-all cursor-pointer border border-white/10"
+            className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-all cursor-pointer border border-slate-200"
             title="Back to Daily Beat Outlets"
           >
             <ArrowLeft className="w-5 h-5" />
           </Link>
-          <div className="p-2.5 sm:p-3 bg-amber-500/10 text-amber-400 rounded-2xl border border-amber-500/20 shrink-0">
+          <div className="p-2.5 sm:p-3 bg-amber-50 text-amber-600 rounded-2xl border border-amber-200 shrink-0">
             <Compass className="w-5 h-5 sm:w-6 sm:h-6 animate-pulse" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-base sm:text-lg font-black text-white">Live GPS Check-In</h1>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+              <h1 className="text-base sm:text-lg font-black text-slate-900">Live GPS Check-In</h1>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
                 Satellite Live
               </span>
             </div>
-            <p className="text-[11px] sm:text-xs text-slate-400">
+            <p className="text-[11px] sm:text-xs text-slate-500">
               Google Map address link &amp; Registered store matching
             </p>
           </div>
@@ -349,9 +349,9 @@ export default function SalesGpsCheckInPage() {
           <button
             type="button"
             onClick={() => navigate('/sales/visits')}
-            className="px-3.5 py-2 rounded-xl bg-slate-700/80 hover:bg-slate-700 text-xs font-bold text-slate-200 border border-white/10 flex items-center gap-1.5 transition-all cursor-pointer"
+            className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-800 border border-slate-200 flex items-center gap-1.5 transition-all cursor-pointer"
           >
-            <Store className="w-3.5 h-3.5 text-amber-400" />
+            <Store className="w-3.5 h-3.5 text-amber-500" />
             <span>Daily Beat List</span>
           </button>
         </div>
@@ -360,7 +360,7 @@ export default function SalesGpsCheckInPage() {
       {/* ─── INTERACTIVE MAP & DETECTED ADDRESS CARD ─────────────────────── */}
       <div className="space-y-3">
         {currentCoords ? (
-          <div className="w-full h-56 sm:h-72 rounded-2xl overflow-hidden border border-white/10 bg-slate-950 relative shadow-2xl">
+          <div className="w-full h-56 sm:h-72 rounded-2xl overflow-hidden border border-slate-200 bg-slate-100 relative shadow-xs">
             {/* Interactive OpenStreetMap Embed */}
             <iframe
               title="Live Location Map"
@@ -380,38 +380,38 @@ export default function SalesGpsCheckInPage() {
                 href={`https://www.google.com/maps?q=${currentCoords.latitude},${currentCoords.longitude}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="bg-slate-900/95 hover:bg-slate-950 text-amber-400 font-bold px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 border border-white/20 shadow-xl backdrop-blur-md transition-all active:scale-95"
+                className="bg-white/95 hover:bg-white text-slate-900 font-bold px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 border border-slate-200 shadow-md backdrop-blur-md transition-all active:scale-95"
               >
-                <ExternalLink className="w-3.5 h-3.5" />
+                <ExternalLink className="w-3.5 h-3.5 text-amber-500" />
                 <span>Open Google Maps</span>
               </a>
             </div>
           </div>
         ) : (
-          <div className="w-full h-48 rounded-2xl border border-dashed border-white/20 flex flex-col items-center justify-center gap-2 bg-slate-800/40 text-slate-400">
-            <RefreshCw className="w-6 h-6 animate-spin text-amber-400" />
+          <div className="w-full h-48 rounded-2xl border border-dashed border-slate-300 flex flex-col items-center justify-center gap-2 bg-slate-50 text-slate-500">
+            <RefreshCw className="w-6 h-6 animate-spin text-amber-500" />
             <span className="text-xs font-semibold">Acquiring GPS coordinates from satellite...</span>
           </div>
         )}
 
         {/* Detected Physical Address Box */}
-        <div className="bg-slate-800/90 border border-white/10 p-4 rounded-2xl flex items-start justify-between gap-3 text-xs shadow-lg">
+        <div className="bg-white border border-slate-200 p-4 rounded-2xl flex items-start justify-between gap-3 text-xs shadow-xs">
           <div className="flex items-start gap-3">
-            <MapPin className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+            <MapPin className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
             <div>
-              <span className="font-bold text-white block text-xs sm:text-sm">
+              <span className="font-bold text-slate-900 block text-xs sm:text-sm">
                 Detected Current Location Address:
               </span>
-              <span className="text-slate-300 text-xs sm:text-[13px] font-medium leading-relaxed block mt-0.5">
+              <span className="text-slate-700 text-xs sm:text-[13px] font-medium leading-relaxed block mt-0.5">
                 {geoLoading ? 'Fetching address from Google/OSM...' : (geoAddress?.fullAddress || 'Locating physical address...')}
               </span>
               {geoAddress?.city && (
                 <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
                     {geoAddress.city} {geoAddress.pincode ? `• PIN: ${geoAddress.pincode}` : ''}
                   </span>
                   {currentCoords && (
-                    <span className="text-[10px] font-mono text-slate-400">
+                    <span className="text-[10px] font-mono text-slate-500">
                       {currentCoords.latitude.toFixed(4)}°N, {currentCoords.longitude.toFixed(4)}°E
                     </span>
                   )}
@@ -424,7 +424,7 @@ export default function SalesGpsCheckInPage() {
             type="button"
             onClick={() => acquireGPS()}
             disabled={gpsLoading || geoLoading}
-            className="text-xs font-bold text-amber-400 hover:text-amber-300 shrink-0 flex items-center gap-1.5 cursor-pointer bg-white/5 hover:bg-white/10 border border-white/10 px-3 py-1.5 rounded-xl transition-all"
+            className="text-xs font-bold text-amber-700 hover:text-amber-800 shrink-0 flex items-center gap-1.5 cursor-pointer bg-amber-50 hover:bg-amber-100 border border-amber-200 px-3 py-1.5 rounded-xl transition-all"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${gpsLoading || geoLoading ? 'animate-spin' : ''}`} />
             <span>Re-fetch</span>
@@ -433,13 +433,13 @@ export default function SalesGpsCheckInPage() {
       </div>
 
       {/* ─── MATCHING STORES AT THIS LOCATION ─────────────────────────────── */}
-      <div className="bg-slate-800/80 border border-white/10 rounded-2xl p-4 sm:p-5 space-y-3.5 shadow-xl">
-        <div className="flex items-center justify-between border-b border-white/10 pb-3">
-          <h3 className="text-xs sm:text-sm font-black uppercase tracking-wider text-slate-200 flex items-center gap-2">
-            <Store className="w-4 h-4 text-amber-400" />
+      <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 space-y-3.5 shadow-xs">
+        <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+          <h3 className="text-xs sm:text-sm font-black uppercase tracking-wider text-slate-900 flex items-center gap-2">
+            <Store className="w-4 h-4 text-amber-500" />
             <span>Matching Stores at this Location ({nearbyMatchedShops.length})</span>
           </h3>
-          <span className="text-[11px] font-semibold text-slate-400 bg-white/5 px-2.5 py-1 rounded-lg border border-white/10">
+          <span className="text-[11px] font-semibold text-slate-600 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200">
             Radius ~2km / Area Match
           </span>
         </div>
@@ -449,29 +449,29 @@ export default function SalesGpsCheckInPage() {
             {nearbyMatchedShops.map((shop) => (
               <div
                 key={shop._id}
-                className="bg-slate-900/90 border border-white/10 hover:border-amber-500/50 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 transition-all shadow-md group"
+                className="bg-slate-50 border border-slate-200 hover:border-amber-400 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 transition-all shadow-xs group"
               >
                 <div className="space-y-1 min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <h4 className="text-sm sm:text-base font-black text-white group-hover:text-amber-400 transition-colors">
+                    <h4 className="text-sm sm:text-base font-black text-slate-900 group-hover:text-amber-600 transition-colors">
                       {shop.name}
                     </h4>
                     {shop.computedDistance !== null && (
                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                         shop.computedDistance < 100 
-                          ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
-                          : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
+                          : 'bg-amber-50 text-amber-700 border border-amber-200'
                       }`}>
                         {shop.computedDistance < 100 ? '🎯 Exact Location' : `${shop.computedDistance}m away`}
                       </span>
                     )}
                   </div>
-                  <p className="text-xs text-slate-400 flex items-center gap-1.5 truncate">
-                    <MapPin className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                  <p className="text-xs text-slate-500 flex items-center gap-1.5 truncate">
+                    <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                     <span>{shop.address || shop.city || 'Tamil Nadu'}</span>
                   </p>
-                  <p className="text-[11px] text-slate-400 flex items-center gap-3">
-                    <span>Owner: <strong className="text-slate-300">{shop.ownerName || 'Retailer'}</strong></span>
+                  <p className="text-[11px] text-slate-600 flex items-center gap-3">
+                    <span>Owner: <strong className="text-slate-800">{shop.ownerName || 'Retailer'}</strong></span>
                     {shop.phone && <span>• 📞 {shop.phone}</span>}
                   </p>
                 </div>
@@ -479,7 +479,7 @@ export default function SalesGpsCheckInPage() {
                 <button
                   type="button"
                   onClick={() => handleStartCheckIn(shop)}
-                  className="bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black px-4 py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-all shadow-lg shadow-amber-500/20 shrink-0"
+                  className="bg-amber-500 hover:bg-amber-600 text-white font-black px-4 py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-all shadow-md shadow-amber-500/20 shrink-0"
                 >
                   <Check className="w-4 h-4" />
                   <span>Check-In &amp; Open Shop</span>
@@ -489,11 +489,11 @@ export default function SalesGpsCheckInPage() {
           </div>
         ) : (
           /* NO STORE FOUND AT EXACT LOCATION - EXACT MATCH WITH IMAGE 1 */
-          <div className="bg-slate-900/60 border border-dashed border-white/15 p-6 rounded-2xl text-center space-y-2">
-            <p className="text-xs sm:text-sm font-bold text-slate-200">
+          <div className="bg-slate-50 border border-dashed border-slate-300 p-6 rounded-2xl text-center space-y-2">
+            <p className="text-xs sm:text-sm font-bold text-slate-800">
               No registered store found at this exact GPS location.
             </p>
-            <p className="text-[11px] sm:text-xs text-slate-400 max-w-md mx-auto">
+            <p className="text-[11px] sm:text-xs text-slate-500 max-w-md mx-auto">
               Are you visiting a new shop? You can register this shop now and its address will be auto-fetched from Google!
             </p>
           </div>
@@ -504,9 +504,9 @@ export default function SalesGpsCheckInPage() {
           <button
             type="button"
             onClick={handleOpenRegisterWithAutoAddress}
-            className="w-full bg-slate-900/90 hover:bg-slate-850 border border-amber-500/40 text-amber-300 hover:text-amber-200 font-bold py-3.5 rounded-2xl text-xs sm:text-sm flex items-center justify-center gap-2 cursor-pointer active:scale-95 transition-all shadow-xl"
+            className="w-full bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-800 font-bold py-3.5 rounded-2xl text-xs sm:text-sm flex items-center justify-center gap-2 cursor-pointer active:scale-95 transition-all shadow-xs"
           >
-            <Plus className="w-4 h-4 text-amber-400" />
+            <Plus className="w-4 h-4 text-amber-600" />
             <span>+ Register New Shop at this Location (Auto-fetch Address)</span>
           </button>
         </div>
@@ -514,55 +514,55 @@ export default function SalesGpsCheckInPage() {
 
       {/* ─── MODAL 1: PURPOSE OF VISIT SELECTION (1 or 2 Purposes) ───────── */}
       {purposeModalOpen && pendingStoreForCheckIn && (
-        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-y-auto animate-in fade-in">
-          <div className="bg-slate-900 border border-amber-500/30 w-full max-w-lg rounded-t-3xl sm:rounded-3xl p-5 sm:p-6 shadow-2xl relative my-0 sm:my-auto max-h-[92vh] overflow-y-auto space-y-4">
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-y-auto animate-in fade-in">
+          <div className="bg-white border border-slate-200 w-full max-w-lg rounded-t-3xl sm:rounded-3xl p-5 sm:p-6 shadow-2xl relative my-0 sm:my-auto max-h-[92vh] overflow-y-auto space-y-4">
             <button
               type="button"
               onClick={() => {
                 setPurposeModalOpen(false);
                 setPendingStoreForCheckIn(null);
               }}
-              className="absolute top-4 right-4 p-2 text-slate-400 hover:text-white rounded-xl bg-white/5 cursor-pointer z-10"
+              className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-700 rounded-xl bg-slate-100 hover:bg-slate-200 cursor-pointer z-10"
             >
               <X className="w-5 h-5" />
             </button>
 
             {/* Selected Store Info */}
             <div className="flex items-start gap-3 pr-8">
-              <div className="p-3 bg-amber-500/10 text-amber-400 rounded-2xl border border-amber-500/20 shrink-0">
+              <div className="p-3 bg-amber-50 text-amber-600 rounded-2xl border border-amber-200 shrink-0">
                 <Store className="w-6 h-6" />
               </div>
               <div className="min-w-0 flex-1">
-                <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400 block">
+                <span className="text-[10px] font-black uppercase tracking-wider text-emerald-700 block">
                   Store Selected for Check-In:
                 </span>
-                <h3 className="text-base font-black text-white truncate">
+                <h3 className="text-base font-black text-slate-900 truncate">
                   {pendingStoreForCheckIn.name}
                 </h3>
-                <p className="text-xs text-slate-400 truncate mt-0.5">
+                <p className="text-xs text-slate-500 truncate mt-0.5">
                   {pendingStoreForCheckIn.address || pendingStoreForCheckIn.city || 'Store Location'}
                 </p>
               </div>
             </div>
 
             {/* Prompt & Dual Purpose Note */}
-            <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-3.5 space-y-2">
+            <div className="bg-amber-50/70 border border-amber-200 rounded-2xl p-3.5 space-y-2">
               <div className="flex items-center justify-between">
-                <p className="text-xs font-black text-amber-300 flex items-center gap-1.5">
+                <p className="text-xs font-black text-amber-900 flex items-center gap-1.5">
                   <span>🎯</span>
                   <span>Select Visit Purpose (1 or 2 Purposes Allowed)</span>
                 </p>
-                <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-200/60 text-amber-900 border border-amber-300">
                   {selectedPurposes.length} of 2 Selected
                 </span>
               </div>
-              <p className="text-[11px] text-slate-300 leading-relaxed">
-                You can visit this store for <strong className="text-amber-400 font-bold">up to 2 purposes</strong> (e.g. Order Booking + Payment Collection). Both will be logged in your visit history.
+              <p className="text-[11px] text-slate-700 leading-relaxed">
+                You can visit this store for <strong className="text-amber-800 font-bold">up to 2 purposes</strong> (e.g. Order Booking + Payment Collection). Both will be logged in your visit history.
               </p>
 
               {/* Quick Dual Combinations Chips */}
               <div className="pt-1">
-                <span className="text-[10px] font-bold text-slate-400 uppercase block mb-1.5">
+                <span className="text-[10px] font-bold text-slate-600 uppercase block mb-1.5">
                   ⚡ Quick Dual Combinations (1-Tap):
                 </span>
                 <div className="flex flex-wrap gap-1.5">
@@ -582,8 +582,8 @@ export default function SalesGpsCheckInPage() {
                         onClick={() => handleSelectCombination(combo.p1, combo.p2)}
                         className={`text-[10px] font-bold px-2.5 py-1 rounded-lg border transition-all cursor-pointer ${
                           isComboActive
-                            ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-sm'
-                            : 'bg-slate-800/80 hover:bg-slate-800 text-slate-300 border-white/10 hover:border-amber-500/40'
+                            ? 'bg-amber-500 text-white border-amber-600 shadow-xs'
+                            : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-200 hover:border-amber-400'
                         }`}
                       >
                         {combo.label}
@@ -596,7 +596,7 @@ export default function SalesGpsCheckInPage() {
 
             {/* Purpose List options */}
             <div className="space-y-2">
-              <span className="text-[10px] font-bold text-slate-400 uppercase block px-1">
+              <span className="text-[10px] font-bold text-slate-500 uppercase block px-1">
                 Tap to Select / Deselect Purposes:
               </span>
               {VISIT_PURPOSES.map((p) => {
@@ -609,30 +609,30 @@ export default function SalesGpsCheckInPage() {
                     onClick={() => togglePurposeSelection(p.id)}
                     className={`w-full p-3 rounded-2xl text-left transition-all cursor-pointer flex items-center justify-between group active:scale-[0.99] border select-none ${
                       isSelected
-                        ? 'bg-amber-950/40 border-amber-500 text-white shadow-md shadow-amber-500/10'
-                        : 'bg-slate-800/80 hover:bg-slate-800 border-white/5 hover:border-white/20 text-slate-300'
+                        ? 'bg-amber-50 border-amber-500 text-slate-900 shadow-xs'
+                        : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-700'
                     }`}
                   >
                     <div className="pr-3 flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className={`text-xs font-black ${isSelected ? 'text-amber-300' : 'text-white'}`}>
+                        <span className={`text-xs font-black ${isSelected ? 'text-amber-800' : 'text-slate-900'}`}>
                           {p.label}
                         </span>
                         {isSelected && (
-                          <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-500 text-slate-950 font-mono">
+                          <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-500 text-white font-mono">
                             {orderIndex === 0 ? '✓ Purpose 1 (Primary)' : '✓ Purpose 2 (Secondary)'}
                           </span>
                         )}
                       </div>
-                      <p className={`text-[11px] mt-0.5 leading-snug ${isSelected ? 'text-slate-300' : 'text-slate-400'}`}>
+                      <p className={`text-[11px] mt-0.5 leading-snug ${isSelected ? 'text-slate-700' : 'text-slate-500'}`}>
                         {p.desc}
                       </p>
                     </div>
 
                     <div className={`w-6 h-6 rounded-xl flex items-center justify-center shrink-0 transition-all border ${
                       isSelected 
-                        ? 'bg-amber-500 border-amber-400 text-slate-950' 
-                        : 'border-white/20 bg-white/5 text-transparent'
+                        ? 'bg-amber-500 border-amber-500 text-white' 
+                        : 'border-slate-300 bg-slate-50 text-transparent'
                     }`}>
                       <Check className="w-4 h-4 stroke-[3]" />
                     </div>
@@ -647,7 +647,7 @@ export default function SalesGpsCheckInPage() {
                 type="button"
                 onClick={handleConfirmCheckIn}
                 disabled={checkInSubmitting}
-                className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-3.5 rounded-2xl text-xs sm:text-sm active:scale-95 transition-all cursor-pointer shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2"
+                className="w-full bg-amber-500 hover:bg-amber-600 text-white font-black py-3.5 rounded-2xl text-xs sm:text-sm active:scale-95 transition-all cursor-pointer shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2"
               >
                 <span>
                   {checkInSubmitting ? 'Confirming Check-In...' : `Confirm Check-In: ${selectedPurposes.join(' & ')}`}
@@ -661,22 +661,22 @@ export default function SalesGpsCheckInPage() {
 
       {/* ─── MODAL 2: REGISTER NEW SHOP (Auto-filled with GPS Address) ───── */}
       {registerModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-y-auto animate-in fade-in">
-          <div className="bg-slate-900 border border-white/10 w-full max-w-lg rounded-t-3xl sm:rounded-3xl p-5 sm:p-6 shadow-2xl relative my-0 sm:my-auto max-h-[92vh] overflow-y-auto space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-white/10">
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-y-auto animate-in fade-in">
+          <div className="bg-white border border-slate-200 w-full max-w-lg rounded-t-3xl sm:rounded-3xl p-5 sm:p-6 shadow-2xl relative my-0 sm:my-auto max-h-[92vh] overflow-y-auto space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200">
               <div className="flex items-center gap-2.5">
-                <div className="p-2 bg-amber-500/10 text-amber-400 rounded-xl">
+                <div className="p-2 bg-amber-50 text-amber-600 rounded-xl">
                   <Plus className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-base font-black text-white">Register New Shop Lead</h3>
-                  <p className="text-[11px] text-slate-400">Address auto-fetched from GPS satellite</p>
+                  <h3 className="text-base font-black text-slate-900">Register New Shop Lead</h3>
+                  <p className="text-[11px] text-slate-500">Address auto-fetched from GPS satellite</p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setRegisterModalOpen(false)}
-                className="p-1.5 text-slate-400 hover:text-white rounded-xl bg-white/5 cursor-pointer"
+                className="p-1.5 text-slate-400 hover:text-slate-700 rounded-xl bg-slate-100 hover:bg-slate-200 cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -684,8 +684,8 @@ export default function SalesGpsCheckInPage() {
 
             <form onSubmit={handleRegisterShopSubmit} className="space-y-3.5 text-xs">
               <div>
-                <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">
-                  Shop Name <span className="text-rose-400">*</span>
+                <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">
+                  Shop Name <span className="text-rose-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -693,13 +693,13 @@ export default function SalesGpsCheckInPage() {
                   placeholder="e.g. Sri Murugan Store"
                   value={newShopName}
                   onChange={(e) => setNewShopName(e.target.value)}
-                  className="w-full bg-slate-800 border border-white/10 rounded-xl px-3 py-2.5 font-bold text-white focus:outline-none focus:border-amber-500"
+                  className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 font-bold text-slate-900 focus:outline-none focus:border-amber-500"
                 />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">
+                  <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">
                     Owner / Contact Name
                   </label>
                   <input
@@ -707,12 +707,12 @@ export default function SalesGpsCheckInPage() {
                     placeholder="e.g. Murugan"
                     value={newShopOwner}
                     onChange={(e) => setNewShopOwner(e.target.value)}
-                    className="w-full bg-slate-800 border border-white/10 rounded-xl px-3 py-2.5 font-bold text-white focus:outline-none focus:border-amber-500"
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 font-bold text-slate-900 focus:outline-none focus:border-amber-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">
-                    Phone Number <span className="text-rose-400">*</span>
+                  <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">
+                    Phone Number <span className="text-rose-500">*</span>
                   </label>
                   <input
                     type="tel"
@@ -720,43 +720,43 @@ export default function SalesGpsCheckInPage() {
                     placeholder="e.g. 9876543210"
                     value={newShopPhone}
                     onChange={(e) => setNewShopPhone(e.target.value)}
-                    className="w-full bg-slate-800 border border-white/10 rounded-xl px-3 py-2.5 font-bold text-white focus:outline-none focus:border-amber-500"
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 font-bold text-slate-900 focus:outline-none focus:border-amber-500"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">
-                  Shop Address (Auto-Fetched from Google/OSM) <span className="text-rose-400">*</span>
+                <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">
+                  Shop Address (Auto-Fetched from Google/OSM) <span className="text-rose-500">*</span>
                 </label>
                 <textarea
                   required
                   rows="2"
                   value={newShopAddress}
                   onChange={(e) => setNewShopAddress(e.target.value)}
-                  className="w-full bg-slate-800 border border-white/10 rounded-xl px-3 py-2 font-bold text-white focus:outline-none focus:border-amber-500"
+                  className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 font-bold text-slate-900 focus:outline-none focus:border-amber-500"
                 ></textarea>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">City</label>
+                  <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">City</label>
                   <input
                     type="text"
                     placeholder="Viluppuram"
                     value={newShopCity}
                     onChange={(e) => setNewShopCity(e.target.value)}
-                    className="w-full bg-slate-800 border border-white/10 rounded-xl px-3 py-2 font-bold text-white focus:outline-none focus:border-amber-500"
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 font-bold text-slate-900 focus:outline-none focus:border-amber-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Pincode</label>
+                  <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">Pincode</label>
                   <input
                     type="text"
                     placeholder="605602"
                     value={newShopPincode}
                     onChange={(e) => setNewShopPincode(e.target.value)}
-                    className="w-full bg-slate-800 border border-white/10 rounded-xl px-3 py-2 font-bold text-white focus:outline-none focus:border-amber-500"
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 font-bold text-slate-900 focus:outline-none focus:border-amber-500"
                   />
                 </div>
               </div>
@@ -765,7 +765,7 @@ export default function SalesGpsCheckInPage() {
                 <button
                   type="submit"
                   disabled={registerSubmitting}
-                  className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-3 rounded-xl text-xs transition-all cursor-pointer shadow-lg shadow-amber-500/20"
+                  className="w-full bg-amber-500 hover:bg-amber-600 text-white font-black py-3 rounded-xl text-xs transition-all cursor-pointer shadow-lg shadow-amber-500/20"
                 >
                   {registerSubmitting ? 'Registering Shop...' : 'Save & Check-In Immediately'}
                 </button>

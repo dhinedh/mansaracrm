@@ -101,10 +101,10 @@ export default function SalesFollowUpsPage() {
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight">
+          <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
             Follow-Up & Reminder Management
           </h1>
-          <p className="text-xs text-slate-400 mt-1">
+          <p className="text-xs text-slate-500 mt-1">
             Modules 26–27: Payment Collections, Delivery Re-visits, Order Bookings & Complaints
           </p>
         </div>
@@ -112,7 +112,7 @@ export default function SalesFollowUpsPage() {
         <button
           type="button"
           onClick={() => setModalOpen(true)}
-          className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-3.5 py-2 rounded-xl text-xs flex items-center gap-2 cursor-pointer transition-all shadow-md active:scale-95"
+          className="bg-amber-500 hover:bg-amber-600 text-white font-black px-3.5 py-2 rounded-xl text-xs flex items-center gap-2 cursor-pointer transition-all shadow-md active:scale-95"
         >
           <Plus className="w-4 h-4" />
           <span>Schedule New Follow-Up</span>
@@ -122,37 +122,37 @@ export default function SalesFollowUpsPage() {
       {/* Follow-Ups Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {followUps.length === 0 ? (
-          <div className="col-span-full py-12 text-center text-xs text-slate-400 bg-slate-800/40 rounded-3xl border border-white/5">
+          <div className="col-span-full py-12 text-center text-xs text-slate-500 bg-white rounded-3xl border border-slate-200 shadow-xs">
             No pending follow-ups. All clear!
           </div>
         ) : (
           followUps.map((f) => (
             <div 
               key={f._id} 
-              className="bg-slate-800/80 border border-white/10 p-5 rounded-2xl flex flex-col justify-between space-y-3"
+              className="bg-white border border-slate-200 p-5 rounded-2xl flex flex-col justify-between space-y-3 shadow-xs"
             >
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <span className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase ${
-                    f.priority === 'URGENT' ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30' :
-                    f.priority === 'HIGH' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' :
-                    'bg-white/10 text-slate-300'
+                    f.priority === 'URGENT' ? 'bg-rose-50 text-rose-700 border border-rose-200' :
+                    f.priority === 'HIGH' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+                    'bg-slate-100 text-slate-700'
                   }`}>
                     {f.priority}
                   </span>
                   <span className={`text-[10px] font-bold ${
-                    f.status === 'COMPLETED' ? 'text-emerald-400' : 'text-amber-400'
+                    f.status === 'COMPLETED' ? 'text-emerald-600' : 'text-amber-600'
                   }`}>
                     {f.status}
                   </span>
                 </div>
 
-                <h3 className="text-sm font-black text-white">{f.title}</h3>
-                <p className="text-xs text-slate-400 mt-1 line-clamp-2">{f.notes || 'Routine follow-up task'}</p>
+                <h3 className="text-sm font-black text-slate-900">{f.title}</h3>
+                <p className="text-xs text-slate-600 mt-1 line-clamp-2">{f.notes || 'Routine follow-up task'}</p>
 
-                <div className="mt-3 space-y-1 text-xs text-slate-300">
+                <div className="mt-3 space-y-1 text-xs text-slate-600">
                   <div className="flex items-center gap-1.5">
-                    <Calendar className="w-3.5 h-3.5 text-amber-400" />
+                    <Calendar className="w-3.5 h-3.5 text-amber-500" />
                     <span>Due: {new Date(f.dueDate).toLocaleDateString()}</span>
                   </div>
                   {f.phone && (
@@ -165,11 +165,11 @@ export default function SalesFollowUpsPage() {
               </div>
 
               {f.status === 'PENDING' && (
-                <div className="pt-3 border-t border-white/10">
+                <div className="pt-3 border-t border-slate-100">
                   <button
                     type="button"
                     onClick={() => handleComplete(f._id)}
-                    className="w-full bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-bold py-2 rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-all"
+                    className="w-full bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 font-bold py-2 rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-all"
                   >
                     <CheckCircle2 className="w-3.5 h-3.5" />
                     <span>Mark as Completed</span>
@@ -183,38 +183,38 @@ export default function SalesFollowUpsPage() {
 
       {/* Modal */}
       {modalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-white/10 w-full max-w-md rounded-3xl p-6 shadow-2xl relative">
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 w-full max-w-md rounded-3xl p-6 shadow-2xl relative">
             <button
               type="button"
               onClick={() => setModalOpen(false)}
-              className="absolute top-4 right-4 p-2 text-slate-400 hover:text-white rounded-xl bg-white/5"
+              className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-700 rounded-xl bg-slate-100 hover:bg-slate-200"
             >
               <X className="w-4 h-4" />
             </button>
 
-            <h3 className="text-base font-black text-white mb-1">Schedule Follow-Up Task</h3>
-            <p className="text-xs text-slate-400 mb-4">Module 26: Set target date, reason and urgency</p>
+            <h3 className="text-base font-black text-slate-900 mb-1">Schedule Follow-Up Task</h3>
+            <p className="text-xs text-slate-500 mb-4">Module 26: Set target date, reason and urgency</p>
 
             <form onSubmit={handleCreateFollowUp} className="space-y-3 text-xs">
               <div>
-                <label className="block font-bold text-slate-300 uppercase mb-1">Task Title *</label>
+                <label className="block font-bold text-slate-700 uppercase mb-1">Task Title *</label>
                 <input
                   type="text"
                   required
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder="e.g. Collect ₹12,500 pending invoice payment"
-                  className="w-full bg-slate-800 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
+                  className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
                 />
               </div>
 
               <div>
-                <label className="block font-bold text-slate-300 uppercase mb-1">Linked Retail Shop</label>
+                <label className="block font-bold text-slate-700 uppercase mb-1">Linked Retail Shop</label>
                 <select
                   value={selectedShopId}
                   onChange={(e) => setSelectedShopId(e.target.value)}
-                  className="w-full bg-slate-800 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
+                  className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
                 >
                   <option value="">General Task (No Shop)</option>
                   {shops.map((s) => (
@@ -225,21 +225,21 @@ export default function SalesFollowUpsPage() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-bold text-slate-300 uppercase mb-1">Due Date *</label>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">Due Date *</label>
                   <input
                     type="date"
                     required
                     value={dueDate}
                     onChange={(e) => setDueDate(e.target.value)}
-                    className="w-full bg-slate-800 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
                   />
                 </div>
                 <div>
-                  <label className="block font-bold text-slate-300 uppercase mb-1">Priority</label>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">Priority</label>
                   <select
                     value={priority}
                     onChange={(e) => setPriority(e.target.value)}
-                    className="w-full bg-slate-800 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
                   >
                     <option value="LOW">Low</option>
                     <option value="MEDIUM">Medium</option>
@@ -250,11 +250,11 @@ export default function SalesFollowUpsPage() {
               </div>
 
               <div>
-                <label className="block font-bold text-slate-300 uppercase mb-1">Reason / Category</label>
+                <label className="block font-bold text-slate-700 uppercase mb-1">Reason / Category</label>
                 <select
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}
-                  className="w-full bg-slate-800 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
+                  className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
                 >
                   <option value="PAYMENT_COLLECTION">Payment Collection</option>
                   <option value="ORDER_BOOKING">Order Booking</option>
@@ -265,19 +265,19 @@ export default function SalesFollowUpsPage() {
               </div>
 
               <div>
-                <label className="block font-bold text-slate-300 uppercase mb-1">Notes</label>
+                <label className="block font-bold text-slate-700 uppercase mb-1">Notes</label>
                 <textarea
                   rows="2"
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   placeholder="Additional context or customer remarks..."
-                  className="w-full bg-slate-800 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
+                  className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
                 ></textarea>
               </div>
 
               <button
                 type="submit"
-                className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-3 rounded-xl text-xs active:scale-95 transition-all cursor-pointer shadow-lg shadow-amber-500/20"
+                className="w-full bg-amber-500 hover:bg-amber-600 text-white font-black py-3 rounded-xl text-xs active:scale-95 transition-all cursor-pointer shadow-lg shadow-amber-500/20"
               >
                 Save Follow-Up Task
               </button>

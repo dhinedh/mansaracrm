@@ -34,8 +34,17 @@ import {
   User,
   UserPlus,
   ChevronDown,
-  CreditCard
+  CreditCard,
+  Download,
+  Share2
 } from 'lucide-react';
+import WhatsAppShareModal from '../../components/WhatsAppShareModal';
+import {
+  buildQuotationHtml,
+  triggerPrintQuotation,
+  downloadQuotationHtml,
+  formatQuotationWhatsAppText
+} from '../../utils/quotationHelper';
 
 export default function PriceSimulatorPage() {
   // ─── DATA FETCHING ──────────────────────────────────────────────────────────
@@ -100,6 +109,10 @@ export default function PriceSimulatorPage() {
   const [quotationNotes, setQuotationNotes] = useState('');
   const [quotationRefNumber, setQuotationRefNumber] = useState('');
   const quotationRef = useRef(null);
+  const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
+  const [whatsAppPhone, setWhatsAppPhone] = useState('');
+  const [whatsAppMessage, setWhatsAppMessage] = useState('');
+  const [activeQuotationData, setActiveQuotationData] = useState(null);
 
   // Exact company & invoice settings matching the dealer invoice template
   const [companySettings, setCompanySettings] = useState({
@@ -1118,6 +1131,41 @@ export default function PriceSimulatorPage() {
     });
   };
 
+  const getQuotationPayload = () => ({
+    calculationSummary,
+    selectedCustomer,
+    customClientName,
+    companySettings,
+    quotationRefNumber,
+    quotationNotes
+  });
+
+  const handleDownloadQuotation = () => {
+    if (!calculationSummary.items || calculationSummary.items.length === 0) {
+      setToastMessage({ text: 'Please add at least one product before downloading quotation', type: 'error' });
+      return;
+    }
+    const htmlContent = buildQuotationHtml(getQuotationPayload());
+    const fileName = `Quotation_${(quotationRefNumber || 'Mansara').replace(/[^a-zA-Z0-9_-]/g, '_')}.html`;
+    downloadQuotationHtml(htmlContent, fileName);
+    triggerPrintQuotation(htmlContent);
+    setToastMessage({ text: 'Quotation file downloaded & print dialog opened!', type: 'success' });
+  };
+
+  const handleOpenWhatsAppShare = () => {
+    if (!calculationSummary.items || calculationSummary.items.length === 0) {
+      setToastMessage({ text: 'Please add at least one product before sharing', type: 'error' });
+      return;
+    }
+    const payload = getQuotationPayload();
+    setActiveQuotationData(payload);
+    const text = formatQuotationWhatsAppText(payload);
+    const phone = selectedCustomer?.phone || '';
+    setWhatsAppPhone(phone);
+    setWhatsAppMessage(text);
+    setShowWhatsAppModal(true);
+  };
+
   const selectedDealer = useMemo(() => {
     return dealers.find(d => (d.id || d._id) === selectedDealerId) || null;
   }, [dealers, selectedDealerId]);
@@ -1903,38 +1951,62 @@ export default function PriceSimulatorPage() {
           </p>
         </div>
 
-        <div>
-          {/* Generate Quotation Card */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {/* 1. Generate & Preview */}
           <button
             type="button"
             disabled={calculationSummary.items.length === 0}
             onClick={handleOpenQuotation}
-            className="w-full flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 p-4 sm:p-5 rounded-xl sm:rounded-2xl border-2 border-slate-800 bg-slate-900 hover:bg-slate-800 disabled:opacity-40 text-white transition-all text-left cursor-pointer group shadow-md active:scale-[0.99]"
+            className="flex items-center gap-3 p-4 rounded-2xl border-2 border-slate-800 bg-slate-900 hover:bg-slate-800 disabled:opacity-40 text-white transition-all cursor-pointer group shadow-md active:scale-[0.99]"
           >
-            <div className="flex items-center gap-3.5 sm:gap-4 min-w-0">
-              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-white/10 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-                <Printer className="w-5 h-5 sm:w-6 sm:h-6 text-rose-400" />
-              </div>
-              <div className="min-w-0">
-                <h3 className="font-black text-xs sm:text-base text-white">
-                  Generate Formal Quotation
-                </h3>
-                <p className="text-[11px] sm:text-xs text-slate-300 font-medium mt-0.5 sm:mt-1 leading-relaxed">
-                  Opens official quotation document with selected store/dealer, itemized wholesale rates, and print view.
-                </p>
-              </div>
+            <div className="w-10 h-10 rounded-xl bg-white/10 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+              <FileText className="w-5 h-5 text-rose-400" />
             </div>
-            <span className="shrink-0 inline-flex items-center justify-center gap-1.5 text-xs sm:text-sm font-black text-rose-400 bg-white/10 hover:bg-white/15 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl transition">
-              <FileText className="w-4 h-4" />
-              <span>Generate Quotation &rarr;</span>
-            </span>
+            <div className="min-w-0 text-left">
+              <h3 className="font-black text-xs sm:text-sm text-white">Generate &amp; Preview</h3>
+              <p className="text-[10px] text-slate-300">Open full quotation document</p>
+            </div>
+          </button>
+
+          {/* 2. Download Quotation */}
+          <button
+            type="button"
+            disabled={calculationSummary.items.length === 0}
+            onClick={handleDownloadQuotation}
+            className="flex items-center gap-3 p-4 rounded-2xl border-2 border-rose-200 bg-rose-50 hover:bg-rose-100/80 disabled:opacity-40 text-rose-900 transition-all cursor-pointer group shadow-xs active:scale-[0.99]"
+          >
+            <div className="w-10 h-10 rounded-xl bg-rose-600 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-xs">
+              <Download className="w-5 h-5 text-white" />
+            </div>
+            <div className="min-w-0 text-left">
+              <h3 className="font-black text-xs sm:text-sm text-rose-950">Download Quotation</h3>
+              <p className="text-[10px] text-rose-700/80">Save offline file &amp; print PDF</p>
+            </div>
+          </button>
+
+          {/* 3. Share on WhatsApp */}
+          <button
+            type="button"
+            disabled={calculationSummary.items.length === 0}
+            onClick={handleOpenWhatsAppShare}
+            className="flex items-center gap-3 p-4 rounded-2xl border-2 border-emerald-200 bg-emerald-50 hover:bg-emerald-100/80 disabled:opacity-40 text-emerald-900 transition-all cursor-pointer group shadow-xs active:scale-[0.99]"
+          >
+            <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-xs">
+              <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
+                <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.582 2.128 2.182-.573c.978.58 1.911.928 3.145.929 3.178 0 5.767-2.587 5.768-5.766.001-3.187-2.575-5.77-5.764-5.771zm3.392 8.244c-.144.405-.837.774-1.17.824-.299.045-.677.063-1.092-.069-.252-.08-.575-.187-.988-.365-1.739-.751-2.874-2.502-2.961-2.617-.087-.116-.708-.94-.708-1.793s.448-1.273.607-1.446c.159-.173.346-.217.462-.217l.332.006c.106.005.249-.04.39.298.144.347.491 1.2.534 1.287.043.087.072.188.014.304-.058.116-.087.188-.173.289l-.26.304c-.087.086-.177.18-.076.354.101.174.449.741.964 1.201.662.591 1.221.774 1.394.86s.275.072.376-.043c.101-.116.433-.506.549-.68.116-.173.231-.145.39-.087s1.011.477 1.184.564.289.13.332.202c.043.073.043.419-.101.825zM12 2C6.477 2 2 6.477 2 12c0 1.891.524 3.66 1.436 5.176L2 22l4.981-1.306A9.957 9.957 0 0012 22c5.523 0 10-4.477 10-10S17.523 2 12 2z"/>
+              </svg>
+            </div>
+            <div className="min-w-0 text-left">
+              <h3 className="font-black text-xs sm:text-sm text-emerald-950">Share via WhatsApp</h3>
+              <p className="text-[10px] text-emerald-700/80">Send directly to client / chat</p>
+            </div>
           </button>
         </div>
       </div>
 
       {/* ─── STICKY MOBILE QUICK ACTION BAR (when products added) ─────────── */}
       {calculationSummary.items.length > 0 && (
-        <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 px-4 py-2.5 shadow-[0_-4px_25px_rgba(0,0,0,0.12)] flex items-center justify-between gap-3 animate-slide-in-up">
+        <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 px-4 py-2.5 shadow-[0_-4px_25px_rgba(0,0,0,0.12)] flex items-center justify-between gap-2.5 animate-slide-in-up">
           <div className="min-w-0 flex-1">
             <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider block truncate">
               {calculationSummary.items.length} {calculationSummary.items.length === 1 ? 'Product' : 'Products'} ({calculationSummary.totalPieces.toLocaleString()} pcs)
@@ -1949,14 +2021,32 @@ export default function PriceSimulatorPage() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              type="button"
+              onClick={handleOpenWhatsAppShare}
+              className="p-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-md active:scale-95 transition cursor-pointer"
+              title="Share on WhatsApp"
+            >
+              <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
+                <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.582 2.128 2.182-.573c.978.58 1.911.928 3.145.929 3.178 0 5.767-2.587 5.768-5.766.001-3.187-2.575-5.77-5.764-5.771zm3.392 8.244c-.144.405-.837.774-1.17.824-.299.045-.677.063-1.092-.069-.252-.08-.575-.187-.988-.365-1.739-.751-2.874-2.502-2.961-2.617-.087-.116-.708-.94-.708-1.793s.448-1.273.607-1.446c.159-.173.346-.217.462-.217l.332.006c.106.005.249-.04.39.298.144.347.491 1.2.534 1.287.043.087.072.188.014.304-.058.116-.087.188-.173.289l-.26.304c-.087.086-.177.18-.076.354.101.174.449.741.964 1.201.662.591 1.221.774 1.394.86s.275.072.376-.043c.101-.116.433-.506.549-.68.116-.173.231-.145.39-.087s1.011.477 1.184.564.289.13.332.202c.043.073.043.419-.101.825zM12 2C6.477 2 2 6.477 2 12c0 1.891.524 3.66 1.436 5.176L2 22l4.981-1.306A9.957 9.957 0 0012 22c5.523 0 10-4.477 10-10S17.523 2 12 2z"/>
+              </svg>
+            </button>
+            <button
+              type="button"
+              onClick={handleDownloadQuotation}
+              className="p-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl shadow-md active:scale-95 transition cursor-pointer"
+              title="Download Quotation"
+            >
+              <Download className="w-4 h-4" />
+            </button>
             <button
               type="button"
               onClick={handleOpenQuotation}
-              className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-black flex items-center gap-1.5 shadow-md active:scale-95 transition cursor-pointer"
+              className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-black flex items-center gap-1.5 shadow-md active:scale-95 transition cursor-pointer"
             >
               <FileText className="w-3.5 h-3.5 text-rose-400" />
-              <span>Generate Quote</span>
+              <span>Quote</span>
             </button>
           </div>
         </div>
@@ -1989,12 +2079,32 @@ export default function PriceSimulatorPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={handleGenerateQuotation}
-                  className="py-1.5 sm:py-2 px-3 sm:px-3.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white flex items-center gap-1.5 text-xs font-bold transition cursor-pointer shadow-xs"
+                  onClick={handleOpenWhatsAppShare}
+                  className="py-1.5 sm:py-2 px-2.5 sm:px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1.5 text-xs font-bold transition cursor-pointer shadow-xs active:scale-95"
+                  title="Share Quotation on WhatsApp"
                 >
-                  <FileText className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-rose-400" />
-                  <span className="hidden sm:inline">Generate Quotation</span>
-                  <span className="sm:hidden">Generate</span>
+                  <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-current shrink-0" viewBox="0 0 24 24">
+                    <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.582 2.128 2.182-.573c.978.58 1.911.928 3.145.929 3.178 0 5.767-2.587 5.768-5.766.001-3.187-2.575-5.77-5.764-5.771zm3.392 8.244c-.144.405-.837.774-1.17.824-.299.045-.677.063-1.092-.069-.252-.08-.575-.187-.988-.365-1.739-.751-2.874-2.502-2.961-2.617-.087-.116-.708-.94-.708-1.793s.448-1.273.607-1.446c.159-.173.346-.217.462-.217l.332.006c.106.005.249-.04.39.298.144.347.491 1.2.534 1.287.043.087.072.188.014.304-.058.116-.087.188-.173.289l-.26.304c-.087.086-.177.18-.076.354.101.174.449.741.964 1.201.662.591 1.221.774 1.394.86s.275.072.376-.043c.101-.116.433-.506.549-.68.116-.173.231-.145.39-.087s1.011.477 1.184.564.289.13.332.202c.043.073.043.419-.101.825zM12 2C6.477 2 2 6.477 2 12c0 1.891.524 3.66 1.436 5.176L2 22l4.981-1.306A9.957 9.957 0 0012 22c5.523 0 10-4.477 10-10S17.523 2 12 2z"/>
+                  </svg>
+                  <span className="hidden sm:inline">WhatsApp</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDownloadQuotation}
+                  className="py-1.5 sm:py-2 px-2.5 sm:px-3 rounded-xl bg-rose-600 hover:bg-rose-700 text-white flex items-center gap-1.5 text-xs font-bold transition cursor-pointer shadow-xs active:scale-95"
+                  title="Download Quotation Document & Print"
+                >
+                  <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
+                  <span className="hidden sm:inline">Download</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleGenerateQuotation}
+                  className="py-1.5 sm:py-2 px-3 sm:px-3.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white flex items-center gap-1.5 text-xs font-bold transition cursor-pointer shadow-xs active:scale-95"
+                  title="Open Print Dialog"
+                >
+                  <Printer className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-rose-400" />
+                  <span className="hidden sm:inline">Print / PDF</span>
                 </button>
                 <button
                   type="button"
@@ -2250,21 +2360,51 @@ export default function PriceSimulatorPage() {
               <div className="text-xs text-slate-500 font-medium hidden sm:block truncate pr-2">
                 Quotation Ref: <span className="font-mono font-bold text-slate-800">{quotationRefNumber}</span> • Payable: <span className="font-bold text-emerald-700">₹{calculationSummary.grandTotal.toLocaleString('en-IN')}</span>
               </div>
-              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+              <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
                 <button
                   type="button"
                   onClick={() => setShowQuotationModal(false)}
-                  className="flex-1 sm:flex-initial px-4 py-2 border border-slate-200 rounded-xl text-slate-600 font-bold text-xs hover:bg-slate-100 transition cursor-pointer text-center"
+                  className="px-3 py-2 border border-slate-200 rounded-xl text-slate-600 font-bold text-xs hover:bg-slate-100 transition cursor-pointer text-center"
                 >
                   Close
                 </button>
                 <button
                   type="button"
-                  onClick={handleGenerateQuotation}
-                  className="flex-1 sm:flex-initial px-4 sm:px-5 py-2 bg-slate-900 text-white rounded-xl font-bold text-xs hover:bg-slate-800 transition cursor-pointer flex items-center justify-center gap-1.5 shadow-md"
+                  onClick={handleCopyQuotationText}
+                  className="px-3 py-2 border border-slate-200 rounded-xl text-slate-700 font-bold text-xs hover:bg-slate-100 transition cursor-pointer flex items-center gap-1.5"
+                  title="Copy Text to Clipboard"
                 >
-                  <FileText className="w-4 h-4 text-rose-400" />
-                  <span>Generate Quotation</span>
+                  <Copy className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Copy Text</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleOpenWhatsAppShare}
+                  className="px-3 sm:px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs transition cursor-pointer flex items-center gap-1.5 shadow-md shadow-emerald-600/20 active:scale-95"
+                  title="Share on WhatsApp"
+                >
+                  <svg className="w-4 h-4 fill-current shrink-0" viewBox="0 0 24 24">
+                    <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.582 2.128 2.182-.573c.978.58 1.911.928 3.145.929 3.178 0 5.767-2.587 5.768-5.766.001-3.187-2.575-5.77-5.764-5.771zm3.392 8.244c-.144.405-.837.774-1.17.824-.299.045-.677.063-1.092-.069-.252-.08-.575-.187-.988-.365-1.739-.751-2.874-2.502-2.961-2.617-.087-.116-.708-.94-.708-1.793s.448-1.273.607-1.446c.159-.173.346-.217.462-.217l.332.006c.106.005.249-.04.39.298.144.347.491 1.2.534 1.287.043.087.072.188.014.304-.058.116-.087.188-.173.289l-.26.304c-.087.086-.177.18-.076.354.101.174.449.741.964 1.201.662.591 1.221.774 1.394.86s.275.072.376-.043c.101-.116.433-.506.549-.68.116-.173.231-.145.39-.087s1.011.477 1.184.564.289.13.332.202c.043.073.043.419-.101.825zM12 2C6.477 2 2 6.477 2 12c0 1.891.524 3.66 1.436 5.176L2 22l4.981-1.306A9.957 9.957 0 0012 22c5.523 0 10-4.477 10-10S17.523 2 12 2z"/>
+                  </svg>
+                  <span>Share on WhatsApp</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDownloadQuotation}
+                  className="px-3 sm:px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold text-xs transition cursor-pointer flex items-center gap-1.5 shadow-md shadow-rose-600/20 active:scale-95"
+                  title="Download Quotation Document & Print"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Download Quotation</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleGenerateQuotation}
+                  className="px-3 sm:px-4 py-2 bg-slate-900 text-white rounded-xl font-bold text-xs hover:bg-slate-800 transition cursor-pointer flex items-center gap-1.5 shadow-md active:scale-95"
+                  title="Open Print Dialog"
+                >
+                  <Printer className="w-4 h-4 text-rose-400" />
+                  <span>Print / PDF</span>
                 </button>
               </div>
             </div>
@@ -2583,6 +2723,15 @@ export default function PriceSimulatorPage() {
           </div>
         </div>
       )}
+
+      {/* ─── WHATSAPP SHARE MODAL ─────────────────────────────────────────── */}
+      <WhatsAppShareModal
+        isOpen={showWhatsAppModal}
+        onClose={() => setShowWhatsAppModal(false)}
+        defaultPhone={whatsAppPhone}
+        defaultMessage={whatsAppMessage}
+        quotationData={activeQuotationData}
+      />
     </div>
   );
 }

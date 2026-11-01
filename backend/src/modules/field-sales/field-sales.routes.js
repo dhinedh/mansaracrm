@@ -44,6 +44,7 @@ router.post('/orders', fieldSalesController.createSalesOrder);
 router.post('/orders/issue-bill', fieldSalesController.issueFieldBill);
 router.get('/orders', fieldSalesController.getSalesOrders);
 router.post('/quotations', fieldSalesController.createQuotation);
+router.post('/quotations/pdf', fieldSalesController.exportQuotationPdf);
 router.get('/quotations', fieldSalesController.getQuotations);
 router.post('/amendments', fieldSalesController.requestAmendmentOrReturn);
 router.get('/amendments', fieldSalesController.getAmendmentRequests);

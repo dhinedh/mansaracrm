@@ -39,6 +39,12 @@ export default function SalesVisitsPage() {
   const [shopWindowTab, setShopWindowTab] = useState('menu'); // 'menu', 'initial_visit', 'payment', 'order', 'stock_audit', 'routine_beat'
   const [visitTimer, setVisitTimer] = useState(0);
 
+  // Selected Purpose of Visit state (Supports Single or Dual Purpose Visit)
+  const [selectedPurpose, setSelectedPurpose] = useState('Order Booking');
+  const [selectedPurposes, setSelectedPurposes] = useState(['Order Booking']);
+  const [pendingStoreForCheckIn, setPendingStoreForCheckIn] = useState(null); // When store is chosen, prompt for purpose
+  const [purposeModalOpen, setPurposeModalOpen] = useState(false);
+
   // Initial Visit Page & Outcome State
   const [initialDescription, setInitialDescription] = useState('');
   const [initialPhoto, setInitialPhoto] = useState(null); // base64 string
@@ -194,29 +200,37 @@ export default function SalesVisitsPage() {
     if ('geolocation' in navigator) {
       navigator.geolocation.getCurrentPosition(
         async (pos) => {
-          const coords = {
-            latitude: pos.coords.latitude,
-            longitude: pos.coords.longitude
-          };
-          setCurrentCoords(coords);
-          setGpsLoading(false);
-          await reverseGeocode(coords.latitude, coords.longitude);
-          fetchShops(coords.latitude, coords.longitude);
-          if (openModalAfter) {
-            setSmartCheckInModalOpen(true);
+          try {
+            const coords = {
+              latitude: pos.coords.latitude,
+              longitude: pos.coords.longitude
+            };
+            setCurrentCoords(coords);
+            setGpsLoading(false);
+            await reverseGeocode(coords.latitude, coords.longitude);
+            fetchShops(coords.latitude, coords.longitude);
+            if (openModalAfter) {
+              setSmartCheckInModalOpen(true);
+            }
+          } catch (e) {
+            console.warn('GPS handling error:', e);
           }
         },
         async (err) => {
-          console.warn('GPS error, using fallback coordinates:', err);
-          setGpsError('Could not fetch exact satellite GPS. Using verified cellular/city coordinates.');
-          setGpsLoading(false);
-          // Standard fallback location (Chennai Commercial Hub)
-          const fallback = { latitude: 13.0827, longitude: 80.2707 };
-          setCurrentCoords(fallback);
-          await reverseGeocode(fallback.latitude, fallback.longitude);
-          fetchShops(fallback.latitude, fallback.longitude);
-          if (openModalAfter) {
-            setSmartCheckInModalOpen(true);
+          try {
+            console.warn('GPS error, using fallback coordinates:', err);
+            setGpsError('Could not fetch exact satellite GPS. Using verified cellular/city coordinates.');
+            setGpsLoading(false);
+            // Standard fallback location (Chennai Commercial Hub)
+            const fallback = { latitude: 13.0827, longitude: 80.2707 };
+            setCurrentCoords(fallback);
+            await reverseGeocode(fallback.latitude, fallback.longitude);
+            fetchShops(fallback.latitude, fallback.longitude);
+            if (openModalAfter) {
+              setSmartCheckInModalOpen(true);
+            }
+          } catch (e) {
+            console.warn('GPS fallback error:', e);
           }
         },
         { enableHighAccuracy: true, timeout: 9000 }
@@ -262,7 +276,10 @@ export default function SalesVisitsPage() {
           const shopObj = inProgress.storeId || inProgress.store;
           if (shopObj) {
             setActiveShopWindow(shopObj);
-            fetchCustomer360(shopObj._id || shopObj.id);
+            const targetStoreId = typeof shopObj === 'string' ? shopObj : (shopObj._id || shopObj.id);
+            if (targetStoreId && targetStoreId !== 'undefined' && targetStoreId !== 'null') {
+              fetchCustomer360(targetStoreId);
+            }
           }
         }
       }
@@ -286,6 +303,9 @@ export default function SalesVisitsPage() {
   };
 
   const fetchCustomer360 = async (storeId) => {
+    if (!storeId || storeId === 'undefined' || storeId === 'null') {
+      return;
+    }
     setShop360Loading(true);
     try {
       const res = await axios.get(`/field-sales/shops/${storeId}/360`);
@@ -300,14 +320,15 @@ export default function SalesVisitsPage() {
   };
 
   useEffect(() => {
+    // Check query params if user clicked "Start GPS Check-In" from dashboard
+    if (searchParams.get('gpsCheckIn') === 'true') {
+      navigate('/sales/checkin', { replace: true });
+      return;
+    }
+
     acquireGPS();
     fetchVisits();
     fetchCatalogue();
-
-    // Check query params if user clicked "Start GPS Check-In" from dashboard
-    if (searchParams.get('gpsCheckIn') === 'true') {
-      navigate('/sales/checkin');
-    }
 
     // Check if coming from GPS Check-In page with new active visit
     if (location.state?.autoOpenShopWindow) {
@@ -429,12 +450,6 @@ export default function SalesVisitsPage() {
   const handleOpenSmartCheckIn = () => {
     navigate('/sales/checkin');
   };
-
-  // Selected Purpose of Visit state (Supports Single or Dual Purpose Visit)
-  const [selectedPurpose, setSelectedPurpose] = useState('Order Booking');
-  const [selectedPurposes, setSelectedPurposes] = useState(['Order Booking']);
-  const [pendingStoreForCheckIn, setPendingStoreForCheckIn] = useState(null); // When store is chosen, prompt for purpose
-  const [purposeModalOpen, setPurposeModalOpen] = useState(false);
 
   const VISIT_PURPOSES = [
     { id: 'Order Booking', label: '🛒 Order Booking', desc: 'Taking fresh replenishment or new SKU orders' },
@@ -1496,7 +1511,7 @@ export default function SalesVisitsPage() {
 
           {/* Shops Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredShops.map((shop) => {
+            {filteredShops.map((shop, idx) => {
               const visitInfo = getShopVisitDetails(shop);
               const isCheckedIn = Boolean(
                 activeVisitRecord && 
@@ -1511,7 +1526,7 @@ export default function SalesVisitsPage() {
 
               return (
                 <div 
-                  key={shop._id} 
+                  key={shop._id || shop.id || `shop-${shop.name || ''}-${idx}`} 
                   className={`border p-4 rounded-2xl flex flex-col justify-between transition-all group ${
                     isCheckedIn
                       ? 'bg-gradient-to-br from-emerald-950/30 via-slate-800/90 to-slate-800/90 border-emerald-500/50 ring-2 ring-emerald-500/30 shadow-lg'
@@ -1635,7 +1650,7 @@ export default function SalesVisitsPage() {
                           onClick={() => {
                             setActiveShopWindow(shop);
                             setShopWindowOpen(true);
-                            fetchCustomer360(shop._id);
+                            fetchCustomer360(shop._id || shop.id);
                           }}
                           className="flex-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-2.5 px-3 rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-all shadow-md"
                         >
@@ -1665,7 +1680,7 @@ export default function SalesVisitsPage() {
                           onClick={() => {
                             setActiveShopWindow(shop);
                             setShopWindowOpen(true);
-                            fetchCustomer360(shop._id);
+                            fetchCustomer360(shop._id || shop.id);
                           }}
                           className="p-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-slate-300 hover:text-white transition-all cursor-pointer"
                           title="Open Shop Window"

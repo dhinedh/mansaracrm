@@ -3,13 +3,41 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { 
   CheckCircle2, XCircle, Clock, AlertCircle, 
-  DollarSign, FileText, ShoppingBag, Check, X, ArrowRight 
+  DollarSign, FileText, ShoppingBag, Check, X, ArrowRight,
+  Download, Printer
 } from 'lucide-react';
+import WhatsAppShareModal from '../../components/WhatsAppShareModal';
+import {
+  buildQuotationHtml,
+  triggerPrintQuotation,
+  downloadQuotationHtml,
+  formatQuotationWhatsAppText
+} from '../../utils/quotationHelper';
 
 export default function AdminApprovalsPage() {
   const [activeTab, setActiveTab] = useState('margins'); // 'margins', 'quotations', 'amendments'
   const [approvalsData, setApprovalsData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
+  const [whatsAppPhone, setWhatsAppPhone] = useState('');
+  const [whatsAppMessage, setWhatsAppMessage] = useState('');
+  const [activeQuotationData, setActiveQuotationData] = useState(null);
+
+  const handleDownloadQuotation = (q) => {
+    const htmlContent = buildQuotationHtml(q);
+    const fileName = `Quotation_${(q.quotationNo || 'Mansara').replace(/[^a-zA-Z0-9_-]/g, '_')}.html`;
+    downloadQuotationHtml(htmlContent, fileName);
+    triggerPrintQuotation(htmlContent);
+  };
+
+  const handleShareWhatsApp = (q) => {
+    setActiveQuotationData(q);
+    const text = formatQuotationWhatsAppText(q);
+    const phone = q.customerPhone || '';
+    setWhatsAppPhone(phone);
+    setWhatsAppMessage(text);
+    setShowWhatsAppModal(true);
+  };
 
   const fetchApprovals = async () => {
     setLoading(true);
@@ -233,26 +261,44 @@ export default function AdminApprovalsPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-right">
-                      {q.status === 'PENDING_APPROVAL' ? (
-                        <div className="flex items-center justify-end gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => handleReviewQuote(q._id, 'APPROVED')}
-                            className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 font-bold rounded-lg cursor-pointer"
-                          >
-                            Approve
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleReviewQuote(q._id, 'REJECTED')}
-                            className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold rounded-lg cursor-pointer"
-                          >
-                            Reject
-                          </button>
-                        </div>
-                      ) : (
-                        <span className="text-slate-400 font-mono text-[11px]">—</span>
-                      )}
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handleShareWhatsApp(q)}
+                          className="p-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 transition cursor-pointer"
+                          title="Share on WhatsApp"
+                        >
+                          <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
+                            <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.582 2.128 2.182-.573c.978.58 1.911.928 3.145.929 3.178 0 5.767-2.587 5.768-5.766.001-3.187-2.575-5.77-5.764-5.771zm3.392 8.244c-.144.405-.837.774-1.17.824-.299.045-.677.063-1.092-.069-.252-.08-.575-.187-.988-.365-1.739-.751-2.874-2.502-2.961-2.617-.087-.116-.708-.94-.708-1.793s.448-1.273.607-1.446c.159-.173.346-.217.462-.217l.332.006c.106.005.249-.04.39.298.144.347.491 1.2.534 1.287.043.087.072.188.014.304-.058.116-.087.188-.173.289l-.26.304c-.087.086-.177.18-.076.354.101.174.449.741.964 1.201.662.591 1.221.774 1.394.86s.275.072.376-.043c.101-.116.433-.506.549-.68.116-.173.231-.145.39-.087s1.011.477 1.184.564.289.13.332.202c.043.073.043.419-.101.825zM12 2C6.477 2 2 6.477 2 12c0 1.891.524 3.66 1.436 5.176L2 22l4.981-1.306A9.957 9.957 0 0012 22c5.523 0 10-4.477 10-10S17.523 2 12 2z"/>
+                          </svg>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDownloadQuotation(q)}
+                          className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition cursor-pointer"
+                          title="Download &amp; Print Quotation"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                        </button>
+                        {q.status === 'PENDING_APPROVAL' && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => handleReviewQuote(q._id, 'APPROVED')}
+                              className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 font-bold rounded-lg cursor-pointer text-xs"
+                            >
+                              Approve
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleReviewQuote(q._id, 'REJECTED')}
+                              className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold rounded-lg cursor-pointer text-xs"
+                            >
+                              Reject
+                            </button>
+                          </>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -327,6 +373,15 @@ export default function AdminApprovalsPage() {
           </table>
         </div>
       )}
+
+      {/* ─── WHATSAPP SHARE MODAL ─────────────────────────────────────────── */}
+      <WhatsAppShareModal
+        isOpen={showWhatsAppModal}
+        onClose={() => setShowWhatsAppModal(false)}
+        defaultPhone={whatsAppPhone}
+        defaultMessage={whatsAppMessage}
+        quotationData={activeQuotationData}
+      />
     </div>
   );
 }

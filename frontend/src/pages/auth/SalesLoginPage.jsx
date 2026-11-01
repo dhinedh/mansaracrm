@@ -60,24 +60,24 @@ export default function SalesLoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-amber-950 text-white flex flex-col justify-between px-4 py-6 sm:py-10">
+    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col justify-between px-4 py-6 sm:py-10 sales-portal-light">
       {/* Top Header Badge */}
-      <div className="max-w-md w-full mx-auto flex items-center justify-between pb-4 border-b border-white/10">
+      <div className="max-w-md w-full mx-auto flex items-center justify-between pb-4 border-b border-slate-200">
         <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-500 to-amber-600 flex items-center justify-center shadow-lg shadow-amber-500/20">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-500 to-amber-600 flex items-center justify-center shadow-md shadow-amber-500/20">
             <Briefcase className="w-5 h-5 text-slate-950" />
           </div>
           <div>
-            <h1 className="text-sm font-black tracking-tight text-white">MANSARA FOODS</h1>
-            <p className="text-[10px] text-amber-400 font-bold uppercase tracking-wider">Field Sales Executive Portal</p>
+            <h1 className="text-sm font-black tracking-tight text-slate-900">MANSARA FOODS</h1>
+            <p className="text-[10px] text-amber-600 font-bold uppercase tracking-wider">Field Sales Executive Portal</p>
           </div>
         </div>
 
         {/* GPS Badge */}
         <div className={`px-2.5 py-1 rounded-full border text-[11px] font-semibold flex items-center gap-1.5 ${
           gpsStatus === 'active' 
-            ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' 
-            : 'bg-amber-500/10 border-amber-500/30 text-amber-400'
+            ? 'bg-emerald-50 border-emerald-200 text-emerald-700' 
+            : 'bg-amber-50 border-amber-200 text-amber-700'
         }`}>
           <MapPin className="w-3.5 h-3.5 animate-pulse" />
           <span>{gpsStatus === 'active' ? 'GPS Ready' : 'Location Check'}</span>
@@ -85,25 +85,25 @@ export default function SalesLoginPage() {
       </div>
 
       {/* Main Login Card */}
-      <div className="max-w-md w-full mx-auto my-auto bg-slate-900/80 backdrop-blur-xl border border-white/10 p-6 sm:p-8 rounded-3xl shadow-2xl relative overflow-hidden">
-        {/* Ambient Glows */}
-        <div className="absolute -top-12 -right-12 w-40 h-40 bg-amber-500/15 rounded-full blur-3xl pointer-events-none"></div>
-        <div className="absolute -bottom-12 -left-12 w-40 h-40 bg-rose-500/15 rounded-full blur-3xl pointer-events-none"></div>
+      <div className="max-w-md w-full mx-auto my-auto bg-white border border-slate-200 p-6 sm:p-8 rounded-3xl shadow-xl relative overflow-hidden">
+        {/* Ambient Warm Gradient Glows */}
+        <div className="absolute -top-12 -right-12 w-40 h-40 bg-amber-500/10 rounded-full blur-3xl pointer-events-none"></div>
+        <div className="absolute -bottom-12 -left-12 w-40 h-40 bg-rose-500/10 rounded-full blur-3xl pointer-events-none"></div>
 
         <div className="mb-6 relative z-10 text-center">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs font-semibold mb-3">
-            <Sparkles className="w-3.5 h-3.5" />
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-xs font-semibold mb-3">
+            <Sparkles className="w-3.5 h-3.5 text-amber-600" />
             <span>Beat & Field Sales Login</span>
           </div>
-          <h2 className="text-2xl font-black text-white tracking-tight">Salesperson Sign In</h2>
-          <p className="text-slate-400 text-xs mt-1">Check in to your daily beat route, record visits & book orders</p>
+          <h2 className="text-2xl font-black text-slate-900 tracking-tight">Salesperson Sign In</h2>
+          <p className="text-slate-500 text-xs mt-1">Check in to your daily beat route, record visits & book orders</p>
         </div>
 
         {/* Quick Demo Credentials Info */}
-        <div className="mb-6 p-3 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-center justify-between text-xs text-amber-300">
+        <div className="mb-6 p-3 bg-amber-50/80 border border-amber-200 rounded-2xl flex items-center justify-between text-xs text-amber-900">
           <div>
             <p className="font-bold">Default Demo Salesperson:</p>
-            <p className="text-[11px] text-amber-400/90 font-mono">sales@mansarafoods.com / Sales@123</p>
+            <p className="text-[11px] text-amber-700 font-mono">sales@mansarafoods.com / Sales@123</p>
           </div>
           <button
             type="button"
@@ -111,21 +111,21 @@ export default function SalesLoginPage() {
               setEmail('sales@mansarafoods.com');
               setPassword('Sales@123');
             }}
-            className="px-2.5 py-1 bg-amber-500 text-slate-950 font-black rounded-lg hover:bg-amber-400 transition-all text-[11px] cursor-pointer"
+            className="px-2.5 py-1 bg-amber-500 text-slate-950 font-black rounded-lg hover:bg-amber-400 transition-all text-[11px] cursor-pointer shadow-xs"
           >
             Auto Fill
           </button>
         </div>
 
         {error && (
-          <div className="bg-rose-500/20 border border-rose-500/40 text-rose-300 text-xs px-4 py-3 rounded-xl mb-6 font-semibold animate-pulse">
+          <div className="bg-rose-50 border border-rose-200 text-rose-700 text-xs px-4 py-3 rounded-xl mb-6 font-semibold animate-pulse">
             {error}
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4 relative z-10">
           <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
               Salesperson Email ID
             </label>
             <div className="relative">
@@ -136,13 +136,13 @@ export default function SalesLoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="sales@mansarafoods.com"
-                className="w-full pl-11 pr-4 py-3 text-sm bg-slate-950/60 border border-slate-700/60 focus:border-amber-500 focus:bg-slate-950 rounded-xl text-white placeholder-slate-500 focus:outline-none transition-all"
+                className="w-full pl-11 pr-4 py-3 text-sm bg-white border border-slate-300 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none transition-all shadow-xs"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
               Security Password
             </label>
             <div className="relative">
@@ -153,12 +153,12 @@ export default function SalesLoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full pl-11 pr-11 py-3 text-sm bg-slate-950/60 border border-slate-700/60 focus:border-amber-500 focus:bg-slate-950 rounded-xl text-white placeholder-slate-500 focus:outline-none transition-all"
+                className="w-full pl-11 pr-11 py-3 text-sm bg-white border border-slate-300 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none transition-all shadow-xs"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white focus:outline-none cursor-pointer"
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none cursor-pointer"
               >
                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
@@ -168,7 +168,7 @@ export default function SalesLoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full mt-2 bg-gradient-to-r from-amber-500 via-amber-600 to-amber-500 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black py-3.5 px-4 rounded-xl shadow-lg shadow-amber-500/20 active:scale-[0.98] transition-all flex items-center justify-center space-x-2 cursor-pointer"
+            className="w-full mt-2 bg-gradient-to-r from-amber-500 via-amber-600 to-amber-500 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black py-3.5 px-4 rounded-xl shadow-md shadow-amber-500/20 active:scale-[0.98] transition-all flex items-center justify-center space-x-2 cursor-pointer"
           >
             {loading ? (
               <Loader2 className="w-5 h-5 animate-spin text-slate-950" />
@@ -181,12 +181,12 @@ export default function SalesLoginPage() {
           </button>
         </form>
 
-        <div className="mt-6 pt-4 border-t border-slate-800 text-center relative z-10 flex flex-col items-center gap-2">
-          <p className="text-xs text-slate-400">Are you an Admin or B2B Dealer?</p>
+        <div className="mt-6 pt-4 border-t border-slate-200 text-center relative z-10 flex flex-col items-center gap-2">
+          <p className="text-xs text-slate-500">Are you an Admin or B2B Dealer?</p>
           <button
             type="button"
             onClick={() => navigate('/login')}
-            className="text-xs font-bold text-slate-300 hover:text-white underline cursor-pointer"
+            className="text-xs font-bold text-amber-700 hover:text-amber-800 underline cursor-pointer"
           >
             Go to Main Portal Login
           </button>
