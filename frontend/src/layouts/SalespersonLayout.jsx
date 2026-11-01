@@ -144,7 +144,7 @@ export default function SalespersonLayout() {
             </div>
           </div>
         </div>
-
+        
         {/* Status Indicators & Profile */}
         <div className="flex items-center gap-2 sm:gap-3">
           {/* Online/Offline status */}
@@ -198,7 +198,7 @@ export default function SalespersonLayout() {
       {/* Main Container Layout */}
       <div className="flex-1 flex max-w-7xl w-full mx-auto">
         {/* Desktop Sidebar (hidden on mobile, visible lg+) */}
-        <aside className="hidden lg:flex flex-col w-64 border-r border-white/10 p-4 space-y-6 overflow-y-auto max-h-[calc(100vh-60px)] sticky top-[60px]">
+        <aside className="hidden lg:flex flex-col w-64 border-r border-white/10 p-4 space-y-6 overflow-y-auto max-h-[calc(100vh-60px)] sticky top-[60px] pb-24">
           {navSections.map((sec, idx) => (
             <div key={idx} className="space-y-1.5">
               <h3 className="text-[10px] font-black uppercase tracking-wider text-slate-500 px-3">{sec.title}</h3>
@@ -247,13 +247,13 @@ export default function SalespersonLayout() {
         </aside>
 
         {/* Page Content Viewport */}
-        <main className="flex-1 p-4 sm:p-6 pb-24 lg:pb-8 max-w-full overflow-x-hidden">
+        <main className="flex-1 p-4 sm:p-6 pb-28 lg:pb-28 max-w-full overflow-x-hidden">
           <Outlet />
         </main>
       </div>
 
-      {/* Mobile Bottom Navigation Bar (Modules 2, 4-6, 18, 11, Hub) */}
-      <nav className="fixed bottom-0 inset-x-0 z-40 bg-slate-900/95 backdrop-blur-xl border-t border-white/10 px-2 py-1.5 flex items-center justify-around lg:hidden shadow-2xl">
+      {/* Bottom Navigation Bar - Always visible across all screens */}
+      <nav className="fixed bottom-0 inset-x-0 z-50 bg-slate-900/95 backdrop-blur-xl border-t border-white/10 px-2 py-1.5 flex items-center justify-around shadow-2xl">
         <NavLink
           to="/sales/dashboard"
           className={({ isActive }) => `flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl text-[10px] font-bold transition-all ${
@@ -265,9 +265,9 @@ export default function SalespersonLayout() {
         </NavLink>
 
         <NavLink
-          to="/sales/visits"
+          to="/sales/checkin"
           className={({ isActive }) => `flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl text-[10px] font-bold transition-all ${
-            isActive ? 'text-amber-400' : 'text-slate-400 hover:text-slate-200'
+            isActive || location.pathname === '/sales/visits' ? 'text-amber-400' : 'text-slate-400 hover:text-slate-200'
           }`}
         >
           <MapPin className="w-4 h-4" />

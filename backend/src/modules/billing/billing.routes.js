@@ -10,7 +10,7 @@ const router = express.Router();
 router.use(verifyToken);
 
 router.get('/', billingController.getInvoices);
-router.get('/settings', requireRole('ADMIN', 'DEALER'), billingController.getInvoiceSettings);
+router.get('/settings', requireRole('ADMIN', 'DEALER', 'SALESPERSON'), billingController.getInvoiceSettings);
 router.put('/settings', requireRole('ADMIN'), billingController.updateInvoiceSettings);
 router.get('/agreement-templates', requireRole('ADMIN'), billingController.getAgreementTemplates);
 router.put('/agreement-templates', requireRole('ADMIN'), billingController.updateAgreementTemplates);

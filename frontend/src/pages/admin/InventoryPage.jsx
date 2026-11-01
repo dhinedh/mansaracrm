@@ -155,7 +155,7 @@ export default function InventoryPage() {
   const fetchStocks = async () => {
     setLoading(true);
     try {
-      const res = await axios.get('/inventory/company');
+      const res = await axios.get('/inventory/company', { params: { type: 'all' } });
       setStocks(res.data.data || []);
     } catch (err) {
       console.error('Failed to fetch stock inventory:', err);
@@ -186,6 +186,7 @@ export default function InventoryPage() {
         batches: [
           {
             batchId: `BATCH-RM-${Date.now().toString().slice(-4)}`,
+            unit: existingItem.unit || 'Cartons',
             quantity: '',
             mfgDate: new Date().toISOString().split('T')[0],
             expiryDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
@@ -207,6 +208,7 @@ export default function InventoryPage() {
         batches: [
           {
             batchId: `BATCH-RM-${Date.now().toString().slice(-4)}-1`,
+            unit: 'Cartons',
             quantity: '',
             mfgDate: new Date().toISOString().split('T')[0],
             expiryDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
@@ -227,6 +229,7 @@ export default function InventoryPage() {
         ...prev.batches,
         {
           batchId: `BATCH-RM-${Date.now().toString().slice(-4)}-${prev.batches.length + 1}`,
+          unit: prev.batches[prev.batches.length - 1]?.unit || prev.unit || 'Cartons',
           quantity: '',
           mfgDate: new Date().toISOString().split('T')[0],
           expiryDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
@@ -250,7 +253,12 @@ export default function InventoryPage() {
   const handleAddStockSubmit = async (e) => {
     e.preventDefault();
     try {
-      const res = await axios.post('/inventory/company/create', addStockData);
+      const payload = {
+        ...addStockData,
+        itemName: addStockData.itemName || addStockData.stockId || 'Stock Item',
+        unit: addStockData.batches[0]?.unit || addStockData.unit || 'Cartons'
+      };
+      const res = await axios.post('/inventory/company/create', payload);
       if (res.data.success) {
         setMessage({ text: res.data.message, type: 'success' });
         setShowAddStockModal(false);
@@ -1196,7 +1204,7 @@ export default function InventoryPage() {
             </div>
 
             <form onSubmit={handleAddStockSubmit} className="space-y-4 text-xs">
-              {/* Row 1: Stock ID & Item Name */}
+              {/* Row: Stock ID & Min Threshold Limit */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50 p-3 rounded-2xl border border-slate-200">
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">Stock ID *</label>
@@ -1206,37 +1214,8 @@ export default function InventoryPage() {
                     placeholder="e.g. STK-2026-089"
                     value={addStockData.stockId || ''}
                     onChange={e => setAddStockData({ ...addStockData, stockId: e.target.value })}
-                    className="w-full p-2 bg-white border rounded-xl font-mono font-bold text-slate-900"
+                    className="w-full p-2.5 bg-white border rounded-xl font-mono font-bold text-rose-700"
                   />
-                </div>
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Item Name *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Premium Chili Powder / Ulunthu"
-                    value={addStockData.itemName}
-                    onChange={e => setAddStockData({ ...addStockData, itemName: e.target.value })}
-                    className="w-full p-2 bg-white border rounded-xl font-bold text-slate-900"
-                  />
-                </div>
-              </div>
-
-              {/* Row 2: Unit Type & Min Threshold */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Unit Measurement (Cartons / Numbers / kg) *</label>
-                  <select
-                    value={addStockData.unit}
-                    onChange={e => setAddStockData({ ...addStockData, unit: e.target.value })}
-                    className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold cursor-pointer"
-                  >
-                    <option value="Cartons">Cartons</option>
-                    <option value="Numbers">Numbers (Units)</option>
-                    <option value="Packets">Packets</option>
-                    <option value="Boxes">Boxes</option>
-                    <option value="kg">kg (Kilograms)</option>
-                  </select>
                 </div>
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">Min Threshold Limit *</label>
@@ -1246,65 +1225,9 @@ export default function InventoryPage() {
                     placeholder="50"
                     value={addStockData.minQuantity}
                     onChange={e => setAddStockData({ ...addStockData, minQuantity: e.target.value })}
-                    className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold text-amber-700"
+                    className="w-full p-2.5 bg-white border rounded-xl font-bold text-amber-700"
                   />
                 </div>
-              </div>
-
-              {/* LIVE MULTI-UNIT AUTO-CONVERSION PREVIEW CARD */}
-              <MultiUnitConversionCard
-                quantity={addStockData.batches.reduce((sum, b) => sum + (Number(b.quantity) || 0), 0)}
-                unit={addStockData.unit}
-                customRates={customConversionRates}
-                title="Total Stock Live Multi-Unit Auto Conversion Preview"
-              />
-
-              {/* Optional Custom Conversion Ratios Collapsible Accordion */}
-              <div className="border border-slate-200 rounded-2xl overflow-hidden">
-                <button
-                  type="button"
-                  onClick={() => setShowCustomRatesAccordion(!showCustomRatesAccordion)}
-                  className="w-full bg-slate-50 p-2.5 text-left font-bold text-slate-700 text-xs flex justify-between items-center cursor-pointer hover:bg-slate-100"
-                >
-                  <span className="flex items-center gap-1.5 text-slate-800">
-                    <Sliders className="w-3.5 h-3.5 text-rose-600" />
-                    Custom Conversion Ratios (Optional Ratio Tuning)
-                  </span>
-                  <ChevronDown className={`w-4 h-4 transition-transform ${showCustomRatesAccordion ? 'rotate-180' : ''}`} />
-                </button>
-
-                {showCustomRatesAccordion && (
-                  <div className="p-3 bg-white grid grid-cols-3 gap-2 text-xs border-t">
-                    <div>
-                      <label className="block text-[10px] font-bold text-slate-600 mb-0.5">Packets per Carton</label>
-                      <input
-                        type="number"
-                        value={customConversionRates.packetsPerCarton}
-                        onChange={e => setCustomConversionRates({ ...customConversionRates, packetsPerCarton: Number(e.target.value) || 24 })}
-                        className="w-full p-1.5 border rounded-lg font-bold"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-bold text-slate-600 mb-0.5">Packets per Box</label>
-                      <input
-                        type="number"
-                        value={customConversionRates.packetsPerBox}
-                        onChange={e => setCustomConversionRates({ ...customConversionRates, packetsPerBox: Number(e.target.value) || 12 })}
-                        className="w-full p-1.5 border rounded-lg font-bold"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-bold text-slate-600 mb-0.5">Weight per Packet (kg)</label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        value={customConversionRates.kgPerPacket}
-                        onChange={e => setCustomConversionRates({ ...customConversionRates, kgPerPacket: Number(e.target.value) || 0.25 })}
-                        className="w-full p-1.5 border rounded-lg font-bold"
-                      />
-                    </div>
-                  </div>
-                )}
               </div>
 
               {/* Dynamic Multiple Batches List Section */}
@@ -1325,7 +1248,8 @@ export default function InventoryPage() {
                 </div>
 
                 {addStockData.batches.map((batch, bIdx) => {
-                  const bConv = convertAllUnits(batch.quantity, addStockData.unit, customConversionRates);
+                  const bUnit = batch.unit || 'Cartons';
+                  const bConv = convertAllUnits(batch.quantity, bUnit, customConversionRates);
 
                   return (
                     <div key={bIdx} className="bg-rose-50/40 p-3 rounded-2xl border border-rose-200/80 space-y-2 relative">
@@ -1342,7 +1266,7 @@ export default function InventoryPage() {
                         )}
                       </div>
 
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                         <div>
                           <label className="block font-bold text-slate-700 mb-1">Batch ID *</label>
                           <input
@@ -1358,7 +1282,25 @@ export default function InventoryPage() {
                           />
                         </div>
                         <div>
-                          <label className="block font-bold text-slate-700 mb-1">Stock Count ({addStockData.unit}) *</label>
+                          <label className="block font-bold text-slate-700 mb-1">Unit Measurement (Cartons / Numbers / kg) *</label>
+                          <select
+                            value={batch.unit || 'Cartons'}
+                            onChange={e => {
+                              const updated = [...addStockData.batches];
+                              updated[bIdx].unit = e.target.value;
+                              setAddStockData({ ...addStockData, batches: updated });
+                            }}
+                            className="w-full p-2 bg-white border rounded-xl font-bold cursor-pointer"
+                          >
+                            <option value="Cartons">Cartons</option>
+                            <option value="Numbers">Numbers (Units)</option>
+                            <option value="Packets">Packets</option>
+                            <option value="Boxes">Boxes</option>
+                            <option value="kg">kg (Kilograms)</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block font-bold text-slate-700 mb-1">Stock Count ({bUnit}) *</label>
                           <input
                             type="number"
                             required

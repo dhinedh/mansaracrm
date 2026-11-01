@@ -231,12 +231,28 @@ exports.dispatchRequest = async (req, res, next) => {
       const calculatedGrandTotal = calculatedSubtotal + calculatedGstTotal;
 
       // B. Create B2B Invoice
+      const invSettings = await tx.setting.findFirst({
+        where: { key: 'invoice_settings' }
+      });
+      const defaultPrefix = invSettings?.invoicePrefix || 'MF/INV/25-26';
+      const startNumber = invSettings?.nextSequenceNumber || 10;
+
       const seq = await tx.invoiceSequence.upsert({
         where: { id: 'singleton' },
         update: { lastNumber: { increment: 1 } },
-        create: { id: 'singleton', lastNumber: 1, prefix: 'MF-INV' }
+        create: { id: 'singleton', lastNumber: startNumber, prefix: defaultPrefix }
       });
-      const invoiceNo = `${seq.prefix}-${String(seq.lastNumber).padStart(5, '0')}`;
+
+      const p = (seq.prefix || 'MF/INV/25-26').trim();
+      const numStr = String(seq.lastNumber || 10).padStart(5, '0');
+      const invoiceNo = (p.endsWith('/') || p.endsWith('-'))
+        ? `${p}${numStr}`
+        : `${p}${p.includes('/') ? '/' : '-'}${numStr}`;
+
+      await tx.setting.updateMany({
+        where: { key: 'invoice_settings' },
+        data: { nextSequenceNumber: seq.lastNumber + 1 }
+      });
 
       const inv = await tx.invoice.create({
         data: {

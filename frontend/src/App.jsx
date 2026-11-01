@@ -77,12 +77,12 @@ const CartPage = lazy(() => import('./pages/dealer/CartPage'));
 const MyLedgersPage = lazy(() => import('./pages/dealer/MyLedgersPage'));
 const DealerAnalyticsPage = lazy(() => import('./pages/dealer/DealerAnalyticsPage'));
 const ProfilePage = lazy(() => import('./pages/dealer/ProfilePage'));
-
 // Salesperson Layout & Pages
 import SalespersonLayout from './layouts/SalespersonLayout';
 const SalesLoginPage = lazy(() => import('./pages/auth/SalesLoginPage'));
 const SalesDashboard = lazy(() => import('./pages/sales/SalesDashboard'));
 const SalesVisitsPage = lazy(() => import('./pages/sales/SalesVisitsPage'));
+const SalesGpsCheckInPage = lazy(() => import('./pages/sales/SalesGpsCheckInPage'));
 const SalesProductsPage = lazy(() => import('./pages/sales/SalesProductsPage'));
 const SalesOrdersPage = lazy(() => import('./pages/sales/SalesOrdersPage'));
 const SalesCollectionsPage = lazy(() => import('./pages/sales/SalesCollectionsPage'));
@@ -460,11 +460,14 @@ export default function App() {
         >
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<SalesDashboard />} />
+          <Route path="checkin" element={<SalesGpsCheckInPage />} />
+          <Route path="gps" element={<Navigate to="/sales/checkin" replace />} />
           <Route path="visits" element={<SalesVisitsPage />} />
           <Route path="customer-360" element={<SalesVisitsPage />} />
           <Route path="competitor-intel" element={<SalesVisitsPage />} />
           <Route path="catalogue" element={<SalesProductsPage />} />
-          <Route path="pricing" element={<SalesProductsPage />} />
+          <Route path="pricing" element={<PriceSimulatorPage />} />
+          <Route path="price-simulator" element={<Navigate to="/sales/pricing" replace />} />
           <Route path="margins" element={<SalesProductsPage />} />
           <Route path="schemes" element={<SalesProductsPage />} />
           <Route path="stock" element={<SalesProductsPage />} />

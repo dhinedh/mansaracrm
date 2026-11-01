@@ -33,7 +33,8 @@ import {
   Building2,
   User,
   UserPlus,
-  ChevronDown
+  ChevronDown,
+  CreditCard
 } from 'lucide-react';
 
 export default function PriceSimulatorPage() {
@@ -113,25 +114,36 @@ export default function PriceSimulatorPage() {
     placeOfSupply: 'Tamil Nadu (33)',
     bankDetails: {
       bankName: 'HDFC Bank Ltd.',
-      accountNo: '50200012345678',
-      ifscCode: 'HDFC0001234',
-      branch: 'Chennai Central',
+      accountNo: '50200117036854',
+      ifscCode: 'HDFC0001947',
+      branch: 'Iyyapanthangal Branch',
       accountType: 'Current',
-      upiId: 'mansarafoods@hdfcbank'
+      upiId: 'vyapar.175693710434@hdfcbank'
     },
     signatoryTitle: 'Authorised Signatory',
     signatoryName: 'Mansara Foods Pvt. Ltd.',
     invoiceTerms: '1. Quotation valid for 15 days from issue date.\n2. Wholesale pricing is contingent upon order quantities and margin tiers selected.\n3. Goods once sold cannot be returned unless transit damage is reported upon receipt.'
   });
 
+  // Helper to format invoice number according to template prefix & sequence
+  const formatInvoiceNumber = (prefix = 'MF/INV/25-26', seqNumber = 10) => {
+    const p = (prefix || 'MF/INV/25-26').trim();
+    const numStr = String(seqNumber || 1).padStart(5, '0');
+    if (p.endsWith('/') || p.endsWith('-')) {
+      return `${p}${numStr}`;
+    }
+    const sep = p.includes('/') ? '/' : '-';
+    return `${p}${sep}${numStr}`;
+  };
+
   // Convert numbers to Indian words (exact match to dealer invoice format)
   const numberToWords = (num) => {
-    if (!num || isNaN(num)) return 'ZERO';
+    if (!num || isNaN(num)) return 'ZERO RUPEES ONLY';
     const ones = ['', 'ONE', 'TWO', 'THREE', 'FOUR', 'FIVE', 'SIX', 'SEVEN', 'EIGHT', 'NINE',
       'TEN', 'ELEVEN', 'TWELVE', 'THIRTEEN', 'FOURTEEN', 'FIFTEEN', 'SIXTEEN', 'SEVENTEEN', 'EIGHTEEN', 'NINETEEN'];
     const tens = ['', '', 'TWENTY', 'THIRTY', 'FORTY', 'FIFTY', 'SIXTY', 'SEVENTY', 'EIGHTY', 'NINETY'];
     const n = Math.round(num);
-    if (n === 0) return 'ZERO';
+    if (n === 0) return 'ZERO RUPEES ONLY';
     const convert = (n) => {
       if (n < 20) return ones[n];
       if (n < 100) return tens[Math.floor(n / 10)] + (n % 10 ? ' ' + ones[n % 10] : '');
@@ -140,6 +152,7 @@ export default function PriceSimulatorPage() {
       if (n < 10000000) return convert(Math.floor(n / 100000)) + ' LAKH' + (n % 100000 ? ' ' + convert(n % 100000) : '');
       return convert(Math.floor(n / 10000000)) + ' CRORE' + (n % 10000000 ? ' ' + convert(n % 10000000) : '');
     };
+    return convert(n).trim() + ' RUPEES ONLY';
   };
 
   // Safe parser for net weight in grams (handles "100g", "1 kg", numbers)
@@ -667,14 +680,25 @@ export default function PriceSimulatorPage() {
   };
 
   // ─── STEP 8: QUOTATION MODAL HANDLERS ───────────────────────────────────────
-  const handleOpenQuotation = () => {
+  const handleOpenQuotation = async () => {
     if (!calculationSummary.items || calculationSummary.items.length === 0) {
       setToastMessage({ text: 'Please add at least one product before generating an invoice', type: 'error' });
       return;
     }
-    const prefix = companySettings.invoicePrefix || 'MF-INV';
-    const yrMonth = `${new Date().getFullYear().toString().slice(-2)}${String(new Date().getMonth() + 1).padStart(2, '0')}`;
-    setQuotationRefNumber(`${prefix}-${yrMonth}-${Math.floor(1000 + Math.random() * 9000)}`);
+    let currentSettings = companySettings;
+    try {
+      const res = await axios.get('/billing/settings');
+      if (res.data?.success && res.data.data) {
+        currentSettings = { ...companySettings, ...res.data.data };
+        setCompanySettings(currentSettings);
+      }
+    } catch (e) {
+      console.warn('Could not refresh billing settings:', e);
+    }
+
+    const prefix = currentSettings.invoicePrefix || 'MF/INV/25-26';
+    const seqNum = currentSettings.nextSequenceNumber !== undefined ? currentSettings.nextSequenceNumber : 10;
+    setQuotationRefNumber(formatInvoiceNumber(prefix, seqNum));
     setShowQuotationModal(true);
   };
 
@@ -698,7 +722,17 @@ export default function PriceSimulatorPage() {
     const billerGst = companySettings.gstNumber || '27AABCM1234F1Z5';
     const billerPhone = companySettings.phone || '+91-88388 87064';
     const placeOfSupply = companySettings.placeOfSupply || 'Tamil Nadu (33)';
-    const bd = companySettings.bankDetails || {};
+    
+    // Ensure bank details always exist and fall back to official Mansara Foods account details
+    const rawBd = companySettings.bankDetails || {};
+    const bd = (rawBd.bankName && rawBd.accountNo) ? rawBd : {
+      bankName: rawBd.bankName || 'HDFC Bank Ltd.',
+      accountNo: rawBd.accountNo || '50200117036854',
+      ifscCode: rawBd.ifscCode || 'HDFC0001947',
+      branch: rawBd.branch || 'Iyyapanthangal Branch',
+      accountType: rawBd.accountType || 'Current',
+      upiId: rawBd.upiId || 'vyapar.175693710434@hdfcbank'
+    };
     const signatoryTitle = companySettings.signatoryTitle || 'Authorised Signatory';
     const signatoryName = companySettings.signatoryName || 'Mansara Foods Pvt. Ltd.';
 
@@ -839,28 +873,36 @@ export default function PriceSimulatorPage() {
   .items-table th:last-child { border-right: none; }
   .items-table td { padding: 5px 4px; border-bottom: 1px solid #eee; font-size: 10px; color: #1a1a1a; }
 
-  .footer-row { display: flex; border-bottom: 1.5px solid #ccc; }
-  .words-cell { flex: 1; padding: 10px 14px; border-right: 1.5px solid #ccc; }
+  .bottom-container { display: flex; border-bottom: 1.5px solid #ccc; }
+  .bottom-left { flex: 1; border-right: 1.5px solid #ccc; display: flex; flex-direction: column; }
+  .words-cell { flex: 1; padding: 10px 14px; border-bottom: 1px solid #ccc; display: flex; flex-direction: column; justify-content: center; }
   .words-label { font-size: 9px; font-weight: 900; text-transform: uppercase; color: #1a1a1a; margin-bottom: 4px; letter-spacing: 0.3px; }
   .words-text { font-size: 10px; font-weight: 700; color: #1a1a1a; text-transform: uppercase; line-height: 1.4; }
 
+  .payment-cell { flex: 1; padding: 10px 14px; border-bottom: 1px solid #ccc; display: flex; flex-direction: column; justify-content: center; }
+  .pay-label { font-size: 9px; font-weight: 900; text-transform: uppercase; margin-bottom: 4px; color: #1a1a1a; }
+  .pay-info { font-size: 9.5px; color: #444; font-style: italic; }
+
+  .terms-cell { flex: 1; padding: 10px 14px; display: flex; flex-direction: column; justify-content: center; }
+  .terms-label { font-size: 9px; font-weight: 900; text-decoration: underline; margin-bottom: 4px; color: #1a1a1a; }
+  .terms-text { font-size: 9.5px; color: #333; line-height: 1.5; }
+
+  .bottom-right { width: 280px; display: flex; flex-direction: column; }
   .totals-table { width: 100%; border-collapse: collapse; }
   .totals-table td { padding: 3px 10px; font-size: 10px; }
   .totals-table .t-label { text-align: right; color: #333; }
   .totals-table .t-value { text-align: right; font-weight: 600; width: 85px; border-left: 1px solid #eee; }
   .totals-table .grand-row td { background: #D6295A; color: #fff; font-weight: 700; font-size: 11px; padding: 5px 10px; }
 
-  .payment-sig-row { display: flex; border-bottom: 1.5px solid #ccc; }
-  .payment-cell { flex: 1; padding: 10px 14px; border-right: 1.5px solid #ccc; }
-  .pay-label { font-size: 9px; font-weight: 900; text-transform: uppercase; border-bottom: 1px solid #ccc; padding-bottom: 3px; margin-bottom: 5px; color: #1a1a1a; }
-  .bank-table td { font-size: 9.5px; padding: 1.5px 0; }
-  .bank-table td:first-child { font-weight: 700; padding-right: 8px; width: 80px; }
-  .terms-sig-cell { width: 280px; padding: 10px 14px; display: flex; flex-direction: column; justify-content: space-between; }
-  .terms-label { font-size: 9px; font-weight: 900; text-decoration: underline; margin-bottom: 3px; color: #1a1a1a; }
-  .terms-text { font-size: 9.5px; color: #333; line-height: 1.6; }
-  .sig-section { text-align: right; margin-top: 10px; }
+  .account-details-block { padding: 7px 12px; border-bottom: 1px solid #ccc; background: #fafafa; }
+  .account-header { font-weight: 700; font-size: 9.5px; text-decoration: underline; margin-bottom: 3px; color: #1a1a1a; }
+  .bank-table { width: 100%; border-collapse: collapse; }
+  .bank-table td { font-size: 9px; padding: 1.5px 0; color: #222; }
+  .bank-table td:first-child { font-weight: 700; padding-right: 6px; width: 68px; color: #555; }
+
+  .sig-section { padding: 8px 14px 10px 14px; text-align: right; margin-top: auto; }
   .sig-company { font-size: 10px; font-weight: 700; font-style: italic; color: #D6295A; }
-  .sig-name { font-size: 10px; font-style: italic; color: #333; margin-top: 22px; margin-bottom: 2px; }
+  .sig-name { font-size: 10px; font-style: italic; color: #333; margin-top: 20px; margin-bottom: 2px; }
   .sig-title { font-size: 9px; color: #555; }
   .sig-line { font-size: 9px; font-weight: 700; text-decoration: underline; margin-top: 2px; color: #1a1a1a; }
   .footer-strip { padding: 6px 14px; text-align: center; font-size: 8.5px; color: #555; background: #f9f9f9; line-height: 1.5; }
@@ -937,13 +979,26 @@ export default function PriceSimulatorPage() {
     </tbody>
   </table>
 
-  <!-- ── Totals & Words ────────────────────────────────────────────────── -->
-  <div class="footer-row">
-    <div class="words-cell">
-      <div class="words-label">TOTAL AMOUNT IN WORDS:</div>
-      <div class="words-text">${numberToWords(grandRounded)}</div>
+  <!-- ── Bottom Summary & Details (Left: Words, Mode of Payment, Terms | Right: Totals, Account Details, Signature) ──── -->
+  <div class="bottom-container">
+    <!-- Left Column: Total in Words, Mode of Payment, Terms & Conditions -->
+    <div class="bottom-left">
+      <div class="words-cell">
+        <div class="words-label">TOTAL AMOUNT IN WORDS:</div>
+        <div class="words-text">${numberToWords(grandRounded)}</div>
+      </div>
+      <div class="payment-cell">
+        <div class="pay-label">MODE OF PAYMENT (DETAILS):</div>
+        <div class="pay-info">Cheque / Demand Draft / NEFT / RTGS / Online Transfer / UPI</div>
+      </div>
+      <div class="terms-cell">
+        <div class="terms-label">Terms &amp; Conditions:</div>
+        <div class="terms-text">${terms}</div>
+      </div>
     </div>
-    <div style="width:260px;border-left:1.5px solid #ccc;">
+
+    <!-- Right Column: Totals Table, Account Details, Signature -->
+    <div class="bottom-right">
       <table class="totals-table">
         <tr><td class="t-label">Sub Total<br><span style="font-size:8px;color:#777;">(Without Tax)</span></td><td class="t-value">${subtotal.toFixed(2)}</td></tr>
         ${isGstEnabled ? `
@@ -955,29 +1010,21 @@ export default function PriceSimulatorPage() {
         ${discount > 0 ? `<tr><td class="t-label" style="color:#d97706;">Discount</td><td class="t-value" style="color:#d97706;">- ${discount.toFixed(2)}</td></tr>` : ''}
         <tr class="grand-row"><td class="t-label" style="color:#fff;">Amount To be Paid</td><td class="t-value" style="color:#fff;border-left:1px solid rgba(255,255,255,0.3);">${grandRounded}</td></tr>
       </table>
-    </div>
-  </div>
 
-  <!-- ── Payment / Signature / Terms ──────────────────────────────────── -->
-  <div class="payment-sig-row">
-    <div class="payment-cell">
-      <div class="pay-label">MODE OF PAYMENT (DETAILS):</div>
-      ${bd.bankName || bd.accountNo ? `
-      <div style="font-weight:700;font-size:10px;text-decoration:underline;margin-bottom:4px;">Account Details</div>
-      <table class="bank-table">
-        ${billerName ? `<tr><td colspan="2" style="font-weight:700;padding-bottom:2px;">${billerName}</td></tr>` : ''}
-        ${bd.accountNo ? `<tr><td>A/C No.</td><td>${bd.accountNo}</td></tr>` : ''}
-        ${bd.ifscCode  ? `<tr><td>IFSC Code :</td><td style="font-weight:700;">${bd.ifscCode}</td></tr>` : ''}
-        ${bd.bankName  ? `<tr><td>Bank :</td><td>${bd.bankName}${bd.branch ? ', ' + bd.branch : ''}</td></tr>` : ''}
-        ${bd.accountType ? `<tr><td>Type :</td><td>${bd.accountType}</td></tr>` : ''}
-        ${bd.upiId ? `<tr><td>UPI ID:</td><td>${bd.upiId}</td></tr>` : ''}
-      </table>` : '<div style="font-size:10px;color:#666;font-style:italic;">Contact for payment details</div>'}
-    </div>
-    <div class="terms-sig-cell">
-      <div>
-        <div class="terms-label">Terms &amp; Conditions:</div>
-        <div class="terms-text">${terms}</div>
+      <!-- Under Amount To be Paid: Account Details -->
+      <div class="account-details-block">
+        <div class="account-header">Account Details:</div>
+        <table class="bank-table">
+          ${billerName ? `<tr><td colspan="2" style="font-weight:700;padding-bottom:2px;color:#D6295A;font-size:9.5px;">${billerName}</td></tr>` : ''}
+          ${bd.accountNo ? `<tr><td>A/C No.</td><td>${bd.accountNo}</td></tr>` : ''}
+          ${bd.ifscCode  ? `<tr><td>IFSC Code :</td><td style="font-weight:700;">${bd.ifscCode}</td></tr>` : ''}
+          ${bd.bankName  ? `<tr><td>Bank :</td><td>${bd.bankName}${bd.branch ? ', ' + bd.branch : ''}</td></tr>` : ''}
+          ${bd.accountType ? `<tr><td>Type :</td><td>${bd.accountType}</td></tr>` : ''}
+          ${bd.upiId ? `<tr><td>UPI ID:</td><td>${bd.upiId}</td></tr>` : ''}
+        </table>
       </div>
+
+      <!-- Under Account Details: Signature -->
       <div class="sig-section">
         <div class="sig-company">For ${billerName}..</div>
         <div class="sig-name">${signatoryName}</div>
@@ -1098,44 +1145,13 @@ export default function PriceSimulatorPage() {
       )}
 
       {/* ─── CUSTOMER / TRADE PARTNER SELECTION & GST CONFIGURATION ──────── */}
-      <div className="bg-white border border-slate-200 rounded-2xl sm:rounded-3xl p-4 sm:p-6 lg:p-7 shadow-xs space-y-4 sm:space-y-5">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 border-b border-slate-100 pb-3 sm:pb-4">
+      <div className="sticky top-0 z-30 bg-white border border-slate-200 rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 lg:p-6 shadow-md space-y-3 sm:space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3 border-b border-slate-100 pb-2.5 sm:pb-3">
           <div>
             <h2 className="text-base sm:text-lg font-black text-slate-900 tracking-tight flex items-center gap-2">
               <Store className="w-4 h-4 text-rose-600 shrink-0" />
               <span>Customer / Trade Partner</span>
             </h2>
-            <p className="text-xs text-slate-500 font-medium mt-0.5">
-              Select existing Dealer, Retail Store, or Walk-in Person, or quickly register new ones.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-3 sm:flex items-center gap-1.5 sm:gap-2 w-full sm:w-auto shrink-0">
-            <button
-              type="button"
-              onClick={fetchInitialData}
-              className="flex items-center justify-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold text-[11px] sm:text-xs shadow-xs transition cursor-pointer"
-              title="Reset simulator"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 text-slate-500 ${loading ? 'animate-spin' : ''}`} />
-              <span>Reset</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowRegisterStoreModal(true)}
-              className="flex items-center justify-center gap-1 sm:gap-1.5 px-2.5 sm:px-3.5 py-2 rounded-xl border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-[11px] sm:text-xs transition cursor-pointer shadow-xs whitespace-nowrap"
-            >
-              <Plus className="w-3.5 h-3.5 text-emerald-600" />
-              <span>+ Store</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowRegisterDealerModal(true)}
-              className="flex items-center justify-center gap-1 sm:gap-1.5 px-2.5 sm:px-3.5 py-2 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-800 font-bold text-[11px] sm:text-xs transition cursor-pointer shadow-xs whitespace-nowrap"
-            >
-              <Building2 className="w-3.5 h-3.5 text-rose-600" />
-              <span>+ Dealer</span>
-            </button>
           </div>
         </div>
 
@@ -1246,7 +1262,7 @@ export default function PriceSimulatorPage() {
 
                 {/* Autocomplete Dropdown */}
                 {isCustomerDropdownOpen && (
-                  <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-2xl shadow-xl z-30 max-h-80 overflow-y-auto divide-y divide-slate-100">
+                  <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-2xl shadow-2xl z-50 max-h-80 overflow-y-auto divide-y divide-slate-100">
                     {/* Add as Custom Person if search query entered */}
                     {customerSearchQuery.trim() && (
                       <div
@@ -1383,19 +1399,7 @@ export default function PriceSimulatorPage() {
               <Calculator className="w-4 h-4 text-rose-600 shrink-0" />
               <span>Select Product &bull; Enter Qty &bull; Set Margin %</span>
             </h2>
-            <p className="text-xs text-slate-500 font-medium mt-0.5">
-              Wholesale price auto-computes by reducing the target margin percentage from catalog MRP.
-            </p>
           </div>
-
-          <button
-            type="button"
-            onClick={handleAddCustomCommodity}
-            className="text-xs font-bold text-rose-700 hover:text-rose-800 bg-rose-50 hover:bg-rose-100 px-3 py-2 rounded-xl border border-rose-200 transition cursor-pointer shrink-0 flex items-center justify-center gap-1.5 w-full sm:w-auto"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>+ Custom Commodity (Dal/Grain)</span>
-          </button>
         </div>
 
         {/* Input Bar */}
@@ -1832,68 +1836,37 @@ export default function PriceSimulatorPage() {
         {/* ─── TAX & SHIPPING SETTINGS ─── */}
         <div className="bg-slate-50 border border-slate-200 rounded-xl sm:rounded-2xl p-3.5 sm:p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 sm:gap-4">
           <div className="flex flex-wrap items-center gap-3 sm:gap-4 w-full md:w-auto">
-            {/* With or Without GST Toggle */}
-            <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-2 w-full sm:w-auto">
-              <span className="text-[11px] sm:text-xs font-bold text-slate-700">Taxation:</span>
-              <div className="grid grid-cols-2 sm:flex items-center bg-slate-200/80 p-0.5 rounded-xl w-full sm:w-auto">
-                <button
-                  type="button"
-                  onClick={() => setGstMode('WITH_GST')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer text-center ${
-                    gstMode === 'WITH_GST'
-                      ? 'bg-purple-600 text-white shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  With GST
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setGstMode('WITHOUT_GST')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer text-center ${
-                    gstMode === 'WITHOUT_GST'
-                      ? 'bg-slate-900 text-white shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  Without GST
-                </button>
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 w-full sm:w-auto">
+              <span className="text-[11px] sm:text-xs font-bold text-slate-700">GST Rate:</span>
+              <div className="flex items-center gap-1">
+                {[0, 5, 12, 18].map(rate => (
+                  <button
+                    key={rate}
+                    type="button"
+                    onClick={() => setGstRate(rate)}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                      gstRate === rate
+                        ? 'bg-rose-600 text-white shadow-xs'
+                        : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    {rate}%
+                  </button>
+                ))}
+              </div>
+              <div className="flex items-center border border-slate-300 rounded-lg bg-white overflow-hidden w-16 sm:w-20 px-2 py-1">
+                <input
+                  type="number"
+                  min="0"
+                  max="40"
+                  step="0.5"
+                  value={gstRate}
+                  onChange={(e) => setGstRate(Math.max(0, parseFloat(e.target.value) || 0))}
+                  className="w-full text-xs font-bold text-slate-800 text-center focus:outline-none"
+                />
+                <span className="text-[10px] text-slate-400 font-bold">%</span>
               </div>
             </div>
-
-            {gstMode === 'WITH_GST' && (
-              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 animate-fade-in w-full sm:w-auto">
-                <span className="text-[11px] sm:text-xs font-bold text-slate-700">GST Rate:</span>
-                <div className="flex items-center gap-1">
-                  {[0, 5, 12, 18].map(rate => (
-                    <button
-                      key={rate}
-                      type="button"
-                      onClick={() => setGstRate(rate)}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
-                        gstRate === rate
-                          ? 'bg-rose-600 text-white shadow-xs'
-                          : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
-                      }`}
-                    >
-                      {rate}%
-                    </button>
-                  ))}
-                </div>
-                <div className="flex items-center border border-slate-300 rounded-lg bg-white overflow-hidden w-16 sm:w-20 px-2 py-1">
-                  <input
-                    type="number"
-                    min="0"
-                    max="40"
-                    step="0.5"
-                    value={gstRate}
-                    onChange={(e) => setGstRate(Math.max(0, parseFloat(e.target.value) || 0))}
-                    className="w-full text-xs font-bold text-slate-800 text-center focus:outline-none"
-                  />
-                  <span className="text-[10px] text-slate-400 font-bold">%</span>
-                </div>
-              </div>
-            )}
 
             <div className="flex items-center justify-between sm:justify-start gap-2 w-full sm:w-auto">
               <span className="text-[11px] sm:text-xs font-bold text-slate-700">Shipping:</span>
@@ -1913,7 +1886,7 @@ export default function PriceSimulatorPage() {
           </div>
 
           <div className="text-left md:text-right w-full md:w-auto text-[11px] sm:text-xs text-slate-500 font-medium pt-1 md:pt-0 border-t md:border-t-0 border-slate-200/60">
-            {gstMode === 'WITH_GST' ? 'Taxes & freight auto-calculate in totals' : 'Net wholesale prices (GST excluded)'}
+            Taxes & freight auto-calculate in totals
           </div>
         </div>
       </div>
@@ -2045,9 +2018,15 @@ export default function PriceSimulatorPage() {
                     <p className="text-[10px] text-slate-400 mt-0.5">Tamil Nadu, India</p>
                   </div>
                   <div className="text-left sm:text-right border-t sm:border-t-0 pt-2 sm:pt-0 border-slate-100">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Quotation Ref</span>
-                    <span className="font-mono font-black text-slate-900">{quotationRefNumber}</span>
-                    <p className="text-[10px] text-slate-400 mt-0.5">Date: {new Date().toLocaleDateString('en-IN')}</p>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">Invoice / Quotation Ref</span>
+                    <input
+                      type="text"
+                      value={quotationRefNumber}
+                      onChange={(e) => setQuotationRefNumber(e.target.value)}
+                      className="font-mono font-black text-rose-700 text-xs sm:text-sm text-left sm:text-right bg-slate-50 border border-slate-200 rounded-lg px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-rose-500 w-full sm:w-auto"
+                      placeholder="e.g. MF/INV/25-26/00010"
+                    />
+                    <p className="text-[10px] text-slate-400 mt-1">Date: {new Date().toLocaleDateString('en-IN')}</p>
                   </div>
                 </div>
 
@@ -2230,6 +2209,37 @@ export default function PriceSimulatorPage() {
                       <span>Grand Total:</span>
                       <span className="text-emerald-700 font-black text-base">₹{calculationSummary.grandTotal.toLocaleString('en-IN')}</span>
                     </div>
+                  </div>
+                </div>
+
+                {/* Total Amount in Words */}
+                <div className="p-3 bg-rose-50/60 border border-rose-100 rounded-xl">
+                  <span className="text-[10px] font-black uppercase text-rose-800 tracking-wider block">Total Amount in Words:</span>
+                  <p className="font-bold text-slate-800 text-xs mt-0.5 uppercase tracking-wide">
+                    {numberToWords(Math.round(calculationSummary.grandTotal))}
+                  </p>
+                </div>
+
+                {/* Bank Payment Details Section */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs">
+                  <div>
+                    <h5 className="font-black text-slate-900 uppercase tracking-wider text-[10px] flex items-center gap-1.5 mb-1.5">
+                      <CreditCard className="w-3.5 h-3.5 text-rose-600" />
+                      <span>Mode of Payment (Bank Details)</span>
+                    </h5>
+                    <div className="space-y-1 text-slate-700 text-[11px]">
+                      <p><span className="text-slate-500 font-medium">Bank Name:</span> <strong className="text-slate-900">{companySettings.bankDetails?.bankName || 'HDFC Bank Ltd.'}</strong></p>
+                      <p><span className="text-slate-500 font-medium">Account No:</span> <strong className="text-slate-900 font-mono">{companySettings.bankDetails?.accountNo || '50200117036854'}</strong></p>
+                      <p><span className="text-slate-500 font-medium">IFSC Code:</span> <strong className="text-slate-900 font-mono">{companySettings.bankDetails?.ifscCode || 'HDFC0001947'}</strong></p>
+                      <p><span className="text-slate-500 font-medium">Branch:</span> <strong className="text-slate-900">{companySettings.bankDetails?.branch || 'Iyyapanthangal Branch'}</strong></p>
+                      <p><span className="text-slate-500 font-medium">Account Type:</span> <strong className="text-slate-900">{companySettings.bankDetails?.accountType || 'Current'}</strong></p>
+                    </div>
+                  </div>
+                  <div>
+                    <h5 className="font-black text-slate-900 uppercase tracking-wider text-[10px] mb-1.5">Terms &amp; Conditions</h5>
+                    <p className="text-[11px] text-slate-600 whitespace-pre-line leading-relaxed">
+                      {companySettings.invoiceTerms || '1. Payment within 15 days from delivery.\n2. Interest @ 2% per month on overdue payment.\n3. Goods once sold cannot be returned unless transit damage is reported upon receipt.'}
+                    </p>
                   </div>
                 </div>
               </div>

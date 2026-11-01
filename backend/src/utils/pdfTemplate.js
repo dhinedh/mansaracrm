@@ -158,7 +158,15 @@ const buildInvoiceHtml = (company, invoice) => {
   const grandTotal  = invoice.totalAmount !== undefined && invoice.totalAmount !== null ? parseFloat(invoice.totalAmount) : (originalTotal - discount);
   const grandRounded = Math.round(grandTotal);
 
-  const bd = isRetail ? (invoice.dealer?.bankDetails || company.bankDetails || {}) : (company.bankDetails || invoice.dealer?.bankDetails || {});
+  const rawBd = isRetail ? (invoice.dealer?.bankDetails || company.bankDetails || {}) : (company.bankDetails || invoice.dealer?.bankDetails || {});
+  const bd = (rawBd.bankName && rawBd.accountNo) ? rawBd : {
+    bankName: rawBd.bankName || 'HDFC Bank Ltd.',
+    accountNo: rawBd.accountNo || '50200117036854',
+    ifscCode: rawBd.ifscCode || 'HDFC0001947',
+    branch: rawBd.branch || 'Iyyapanthangal Branch',
+    accountType: rawBd.accountType || 'Current',
+    upiId: rawBd.upiId || 'vyapar.175693710434@hdfcbank'
+  };
 
   // Terms
   const rawTerms = isRetail
@@ -320,13 +328,26 @@ const buildInvoiceHtml = (company, invoice) => {
     </tbody>
   </table>
 
-  <!-- ── Totals & Words ────────────────────────────────────────────────── -->
-  <div class="footer-row">
-    <div class="words-cell">
-      <div class="words-label">Total Amount in Words:</div>
-      <div class="words-text">${numberToWords(grandRounded)}</div>
+  <!-- ── Bottom Summary & Details (Left: Words, Mode of Payment, Terms | Right: Totals, Account Details, Signature) ──── -->
+  <div class="bottom-container" style="display:flex;border-bottom:1.5px solid #ccc;">
+    <!-- Left Column: Total in Words, Mode of Payment, Terms & Conditions -->
+    <div style="flex:1;border-right:1.5px solid #ccc;display:flex;flex-direction:column;">
+      <div style="flex:1;padding:10px 14px;border-bottom:1px solid #ccc;display:flex;flex-direction:column;justify-content:center;">
+        <div style="font-size:9px;font-weight:900;text-transform:uppercase;color:#1a1a1a;margin-bottom:4px;letter-spacing:0.3px;">TOTAL AMOUNT IN WORDS:</div>
+        <div style="font-size:10px;font-weight:700;color:#1a1a1a;text-transform:uppercase;line-height:1.4;">${numberToWords(grandRounded)}</div>
+      </div>
+      <div style="flex:1;padding:10px 14px;border-bottom:1px solid #ccc;display:flex;flex-direction:column;justify-content:center;">
+        <div style="font-size:9px;font-weight:900;text-transform:uppercase;margin-bottom:4px;color:#1a1a1a;">MODE OF PAYMENT (DETAILS):</div>
+        <div style="font-size:9.5px;color:#444;font-style:italic;">Cheque / Demand Draft / NEFT / RTGS / Online Transfer / UPI</div>
+      </div>
+      <div style="flex:1;padding:10px 14px;display:flex;flex-direction:column;justify-content:center;">
+        <div style="font-size:9px;font-weight:900;text-decoration:underline;margin-bottom:4px;color:#1a1a1a;">Terms &amp; Conditions:</div>
+        <div style="font-size:9.5px;color:#333;line-height:1.5;">${terms}</div>
+      </div>
     </div>
-    <div style="width:260px;border-left:1.5px solid #ccc;">
+
+    <!-- Right Column: Totals Table, Account Details, Signature -->
+    <div style="width:280px;display:flex;flex-direction:column;">
       <table class="totals-table">
         <tr><td class="t-label">Sub Total<br><span style="font-size:8px;color:#777;">(Without Tax)</span></td><td class="t-value">${subtotal.toFixed(2)}</td></tr>
         ${invoice.isGstEnabled !== false ? `
@@ -338,32 +359,24 @@ const buildInvoiceHtml = (company, invoice) => {
         ${discount > 0 ? `<tr><td class="t-label" style="color:#d97706;">Discount</td><td class="t-value" style="color:#d97706;">- ${discount.toFixed(2)}</td></tr>` : ''}
         <tr class="grand-row"><td class="t-label" style="color:#fff;">Amount To be Paid</td><td class="t-value" style="color:#fff;border-left:1px solid rgba(255,255,255,0.3);">${grandRounded}</td></tr>
       </table>
-    </div>
-  </div>
 
-  <!-- ── Payment / Signature / Terms ──────────────────────────────────── -->
-  <div class="payment-sig-row">
-    <div class="payment-cell" style="flex:1;border-right:1.5px solid #ccc;">
-      <div class="pay-label">Mode of Payment (Details):</div>
-      ${bd.bankName || bd.accountNo ? `
-      <div style="font-weight:700;font-size:10px;text-decoration:underline;margin-bottom:4px;">Account Details</div>
-      <table class="bank-table">
-        ${billerName ? `<tr><td colspan="2" style="font-weight:700;padding-bottom:2px;">${billerName}</td></tr>` : ''}
-        ${bd.accountNo ? `<tr><td>A/C No.</td><td>${bd.accountNo}</td></tr>` : ''}
-        ${bd.ifscCode  ? `<tr><td>IFSC Code :</td><td style="font-weight:700;">${bd.ifscCode}</td></tr>` : ''}
-        ${bd.bankName  ? `<tr><td>Bank :</td><td>${bd.bankName}${bd.branch ? ', ' + bd.branch : ''}</td></tr>` : ''}
-        ${bd.accountType ? `<tr><td>Type :</td><td>${bd.accountType}</td></tr>` : ''}
-        ${bd.upiId ? `<tr><td>UPI ID:</td><td>${bd.upiId}</td></tr>` : ''}
-      </table>` : '<div style="font-size:10px;color:#777;font-style:italic;">Contact for payment details</div>'}
-    </div>
-    <div style="width:280px;padding:8px 14px;display:flex;flex-direction:column;justify-content:space-between;">
-      <div>
-        <div class="terms-label">Terms &amp; Conditions:</div>
-        <div class="terms-text">${terms}</div>
+      <!-- Under Amount To be Paid: Account Details -->
+      <div style="padding:7px 12px;border-bottom:1px solid #ccc;background:#fafafa;">
+        <div style="font-weight:700;font-size:9.5px;text-decoration:underline;margin-bottom:3px;color:#1a1a1a;">Account Details</div>
+        <table class="bank-table" style="width:100%;">
+          ${billerName ? `<tr><td colspan="2" style="font-weight:700;padding-bottom:2px;font-size:9.5px;color:#D6295A;">${billerName}</td></tr>` : ''}
+          ${bd.accountNo ? `<tr><td style="font-weight:700;font-size:9px;color:#555;width:68px;">A/C No.</td><td style="font-weight:700;font-size:9.5px;color:#1a1a1a;">${bd.accountNo}</td></tr>` : ''}
+          ${bd.ifscCode  ? `<tr><td style="font-weight:700;font-size:9px;color:#555;">IFSC Code :</td><td style="font-weight:700;font-size:9.5px;color:#1a1a1a;">${bd.ifscCode}</td></tr>` : ''}
+          ${bd.bankName  ? `<tr><td style="font-weight:700;font-size:9px;color:#555;">Bank :</td><td style="font-size:9px;color:#1a1a1a;">${bd.bankName}${bd.branch ? ', ' + bd.branch : ''}</td></tr>` : ''}
+          ${bd.accountType ? `<tr><td style="font-weight:700;font-size:9px;color:#555;">Type :</td><td style="font-size:9px;color:#1a1a1a;">${bd.accountType}</td></tr>` : ''}
+          ${bd.upiId ? `<tr><td style="font-weight:700;font-size:9px;color:#555;">UPI ID:</td><td style="font-size:9px;color:#1a1a1a;">${bd.upiId}</td></tr>` : ''}
+        </table>
       </div>
-      <div style="text-align:right;margin-top:8px;">
+
+      <!-- Under Account Details: Signature -->
+      <div style="padding:8px 14px 10px 14px;text-align:right;margin-top:auto;">
         <div style="font-size:10px;font-weight:700;font-style:italic;color:#D6295A;">For ${billerName}.</div>
-        <div style="font-size:10px;font-style:italic;color:#333;margin-top:24px;margin-bottom:2px;">${signatoryName}</div>
+        <div style="font-size:10px;font-style:italic;color:#333;margin-top:20px;margin-bottom:2px;">${signatoryName}</div>
         <div style="font-size:9px;color:#555;">${signatoryTitle}</div>
         <div style="font-size:9px;font-weight:700;text-decoration:underline;margin-top:2px;">Authorized signature</div>
       </div>
@@ -476,7 +489,15 @@ const buildSimpleRetailInvoiceHtml = (company, invoice) => {
   const grandTotal = invoice.totalAmount !== undefined && invoice.totalAmount !== null ? parseFloat(invoice.totalAmount) : (originalTotal - discount);
   const grandRounded = Math.round(grandTotal);
 
-  const bd = dealer.bankDetails || {};
+  const rawDealerBd = dealer.bankDetails || {};
+  const bd = (rawDealerBd.bankName && rawDealerBd.accountNo) ? rawDealerBd : {
+    bankName: rawDealerBd.bankName || 'HDFC Bank Ltd.',
+    accountNo: rawDealerBd.accountNo || '50200117036854',
+    ifscCode: rawDealerBd.ifscCode || 'HDFC0001947',
+    branch: rawDealerBd.branch || 'Iyyapanthangal Branch',
+    accountType: rawDealerBd.accountType || 'Current',
+    upiId: rawDealerBd.upiId || 'vyapar.175693710434@hdfcbank'
+  };
   const terms = dealer.invoiceTerms
     ? dealer.invoiceTerms.split('\n').map((t, i) => `${i + 1}. ${t}`).join('<br>')
     : `1. Payment within 15 days.<br>2. Interest @ 2% per month on delay.<br>3. Claims must be reported at delivery.`;
@@ -587,13 +608,26 @@ const buildSimpleRetailInvoiceHtml = (company, invoice) => {
     </tbody>
   </table>
 
-  <!-- Totals & Words -->
-  <div class="footer-row">
-    <div class="words-cell">
-      <div class="words-label">Total Amount in Words:</div>
-      <div class="words-text">${numberToWords(grandRounded)}</div>
+  <!-- ── Bottom Summary & Details (Left: Words, Mode of Payment, Terms | Right: Totals, Account Details, Signature) ──── -->
+  <div class="bottom-container" style="display:flex;border-bottom:1.5px solid #ccc;">
+    <!-- Left Column: Total in Words, Mode of Payment, Terms & Conditions -->
+    <div style="flex:1;border-right:1.5px solid #ccc;display:flex;flex-direction:column;">
+      <div style="flex:1;padding:10px 14px;border-bottom:1px solid #ccc;display:flex;flex-direction:column;justify-content:center;">
+        <div style="font-size:9px;font-weight:900;text-transform:uppercase;color:#1a1a1a;margin-bottom:4px;letter-spacing:0.3px;">TOTAL AMOUNT IN WORDS:</div>
+        <div style="font-size:10px;font-weight:700;color:#1a1a1a;text-transform:uppercase;line-height:1.4;">${numberToWords(grandRounded)}</div>
+      </div>
+      <div style="flex:1;padding:10px 14px;border-bottom:1px solid #ccc;display:flex;flex-direction:column;justify-content:center;">
+        <div style="font-size:9px;font-weight:900;text-transform:uppercase;margin-bottom:4px;color:#1a1a1a;">MODE OF PAYMENT (DETAILS):</div>
+        <div style="font-size:9.5px;color:#444;font-style:italic;">Cheque / Demand Draft / NEFT / RTGS / Online Transfer / UPI</div>
+      </div>
+      <div style="flex:1;padding:10px 14px;display:flex;flex-direction:column;justify-content:center;">
+        <div style="font-size:9px;font-weight:900;text-decoration:underline;margin-bottom:4px;color:#1a1a1a;">Terms &amp; Conditions:</div>
+        <div style="font-size:9.5px;color:#333;line-height:1.5;">${terms}</div>
+      </div>
     </div>
-    <div style="width:240px;border-left:1.5px solid #ccc;">
+
+    <!-- Right Column: Totals Table, Account Details, Signature -->
+    <div style="width:260px;display:flex;flex-direction:column;">
       <table class="totals-table">
         <tr><td class="t-label">Sub Total<br><span style="font-size:8px;color:#777;">(Without Tax)</span></td><td class="t-value">${subtotal.toFixed(2)}</td></tr>
         ${invoice.isGstEnabled !== false ? `
@@ -605,31 +639,23 @@ const buildSimpleRetailInvoiceHtml = (company, invoice) => {
         ${discount > 0 ? `<tr><td class="t-label" style="color:#d97706;">Discount</td><td class="t-value" style="color:#d97706;">- ${discount.toFixed(2)}</td></tr>` : ''}
         <tr class="grand-row"><td class="t-label" style="color:#fff;">Amount To Be Paid</td><td class="t-value" style="color:#fff;border-left:1px solid rgba(255,255,255,0.3);">${grandRounded}</td></tr>
       </table>
-    </div>
-  </div>
 
-  <!-- Payment / Signature / Terms -->
-  <div class="payment-sig-row">
-    <div class="payment-cell" style="flex:1;border-right:1.5px solid #ccc;">
-      <div class="pay-label">Mode of Payment:</div>
-      ${bd.bankName || bd.accountNo ? `
-      <div style="font-weight:700;font-size:10px;text-decoration:underline;margin-bottom:4px;">Account Details</div>
-      <table class="bank-table">
-        ${billerName ? `<tr><td colspan="2" style="font-weight:700;padding-bottom:2px;">${billerName}</td></tr>` : ''}
-        ${bd.accountNo ? `<tr><td>A/C No.</td><td>${bd.accountNo}</td></tr>` : ''}
-        ${bd.ifscCode  ? `<tr><td>IFSC :</td><td style="font-weight:700;">${bd.ifscCode}</td></tr>` : ''}
-        ${bd.bankName  ? `<tr><td>Bank :</td><td>${bd.bankName}${bd.branch ? ', ' + bd.branch : ''}</td></tr>` : ''}
-        ${bd.upiId     ? `<tr><td>UPI ID:</td><td>${bd.upiId}</td></tr>` : ''}
-      </table>` : '<div style="font-size:10px;color:#777;font-style:italic;">Contact for payment details</div>'}
-    </div>
-    <div style="width:260px;padding:8px 14px;display:flex;flex-direction:column;justify-content:space-between;">
-      <div>
-        <div style="font-size:9px;font-weight:900;text-decoration:underline;margin-bottom:3px;">Terms & Conditions:</div>
-        <div style="font-size:9.5px;color:#333;line-height:1.6;">${terms}</div>
+      <!-- Under Amount To be Paid: Account Details -->
+      <div style="padding:7px 12px;border-bottom:1px solid #ccc;background:#fafafa;">
+        <div style="font-weight:700;font-size:9.5px;text-decoration:underline;margin-bottom:3px;color:#1a1a1a;">Account Details</div>
+        <table class="bank-table" style="width:100%;">
+          ${billerName ? `<tr><td colspan="2" style="font-weight:700;padding-bottom:2px;font-size:9.5px;color:#D6295A;">${billerName}</td></tr>` : ''}
+          ${bd.accountNo ? `<tr><td style="font-weight:700;font-size:9px;color:#555;width:68px;">A/C No.</td><td style="font-weight:700;font-size:9.5px;color:#1a1a1a;">${bd.accountNo}</td></tr>` : ''}
+          ${bd.ifscCode  ? `<tr><td style="font-weight:700;font-size:9px;color:#555;">IFSC :</td><td style="font-weight:700;font-size:9.5px;color:#1a1a1a;">${bd.ifscCode}</td></tr>` : ''}
+          ${bd.bankName  ? `<tr><td style="font-weight:700;font-size:9px;color:#555;">Bank :</td><td style="font-size:9px;color:#1a1a1a;">${bd.bankName}${bd.branch ? ', ' + bd.branch : ''}</td></tr>` : ''}
+          ${bd.upiId     ? `<tr><td style="font-weight:700;font-size:9px;color:#555;">UPI ID:</td><td style="font-size:9px;color:#1a1a1a;">${bd.upiId}</td></tr>` : ''}
+        </table>
       </div>
-      <div style="text-align:right;margin-top:8px;">
+
+      <!-- Under Account Details: Signature -->
+      <div style="padding:8px 14px 10px 14px;text-align:right;margin-top:auto;">
         <div style="font-size:10px;font-weight:700;font-style:italic;color:#D6295A;">For ${billerName}.</div>
-        <div style="font-size:10px;font-style:italic;color:#333;margin-top:28px;margin-bottom:2px;">Authorised Signatory</div>
+        <div style="font-size:10px;font-style:italic;color:#333;margin-top:20px;margin-bottom:2px;">Authorised Signatory</div>
         <div style="font-size:9px;font-weight:700;text-decoration:underline;">Authorised Signature</div>
       </div>
     </div>

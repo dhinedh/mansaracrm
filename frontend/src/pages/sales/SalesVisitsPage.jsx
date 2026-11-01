@@ -1,6 +1,5 @@
-// src/pages/sales/SalesVisitsPage.jsx
 import React, { useState, useEffect, useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import { 
   MapPin, CheckCircle2, Clock, Plus, Search, Navigation, 
@@ -14,6 +13,8 @@ import {
 
 export default function SalesVisitsPage() {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const location = useLocation();
 
   // Core state
   const [shops, setShops] = useState([]);
@@ -255,6 +256,15 @@ export default function SalesVisitsPage() {
       const res = await axios.get('/field-sales/visits');
       if (res.data?.success) {
         setVisitHistory(res.data.data);
+        const inProgress = res.data.data.find(v => !v.checkOutTime && v.status !== 'COMPLETED');
+        if (inProgress && !activeVisitRecord) {
+          setActiveVisitRecord(inProgress);
+          const shopObj = inProgress.storeId || inProgress.store;
+          if (shopObj) {
+            setActiveShopWindow(shopObj);
+            fetchCustomer360(shopObj._id || shopObj.id);
+          }
+        }
       }
     } catch (err) {
       console.error('Error fetching visits:', err);
@@ -296,9 +306,32 @@ export default function SalesVisitsPage() {
 
     // Check query params if user clicked "Start GPS Check-In" from dashboard
     if (searchParams.get('gpsCheckIn') === 'true') {
-      acquireGPS(true);
+      navigate('/sales/checkin');
     }
-  }, []);
+
+    // Check if coming from GPS Check-In page with new active visit
+    if (location.state?.autoOpenShopWindow) {
+      const stored = localStorage.getItem('mansara_active_visit');
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          if (parsed?.visit && parsed?.store) {
+            setActiveVisitRecord(parsed.visit);
+            setActiveShopWindow(parsed.store);
+            setSelectedPurpose(parsed.purpose || 'Order Booking');
+            setShopWindowOpen(true);
+            const p1 = (parsed.purpose || '').split('&')[0].trim();
+            if (p1 === 'Initial Visit') setShopWindowTab('initial_visit');
+            else if (p1 === 'Payment Collection') setShopWindowTab('payment');
+            else if (p1 === 'Stock Auditing') setShopWindowTab('stock_audit');
+            else if (p1 === 'Routine Beat') setShopWindowTab('routine_beat');
+            else setShopWindowTab('order');
+            fetchCustomer360(parsed.store._id || parsed.store.id);
+          }
+        } catch (e) {}
+      }
+    }
+  }, [location.state]);
 
   // Timer for active visit
   useEffect(() => {
@@ -394,7 +427,7 @@ export default function SalesVisitsPage() {
 
   // Open Smart GPS Check-In
   const handleOpenSmartCheckIn = () => {
-    acquireGPS(true);
+    navigate('/sales/checkin');
   };
 
   // Selected Purpose of Visit state (Supports Single or Dual Purpose Visit)
@@ -679,6 +712,7 @@ export default function SalesVisitsPage() {
         setShopWindowOpen(false);
         setCheckoutModalOpen(false);
         setOrderCart([]);
+        localStorage.removeItem('mansara_active_visit');
         fetchVisits();
       }
     } catch (err) {
@@ -1750,172 +1784,6 @@ export default function SalesVisitsPage() {
                 )}
               </tbody>
             </table>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* 1. SMART GPS CHECK-IN & GOOGLE MAP / STORE MATCHING MODAL                 */}
-      {/* ========================================================================= */}
-      {smartCheckInModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-y-auto">
-          <div className="bg-slate-900 border border-white/10 w-full max-w-2xl rounded-t-3xl sm:rounded-3xl p-4 sm:p-6 shadow-2xl relative my-0 sm:my-auto max-h-[92vh] overflow-y-auto">
-            <button
-              type="button"
-              onClick={() => setSmartCheckInModalOpen(false)}
-              className="absolute top-4 right-4 p-2 text-slate-400 hover:text-white rounded-xl bg-white/5 cursor-pointer z-10"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            {/* Modal Title */}
-            <div className="flex items-center gap-3 mb-4 pr-10">
-              <div className="p-2.5 sm:p-3 bg-amber-500/10 text-amber-400 rounded-2xl border border-amber-500/20 shrink-0">
-                <Compass className="w-5 h-5 sm:w-6 sm:h-6 animate-pulse" />
-              </div>
-              <div>
-                <h2 className="text-base sm:text-lg font-black text-white">Live GPS Check-In</h2>
-                <p className="text-[11px] sm:text-xs text-slate-400">
-                  Google Map address link &amp; Registered store matching
-                </p>
-              </div>
-            </div>
-
-            {/* Google Map / OSM Preview & Detected Address Card */}
-            <div className="space-y-3 mb-5">
-              {currentCoords && (
-                <div className="w-full h-48 sm:h-56 rounded-2xl overflow-hidden border border-white/10 bg-slate-950 relative shadow-inner">
-                  {/* Interactive Map Embed */}
-                  <iframe
-                    title="Live Location Map"
-                    width="100%"
-                    height="100%"
-                    frameBorder="0"
-                    scrolling="no"
-                    marginHeight="0"
-                    marginWidth="0"
-                    src={`https://www.openstreetmap.org/export/embed.html?bbox=${currentCoords.longitude - 0.005}%2C${currentCoords.latitude - 0.005}%2C${currentCoords.longitude + 0.005}%2C${currentCoords.latitude + 0.005}&layer=mapnik&marker=${currentCoords.latitude}%2C${currentCoords.longitude}`}
-                    className="w-full h-full opacity-85 hover:opacity-100 transition-opacity"
-                  ></iframe>
-
-                  {/* External Google Maps Button floating on Map */}
-                  <div className="absolute bottom-2 right-2">
-                    <a
-                      href={`https://www.google.com/maps?q=${currentCoords.latitude},${currentCoords.longitude}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="bg-slate-900/90 hover:bg-slate-900 text-amber-400 font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 border border-white/20 shadow-lg backdrop-blur-sm"
-                    >
-                      <ExternalLink className="w-3.5 h-3.5" />
-                      <span>Open Google Maps</span>
-                    </a>
-                  </div>
-                </div>
-              )}
-
-              {/* Detected Physical Address Box */}
-              <div className="bg-slate-800/80 border border-white/10 p-3.5 rounded-2xl flex items-start justify-between gap-3 text-xs">
-                <div className="flex items-start gap-2.5">
-                  <MapPin className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                  <div>
-                    <span className="font-bold text-white block">Detected Current Location Address:</span>
-                    <span className="text-slate-300 text-[11px] font-medium leading-relaxed">
-                      {geoLoading ? 'Fetching address from Google/OSM...' : (geoAddress?.fullAddress || 'Locating physical address...')}
-                    </span>
-                    {geoAddress?.city && (
-                      <span className="inline-block mt-1 text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">
-                        {geoAddress.city} {geoAddress.pincode ? `• PIN: ${geoAddress.pincode}` : ''}
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => acquireGPS(false)}
-                  className="text-[11px] font-bold text-amber-400 hover:text-amber-300 shrink-0 flex items-center gap-1 cursor-pointer"
-                >
-                  <RefreshCw className={`w-3 h-3 ${gpsLoading ? 'animate-spin' : ''}`} />
-                  <span>Re-fetch</span>
-                </button>
-              </div>
-            </div>
-
-            {/* MATCHED STORES AT THIS LOCATION */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h3 className="text-xs font-black uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
-                  <Store className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Matching Stores at this Location ({nearbyMatchedShops.length})</span>
-                </h3>
-                <span className="text-[11px] text-slate-400">Radius ~2km / Area Match</span>
-              </div>
-
-              {nearbyMatchedShops.length > 0 ? (
-                <div className="space-y-2.5 max-h-56 overflow-y-auto pr-1">
-                  {nearbyMatchedShops.map((shop) => (
-                    <div
-                      key={shop._id}
-                      className="bg-slate-800/90 border border-white/10 hover:border-amber-500/50 p-3.5 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-all"
-                    >
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <h4 className="text-sm font-black text-white">{shop.name}</h4>
-                          {shop.computedDistance !== null && (
-                            <span className={`text-[10px] font-bold px-2 py-0.2 rounded-full ${
-                              shop.computedDistance < 100 
-                                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
-                                : 'bg-amber-500/20 text-amber-300'
-                            }`}>
-                              {shop.computedDistance < 100 ? '🎯 Exact Location' : `${shop.computedDistance}m away`}
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-xs text-slate-400 flex items-center gap-1 truncate max-w-sm">
-                          <MapPin className="w-3 h-3 text-slate-500 shrink-0" />
-                          <span>{shop.address || 'Chennai'}</span>
-                        </p>
-                        <p className="text-[11px] text-slate-400 flex items-center gap-2">
-                          <span>Owner: {shop.ownerName || 'Retailer'}</span>
-                          <span>• Phone: {shop.phone}</span>
-                        </p>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => handleCheckInToShop(shop)}
-                        className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-4 py-2 rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-all shadow-md shrink-0"
-                      >
-                        <Check className="w-3.5 h-3.5" />
-                        <span>Check-In & Open Shop</span>
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                /* NO SHOP MATCHED AT THIS LOCATION */
-                <div className="bg-slate-800/40 border border-dashed border-white/10 p-5 rounded-2xl text-center space-y-2">
-                  <p className="text-xs font-bold text-slate-300">
-                    No registered store found at this exact GPS location.
-                  </p>
-                  <p className="text-[11px] text-slate-400">
-                    Are you visiting a new shop? You can register this shop now and its address will be auto-fetched from Google!
-                  </p>
-                </div>
-              )}
-
-              {/* ACTION: REGISTER NEW SHOP AT CURRENT LOCATION */}
-              <div className="pt-2">
-                <button
-                  type="button"
-                  onClick={handleOpenRegisterWithAutoAddress}
-                  className="w-full bg-slate-800 hover:bg-slate-700/80 border border-amber-500/40 text-amber-300 hover:text-amber-200 font-bold py-3 rounded-2xl text-xs flex items-center justify-center gap-2 cursor-pointer active:scale-95 transition-all shadow-lg"
-                >
-                  <Plus className="w-4 h-4 text-amber-400" />
-                  <span>+ Register New Shop at this Location (Auto-fetch Address)</span>
-                </button>
-              </div>
-            </div>
           </div>
         </div>
       )}

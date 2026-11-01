@@ -36,8 +36,8 @@ router.post('/reset-password', (req, res, next) => {
 // Protected routes
 router.get('/me', verifyToken, authController.me);
 
-// Admin-only route: Register a dealer
-router.post('/register-dealer', verifyToken, requireRole('ADMIN'), validate([
+// Admin & Salesperson route: Register a dealer
+router.post('/register-dealer', verifyToken, requireRole('ADMIN', 'SALESPERSON'), validate([
   body('email').trim().isEmail().withMessage('Please enter a valid email'),
   body('name').notEmpty().withMessage('Dealer name is required'),
   body('companyName').notEmpty().withMessage('Company name is required'),

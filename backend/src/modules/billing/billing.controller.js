@@ -35,7 +35,7 @@ const getCompanyDetails = async (dealer = null) => {
     pincode: settings?.pincode || process.env.COMPANY_PINCODE || '600077',
     phone: settings?.phone || process.env.COMPANY_PHONE || '+91-88388 87064',
     email: settings?.email || process.env.COMPANY_EMAIL || 'contact@mansarafoods.com',
-    invoicePrefix: settings?.invoicePrefix || 'MF-INV',
+    invoicePrefix: settings?.invoicePrefix || 'MF/INV/25-26',
     placeOfSupply: settings?.placeOfSupply || 'Tamil Nadu (33)',
     invoiceTerms: settings?.invoiceTerms || '1. Payment within 15 days.\n2. Interest @ 2% per month on delay.\n3. Claims if any must be reported at delivery.',
     bankDetails: settings?.bankDetails || {},
@@ -77,8 +77,8 @@ exports.getInvoiceSettings = async (req, res, next) => {
           pincode: '600077',
           phone: '+91-88388 87064',
           email: 'contact@mansarafoods.com',
-          invoicePrefix: 'MF-INV',
-          nextSequenceNumber: 38,
+          invoicePrefix: 'MF/INV/25-26',
+          nextSequenceNumber: 10,
           placeOfSupply: 'Tamil Nadu (33)',
           invoiceTerms: '1. Payment within 15 days.\n2. Interest @ 2% per month on delay.\n3. Claims if any must be reported at delivery.',
           bankDetails: {
@@ -98,16 +98,28 @@ exports.getInvoiceSettings = async (req, res, next) => {
       where: { id: 'singleton' }
     });
 
-    const currentLast = seq ? seq.lastNumber : (settings.nextSequenceNumber ? settings.nextSequenceNumber - 1 : 37);
+    const currentLast = seq ? seq.lastNumber : (settings.nextSequenceNumber ? settings.nextSequenceNumber - 1 : 9);
     const nextSeq = currentLast + 1;
+
+    const settingsData = settings.toJSON ? settings.toJSON() : settings;
+    const rawBd = settingsData.bankDetails || {};
+    const effectiveBankDetails = (rawBd.bankName && rawBd.accountNo) ? rawBd : {
+      bankName: rawBd.bankName || 'HDFC Bank Ltd.',
+      accountNo: rawBd.accountNo || '50200117036854',
+      ifscCode: rawBd.ifscCode || 'HDFC0001947',
+      branch: rawBd.branch || 'Iyyapanthangal Branch',
+      accountType: rawBd.accountType || 'Current',
+      upiId: rawBd.upiId || 'vyapar.175693710434@hdfcbank'
+    };
 
     res.json({
       success: true,
       data: {
-        ...(settings.toJSON ? settings.toJSON() : settings),
+        ...settingsData,
+        bankDetails: effectiveBankDetails,
         nextSequenceNumber: nextSeq,
         currentLastNumber: currentLast,
-        invoicePrefix: seq?.prefix || settings.invoicePrefix || 'MF-INV'
+        invoicePrefix: seq?.prefix || settings.invoicePrefix || 'MF/INV/25-26'
       }
     });
   } catch (error) {
@@ -180,7 +192,7 @@ exports.updateInvoiceSettings = async (req, res, next) => {
       const seqId = 'singleton';
       const parsedSeq = parseInt(nextSequenceNumber, 10);
       const newLast = !isNaN(parsedSeq) ? Math.max(0, parsedSeq - 1) : undefined;
-      const prefixToUse = invoicePrefix || settings.invoicePrefix || 'MF-INV';
+      const prefixToUse = invoicePrefix || settings.invoicePrefix || 'MF/INV/25-26';
 
       await prisma.invoiceSequence.upsert({
         where: { id: seqId },
@@ -190,7 +202,7 @@ exports.updateInvoiceSettings = async (req, res, next) => {
         },
         create: {
           id: seqId,
-          lastNumber: newLast !== undefined ? newLast : 37,
+          lastNumber: newLast !== undefined ? newLast : 9,
           prefix: prefixToUse
         }
       });
@@ -392,24 +404,47 @@ exports.createInvoice = async (req, res, next) => {
     const invoice = await prisma.$transaction(async (tx) => {
       // A. Get & increment invoice sequence
       const seqId = dealer.invoicePrefix ? `dealer_${dealerId}` : 'singleton';
-      const defaultPrefix = dealer.invoicePrefix ? dealer.invoicePrefix : 'MF-INV';
+      let defaultPrefix = dealer.invoicePrefix || 'MF/INV/25-26';
+      let startNumber = 10;
+
+      if (!dealer.invoicePrefix) {
+        const invSettings = await tx.setting.findFirst({
+          where: { key: 'invoice_settings' }
+        });
+        if (invSettings) {
+          if (invSettings.invoicePrefix) defaultPrefix = invSettings.invoicePrefix;
+          if (invSettings.nextSequenceNumber) startNumber = invSettings.nextSequenceNumber;
+        }
+      }
 
       const seq = await tx.invoiceSequence.upsert({
         where: { id: seqId },
         update: { lastNumber: { increment: 1 } },
-        create: { id: seqId, lastNumber: 1, prefix: defaultPrefix }
+        create: { id: seqId, lastNumber: startNumber, prefix: defaultPrefix }
       });
 
-      // Ensure the sequence prefix is up to date with the dealer's profile setting
-      if (dealer.invoicePrefix && seq.prefix !== dealer.invoicePrefix) {
+      // Ensure the sequence prefix is up to date with configured prefix
+      if (defaultPrefix && seq.prefix !== defaultPrefix) {
         await tx.invoiceSequence.update({
           where: { id: seqId },
-          data: { prefix: dealer.invoicePrefix }
+          data: { prefix: defaultPrefix }
         });
-        seq.prefix = dealer.invoicePrefix;
+        seq.prefix = defaultPrefix;
       }
 
-      const invoiceNo = `${seq.prefix}-${String(seq.lastNumber).padStart(5, '0')}`;
+      const p = (seq.prefix || 'MF/INV/25-26').trim();
+      const numStr = String(seq.lastNumber || 10).padStart(5, '0');
+      const invoiceNo = (p.endsWith('/') || p.endsWith('-'))
+        ? `${p}${numStr}`
+        : `${p}${p.includes('/') ? '/' : '-'}${numStr}`;
+
+      // Keep invoice_settings synced with nextSequenceNumber if company singleton
+      if (seqId === 'singleton') {
+        await tx.setting.updateMany({
+          where: { key: 'invoice_settings' },
+          data: { nextSequenceNumber: seq.lastNumber + 1 }
+        });
+      }
 
       let dueDate = null;
       if (isCredit) {
@@ -632,14 +667,12 @@ exports.deleteInvoice = async (req, res, next) => {
       await tx.invoiceItem.deleteMany({
         where: { invoiceId: id }
       });
-
       // Delete invoice
       await tx.invoice.delete({
         where: { id }
       });
-
       // Recalculate sequence counter so next invoice continues seamlessly from current number
-      const match = invoice.invoiceNo ? invoice.invoiceNo.match(/^(.*?)-(\d+)$/) : null;
+      const match = invoice.invoiceNo ? invoice.invoiceNo.match(/^(.*)[/-](\d+)$/) : null;
       if (match) {
         const prefix = match[1];
         const seqId = invoice.dealerId && invoice.storeId ? `dealer_${invoice.dealerId}` : 'singleton';
@@ -652,7 +685,7 @@ exports.deleteInvoice = async (req, res, next) => {
           const invIdStr = String(rem.id || rem._id);
           if (invIdStr === targetIdStr) continue;
 
-          const m = rem.invoiceNo ? rem.invoiceNo.match(/^(.*?)-(\d+)$/) : null;
+          const m = rem.invoiceNo ? rem.invoiceNo.match(/^(.*)[/-](\d+)$/) : null;
           if (m && m[1] === prefix) {
             const n = parseInt(m[2], 10);
             if (!isNaN(n) && n > maxRemainingNumber) {
@@ -661,24 +694,28 @@ exports.deleteInvoice = async (req, res, next) => {
           }
         }
 
+        // If no remaining invoices or maxRemainingNumber is 0, preserve configured start sequence
+        let finalLast = maxRemainingNumber;
+        if (seqId === 'singleton' && finalLast < 9) {
+          const invSettings = await tx.setting.findFirst({ where: { key: 'invoice_settings' } });
+          const defaultMin = invSettings && invSettings.nextSequenceNumber ? (invSettings.nextSequenceNumber - 1) : 9;
+          finalLast = Math.max(maxRemainingNumber, defaultMin);
+        }
         // Update the sequence generator to max remaining
         await tx.invoiceSequence.upsert({
           where: { id: seqId },
-          update: { lastNumber: maxRemainingNumber, prefix },
-          create: { id: seqId, lastNumber: maxRemainingNumber, prefix }
+          update: { lastNumber: finalLast, prefix },
+          create: { id: seqId, lastNumber: finalLast, prefix }
         });
-
         // Also update invoice_settings nextSequenceNumber if this is the company singleton sequence
         if (seqId === 'singleton') {
           await tx.setting.updateMany({
             where: { key: 'invoice_settings' },
-            data: { nextSequenceNumber: maxRemainingNumber + 1 }
+            data: { nextSequenceNumber: finalLast + 1 }
           });
         }
-
-        nextSequenceNumber = maxRemainingNumber + 1;
+        nextSequenceNumber = finalLast + 1;
       }
-
       await tx.auditLog.create({
         data: {
           userId: req.user.id,
@@ -692,7 +729,6 @@ exports.deleteInvoice = async (req, res, next) => {
         }
       });
     });
-
     res.json({
       success: true,
       message: `Invoice ${invoice.invoiceNo} deleted successfully. Next invoice will continue from ${nextSequenceNumber !== null ? `#${nextSequenceNumber}` : 'the current number'}.`,
@@ -705,25 +741,20 @@ exports.deleteInvoice = async (req, res, next) => {
     next(error);
   }
 };
-
-
 exports.getInvoices = async (req, res, next) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 25;
     const skip = (page - 1) * limit;
-
     const where = {};
     if (req.user.role === 'DEALER') {
       where.dealerId = req.user.dealer.id;
     } else if (req.query.dealerId) {
       where.dealerId = req.query.dealerId;
     }
-
     if (req.query.storeId) {
       where.storeId = req.query.storeId;
     }
-
     const { data: invoices, total } = await prisma.invoice.findMany({
       where,
       include: {
@@ -739,13 +770,11 @@ exports.getInvoices = async (req, res, next) => {
       skip,
       take: limit
     });
-
     res.json({ success: true, data: invoices, total, page, limit });
   } catch (error) {
     next(error);
   }
 };
-
 exports.getInvoiceById = async (req, res, next) => {
   try {
     const { id } = req.params;

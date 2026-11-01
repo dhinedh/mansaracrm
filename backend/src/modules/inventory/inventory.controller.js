@@ -18,8 +18,8 @@ exports.getCompanyInventory = async (req, res, next) => {
     });
 
     // Determine requested inventory classification
-    const requestedFg = type === 'finished_goods' || type === 'fg' || (category && category.toLowerCase().includes('finished'));
-    const requestedAll = type === 'all';
+    const requestedFg = type === 'finished_goods' || type === 'fg';
+    const requestedRaw = type === 'raw' || type === 'raw_material';
 
     if (requestedFg) {
       // Return only Finished Goods (Prepared End Products)
@@ -27,14 +27,15 @@ exports.getCompanyInventory = async (req, res, next) => {
         const cat = (i.category || '').toLowerCase().trim();
         return cat === 'finished goods' || cat === 'end product' || !!i.productId;
       });
-    } else if (!requestedAll) {
-      // By default or when type === 'raw', strictly return authentic Raw Materials (no end products)
+    } else if (requestedRaw) {
+      // When type === 'raw', strictly return authentic Raw Materials (no end products)
       inventory = inventory.filter(i => {
         const cat = (i.category || '').toLowerCase().trim();
         const isEndProduct = cat === 'finished goods' || cat === 'end product' || cat === 'finished goods (prepared)' || !!i.productId;
         return !isEndProduct;
       });
     }
+    // Note: If type is 'all' or omitted/undefined, return all inventory items seamlessly!
 
     // Populate default fields and dynamic unit conversions for all measurement units
     inventory = inventory.map((item, idx) => {
@@ -115,6 +116,7 @@ exports.getCompanyInventory = async (req, res, next) => {
 
       return {
         ...itemObj,
+        itemName: itemObj.itemName || itemObj.product?.name || 'Stock Item',
         stockId: itemObj.stockId || `STK-2026-${invNum}`,
         inventoryId: formattedInvId,
         quotationId: itemObj.quotationId || '',
@@ -141,6 +143,18 @@ exports.getCompanyInventory = async (req, res, next) => {
 
     if (category && category !== 'All') {
       inventory = inventory.filter(i => i.category === category);
+    }
+
+    if (search && search.trim()) {
+      const q = search.trim().toLowerCase();
+      inventory = inventory.filter(i =>
+        (i.itemName && i.itemName.toLowerCase().includes(q)) ||
+        (i.stockId && i.stockId.toLowerCase().includes(q)) ||
+        (i.inventoryId && i.inventoryId.toLowerCase().includes(q)) ||
+        (i.batchId && i.batchId.toLowerCase().includes(q)) ||
+        (i.storageLocation && i.storageLocation.toLowerCase().includes(q)) ||
+        (i.category && i.category.toLowerCase().includes(q))
+      );
     }
 
     if (lowStock === 'true') {
@@ -175,16 +189,14 @@ exports.createStockEntry = async (req, res, next) => {
       batches
     } = req.body;
 
-    if (!itemName) {
-      return res.status(400).json({ success: false, message: 'Item Name is required.' });
-    }
-
+    const finalItemName = itemName || customStockId || 'Stock Item';
     const stockId = customStockId || `STK-2026-${Math.floor(100 + Math.random() * 900)}`;
 
     const batchList = (batches && Array.isArray(batches) && batches.length > 0) ? batches : [
       {
         batchId: customBatchId || `BATCH-${category === 'Finished Goods' ? 'FG' : (category === 'WIP' ? 'WIP' : 'RM')}-${Date.now().toString().slice(-4)}`,
         quantity: Number(quantity) || 0,
+        unit: unit || 'Cartons',
         packagingBreakdown: packagingBreakdown || '',
         mfgDate: mfgDate ? new Date(mfgDate) : new Date(),
         expiryDate: expiryDate ? new Date(expiryDate) : new Date(Date.now() + 180 * 24 * 60 * 60 * 1000),
@@ -199,10 +211,10 @@ exports.createStockEntry = async (req, res, next) => {
         data: {
           stockId,
           batchId: b.batchId || `BATCH-RM-${Date.now().toString().slice(-4)}`,
-          itemName,
+          itemName: finalItemName,
           category: category || 'Raw Material',
           quantity: Number(b.quantity) || 0,
-          unit: unit || 'kg',
+          unit: b.unit || unit || 'Cartons',
           packagingBreakdown: b.packagingBreakdown || '',
           mfgDate: b.mfgDate ? new Date(b.mfgDate) : new Date(),
           expiryDate: b.expiryDate ? new Date(b.expiryDate) : new Date(Date.now() + 180 * 24 * 60 * 60 * 1000),
@@ -814,12 +826,28 @@ exports.createStockTransfer = async (req, res, next) => {
 
     const transfer = await prisma.$transaction(async (tx) => {
       // A. Create B2B Invoice first
+      const invSettings = await tx.setting.findFirst({
+        where: { key: 'invoice_settings' }
+      });
+      const defaultPrefix = invSettings?.invoicePrefix || 'MF/INV/25-26';
+      const startNumber = invSettings?.nextSequenceNumber || 10;
+
       const seq = await tx.invoiceSequence.upsert({
         where: { id: 'singleton' },
         update: { lastNumber: { increment: 1 } },
-        create: { id: 'singleton', lastNumber: 1, prefix: 'MF-INV' }
+        create: { id: 'singleton', lastNumber: startNumber, prefix: defaultPrefix }
       });
-      const invoiceNo = `${seq.prefix}-${String(seq.lastNumber).padStart(5, '0')}`;
+
+      const p = (seq.prefix || 'MF/INV/25-26').trim();
+      const numStr = String(seq.lastNumber || 10).padStart(5, '0');
+      const invoiceNo = (p.endsWith('/') || p.endsWith('-'))
+        ? `${p}${numStr}`
+        : `${p}${p.includes('/') ? '/' : '-'}${numStr}`;
+
+      await tx.setting.updateMany({
+        where: { key: 'invoice_settings' },
+        data: { nextSequenceNumber: seq.lastNumber + 1 }
+      });
 
       const inv = await tx.invoice.create({
         data: {

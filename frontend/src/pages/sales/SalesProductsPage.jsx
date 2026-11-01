@@ -6,6 +6,7 @@ import {
   Package, Search, DollarSign, Calculator, Tag, 
   CheckCircle2, Sparkles, AlertCircle, ShoppingBag, Send 
 } from 'lucide-react';
+import PriceSimulatorPage from '../admin/PriceSimulatorPage';
 
 export default function SalesProductsPage() {
   const location = useLocation();
@@ -287,96 +288,10 @@ export default function SalesProductsPage() {
         </div>
       )}
 
-      {/* SubTab 2: Price Simulator (Module 13) */}
+      {/* SubTab 2: Price Simulator (Module 13 - Full Mansara B2B Simulator) */}
       {activeSubTab === 'simulator' && (
-        <div className="max-w-2xl mx-auto bg-slate-800/80 border border-white/10 p-6 rounded-3xl space-y-6">
-          <div className="flex items-center gap-3 pb-4 border-b border-white/10">
-            <div className="p-3 bg-purple-500/10 text-purple-400 rounded-2xl border border-purple-500/20">
-              <Calculator className="w-6 h-6" />
-            </div>
-            <div>
-              <h3 className="text-base font-black text-white">Commercial Price & Margin Simulator</h3>
-              <p className="text-xs text-slate-400">Calculate net retailer selling price, margin discounts and order profitability</p>
-            </div>
-          </div>
-
-          <div className="space-y-4 text-xs">
-            <div>
-              <label className="block font-bold text-slate-300 uppercase mb-1">Select Target Product</label>
-              <select
-                value={simProduct?._id || ''}
-                onChange={(e) => {
-                  const prod = products.find(p => p._id === e.target.value);
-                  setSimProduct(prod);
-                }}
-                className="w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500"
-              >
-                {products.map((p) => (
-                  <option key={p._id} value={p._id}>{p.name} - MRP ₹{p.mrp}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="grid grid-cols-3 gap-3">
-              <div>
-                <label className="block font-bold text-slate-300 uppercase mb-1">Retailer Margin (%)</label>
-                <input
-                  type="number"
-                  value={simMargin}
-                  onChange={(e) => setSimMargin(e.target.value)}
-                  className="w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
-                />
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-300 uppercase mb-1">Extra Discount (%)</label>
-                <input
-                  type="number"
-                  value={simDiscount}
-                  onChange={(e) => setSimDiscount(e.target.value)}
-                  className="w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
-                />
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-300 uppercase mb-1">Quantity</label>
-                <input
-                  type="number"
-                  value={simQty}
-                  onChange={(e) => setSimQty(e.target.value)}
-                  className="w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
-                />
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={handleCalculateSimulation}
-              className="w-full bg-purple-600 hover:bg-purple-500 text-white font-black py-3 rounded-xl shadow-lg active:scale-95 transition-all cursor-pointer"
-            >
-              Simulate Net Price & Profitability
-            </button>
-
-            {simResult && (
-              <div className="p-4 bg-purple-950/40 border border-purple-500/30 rounded-2xl space-y-2 pt-3">
-                <h4 className="font-black text-purple-300 text-xs uppercase tracking-wider">Simulation Output</h4>
-                <div className="grid grid-cols-3 gap-2 pt-2">
-                  <div className="bg-slate-900/80 p-2.5 rounded-xl">
-                    <span className="text-[10px] text-slate-400">Effective Unit Price</span>
-                    <p className="text-base font-black text-white">₹{simResult.unitSellingPrice}</p>
-                  </div>
-                  <div className="bg-slate-900/80 p-2.5 rounded-xl">
-                    <span className="text-[10px] text-slate-400">Total Order Value</span>
-                    <p className="text-base font-black text-amber-400">₹{simResult.orderValue}</p>
-                  </div>
-                  <div className="bg-slate-900/80 p-2.5 rounded-xl">
-                    <span className="text-[10px] text-slate-400">Est. Gross Margin</span>
-                    <p className="text-base font-black text-emerald-400">₹{simResult.estimatedProfit}</p>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
+        <div className="w-full">
+          <PriceSimulatorPage />
         </div>
       )}
 

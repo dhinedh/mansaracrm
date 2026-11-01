@@ -775,8 +775,8 @@ AuditLogSchema.virtual('user', {
 // InvoiceSequence
 const InvoiceSequenceSchema = new Schema({
   _id: { type: String, required: true },
-  lastNumber: { type: Number, default: 0 },
-  prefix: { type: String, default: 'INV' }
+  lastNumber: { type: Number, default: 9 },
+  prefix: { type: String, default: 'MF/INV/25-26' }
 }, {
   timestamps: { createdAt: false, updatedAt: true },
   toJSON: { virtuals: true },
@@ -1414,16 +1414,17 @@ const SettingSchema = new Schema({
   pincode: { type: String, default: '600077' },
   phone: { type: String, default: '+91 98765 43210' },
   email: { type: String, default: 'info@mansarafoods.com' },
-  invoicePrefix: { type: String, default: 'MF-INV' },
-  nextSequenceNumber: { type: Number, default: 38 },
+  invoicePrefix: { type: String, default: 'MF/INV/25-26' },
+  nextSequenceNumber: { type: Number, default: 10 },
   placeOfSupply: { type: String, default: 'Tamil Nadu (33)' },
   invoiceTerms: { type: String, default: '1. Payment within 15 days.\n2. Interest @ 2% per month on delay.\n3. Claims if any must be reported at delivery.' },
   bankDetails: {
-    bankName: { type: String, default: '' },
-    accountNo: { type: String, default: '' },
-    ifscCode: { type: String, default: '' },
-    branch: { type: String, default: '' },
-    accountType: { type: String, default: 'Current' }
+    bankName: { type: String, default: 'HDFC Bank Ltd.' },
+    accountNo: { type: String, default: '50200117036854' },
+    ifscCode: { type: String, default: 'HDFC0001947' },
+    branch: { type: String, default: 'Iyyapanthangal Branch' },
+    accountType: { type: String, default: 'Current' },
+    upiId: { type: String, default: 'vyapar.175693710434@hdfcbank' }
   },
   signatoryTitle: { type: String, default: 'Authorised Signatory' },
   signatoryName: { type: String, default: 'Mansara Foods Pvt. Ltd.' }

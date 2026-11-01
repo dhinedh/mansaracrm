@@ -81,6 +81,16 @@ function TransferStatusBadge({ status }) {
   );
 }
 
+const formatInvoiceNumber = (prefix = 'MF/INV/25-26', seqNumber = 10) => {
+  const p = (prefix || 'MF/INV/25-26').trim();
+  const numStr = String(seqNumber || 1).padStart(5, '0');
+  if (p.endsWith('/') || p.endsWith('-')) {
+    return `${p}${numStr}`;
+  }
+  const sep = p.includes('/') ? '/' : '-';
+  return `${p}${sep}${numStr}`;
+};
+
 function InvoiceConfigModal({ isOpen, onClose, onSettingsUpdated }) {
   const [activeConfigTab, setActiveConfigTab] = useState('branding'); // branding | address | numbering | bank | terms
   const [loading, setLoading] = useState(false);
@@ -97,14 +107,14 @@ function InvoiceConfigModal({ isOpen, onClose, onSettingsUpdated }) {
   const [pincode, setPincode] = useState('600077');
   const [phone, setPhone] = useState('+91-88388 87064');
   const [email, setEmail] = useState('contact@mansarafoods.com');
-  const [invoicePrefix, setInvoicePrefix] = useState('MF-INV');
-  const [nextSequenceNumber, setNextSequenceNumber] = useState(38);
+  const [invoicePrefix, setInvoicePrefix] = useState('MF/INV/25-26');
+  const [nextSequenceNumber, setNextSequenceNumber] = useState(10);
   const [placeOfSupply, setPlaceOfSupply] = useState('Tamil Nadu (33)');
   const [invoiceTerms, setInvoiceTerms] = useState('1. Payment within 15 days.\n2. Interest @ 2% per month on delay.\n3. Claims if any must be reported at delivery.');
-  const [bankName, setBankName] = useState('');
-  const [accountNo, setAccountNo] = useState('');
-  const [ifscCode, setIfscCode] = useState('');
-  const [branch, setBranch] = useState('');
+  const [bankName, setBankName] = useState('HDFC Bank Ltd.');
+  const [accountNo, setAccountNo] = useState('50200117036854');
+  const [ifscCode, setIfscCode] = useState('HDFC0001947');
+  const [branch, setBranch] = useState('Iyyapanthangal Branch');
   const [accountType, setAccountType] = useState('Current');
   const [signatoryTitle, setSignatoryTitle] = useState('Authorised Signatory');
   const [signatoryName, setSignatoryName] = useState('Mansara Foods Pvt. Ltd.');
@@ -212,7 +222,7 @@ function InvoiceConfigModal({ isOpen, onClose, onSettingsUpdated }) {
 
   if (!isOpen) return null;
 
-  const formattedInvoiceNoPreview = `${invoicePrefix || 'MF-INV'}-${String(nextSequenceNumber || 1).padStart(5, '0')}`;
+  const formattedInvoiceNoPreview = formatInvoiceNumber(invoicePrefix, nextSequenceNumber);
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
@@ -484,7 +494,7 @@ function InvoiceConfigModal({ isOpen, onClose, onSettingsUpdated }) {
                             value={accountNo}
                             onChange={e => setAccountNo(e.target.value)}
                             className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-500"
-                            placeholder="50200012345678"
+                            placeholder="50200117036854"
                           />
                         </div>
                         <div>
@@ -494,7 +504,7 @@ function InvoiceConfigModal({ isOpen, onClose, onSettingsUpdated }) {
                             value={ifscCode}
                             onChange={e => setIfscCode(e.target.value.toUpperCase())}
                             className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-800 uppercase focus:outline-none focus:ring-2 focus:ring-rose-500"
-                            placeholder="HDFC0001234"
+                            placeholder="HDFC0001947"
                           />
                         </div>
                       </div>
@@ -625,7 +635,7 @@ function InvoiceConfigModal({ isOpen, onClose, onSettingsUpdated }) {
                     <p className="font-black text-slate-700 uppercase mb-0.5">Bank Details</p>
                     <p className="font-bold text-slate-900">{bankName || 'Bank Name'}</p>
                     <p>A/C: {accountNo || 'XXXXXXXX1234'}</p>
-                    <p>IFSC: {ifscCode || 'HDFC0001234'}</p>
+                    <p>IFSC: {ifscCode || 'HDFC0001947'}</p>
                   </div>
                   <div className="bg-slate-50/80 p-2 rounded-lg border border-slate-150 flex flex-col justify-between">
                     <div>

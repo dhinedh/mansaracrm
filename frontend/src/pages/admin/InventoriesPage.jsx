@@ -204,7 +204,7 @@ export default function InventoriesPage() {
   const fetchStocks = async () => {
     setLoading(true);
     try {
-      const res = await axios.get('/inventory/company');
+      const res = await axios.get('/inventory/company', { params: { type: 'all' } });
       // Strictly raw materials (filter out prepared finished goods if any exist in DB)
       const rawOnly = (res.data?.data || []).filter(item => {
         const cat = (item.category || '').toLowerCase().trim();

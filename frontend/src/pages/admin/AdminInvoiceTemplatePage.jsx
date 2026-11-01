@@ -21,6 +21,16 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
+export const formatInvoiceNumber = (prefix = 'MF/INV/25-26', seqNumber = 10) => {
+  const p = (prefix || 'MF/INV/25-26').trim();
+  const numStr = String(seqNumber || 1).padStart(5, '0');
+  if (p.endsWith('/') || p.endsWith('-')) {
+    return `${p}${numStr}`;
+  }
+  const sep = p.includes('/') ? '/' : '-';
+  return `${p}${sep}${numStr}`;
+};
+
 const OFFICIAL_DEFAULTS = {
   companyName: 'Mansara Foods Pvt. Ltd.',
   logoBase64: '',
@@ -31,15 +41,15 @@ const OFFICIAL_DEFAULTS = {
   pincode: '600077',
   phone: '+91-88388 87064',
   email: 'contact@mansarafoods.com',
-  invoicePrefix: 'MF-INV',
-  nextSequenceNumber: 11,
+  invoicePrefix: 'MF/INV/25-26',
+  nextSequenceNumber: 10,
   placeOfSupply: 'Tamil Nadu (33)',
   invoiceTerms: '1. Payment within 15 days from delivery.\n2. Interest @ 2% per month on overdue payment.\n3. Goods once sold cannot be returned unless transit damage is reported upon receipt.',
   bankDetails: {
-    bankName: '',
-    accountNo: '',
-    ifscCode: '',
-    branch: '',
+    bankName: 'HDFC Bank Ltd.',
+    accountNo: '50200117036854',
+    ifscCode: 'HDFC0001947',
+    branch: 'Iyyapanthangal Branch',
     accountType: 'Current'
   },
   signatoryTitle: 'Authorised Signatory',
@@ -201,7 +211,7 @@ export default function AdminInvoiceTemplatePage() {
     addrParts.push(pincode.trim());
   }
   const formattedAddressPreview = addrParts.join(', ') + (addrParts.length ? '. India.' : '');
-  const formattedInvoiceNoPreview = `${invoicePrefix || 'MF-INV'}-${String(nextSequenceNumber || 1).padStart(5, '0')}`;
+  const formattedInvoiceNoPreview = formatInvoiceNumber(invoicePrefix, nextSequenceNumber);
 
   return (
     <div className="space-y-6">
@@ -517,7 +527,7 @@ export default function AdminInvoiceTemplatePage() {
                       type="text"
                       value={accountNo}
                       onChange={(e) => setAccountNo(e.target.value)}
-                      placeholder="e.g. 50200012345678"
+                      placeholder="e.g. 50200117036854"
                       className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-rose-500 font-semibold font-mono"
                     />
                   </div>
@@ -530,7 +540,7 @@ export default function AdminInvoiceTemplatePage() {
                       type="text"
                       value={ifscCode}
                       onChange={(e) => setIfscCode(e.target.value.toUpperCase())}
-                      placeholder="e.g. HDFC0001234"
+                      placeholder="e.g. HDFC0001947"
                       className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-rose-500 font-semibold font-mono uppercase"
                     />
                   </div>
@@ -719,9 +729,9 @@ export default function AdminInvoiceTemplatePage() {
               <div className="bg-slate-50 p-2 rounded-lg border border-slate-150 space-y-0.5">
                 <p className="font-black text-slate-800 uppercase">Bank Coordinates</p>
                 <p className="font-bold text-slate-900">{bankName || 'HDFC Bank Ltd.'}</p>
-                <p>A/C: {accountNo || '50200012345678'}</p>
-                <p>IFSC: {ifscCode || 'HDFC0001234'}</p>
-                <p>Branch: {branch || 'Chennai Central'} ({accountType})</p>
+                <p>A/C: {accountNo || '50200117036854'}</p>
+                <p>IFSC: {ifscCode || 'HDFC0001947'}</p>
+                <p>Branch: {branch || 'Iyyapanthangal Branch'} ({accountType})</p>
               </div>
               <div className="bg-slate-50 p-2 rounded-lg border border-slate-150 flex flex-col justify-between">
                 <div>

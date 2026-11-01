@@ -16,8 +16,8 @@ router.put('/profile/update', requireRole('DEALER'), validate([
   body('address').optional().notEmpty().withMessage('Address cannot be empty')
 ]), dealersController.updateSelfProfile);
 
-// Admin-only actions
-router.get('/', requireRole('ADMIN'), dealersController.getAllDealers);
+// Admin & Salesperson actions
+router.get('/', requireRole('ADMIN', 'SALESPERSON', 'B2B_MANAGER'), dealersController.getAllDealers);
 router.get('/zone-check', requireRole('ADMIN'), dealersController.checkZoneConflicts);
 router.get('/pincode-lookup/:pincode', dealersController.lookupPincode);
 router.get('/:id', requireRole('ADMIN', 'DEALER'), dealersController.getDealerById); // Dealers can view their own details (handled appropriately on front/back)
