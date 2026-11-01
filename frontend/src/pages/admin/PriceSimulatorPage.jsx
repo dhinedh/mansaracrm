@@ -98,7 +98,7 @@ export default function PriceSimulatorPage() {
   // ─── USER INPUTS: PRODUCT, QUANTITY, UNIT & MARGIN ─────────────────────────
   const [simulationItems, setSimulationItems] = useState([]);
   const [selectedProductIdToAdd, setSelectedProductIdToAdd] = useState('');
-  const [quantityToAdd, setQuantityToAdd] = useState(200);
+  const [quantityToAdd, setQuantityToAdd] = useState(0);
   const [quantityUnitToAdd, setQuantityUnitToAdd] = useState('PCS');
   const [marginPctToAdd, setMarginPctToAdd] = useState(20); // Default 20% margin from MRP
 
@@ -242,7 +242,7 @@ export default function PriceSimulatorPage() {
     }
 
     const mrp = parseFloat(prod.originalPrice || prod.mrp || prod.price || 0);
-    const safeQty = Math.max(1, parseFloat(quantityToAdd) || 1);
+    const safeQty = Math.max(0, parseFloat(quantityToAdd) || 0);
     const safeMargin = Math.max(0, Math.min(99, parseFloat(marginPctToAdd) || 0));
 
     const newItem = {
@@ -537,7 +537,7 @@ export default function PriceSimulatorPage() {
 
     const items = simulationItems.map(item => {
       const pacSize = Math.max(1, parseInt(item.cartonSize, 10) || 24);
-      const rawQty = Math.max(1, parseFloat(item.quantity) || 1);
+      const rawQty = Math.max(0, parseFloat(item.quantity) || 0);
       const isBulkCarton = item.quantityUnit === 'Cartons' || item.quantityUnit === 'Boxes';
       const pieces = isBulkCarton ? rawQty * pacSize : rawQty;
       const cartons = isBulkCarton ? rawQty : parseFloat((pieces / pacSize).toFixed(2));
@@ -1480,10 +1480,23 @@ export default function PriceSimulatorPage() {
               <div className="flex items-center border border-slate-300 rounded-xl bg-white shadow-xs overflow-hidden">
                 <input
                   type="number"
-                  min="1"
-                  placeholder="Qty"
-                  value={quantityToAdd}
-                  onChange={(e) => setQuantityToAdd(Math.max(1, parseFloat(e.target.value) || 1))}
+                  min="0"
+                  placeholder="0"
+                  value={quantityToAdd === '' ? '' : quantityToAdd}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === '') {
+                      setQuantityToAdd('');
+                    } else {
+                      const num = parseInt(val, 10);
+                      setQuantityToAdd(isNaN(num) ? '' : Math.max(0, num));
+                    }
+                  }}
+                  onBlur={() => {
+                    if (quantityToAdd === '' || isNaN(quantityToAdd)) {
+                      setQuantityToAdd(0);
+                    }
+                  }}
                   className="flex-1 min-w-0 py-2.5 sm:py-2 px-3 text-center font-black text-xs sm:text-sm text-slate-900 focus:outline-none"
                   title="Order Quantity"
                 />
@@ -1648,13 +1661,27 @@ export default function PriceSimulatorPage() {
                     {/* Column 2: Adjustable Quantity Column */}
                     <td className="py-2.5 px-1 bg-rose-50/15">
                       <div className="flex flex-col items-center gap-1">
-                        <div className="flex items-center border border-slate-300 rounded-lg overflow-hidden bg-white shadow-2xs w-full max-w-[102px] focus-within:ring-2 focus-within:ring-rose-500/20 focus-within:border-rose-400">
+                        <div className="flex items-center border border-slate-300 rounded-lg overflow-hidden bg-white shadow-2xs w-full min-w-[115px] max-w-[130px] focus-within:ring-2 focus-within:ring-rose-500/20 focus-within:border-rose-400">
                           <input
                             type="number"
-                            min="1"
-                            value={item.quantity}
-                            onChange={(e) => handleUpdateItem(item.id, 'quantity', Math.max(1, parseFloat(e.target.value) || 1))}
-                            className="w-0 flex-1 min-w-0 py-1 px-1.5 text-center font-black text-xs text-slate-900 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            min="0"
+                            placeholder="0"
+                            value={item.quantity === '' ? '' : item.quantity}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              if (val === '') {
+                                handleUpdateItem(item.id, 'quantity', '');
+                              } else {
+                                const num = parseInt(val, 10);
+                                handleUpdateItem(item.id, 'quantity', isNaN(num) ? '' : Math.max(0, num));
+                              }
+                            }}
+                            onBlur={() => {
+                              if (item.quantity === '' || isNaN(item.quantity)) {
+                                handleUpdateItem(item.id, 'quantity', 0);
+                              }
+                            }}
+                            className="w-12 flex-1 min-w-[44px] py-1 px-1.5 text-center font-black text-xs text-slate-900 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                             title="Adjust quantity"
                           />
                           <select
@@ -1787,9 +1814,23 @@ export default function PriceSimulatorPage() {
                         <div className="flex items-center border border-slate-300 rounded-xl overflow-hidden bg-white shadow-xs">
                           <input
                             type="number"
-                            min="1"
-                            value={item.quantity}
-                            onChange={(e) => handleUpdateItem(item.id, 'quantity', Math.max(1, parseFloat(e.target.value) || 1))}
+                            min="0"
+                            placeholder="0"
+                            value={item.quantity === '' ? '' : item.quantity}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              if (val === '') {
+                                handleUpdateItem(item.id, 'quantity', '');
+                              } else {
+                                const num = parseInt(val, 10);
+                                handleUpdateItem(item.id, 'quantity', isNaN(num) ? '' : Math.max(0, num));
+                              }
+                            }}
+                            onBlur={() => {
+                              if (item.quantity === '' || isNaN(item.quantity)) {
+                                handleUpdateItem(item.id, 'quantity', 0);
+                              }
+                            }}
                             className="w-20 py-1.5 px-2 text-center font-black text-xs text-slate-900 focus:outline-none"
                           />
                           <select
@@ -1951,7 +1992,7 @@ export default function PriceSimulatorPage() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {/* 1. Generate & Preview */}
           <button
             type="button"
@@ -1968,23 +2009,7 @@ export default function PriceSimulatorPage() {
             </div>
           </button>
 
-          {/* 2. Download Quotation */}
-          <button
-            type="button"
-            disabled={calculationSummary.items.length === 0}
-            onClick={handleDownloadQuotation}
-            className="flex items-center gap-3 p-4 rounded-2xl border-2 border-rose-200 bg-rose-50 hover:bg-rose-100/80 disabled:opacity-40 text-rose-900 transition-all cursor-pointer group shadow-xs active:scale-[0.99]"
-          >
-            <div className="w-10 h-10 rounded-xl bg-rose-600 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-xs">
-              <Download className="w-5 h-5 text-white" />
-            </div>
-            <div className="min-w-0 text-left">
-              <h3 className="font-black text-xs sm:text-sm text-rose-950">Download Quotation</h3>
-              <p className="text-[10px] text-rose-700/80">Save offline file &amp; print PDF</p>
-            </div>
-          </button>
-
-          {/* 3. Share on WhatsApp */}
+          {/* 2. Share on WhatsApp */}
           <button
             type="button"
             disabled={calculationSummary.items.length === 0}
