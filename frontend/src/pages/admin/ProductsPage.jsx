@@ -18,7 +18,17 @@ import {
   AlertTriangle,
   XCircle,
   X,
-  FileText
+  FileText,
+  Power,
+  PowerOff,
+  TrendingUp,
+  TrendingDown,
+  BarChart3,
+  Package,
+  Calendar,
+  RefreshCw,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 
 export default function ProductsPage() {
@@ -27,6 +37,9 @@ export default function ProductsPage() {
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
+  const [statusTab, setStatusTab] = useState('active'); // 'active' | 'deactivated' | 'all'
+  const [deactivatedReport, setDeactivatedReport] = useState({ summary: {}, data: [] });
+  const [loadingDeactivated, setLoadingDeactivated] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [currentProduct, setCurrentProduct] = useState(null);
@@ -141,15 +154,17 @@ export default function ProductsPage() {
   useEffect(() => {
     fetchProducts();
     fetchCategories();
-  }, [search, categoryFilter]);
+    fetchDeactivatedReport();
+  }, [search, categoryFilter, statusTab]);
 
   const fetchProducts = async () => {
     try {
+      setLoading(true);
       const res = await axios.get('/products', {
-        params: { search, categoryId: categoryFilter }
+        params: { search, categoryId: categoryFilter, status: statusTab }
       });
       // Sort: in-stock items first, then out-of-stock
-      const sorted = [...res.data.data].sort((a, b) => {
+      const sorted = [...(res.data?.data || [])].sort((a, b) => {
         const qtyA = a.companyStock?.quantity || 0;
         const qtyB = b.companyStock?.quantity || 0;
         if (qtyA > 0 && qtyB <= 0) return -1;
@@ -161,6 +176,55 @@ export default function ProductsPage() {
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchDeactivatedReport = async () => {
+    try {
+      setLoadingDeactivated(true);
+      const res = await axios.get('/products/deactivated-report');
+      if (res.data?.success) {
+        setDeactivatedReport(res.data);
+      }
+    } catch (err) {
+      console.error('Failed to load deactivated products analytics:', err);
+    } finally {
+      setLoadingDeactivated(false);
+    }
+  };
+
+  const handleToggleProductStatus = async (product) => {
+    const isCurrentlyActive = product.isActive !== false;
+    let reason = '';
+    if (isCurrentlyActive) {
+      reason = window.prompt(
+        `Are you sure you want to deactivate "${product.name}"? This will deactivate it across both the website and e-commerce store.\n\nEnter reason (optional):`,
+        'Discontinued / Stock Out'
+      );
+      if (reason === null) return; // user cancelled prompt
+    } else {
+      if (!window.confirm(`Reactivate "${product.name}"? It will become active again on the website and CRM product catalog.`)) {
+        return;
+      }
+    }
+
+    try {
+      const res = await axios.patch(`/products/${product.id}/toggle-status`, {
+        isActive: !isCurrentlyActive,
+        reason: reason || undefined
+      });
+      setMessage({
+        text: res.data?.message || `Product ${!isCurrentlyActive ? 'activated' : 'deactivated'} successfully!`,
+        type: 'success'
+      });
+      fetchProducts();
+      fetchDeactivatedReport();
+    } catch (err) {
+      console.error(err);
+      setMessage({
+        text: err.response?.data?.message || 'Failed to update product status',
+        type: 'error'
+      });
     }
   };
 
@@ -332,6 +396,67 @@ export default function ProductsPage() {
         </div>
       </div>
 
+      {/* Status View Switcher: Active | Deactivated & P&L | All SKUs */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-1.5 p-1 bg-slate-200/70 rounded-2xl w-fit">
+          <button
+            type="button"
+            onClick={() => setStatusTab('active')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
+              statusTab === 'active'
+                ? 'bg-white text-slate-900 shadow-sm'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+            <span>Active Catalog</span>
+          </button>
+          
+          <button
+            type="button"
+            onClick={() => setStatusTab('deactivated')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
+              statusTab === 'deactivated'
+                ? 'bg-rose-600 text-white shadow-sm shadow-rose-200'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <PowerOff className="w-3.5 h-3.5" />
+            <span>Deactivated & P&L</span>
+            {deactivatedReport?.data?.length > 0 && (
+              <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
+                statusTab === 'deactivated' ? 'bg-white text-rose-700' : 'bg-rose-100 text-rose-700'
+              }`}>
+                {deactivatedReport.data.length}
+              </span>
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setStatusTab('all')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
+              statusTab === 'all'
+                ? 'bg-white text-slate-900 shadow-sm'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <span>All SKUs</span>
+          </button>
+        </div>
+
+        {statusTab === 'deactivated' && (
+          <button
+            type="button"
+            onClick={fetchDeactivatedReport}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold rounded-xl shadow-2xs transition-all cursor-pointer"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loadingDeactivated ? 'animate-spin text-rose-600' : ''}`} />
+            <span>Refresh Analytics</span>
+          </button>
+        )}
+      </div>
+
       {/* Filter and search controls (On mobile: search bar, upload icon, add icon) */}
       <div className="flex flex-col sm:flex-row gap-2.5 sm:gap-4 bg-white p-3 sm:p-4 border border-slate-150 rounded-2xl shadow-sm">
         <div className="flex items-center gap-2 flex-1">
@@ -387,9 +512,165 @@ export default function ProductsPage() {
         </div>
       )}
 
+      {/* Deactivated Analytics & P&L Summary Cards (Shown when on Deactivated tab) */}
+      {statusTab === 'deactivated' && (
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+            <div className="bg-white border border-rose-100 p-4 rounded-2xl shadow-xs">
+              <span className="text-[10px] font-black uppercase tracking-wider text-rose-500">Deactivated Products</span>
+              <div className="text-xl sm:text-2xl font-black text-slate-900 mt-1">
+                {deactivatedReport?.summary?.totalDeactivated || 0} <span className="text-xs text-slate-400 font-semibold">SKUs</span>
+              </div>
+              <p className="text-[10px] text-slate-400 mt-0.5">Inactive in Website & E-Com</p>
+            </div>
+
+            <div className="bg-white border border-indigo-100 p-4 rounded-2xl shadow-xs">
+              <span className="text-[10px] font-black uppercase tracking-wider text-indigo-600">Manufactured Stock</span>
+              <div className="text-xl sm:text-2xl font-black text-slate-900 mt-1">
+                {(deactivatedReport?.summary?.totalManufacturedStock || 0).toLocaleString('en-IN')} <span className="text-xs text-slate-400 font-semibold">PCS</span>
+              </div>
+              <p className="text-[10px] text-slate-400 mt-0.5">Total manufactured / inwarded</p>
+            </div>
+
+            <div className="bg-white border border-emerald-100 p-4 rounded-2xl shadow-xs">
+              <span className="text-[10px] font-black uppercase tracking-wider text-emerald-600">Sold Stock</span>
+              <div className="text-xl sm:text-2xl font-black text-slate-900 mt-1">
+                {(deactivatedReport?.summary?.totalSoldStock || 0).toLocaleString('en-IN')} <span className="text-xs text-slate-400 font-semibold">PCS</span>
+              </div>
+              <p className="text-[10px] text-slate-400 mt-0.5">Warehouse + E-Com + Stalls</p>
+            </div>
+
+            <div className="bg-white border border-amber-100 p-4 rounded-2xl shadow-xs">
+              <span className="text-[10px] font-black uppercase tracking-wider text-amber-700">Net Realized P & L</span>
+              <div className={`text-xl sm:text-2xl font-black mt-1 ${
+                (deactivatedReport?.summary?.netProfit || 0) >= 0 ? 'text-emerald-700' : 'text-rose-600'
+              }`}>
+                ₹{(deactivatedReport?.summary?.netProfit || 0).toLocaleString('en-IN')}
+              </div>
+              <p className="text-[10px] text-slate-400 mt-0.5">
+                Margin: {deactivatedReport?.summary?.profitMarginPct || 0}% • Rev: ₹{(deactivatedReport?.summary?.totalRevenue || 0).toLocaleString('en-IN')}
+              </p>
+            </div>
+          </div>
+
+          {/* Deactivated Detailed Audit Table */}
+          {deactivatedReport?.data?.length > 0 && (
+            <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+              <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+                <div>
+                  <h3 className="font-black text-slate-800 text-sm">Deactivated Product Audit & P&L Ledger</h3>
+                  <p className="text-slate-400 text-xs">Track deactivated date, manufacturing volume, units sold, and profit & loss.</p>
+                </div>
+                <span className="text-xs font-bold text-slate-600 bg-slate-100 px-3 py-1 rounded-xl">
+                  {deactivatedReport.data.length} Products
+                </span>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse min-w-[700px]">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                      <th className="p-3 pl-4">Product Details</th>
+                      <th className="p-3">Deactivated Date</th>
+                      <th className="p-3 text-right">Manufactured</th>
+                      <th className="p-3 text-right">Sold Stock</th>
+                      <th className="p-3 text-right">Remaining</th>
+                      <th className="p-3 text-right">Revenue</th>
+                      <th className="p-3 text-right">Cost (COGS)</th>
+                      <th className="p-3 text-right">P & L</th>
+                      <th className="p-3 text-center pr-4">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-xs">
+                    {deactivatedReport.data.map((item) => (
+                      <tr key={item.id} className="hover:bg-slate-50/70 transition-colors">
+                        <td className="p-3 pl-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center shrink-0">
+                              {item.imageUrl ? (
+                                <img
+                                  src={item.imageUrl.startsWith('http') || item.imageUrl.startsWith('data:') ? item.imageUrl : `${BACKEND_URL}${item.imageUrl.startsWith('/') ? '' : '/'}${item.imageUrl}`}
+                                  alt={item.name}
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => { e.target.style.display = 'none'; }}
+                                />
+                              ) : (
+                                <Package className="w-5 h-5 text-slate-400" />
+                              )}
+                            </div>
+                            <div>
+                              <div className="font-bold text-slate-800 line-clamp-1">{item.name}</div>
+                              <div className="text-[10px] text-slate-400 font-mono">SKU: {item.sku} • {item.category}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="p-3 whitespace-nowrap">
+                          <div className="flex items-center gap-1.5 text-slate-600 font-medium">
+                            <Calendar className="w-3.5 h-3.5 text-rose-500" />
+                            <span>{item.deactivatedAt ? new Date(item.deactivatedAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Recently'}</span>
+                          </div>
+                          <span className="text-[10px] text-slate-400 block">{item.deactivatedReason}</span>
+                        </td>
+                        <td className="p-3 text-right font-bold text-indigo-700 whitespace-nowrap">
+                          {item.manufacturedStock.toLocaleString('en-IN')} {item.unit}
+                        </td>
+                        <td className="p-3 text-right font-bold text-slate-800 whitespace-nowrap">
+                          {item.soldStock.toLocaleString('en-IN')} {item.unit}
+                        </td>
+                        <td className="p-3 text-right whitespace-nowrap">
+                          <span className={`font-bold ${item.remainingStock <= 10 ? 'text-rose-600' : 'text-slate-600'}`}>
+                            {item.remainingStock.toLocaleString('en-IN')} {item.unit}
+                          </span>
+                        </td>
+                        <td className="p-3 text-right font-bold text-slate-800 whitespace-nowrap">
+                          ₹{item.totalRevenue.toLocaleString('en-IN')}
+                        </td>
+                        <td className="p-3 text-right text-slate-500 whitespace-nowrap">
+                          ₹{item.totalCost.toLocaleString('en-IN')}
+                        </td>
+                        <td className="p-3 text-right whitespace-nowrap">
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-bold text-[11px] ${
+                            item.grossProfit >= 0 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'
+                          }`}>
+                            {item.grossProfit >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                            <span>₹{Math.abs(item.grossProfit).toLocaleString('en-IN')}</span>
+                            <span className="text-[9px] opacity-75">({item.profitMarginPct}%)</span>
+                          </span>
+                        </td>
+                        <td className="p-3 text-center pr-4 whitespace-nowrap">
+                          <button
+                            type="button"
+                            onClick={() => handleToggleProductStatus({ id: item.id, name: item.name, isActive: false })}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-[10px] font-bold rounded-xl transition-all cursor-pointer"
+                            title="Reactivate Product"
+                          >
+                            <Power className="w-3 h-3 text-emerald-600" />
+                            <span>Reactivate</span>
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {loading ? (
         <div className="flex items-center justify-center h-48">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-rose-600"></div>
+        </div>
+      ) : products.length === 0 ? (
+        <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center shadow-xs">
+          <Inbox className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+          <h3 className="font-bold text-slate-700 text-sm">No products found</h3>
+          <p className="text-slate-400 text-xs mt-1">
+            {statusTab === 'deactivated' 
+              ? 'There are currently no deactivated products. All products are active.'
+              : 'Try clearing your search or category filters.'}
+          </p>
         </div>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
@@ -422,6 +703,15 @@ export default function ProductsPage() {
                 <span className="absolute top-3 left-3 bg-white/90 backdrop-blur-sm border border-slate-100 text-[8px] font-black uppercase px-2 py-0.5 rounded-full text-slate-600 shadow-sm">
                   {product.category?.name}
                 </span>
+
+                <span className={`absolute top-3 right-3 backdrop-blur-sm border text-[8px] font-black uppercase px-2 py-0.5 rounded-full shadow-sm flex items-center gap-1 ${
+                  product.isActive !== false
+                    ? 'bg-emerald-50/95 border-emerald-200 text-emerald-700'
+                    : 'bg-rose-50/95 border-rose-200 text-rose-700'
+                }`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${product.isActive !== false ? 'bg-emerald-500' : 'bg-rose-500'}`}></span>
+                  <span>{product.isActive !== false ? 'Active' : 'Deactivated'}</span>
+                </span>
               </div>
 
               {/* Product details */}
@@ -453,19 +743,48 @@ export default function ProductsPage() {
                       <span className="font-bold text-indigo-600">📦 {product.pacQuantity}</span>
                     </div>
                   )}
+                  {product.isActive === false && product.deactivatedAt && (
+                    <div className="flex justify-between items-center text-[10px] bg-rose-50 px-2 py-1 rounded-lg border border-rose-100">
+                      <span className="text-rose-600 font-semibold">Deactivated on:</span>
+                      <span className="font-bold text-rose-800">
+                        {new Date(product.deactivatedAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
-                <div className="flex space-x-2 pt-2">
+                <div className="flex items-center space-x-1.5 pt-2">
                   <button
                     onClick={() => openEditModal(product)}
-                    className="flex-1 inline-flex items-center justify-center space-x-1.5 bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200 py-1.5 rounded-xl text-[10px] font-bold"
+                    className="flex-1 inline-flex items-center justify-center space-x-1 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 py-1.5 rounded-xl text-[10px] font-bold cursor-pointer"
                   >
                     <Edit3 className="w-3 h-3" />
                     <span>Edit</span>
                   </button>
                   <button
+                    onClick={() => handleToggleProductStatus(product)}
+                    title={product.isActive !== false ? 'Deactivate product in Website & E-Com' : 'Activate product in Website & E-Com'}
+                    className={`inline-flex items-center justify-center space-x-1 px-2.5 py-1.5 rounded-xl text-[10px] font-bold border transition-colors cursor-pointer ${
+                      product.isActive !== false
+                        ? 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-200'
+                        : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-200'
+                    }`}
+                  >
+                    {product.isActive !== false ? (
+                      <>
+                        <PowerOff className="w-3 h-3 text-amber-600" />
+                        <span>Deactivate</span>
+                      </>
+                    ) : (
+                      <>
+                        <Power className="w-3 h-3 text-emerald-600" />
+                        <span>Activate</span>
+                      </>
+                    )}
+                  </button>
+                  <button
                     onClick={() => handleDeleteProduct(product.id)}
-                    className="inline-flex items-center justify-center bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-100 p-1.5 rounded-xl"
+                    className="inline-flex items-center justify-center bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-100 p-1.5 rounded-xl cursor-pointer"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>

@@ -1368,8 +1368,14 @@ exports.issueFieldBill = async (req, res, next) => {
 
     const targetDealerId = store.dealerId?._id || store.dealerId || store.dealer?._id;
 
+    const billingReason = req.body.reason || req.body.billingReason || 'Store Re-order / Spot Sale';
+    const resultStatus = isCredit ? 'PENDING_PAYMENT' : 'COLLECTED';
+
     const invoice = await InvoiceModel.create({
       invoiceNo,
+      salespersonId: userId,
+      billingReason,
+      resultStatus,
       dealerId: targetDealerId,
       storeId: store._id,
       customerName: store.name,
@@ -1382,7 +1388,7 @@ exports.issueFieldBill = async (req, res, next) => {
       isGstEnabled: true,
       totalAmount: grandTotal,
       status: isCredit ? 'OPEN' : 'PAID',
-      notes: notes || `Spot bill issued via Field Sales Portal by ${req.user.name || 'Sales Rep'}`,
+      notes: notes || `Spot bill issued via Field Sales Portal by ${req.user.name || 'Sales Rep'} (${billingReason})`,
       isCredit,
       dueDate,
       paidAt: isCredit ? null : new Date()
@@ -1731,41 +1737,268 @@ exports.completeFollowUp = async (req, res, next) => {
 exports.getDailyActivityReport = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    const dateQuery = req.query.date ? new Date(req.query.date) : new Date();
-    const dayStart = new Date(dateQuery);
-    dayStart.setHours(0, 0, 0, 0);
-    const dayEnd = new Date(dateQuery);
-    dayEnd.setHours(23, 59, 59, 999);
+    let startDate, endDate;
 
+    if (req.query.startDate && req.query.endDate) {
+      startDate = new Date(req.query.startDate);
+      startDate.setHours(0, 0, 0, 0);
+      endDate = new Date(req.query.endDate);
+      endDate.setHours(23, 59, 59, 999);
+    } else {
+      const dateQuery = req.query.date ? new Date(req.query.date) : new Date();
+      startDate = new Date(dateQuery);
+      startDate.setHours(0, 0, 0, 0);
+      endDate = new Date(dateQuery);
+      endDate.setHours(23, 59, 59, 999);
+    }
+
+    // 1. Fetch Salesperson Profile for Target Tracking
+    const profile = await prisma.salespersonProfile.findUnique({ where: { userId } }).catch(() => null);
+    const dailyTarget = profile?.dailyTarget || 25000;
+    const dailyVisitsTarget = profile?.dailyVisitsTarget || 10;
+    const monthlyTarget = profile?.monthlyTarget || 150000;
+
+    // Calculate days in period
+    const diffDays = Math.max(1, Math.round((endDate - startDate) / (1000 * 60 * 60 * 24)));
+    const targetOrderValue = diffDays > 1 ? (dailyTarget * diffDays) : dailyTarget;
+    const targetVisits = diffDays > 1 ? (dailyVisitsTarget * diffDays) : dailyVisitsTarget;
+
+    // 2. Fetch Visits in range
     const { data: visits } = await prisma.visit.findMany({
       where: {
-        createdAt: { gte: dayStart, lte: dayEnd }
-      }
+        salespersonId: userId,
+        createdAt: { gte: startDate, lte: endDate }
+      },
+      orderBy: { createdAt: 'asc' }
     });
 
     const completedVisits = visits.filter(v => v.checkOutTime != null);
-    const totalOrdersValue = visits.reduce((acc, v) => acc + (parseFloat(v.orderValue) || 0), 0);
-    const totalCollections = visits.reduce((acc, v) => acc + (parseFloat(v.paymentsCollected) || 0), 0);
+    const gpsVerifiedVisits = visits.filter(v => v.verified === true || (v.checkInLat != null && v.checkInLng != null));
+    const productiveVisits = visits.filter(v => (parseFloat(v.orderValue) || 0) > 0);
 
+    // 3. Fetch Orders booked in range
+    let orders = [];
+    try {
+      const FieldOrderModel = mongoose.model('FieldSalesOrder');
+      orders = await FieldOrderModel.find({
+        salespersonId: userId,
+        createdAt: { $gte: startDate, $lte: endDate }
+      })
+      .populate('storeId', 'name address phone city')
+      .populate('dealerId', 'companyName phone')
+      .sort({ createdAt: -1 });
+    } catch (err) {
+      console.warn('Could not query FieldSalesOrder:', err.message);
+    }
+
+    // 3B. Fetch Bills / Tax Invoices Generated in range
+    let generatedBills = [];
+    try {
+      const InvoiceModel = mongoose.model('Invoice');
+      const invoiceDocs = await InvoiceModel.find({
+        $or: [
+          { salespersonId: userId },
+          { notes: new RegExp(req.user.name || 'Sales Rep', 'i') }
+        ],
+        createdAt: { $gte: startDate, $lte: endDate }
+      })
+      .populate('storeId', 'name address phone city')
+      .populate('dealerId', 'companyName phone')
+      .sort({ createdAt: -1 });
+
+      generatedBills = invoiceDocs.map(inv => ({
+        id: inv._id,
+        invoiceNo: inv.invoiceNo,
+        customerName: inv.customerName || inv.storeId?.name || 'Retail Customer',
+        customerPhone: inv.customerPhone || inv.storeId?.phone || '',
+        customerAddress: inv.customerAddress || inv.storeId?.address || '',
+        totalAmount: inv.totalAmount,
+        subtotal: inv.subtotal,
+        totalGst: inv.totalGst,
+        date: inv.createdAt,
+        billingReason: inv.billingReason || 'Store Re-order / Spot Sale',
+        resultStatus: inv.resultStatus || (inv.status === 'PAID' ? 'COLLECTED' : 'PENDING_PAYMENT'),
+        paymentMethod: inv.isCredit ? 'CREDIT' : 'CASH / SPOT',
+        dueDate: inv.dueDate,
+        status: inv.status
+      }));
+    } catch (err) {
+      console.warn('Could not query Invoices:', err.message);
+    }
+
+    // 4. Calculate Sales & SKU Penetration from Orders
+    let totalSalesValue = 0;
+    const skuMap = {};
+    let totalItemsSold = 0;
+
+    if (orders && orders.length > 0) {
+      for (const ord of orders) {
+        totalSalesValue += (parseFloat(ord.totalAmount) || 0);
+        if (Array.isArray(ord.items)) {
+          for (const it of ord.items) {
+            const pName = it.productName || 'General Product';
+            const qty = parseInt(it.quantity) || 1;
+            const price = parseFloat(it.price || it.unitPrice) || 0;
+            const lTot = parseFloat(it.lineTotal) || (qty * price);
+
+            totalItemsSold += qty;
+            if (!skuMap[pName]) {
+              skuMap[pName] = { name: pName, quantity: 0, revenue: 0, orderCount: 0 };
+            }
+            skuMap[pName].quantity += qty;
+            skuMap[pName].revenue += lTot;
+            skuMap[pName].orderCount += 1;
+          }
+        }
+      }
+    } else {
+      // Fallback to visit orderValue if no FieldOrders
+      totalSalesValue = visits.reduce((acc, v) => acc + (parseFloat(v.orderValue) || 0), 0);
+    }
+
+    const topSkus = Object.values(skuMap).sort((a, b) => b.revenue - a.revenue);
+
+    // 5. Total Collections & Method Breakdown
+    let totalCashCollected = 0;
+    let totalUpiCollected = 0;
+    let totalChequeCollected = 0;
+
+    const collectionsLedger = [];
+    for (const v of visits) {
+      const pCol = parseFloat(v.paymentsCollected) || 0;
+      if (pCol > 0) {
+        const method = (v.paymentMethod || 'CASH').toUpperCase();
+        if (method === 'UPI' || method === 'GPAY' || method === 'PHONEPE') totalUpiCollected += pCol;
+        else if (method === 'CHEQUE') totalChequeCollected += pCol;
+        else totalCashCollected += pCol;
+
+        collectionsLedger.push({
+          id: v.id || v._id,
+          storeName: v.storeName || v.visitorName || 'Retail Customer',
+          amount: pCol,
+          method,
+          reference: v.paymentReference || 'Direct Collection',
+          time: v.createdAt || v.checkInTime,
+          verified: v.verified || false
+        });
+      }
+    }
+
+    const totalCollections = totalCashCollected + totalUpiCollected + totalChequeCollected;
+
+    // 6. Follow-ups
     const { data: followUps } = await prisma.followUp.findMany({
       where: {
         salespersonId: userId,
-        dueDate: { gte: dayStart, lte: dayEnd }
+        dueDate: { gte: startDate, lte: endDate }
       }
     });
+
+    // 7. Calculate Duty Timing (Earliest check-in & Latest check-out)
+    let dutyDurationMinutes = 0;
+    let firstCheckIn = null;
+    let lastCheckOut = null;
+
+    if (visits.length > 0) {
+      const checkInTimes = visits.map(v => new Date(v.checkInTime || v.createdAt).getTime()).filter(t => !isNaN(t));
+      const checkOutTimes = visits.map(v => v.checkOutTime ? new Date(v.checkOutTime).getTime() : null).filter(Boolean);
+
+      if (checkInTimes.length > 0) {
+        firstCheckIn = new Date(Math.min(...checkInTimes));
+      }
+      if (checkOutTimes.length > 0) {
+        lastCheckOut = new Date(Math.max(...checkOutTimes));
+      } else if (firstCheckIn) {
+        lastCheckOut = new Date();
+      }
+
+      if (firstCheckIn && lastCheckOut && lastCheckOut > firstCheckIn) {
+        dutyDurationMinutes = Math.round((lastCheckOut - firstCheckIn) / (1000 * 60));
+      }
+    }
+
+    // Strike rate
+    const strikeRate = visits.length > 0 
+      ? Math.round((productiveVisits.length / visits.length) * 100) 
+      : 0;
+
+    const ordersCount = orders.length > 0 ? orders.length : productiveVisits.length;
+    const aov = ordersCount > 0 ? Math.round(totalSalesValue / ordersCount) : 0;
+    const achievementPercent = targetOrderValue > 0 ? Math.round((totalSalesValue / targetOrderValue) * 100) : 0;
 
     res.json({
       success: true,
       data: {
-        date: dayStart.toISOString().split('T')[0],
-        visitsCompleted: completedVisits.length,
-        totalVisits: visits.length,
-        ordersBookedCount: visits.filter(v => (v.orderValue || 0) > 0).length,
-        salesValue: totalOrdersValue,
-        collections: totalCollections,
-        followUpsScheduled: followUps.length,
-        followUpsCompleted: followUps.filter(f => f.status === 'COMPLETED').length,
-        visitDetails: visits
+        startDate: startDate.toISOString().split('T')[0],
+        endDate: endDate.toISOString().split('T')[0],
+        salesperson: {
+          name: req.user.name || profile?.user?.name || 'Sales Representative',
+          phone: req.user.phone || profile?.user?.phone || '',
+          beat: profile?.activeBeatRoute || 'Assigned Territory Beat'
+        },
+        kpis: {
+          targetOrderValue,
+          salesValue: totalSalesValue,
+          achievementPercent,
+          remainingTarget: Math.max(0, targetOrderValue - totalSalesValue),
+          
+          targetVisits,
+          totalVisits: visits.length,
+          visitsCompleted: completedVisits.length,
+          gpsVerifiedVisits: gpsVerifiedVisits.length,
+          productiveVisits: productiveVisits.length,
+          strikeRate,
+          
+          ordersBookedCount: ordersCount,
+          totalItemsSold,
+          averageOrderValue: aov,
+          
+          totalCollections,
+          cashCollected: totalCashCollected,
+          upiCollected: totalUpiCollected,
+          chequeCollected: totalChequeCollected,
+          
+          dutyMinutes: dutyDurationMinutes,
+          firstCheckIn,
+          lastCheckOut,
+          
+          followUpsScheduled: followUps.length,
+          followUpsCompleted: followUps.filter(f => f.status === 'COMPLETED').length,
+          billsGeneratedCount: generatedBills.length,
+          billsTotalAmount: generatedBills.reduce((acc, b) => acc + (parseFloat(b.totalAmount) || 0), 0)
+        },
+        visits: visits.map(v => ({
+          id: v.id || v._id,
+          storeName: v.storeName || v.visitorName || 'Store Outlet',
+          contactPerson: v.visitorName || '',
+          phone: v.phone || '',
+          checkInTime: v.checkInTime || v.createdAt,
+          checkOutTime: v.checkOutTime || null,
+          purpose: v.purpose || 'Retail Audit & Order',
+          outcome: v.outcome || v.remarks || 'Standard store visit',
+          orderValue: parseFloat(v.orderValue) || 0,
+          paymentsCollected: parseFloat(v.paymentsCollected) || 0,
+          paymentMethod: v.paymentMethod || 'CASH',
+          verified: !!v.verified,
+          checkInLat: v.checkInLat,
+          checkInLng: v.checkInLng
+        })),
+        orders: orders.map(o => ({
+          id: o._id,
+          orderNumber: o.orderNumber,
+          storeName: o.storeName || o.storeId?.name || 'Store',
+          address: o.storeId?.address || '',
+          phone: o.storeId?.phone || '',
+          itemsCount: (o.items || []).reduce((acc, it) => acc + (it.quantity || 1), 0),
+          items: o.items || [],
+          totalAmount: o.totalAmount,
+          paymentMethod: o.paymentMethod || 'CASH',
+          status: o.status || 'PENDING',
+          createdAt: o.createdAt
+        })),
+        bills: generatedBills,
+        collections: collectionsLedger,
+        topSkus
       }
     });
   } catch (error) {
@@ -2480,21 +2713,35 @@ exports.getAdminCompetitorFeed = async (req, res, next) => {
 // 5. Admin DAR Summary & Activity Audit
 exports.getAdminDarAudit = async (req, res, next) => {
   try {
-    const dateQuery = req.query.date ? new Date(req.query.date) : new Date();
-    const dayStart = new Date(dateQuery);
-    dayStart.setHours(0, 0, 0, 0);
-    const dayEnd = new Date(dateQuery);
-    dayEnd.setHours(23, 59, 59, 999);
+    let dayStart, dayEnd;
+    if (req.query.startDate && req.query.endDate) {
+      dayStart = new Date(req.query.startDate);
+      dayStart.setHours(0, 0, 0, 0);
+      dayEnd = new Date(req.query.endDate);
+      dayEnd.setHours(23, 59, 59, 999);
+    } else {
+      const dateQuery = req.query.date ? new Date(req.query.date) : new Date();
+      dayStart = new Date(dateQuery);
+      dayStart.setHours(0, 0, 0, 0);
+      dayEnd = new Date(dateQuery);
+      dayEnd.setHours(23, 59, 59, 999);
+    }
+
+    const { salespersonId } = req.query;
 
     const VisitModel = mongoose.model('Visit');
-
-    const visits = await VisitModel.find({
+    const visitFilter = {
       $or: [
         { date: { $gte: dayStart, $lte: dayEnd } },
         { checkInTime: { $gte: dayStart, $lte: dayEnd } },
         { createdAt: { $gte: dayStart, $lte: dayEnd } }
       ]
-    })
+    };
+    if (salespersonId && salespersonId !== 'ALL') {
+      visitFilter.salespersonId = salespersonId;
+    }
+
+    const visits = await VisitModel.find(visitFilter)
       .populate('salespersonId', 'name email phone')
       .populate('storeId', 'name address phone')
       .populate('dealerId', 'companyName phone')
@@ -2504,6 +2751,23 @@ exports.getAdminDarAudit = async (req, res, next) => {
     const totalCollections = visits.reduce((acc, v) => acc + (parseFloat(v.paymentsCollected) || 0), 0);
     const completedVisits = visits.filter(v => v.checkOutTime != null);
 
+    // Query Invoices generated by salespeople
+    const InvoiceModel = mongoose.model('Invoice');
+    const invoiceFilter = {
+      createdAt: { $gte: dayStart, $lte: dayEnd }
+    };
+    if (salespersonId && salespersonId !== 'ALL') {
+      invoiceFilter.salespersonId = salespersonId;
+    }
+
+    const generatedBills = await InvoiceModel.find(invoiceFilter)
+      .populate('salespersonId', 'name email phone')
+      .populate('storeId', 'name address phone')
+      .populate('dealerId', 'companyName phone')
+      .sort({ createdAt: -1 });
+
+    const totalBillsAmount = generatedBills.reduce((acc, b) => acc + (parseFloat(b.totalAmount) || 0), 0);
+
     res.json({
       success: true,
       data: {
@@ -2512,7 +2776,27 @@ exports.getAdminDarAudit = async (req, res, next) => {
         completedVisits: completedVisits.length,
         totalSalesValue,
         totalCollections,
-        visits
+        totalBillsCount: generatedBills.length,
+        totalBillsAmount,
+        visits,
+        bills: generatedBills.map(inv => ({
+          id: inv._id,
+          invoiceNo: inv.invoiceNo,
+          salesperson: inv.salespersonId?.name || 'Direct / Store',
+          salespersonPhone: inv.salespersonId?.phone || '',
+          customerName: inv.customerName || inv.storeId?.name || 'Retail Customer',
+          customerAddress: inv.customerAddress || inv.storeId?.address || '',
+          customerPhone: inv.customerPhone || inv.storeId?.phone || '',
+          totalAmount: inv.totalAmount,
+          subtotal: inv.subtotal,
+          totalGst: inv.totalGst,
+          billingReason: inv.billingReason || 'Spot Sale / Direct Order',
+          resultStatus: inv.resultStatus || (inv.status === 'PAID' ? 'COLLECTED' : 'PENDING_PAYMENT'),
+          paymentMethod: inv.isCredit ? 'CREDIT' : 'CASH / SPOT',
+          status: inv.status,
+          date: inv.createdAt,
+          dueDate: inv.dueDate
+        }))
       }
     });
   } catch (error) {

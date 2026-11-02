@@ -93,12 +93,20 @@ exports.deleteCategory = async (req, res, next) => {
 
 exports.getProducts = async (req, res, next) => {
   try {
-    const { categoryId, search, minStock } = req.query;
+    const { categoryId, search, minStock, status } = req.query;
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 25;
     const skip = (page - 1) * limit;
 
-    const where = { isActive: true };
+    const where = {};
+    if (status === 'deactivated') {
+      where.isActive = false;
+    } else if (status === 'all') {
+      // no isActive constraint
+    } else {
+      where.isActive = true;
+    }
+
     if (categoryId) {
       where.categoryId = categoryId;
     }
@@ -374,7 +382,10 @@ exports.updateProduct = async (req, res, next) => {
           storage: storage !== undefined ? storage : existing.storage,
           weight: weight !== undefined ? weight : existing.weight,
           pacQuantity: pacQuantity !== undefined ? (pacQuantity ? parseInt(pacQuantity) : null) : existing.pacQuantity,
-          images: images !== undefined ? (Array.isArray(images) ? images : [images]) : existing.images
+          images: images !== undefined ? (Array.isArray(images) ? images : [images]) : existing.images,
+          isActive: req.body.isActive !== undefined ? (req.body.isActive === true || req.body.isActive === 'true') : existing.isActive,
+          deactivatedAt: req.body.isActive !== undefined ? ((req.body.isActive === true || req.body.isActive === 'true') ? null : (existing.deactivatedAt || new Date())) : existing.deactivatedAt,
+          deactivatedReason: req.body.deactivatedReason !== undefined ? req.body.deactivatedReason : existing.deactivatedReason
         }
       });
 
@@ -415,7 +426,11 @@ exports.deleteProduct = async (req, res, next) => {
     await prisma.$transaction(async (tx) => {
       await tx.product.update({
         where: { id },
-        data: { isActive: false }
+        data: { 
+          isActive: false,
+          deactivatedAt: new Date(),
+          deactivatedReason: 'Deleted/Deactivated by admin'
+        }
       });
 
       await tx.auditLog.create({
@@ -431,6 +446,259 @@ exports.deleteProduct = async (req, res, next) => {
     res.json({
       success: true,
       message: 'Product deleted successfully'
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.toggleProductStatus = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { isActive, reason } = req.body;
+
+    const existing = await prisma.product.findUnique({ where: { id } });
+    if (!existing) {
+      return res.status(404).json({ success: false, message: 'Product not found' });
+    }
+
+    const newStatus = typeof isActive === 'boolean' ? isActive : !existing.isActive;
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const p = await tx.product.update({
+        where: { id },
+        data: {
+          isActive: newStatus,
+          deactivatedAt: newStatus ? null : (existing.deactivatedAt || new Date()),
+          deactivatedReason: newStatus ? null : (reason || 'Deactivated by admin')
+        }
+      });
+
+      await tx.auditLog.create({
+        data: {
+          userId: req.user?.id || 'SYSTEM',
+          action: newStatus ? 'ACTIVATE_PRODUCT' : 'DEACTIVATE_PRODUCT',
+          entity: 'Product',
+          entityId: id,
+          oldValues: { isActive: existing.isActive },
+          newValues: { isActive: newStatus, deactivatedAt: p.deactivatedAt }
+        }
+      });
+
+      return p;
+    });
+
+    res.json({
+      success: true,
+      message: `Product ${newStatus ? 'activated' : 'deactivated'} successfully`,
+      data: updated
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.getDeactivatedReport = async (req, res, next) => {
+  try {
+    const mongoose = require('mongoose');
+    const Product = mongoose.model('Product');
+    const InvoiceItem = mongoose.model('InvoiceItem');
+    const Order = mongoose.model('Order');
+    const StallSale = mongoose.model('StallSale');
+    const CompanyInventory = mongoose.model('CompanyInventory');
+    const StockMovement = mongoose.model('StockMovement');
+
+    const deactivatedProducts = await Product.find({ isActive: false })
+      .populate('category', 'name')
+      .sort({ deactivatedAt: -1, updatedAt: -1 })
+      .lean();
+
+    if (!deactivatedProducts.length) {
+      return res.json({
+        success: true,
+        summary: {
+          totalDeactivated: 0,
+          totalManufacturedStock: 0,
+          totalSoldStock: 0,
+          totalRemainingStock: 0,
+          totalRevenue: 0,
+          totalCost: 0,
+          netProfit: 0,
+          profitMarginPct: 0
+        },
+        data: []
+      });
+    }
+
+    const productIds = deactivatedProducts.map(p => p._id);
+
+    const invoiceAgg = await InvoiceItem.aggregate([
+      { $match: { productId: { $in: productIds } } },
+      {
+        $group: {
+          _id: '$productId',
+          totalSoldQty: { $sum: '$quantity' },
+          totalRevenue: { $sum: { $multiply: [{ $ifNull: ['$sellingPrice', '$unitPrice'] }, '$quantity'] } },
+          totalCost: { $sum: { $multiply: [{ $ifNull: ['$costPrice', 0] }, '$quantity'] } }
+        }
+      }
+    ]);
+    const invoiceMap = new Map();
+    invoiceAgg.forEach(row => invoiceMap.set(String(row._id), row));
+
+    let orderMap = new Map();
+    try {
+      const orderAgg = await Order.aggregate([
+        { $match: { orderStatus: { $ne: 'Cancelled' } } },
+        { $unwind: '$items' },
+        { $match: { 'items.product': { $in: productIds } } },
+        {
+          $group: {
+            _id: '$items.product',
+            totalSoldQty: { $sum: '$items.quantity' },
+            totalRevenue: { $sum: { $multiply: ['$items.price', '$items.quantity'] } }
+          }
+        }
+      ]);
+      orderAgg.forEach(row => orderMap.set(String(row._id), row));
+    } catch (e) {
+      // Order collection might be empty
+    }
+
+    let stallMap = new Map();
+    try {
+      const stallAgg = await StallSale.aggregate([
+        { $unwind: '$items' },
+        { $match: { 'items.productId': { $in: productIds } } },
+        {
+          $group: {
+            _id: '$items.productId',
+            totalSoldQty: { $sum: '$items.quantity' },
+            totalRevenue: { $sum: { $multiply: ['$items.price', '$items.quantity'] } }
+          }
+        }
+      ]);
+      stallAgg.forEach(row => stallMap.set(String(row._id), row));
+    } catch (e) {
+      // StallSale collection might be empty
+    }
+
+    let inwardMap = new Map();
+    try {
+      const stockMovementAgg = await StockMovement.aggregate([
+        { $match: { productId: { $in: productIds }, type: 'IN' } },
+        {
+          $group: {
+            _id: '$productId',
+            totalInwardQty: { $sum: '$quantity' }
+          }
+        }
+      ]);
+      stockMovementAgg.forEach(row => inwardMap.set(String(row._id), row.totalInwardQty));
+    } catch (e) {
+      // StockMovement collection might be empty
+    }
+
+    let inventoryMap = new Map();
+    try {
+      const inventoryAgg = await CompanyInventory.aggregate([
+        { $match: { productId: { $in: productIds } } },
+        {
+          $group: {
+            _id: '$productId',
+            currentQty: { $sum: '$quantity' },
+            costPerUnit: { $avg: '$costPerUnit' }
+          }
+        }
+      ]);
+      inventoryAgg.forEach(row => inventoryMap.set(String(row._id), row));
+    } catch (e) {
+      // CompanyInventory collection might be empty
+    }
+
+    let grandManufacturedStock = 0;
+    let grandSoldStock = 0;
+    let grandRemainingStock = 0;
+    let grandRevenue = 0;
+    let grandCost = 0;
+
+    const reportData = deactivatedProducts.map(p => {
+      const pIdStr = String(p._id);
+      const invData = invoiceMap.get(pIdStr) || { totalSoldQty: 0, totalRevenue: 0, totalCost: 0 };
+      const ecomData = orderMap.get(pIdStr) || { totalSoldQty: 0, totalRevenue: 0 };
+      const stallData = stallMap.get(pIdStr) || { totalSoldQty: 0, totalRevenue: 0 };
+      const invStock = inventoryMap.get(pIdStr) || { currentQty: p.stock || 0, costPerUnit: 0 };
+      const inwardQty = inwardMap.get(pIdStr) || 0;
+
+      const estimatedCostPrice = invStock.costPerUnit > 0 
+        ? invStock.costPerUnit 
+        : (p.price ? p.price * 0.65 : 0);
+
+      const soldStock = (invData.totalSoldQty || 0) + (ecomData.totalSoldQty || 0) + (stallData.totalSoldQty || 0);
+      const remainingStock = Math.max(0, invStock.currentQty || p.stock || 0);
+      
+      const manufacturedStock = inwardQty > 0 
+        ? inwardQty 
+        : (soldStock + remainingStock);
+
+      const totalRevenue = (invData.totalRevenue || 0) + (ecomData.totalRevenue || 0) + (stallData.totalRevenue || 0);
+      
+      let totalCost = invData.totalCost || 0;
+      const otherSoldQty = (ecomData.totalSoldQty || 0) + (stallData.totalSoldQty || 0);
+      if (otherSoldQty > 0) {
+        totalCost += otherSoldQty * estimatedCostPrice;
+      }
+      if (totalCost === 0 && soldStock > 0) {
+        totalCost = soldStock * estimatedCostPrice;
+      }
+
+      const grossProfit = totalRevenue - totalCost;
+      const profitMarginPct = totalRevenue > 0 ? ((grossProfit / totalRevenue) * 100) : 0;
+
+      grandManufacturedStock += manufacturedStock;
+      grandSoldStock += soldStock;
+      grandRemainingStock += remainingStock;
+      grandRevenue += totalRevenue;
+      grandCost += totalCost;
+
+      return {
+        id: p._id,
+        name: p.name,
+        sku: p.sku || 'N/A',
+        category: p.category?.name || 'Uncategorized',
+        price: p.price,
+        mrp: p.mrp || p.originalPrice || p.price,
+        unit: p.unit || 'PCS',
+        imageUrl: p.imageUrl || p.image || '',
+        isActive: false,
+        deactivatedAt: p.deactivatedAt || p.updatedAt,
+        deactivatedReason: p.deactivatedReason || 'Discontinued / Deactivated',
+        manufacturedStock,
+        soldStock,
+        remainingStock,
+        totalRevenue: Math.round(totalRevenue * 100) / 100,
+        totalCost: Math.round(totalCost * 100) / 100,
+        grossProfit: Math.round(grossProfit * 100) / 100,
+        profitMarginPct: Math.round(profitMarginPct * 10) / 10
+      };
+    });
+
+    const netProfit = grandRevenue - grandCost;
+    const profitMarginPct = grandRevenue > 0 ? ((netProfit / grandRevenue) * 100) : 0;
+
+    res.json({
+      success: true,
+      summary: {
+        totalDeactivated: deactivatedProducts.length,
+        totalManufacturedStock: grandManufacturedStock,
+        totalSoldStock: grandSoldStock,
+        totalRemainingStock: grandRemainingStock,
+        totalRevenue: Math.round(grandRevenue * 100) / 100,
+        totalCost: Math.round(grandCost * 100) / 100,
+        netProfit: Math.round(netProfit * 100) / 100,
+        profitMarginPct: Math.round(profitMarginPct * 10) / 10
+      },
+      data: reportData
     });
   } catch (error) {
     next(error);

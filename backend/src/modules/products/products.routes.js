@@ -26,6 +26,7 @@ router.delete('/categories/:id', requireRole('ADMIN'), productsController.delete
 // ─────────────────────────────────────────────
 // PRODUCT ROUTES
 // ─────────────────────────────────────────────
+router.get('/deactivated-report', requireRole('ADMIN'), productsController.getDeactivatedReport);
 router.get('/', productsController.getProducts);
 router.get('/:id', productsController.getProductById);
 
@@ -36,6 +37,9 @@ router.post('/', requireRole('ADMIN'), upload.single('image'), validate([
   body('gstPercent').isFloat({ min: 0 }).withMessage('GST percent must be non-negative'),
   body('categoryId').notEmpty().withMessage('Category ID is required')
 ]), productsController.createProduct);
+
+router.patch('/:id/toggle-status', requireRole('ADMIN'), productsController.toggleProductStatus);
+router.put('/:id/status', requireRole('ADMIN'), productsController.toggleProductStatus);
 
 router.put('/:id', requireRole('ADMIN'), upload.single('image'), validate([
   body('name').optional().notEmpty().withMessage('Product name cannot be empty'),

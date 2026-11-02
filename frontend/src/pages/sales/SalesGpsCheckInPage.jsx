@@ -214,11 +214,18 @@ export default function SalesGpsCheckInPage() {
     setSelectedPurposes([p1, p2]);
   };
 
-  // Check-In handler
+  // Check-In handler -> Navigates to dedicated separate purpose page
   const handleStartCheckIn = (shop) => {
-    setPendingStoreForCheckIn(shop);
-    setSelectedPurposes(['Order Booking']);
-    setPurposeModalOpen(true);
+    try {
+      sessionStorage.setItem('mansara_pending_checkin_store', JSON.stringify(shop));
+    } catch (e) {}
+    navigate('/sales/checkin/purpose', {
+      state: {
+        shop,
+        coords: currentCoords,
+        address: geoAddress
+      }
+    });
   };
 
   const handleConfirmCheckIn = async () => {

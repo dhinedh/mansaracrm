@@ -309,7 +309,7 @@ export default function SalespersonLayout() {
           <span className="text-[10px] tracking-tight leading-tight mt-0.5 truncate max-w-full">Product & Stock</span>
         </Link>
 
-        {/* 4. Summary */}
+        {/* 4. Report */}
         <Link
           to="/sales/dar"
           onClick={() => setMobileMenuOpen(false)}
@@ -322,7 +322,7 @@ export default function SalespersonLayout() {
           <div className={`p-1 rounded-lg transition-colors ${isSummaryActive ? 'bg-amber-50 text-amber-600' : ''}`}>
             <BarChart3 className="w-5 h-5" />
           </div>
-          <span className="text-[10px] tracking-tight leading-tight mt-0.5 truncate max-w-full">Summary</span>
+          <span className="text-[10px] tracking-tight leading-tight mt-0.5 truncate max-w-full">Report</span>
         </Link>
 
         {/* 5. Menu */}

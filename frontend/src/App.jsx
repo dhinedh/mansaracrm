@@ -83,6 +83,7 @@ const SalesLoginPage = lazy(() => import('./pages/auth/SalesLoginPage'));
 const SalesDashboard = lazy(() => import('./pages/sales/SalesDashboard'));
 const SalesVisitsPage = lazy(() => import('./pages/sales/SalesVisitsPage'));
 const SalesGpsCheckInPage = lazy(() => import('./pages/sales/SalesGpsCheckInPage'));
+const SalesCheckInPurposePage = lazy(() => import('./pages/sales/SalesCheckInPurposePage'));
 const SalesProductsPage = lazy(() => import('./pages/sales/SalesProductsPage'));
 const SalesOrdersPage = lazy(() => import('./pages/sales/SalesOrdersPage'));
 const SalesCollectionsPage = lazy(() => import('./pages/sales/SalesCollectionsPage'));
@@ -461,6 +462,7 @@ export default function App() {
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<SalesDashboard />} />
           <Route path="checkin" element={<SalesGpsCheckInPage />} />
+          <Route path="checkin/purpose" element={<SalesCheckInPurposePage />} />
           <Route path="gps" element={<Navigate to="/sales/checkin" replace />} />
           <Route path="visits" element={<SalesVisitsPage />} />
           <Route path="customer-360" element={<SalesVisitsPage />} />

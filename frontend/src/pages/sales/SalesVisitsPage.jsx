@@ -545,15 +545,18 @@ export default function SalesVisitsPage() {
     };
   };
 
-  // User taps store to check in -> Step 1: select store, Step 2: prompt purpose
+  // User taps store to check in -> Navigates to dedicated separate purpose page
   const handleSelectStoreForCheckIn = (shop, preselectedPurpose = null) => {
-    setPendingStoreForCheckIn(shop);
-    const purposeToUse = preselectedPurpose || getShopVisitDetails(shop).purpose;
-    const initialPurposes = purposeToUse.includes('&') 
-      ? purposeToUse.split('&').map(p => p.trim()) 
-      : [purposeToUse];
-    setSelectedPurposes(initialPurposes);
-    setPurposeModalOpen(true);
+    try {
+      sessionStorage.setItem('mansara_pending_checkin_store', JSON.stringify(shop));
+    } catch (e) {}
+    navigate('/sales/checkin/purpose', {
+      state: {
+        shop,
+        coords: currentCoords,
+        address: geoAddress
+      }
+    });
   };
 
   // Step 2: Confirm check-in with chosen purpose(s) (Supports 1 or 2 purposes for same store)

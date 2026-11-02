@@ -197,6 +197,8 @@ const ProductSchema = new Schema({
   cartonSize: { type: Number, default: 24, alias: 'pacQuantity' },
   minOrderQty: { type: Number, default: 1 },
   isActive: { type: Boolean, default: true },
+  deactivatedAt: { type: Date },
+  deactivatedReason: { type: String },
   stock: { type: Number, default: 0 },
   minQuantity: { type: Number, default: 10 },
   // E-commerce specific fields
@@ -661,6 +663,9 @@ const InvoiceSchema = new Schema({
   dueDate: { type: Date },
   paidAt: { type: Date },
   invoiceType: { type: String, enum: ['NORMAL', 'ADVANCE'], default: 'NORMAL' },
+  salespersonId: { type: Schema.Types.ObjectId, ref: 'User', index: true },
+  billingReason: { type: String, default: 'Spot Sale / Direct Order' },
+  resultStatus: { type: String, enum: ['COLLECTED', 'PENDING_PAYMENT', 'PARTIALLY_COLLECTED', 'CANCELLED'], default: 'PENDING_PAYMENT' },
   totalCost: { type: Number, default: 0 },
   totalProfit: { type: Number, default: 0 },
   profitMarginPct: { type: Number, default: 0 }
