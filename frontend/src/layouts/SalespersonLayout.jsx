@@ -1,12 +1,11 @@
-// src/layouts/SalespersonLayout.jsx
 import React, { useState, useEffect } from 'react';
-import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
+import { Outlet, NavLink, Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { 
   Home, MapPin, ShoppingBag, Package, DollarSign, Clock, 
   Menu, X, LogOut, User, CheckCircle2, AlertCircle, Wifi, 
   WifiOff, RefreshCw, ChevronRight, FileText, BarChart3, HelpCircle,
-  TrendingUp, Award, Tag, Smartphone
+  TrendingUp, Award, Tag, Smartphone, Receipt
 } from 'lucide-react';
 
 export default function SalespersonLayout() {
@@ -18,6 +17,11 @@ export default function SalespersonLayout() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
+
+  const isDashboard = location.pathname === '/sales/dashboard' || location.pathname === '/sales';
+  const isBillingActive = location.pathname === '/sales/orders' || location.pathname === '/sales/pricing' || location.pathname === '/sales/quotations' || location.pathname === '/sales/amendments';
+  const isProductStockActive = location.pathname === '/sales/catalogue' || location.pathname === '/sales/stock' || location.pathname === '/sales/schemes';
+  const isSummaryActive = location.pathname === '/sales/dar' || location.pathname === '/sales/performance' || location.pathname === '/sales/collections' || location.pathname === '/sales/follow-ups';
 
   // Monitor network connectivity
   useEffect(() => {
@@ -252,55 +256,94 @@ export default function SalespersonLayout() {
         </main>
       </div>
 
-      {/* Bottom Navigation Bar - Always visible across all screens */}
-      <nav className="fixed bottom-0 inset-x-0 z-50 bg-white/95 backdrop-blur-xl border-t border-slate-200 px-2 py-1.5 flex items-center justify-around shadow-lg">
-        <NavLink
+      {/* Bottom Navigation Bar - Modern styled downbar */}
+      <nav 
+        aria-label="Sales Navigation"
+        className="fixed bottom-0 inset-x-0 z-50 bg-white/95 backdrop-blur-xl border-t border-slate-200 shadow-[0_-4px_20px_rgba(0,0,0,0.06)] px-2 py-1.5 flex items-center justify-around"
+      >
+        {/* 1. Home */}
+        <Link
           to="/sales/dashboard"
-          className={({ isActive }) => `flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl text-[10px] font-bold transition-all ${
-            isActive ? 'text-amber-600' : 'text-slate-500 hover:text-slate-800'
+          onClick={() => setMobileMenuOpen(false)}
+          className={`flex-1 flex flex-col items-center justify-center py-1 px-1 rounded-xl transition-all duration-200 active:scale-95 ${
+            isDashboard
+              ? 'text-amber-600 font-bold'
+              : 'text-slate-500 hover:text-slate-800 font-medium'
           }`}
         >
-          <Home className="w-4 h-4" />
-          <span>Home</span>
-        </NavLink>
+          <div className={`p-1 rounded-lg transition-colors ${isDashboard ? 'bg-amber-50 text-amber-600' : ''}`}>
+            <Home className="w-5 h-5" />
+          </div>
+          <span className="text-[10px] tracking-tight leading-tight mt-0.5 truncate max-w-full">Home</span>
+        </Link>
 
-        <NavLink
-          to="/sales/checkin"
-          className={({ isActive }) => `flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl text-[10px] font-bold transition-all ${
-            isActive || location.pathname === '/sales/visits' ? 'text-amber-600' : 'text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <MapPin className="w-4 h-4" />
-          <span>Beat / GPS</span>
-        </NavLink>
-
-        <NavLink
+        {/* 2. Invoice Billing */}
+        <Link
           to="/sales/orders"
-          className={({ isActive }) => `flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl text-[10px] font-bold transition-all ${
-            isActive ? 'text-amber-600' : 'text-slate-500 hover:text-slate-800'
+          onClick={() => setMobileMenuOpen(false)}
+          className={`flex-1 flex flex-col items-center justify-center py-1 px-1 rounded-xl transition-all duration-200 active:scale-95 ${
+            isBillingActive
+              ? 'text-amber-600 font-bold'
+              : 'text-slate-500 hover:text-slate-800 font-medium'
           }`}
         >
-          <ShoppingBag className="w-4 h-4" />
-          <span>Orders</span>
-        </NavLink>
+          <div className={`p-1 rounded-lg transition-colors ${isBillingActive ? 'bg-amber-50 text-amber-600' : ''}`}>
+            <Receipt className="w-5 h-5" />
+          </div>
+          <span className="text-[10px] tracking-tight leading-tight mt-0.5 truncate max-w-full">Invoice Billing</span>
+        </Link>
 
-        <NavLink
+        {/* 3. Product & Stock */}
+        <Link
           to="/sales/catalogue"
-          className={({ isActive }) => `flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl text-[10px] font-bold transition-all ${
-            isActive ? 'text-amber-600' : 'text-slate-500 hover:text-slate-800'
+          onClick={() => setMobileMenuOpen(false)}
+          className={`flex-1 flex flex-col items-center justify-center py-1 px-1 rounded-xl transition-all duration-200 active:scale-95 ${
+            isProductStockActive
+              ? 'text-amber-600 font-bold'
+              : 'text-slate-500 hover:text-slate-800 font-medium'
           }`}
         >
-          <Package className="w-4 h-4" />
-          <span>Products</span>
-        </NavLink>
+          <div className={`p-1 rounded-lg transition-colors ${isProductStockActive ? 'bg-amber-50 text-amber-600' : ''}`}>
+            <ShoppingBag className="w-5 h-5" />
+          </div>
+          <span className="text-[10px] tracking-tight leading-tight mt-0.5 truncate max-w-full">Product & Stock</span>
+        </Link>
 
+        {/* 4. Summary */}
+        <Link
+          to="/sales/dar"
+          onClick={() => setMobileMenuOpen(false)}
+          className={`flex-1 flex flex-col items-center justify-center py-1 px-1 rounded-xl transition-all duration-200 active:scale-95 ${
+            isSummaryActive
+              ? 'text-amber-600 font-bold'
+              : 'text-slate-500 hover:text-slate-800 font-medium'
+          }`}
+        >
+          <div className={`p-1 rounded-lg transition-colors ${isSummaryActive ? 'bg-amber-50 text-amber-600' : ''}`}>
+            <BarChart3 className="w-5 h-5" />
+          </div>
+          <span className="text-[10px] tracking-tight leading-tight mt-0.5 truncate max-w-full">Summary</span>
+        </Link>
+
+        {/* 5. Menu */}
         <button
           type="button"
-          onClick={() => setMobileMenuOpen(true)}
-          className="flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl text-[10px] font-bold text-slate-500 hover:text-slate-800 cursor-pointer"
+          onClick={() => setMobileMenuOpen(prev => !prev)}
+          className={`flex-1 flex flex-col items-center justify-center py-1 px-1 rounded-xl transition-all duration-200 active:scale-95 cursor-pointer relative ${
+            mobileMenuOpen
+              ? 'text-amber-600 font-bold'
+              : 'text-slate-500 hover:text-slate-800 font-medium'
+          }`}
         >
-          <Menu className="w-4 h-4" />
-          <span>34 Modules</span>
+          <div className={`p-1 rounded-lg transition-colors relative ${mobileMenuOpen ? 'bg-amber-50 text-amber-600' : ''}`}>
+            <Menu className="w-5 h-5" />
+            {pendingSyncCount > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 bg-amber-600 text-white text-[8px] font-black w-3.5 h-3.5 rounded-full flex items-center justify-center">
+                {pendingSyncCount}
+              </span>
+            )}
+          </div>
+          <span className="text-[10px] tracking-tight leading-tight mt-0.5 truncate max-w-full">Menu</span>
         </button>
       </nav>
 
