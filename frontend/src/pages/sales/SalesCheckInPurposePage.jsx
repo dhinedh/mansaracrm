@@ -13,8 +13,7 @@ const VISIT_PURPOSES = [
   { id: 'Payment Collection', label: '💵 Payment Collection', desc: 'Settling outstanding bills and collecting payments' },
   { id: 'Stock Auditing', label: '📦 Stock Auditing', desc: 'Shelf inventory check, expiry tracking & audit' },
   { id: 'Initial Visit', label: '📍 Initial Visit', desc: 'First time visit to introduce Mansara products' },
-  { id: 'Routine Beat', label: '🔄 Routine Beat', desc: 'Scheduled beat route visit and relationship maintenance' },
-  { id: 'Promotional Pitch', label: '🏷️ Promotional Pitch', desc: 'Presenting active trade schemes, offers & discounts' }
+  { id: 'Routine Beat', label: '🔄 Routine Beat', desc: 'Scheduled beat route visit and relationship maintenance' }
 ];
 
 export default function SalesCheckInPurposePage() {
@@ -94,12 +93,14 @@ export default function SalesCheckInPurposePage() {
 
         sessionStorage.removeItem('mansara_pending_checkin_store');
 
-        // Navigate to the main visits page with active visit open
-        navigate('/sales/visits', {
+        // Navigate directly to the dedicated store visit page
+        navigate(`/sales/store-visit/${shop._id || shop.id}`, {
           state: {
+            visit,
+            store: shop,
+            purpose: finalPurpose,
             activeVisitId: visit._id,
-            activeStoreId: shop._id,
-            autoOpenShopWindow: true
+            activeStoreId: shop._id || shop.id
           }
         });
       }
@@ -154,60 +155,16 @@ export default function SalesCheckInPurposePage() {
         </div>
       </div>
 
-      {/* Dual Purpose Explainer Box */}
-      <div className="bg-amber-50/80 border border-amber-200 rounded-3xl p-4 sm:p-5 space-y-2.5">
-        <div className="flex items-center justify-between">
-          <p className="text-xs sm:text-sm font-black text-amber-900 flex items-center gap-1.5">
-            <span>🎯</span>
-            <span>Select Visit Purpose (1 or 2 Allowed)</span>
-          </p>
-          <span className="text-xs font-black px-2.5 py-0.5 rounded-full bg-amber-200/70 text-amber-900 border border-amber-300">
+      {/* Purpose Options List */}
+      <div className="space-y-2.5">
+        <div className="flex items-center justify-between px-1">
+          <span className="text-xs font-black uppercase text-slate-700 tracking-wider">
+            Select Visit Purpose:
+          </span>
+          <span className="text-xs font-bold text-slate-500">
             {selectedPurposes.length} of 2 Selected
           </span>
         </div>
-        <p className="text-xs text-slate-700 leading-relaxed">
-          You can visit this store for <strong className="text-amber-900 font-black">up to 2 purposes</strong> (e.g. Order Booking + Payment Collection). Both will be logged into your GPS visit history and DAR report.
-        </p>
-
-        {/* Quick Dual Combinations (1-Tap) */}
-        <div className="pt-1.5">
-          <span className="text-[10px] font-bold text-slate-600 uppercase block mb-1.5 tracking-wider">
-            ⚡ Quick Dual Combinations (1-Tap):
-          </span>
-          <div className="flex flex-wrap gap-1.5">
-            {[
-              { p1: 'Order Booking', p2: 'Payment Collection', label: '🛒 Order + 💵 Payment' },
-              { p1: 'Stock Auditing', p2: 'Order Booking', label: '📦 Audit + 🛒 Order' },
-              { p1: 'Stock Auditing', p2: 'Payment Collection', label: '📦 Audit + 💵 Payment' },
-              { p1: 'Initial Visit', p2: 'Order Booking', label: '📍 Initial + 🛒 Order' }
-            ].map((combo, idx) => {
-              const isComboActive = selectedPurposes.length === 2 && 
-                selectedPurposes.includes(combo.p1) && 
-                selectedPurposes.includes(combo.p2);
-              return (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={() => handleSelectCombination(combo.p1, combo.p2)}
-                  className={`text-xs font-bold px-3 py-1.5 rounded-xl border transition-all cursor-pointer active:scale-95 ${
-                    isComboActive
-                      ? 'bg-amber-500 text-white border-amber-600 shadow-xs'
-                      : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-200 hover:border-amber-400'
-                  }`}
-                >
-                  {combo.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
-      {/* Purpose Options List */}
-      <div className="space-y-2.5">
-        <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider block px-1">
-          Tap to Select / Deselect Purposes:
-        </span>
         {VISIT_PURPOSES.map((p) => {
           const isSelected = selectedPurposes.includes(p.id);
           const orderIndex = selectedPurposes.indexOf(p.id);

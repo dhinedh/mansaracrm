@@ -92,6 +92,7 @@ const SalesDarPage = lazy(() => import('./pages/sales/SalesDarPage'));
 const SalesPerformancePage = lazy(() => import('./pages/sales/SalesPerformancePage'));
 const SalesSyncPage = lazy(() => import('./pages/sales/SalesSyncPage'));
 const SalesProfilePage = lazy(() => import('./pages/sales/SalesProfilePage'));
+const SalesStoreVisitPage = lazy(() => import('./pages/sales/SalesStoreVisitPage'));
 
 // Loading spinner fallback component
 const PageSpinner = () => (
@@ -465,6 +466,8 @@ export default function App() {
           <Route path="checkin/purpose" element={<SalesCheckInPurposePage />} />
           <Route path="gps" element={<Navigate to="/sales/checkin" replace />} />
           <Route path="visits" element={<SalesVisitsPage />} />
+          <Route path="store-visit" element={<SalesStoreVisitPage />} />
+          <Route path="store-visit/:storeId" element={<SalesStoreVisitPage />} />
           <Route path="customer-360" element={<SalesVisitsPage />} />
           <Route path="competitor-intel" element={<SalesVisitsPage />} />
           <Route path="catalogue" element={<SalesProductsPage />} />

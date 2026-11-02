@@ -277,9 +277,9 @@ export default function SalespersonLayout() {
           <span className="text-[10px] tracking-tight leading-tight mt-0.5 truncate max-w-full">Home</span>
         </Link>
 
-        {/* 2. Invoice Billing */}
+        {/* 2. Invoice Billing (Price Simulator) */}
         <Link
-          to="/sales/orders"
+          to="/sales/pricing"
           onClick={() => setMobileMenuOpen(false)}
           className={`flex-1 flex flex-col items-center justify-center py-1 px-1 rounded-xl transition-all duration-200 active:scale-95 ${
             isBillingActive

@@ -158,10 +158,36 @@
   backdrop-filter: blur(4px);
 }
 
+/* Color specific dark surfaces mapped to clean light pastels */
+.sales-portal-light [class*="bg-emerald-950"],
+.sales-portal-light [class*="bg-emerald-900"] {
+  background-color: #ECFDF5 !important;
+  color: #065F46 !important;
+}
+
+.sales-portal-light [class*="bg-amber-950"],
+.sales-portal-light [class*="bg-amber-900"] {
+  background-color: #FFFBEB !important;
+  color: #92400E !important;
+}
+
+.sales-portal-light [class*="bg-blue-950"],
+.sales-portal-light [class*="bg-blue-900"] {
+  background-color: #EFF6FF !important;
+  color: #1E40AF !important;
+}
+
+.sales-portal-light [class*="bg-indigo-950"],
+.sales-portal-light [class*="bg-indigo-900"] {
+  background-color: #EEF2FF !important;
+  color: #3730A3 !important;
+}
+
 /* Elevated cards */
 .sales-portal-light .rounded-2xl,
 .sales-portal-light .rounded-3xl {
   box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.05), 0 1px 2px -1px rgb(0 0 0 / 0.05);
 }
+
 
 

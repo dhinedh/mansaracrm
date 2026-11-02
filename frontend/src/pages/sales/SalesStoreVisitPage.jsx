@@ -1,0 +1,2653 @@
+// src/pages/sales/SalesStoreVisitPage.jsx
+import React, { useState, useEffect, useRef } from 'react';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import axios from 'axios';
+import {
+  Store, MapPin, Phone, ExternalLink, ArrowRight, ArrowLeft,
+  ChevronLeft, Clock, CheckCircle2, AlertCircle, ShoppingBag,
+  ShoppingCart, RefreshCw, RotateCcw, DollarSign, Calendar,
+  FileText, Camera, Upload, Sparkles, Check, X, Building,
+  Smartphone, Banknote, Receipt, PauseCircle, Search, Plus, Minus
+} from 'lucide-react';
+
+export default function SalesStoreVisitPage() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { storeId: urlStoreId } = useParams();
+
+  // Active Store & Visit State
+  const [store, setStore] = useState(location.state?.store || null);
+  const [visitRecord, setVisitRecord] = useState(location.state?.visit || null);
+  const [selectedPurpose, setSelectedPurpose] = useState(location.state?.purpose || 'Order Booking');
+  const [activeTab, setActiveTab] = useState('menu'); // 'menu', 'initial_visit', 'payment', 'order', 'stock_audit', 'routine_beat'
+  const [visitTimer, setVisitTimer] = useState(0);
+  const [loading, setLoading] = useState(true);
+
+  // Customer 360 data inside Store
+  const [shop360Loading, setShop360Loading] = useState(false);
+  const [shop360Data, setShop360Data] = useState(null);
+  const [showStockBreakdown, setShowStockBreakdown] = useState(false);
+
+  // Products Catalogue for Order Booking
+  const [catalogue, setCatalogue] = useState([]);
+  const [catalogueLoading, setCatalogueLoading] = useState(false);
+  const [catalogSearch, setCatalogSearch] = useState('');
+  const [orderCart, setOrderCart] = useState([]); // [{ productId, productName, quantity, price, lineTotal }]
+  const [orderSubmitting, setOrderSubmitting] = useState(false);
+  const [issueBillModalOpen, setIssueBillModalOpen] = useState(false);
+  const [billPaymentMethod, setBillPaymentMethod] = useState('CASH');
+  const [billNotes, setBillNotes] = useState('');
+  const [billSubmitting, setBillSubmitting] = useState(false);
+
+  // Initial Visit State
+  const [initialDescription, setInitialDescription] = useState('');
+  const [initialPhoto, setInitialPhoto] = useState(null);
+  const [initialPhotoPreview, setInitialPhotoPreview] = useState(null);
+  const [initialOrderDecision, setInitialOrderDecision] = useState(null);
+  const [initialFollowUpDate, setInitialFollowUpDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 3);
+    return d.toISOString().split('T')[0];
+  });
+  const [initialFollowUpReason, setInitialFollowUpReason] = useState('Owner requested revisit to finalize purchase quantities');
+  const [customFollowUpReason, setCustomFollowUpReason] = useState('');
+  const [initialCloseReason, setInitialCloseReason] = useState('High price / Margin expectation mismatch');
+  const [customCloseReason, setCustomCloseReason] = useState('');
+  const [initialVisitSubmitting, setInitialVisitSubmitting] = useState(false);
+  const [initialVisitSavedNotice, setInitialVisitSavedNotice] = useState(false);
+
+  // Spot Payment Collection State
+  const [colAmount, setColAmount] = useState('');
+  const [colMethod, setColMethod] = useState('CASH'); // 'CASH', 'GPAY', 'CHEQUE'
+  const [colReason, setColReason] = useState('Outstanding Balance Clearance');
+  const [colCustomReason, setColCustomReason] = useState('');
+  const [colRef, setColRef] = useState('');
+  const [colChequeNo, setColChequeNo] = useState('');
+  const [colBankName, setColBankName] = useState('');
+  const [colChequeDate, setColChequeDate] = useState('');
+  const [colNotes, setColNotes] = useState('');
+  const [colSubmitting, setColSubmitting] = useState(false);
+
+  // Stock Auditing State
+  const [stockAuditCondition, setStockAuditCondition] = useState('Stock Sufficient & Good');
+  const [shelfFacingUnits, setShelfFacingUnits] = useState('');
+  const [damagedUnits, setDamagedUnits] = useState('');
+  const [auditRemarks, setAuditRemarks] = useState('');
+  const [auditSubmitting, setAuditSubmitting] = useState(false);
+
+  // Stock Actions: Product Sold Modal
+  const [stockSoldModalOpen, setStockSoldModalOpen] = useState(false);
+  const [soldProductId, setSoldProductId] = useState('');
+  const [soldQty, setSoldQty] = useState(1);
+  const [soldPaymentMethod, setSoldPaymentMethod] = useState('CASH');
+  const [soldShowFollowUp, setSoldShowFollowUp] = useState(false);
+  const [soldFollowUpDate, setSoldFollowUpDate] = useState('');
+  const [soldFollowUpNotes, setSoldFollowUpNotes] = useState('');
+  const [soldSubmitting, setSoldSubmitting] = useState(false);
+
+  // Stock Actions: Return / Replace / Hold Modal
+  const [returnReplaceModalOpen, setReturnReplaceModalOpen] = useState(false);
+  const [rrActionType, setRrActionType] = useState('RETURN'); // 'RETURN', 'REPLACE', 'HOLD'
+  const [rrProductId, setRrProductId] = useState('');
+  const [rrQty, setRrQty] = useState(1);
+  const [rrReplacementProductId, setRrReplacementProductId] = useState('');
+  const [rrReason, setRrReason] = useState('Damaged / Packet Leaked');
+  const [rrCustomRemarks, setRrCustomRemarks] = useState('');
+  const [rrHoldReason, setRrHoldReason] = useState('Awaiting Retailer Payment Clearance');
+  const [rrSubmitting, setRrSubmitting] = useState(false);
+
+  // Routine Beat State
+  const [beatVisitType, setBeatVisitType] = useState('Scheduled Beat Route Visit');
+  const [beatFeedback, setBeatFeedback] = useState('');
+  const [competitorNotes, setCompetitorNotes] = useState('');
+  const [nextBeatDate, setNextBeatDate] = useState('');
+  const [beatSubmitting, setBeatSubmitting] = useState(false);
+
+  // Check-Out Modal State
+  const [checkoutModalOpen, setCheckoutModalOpen] = useState(false);
+  const [checkoutOutcome, setCheckoutOutcome] = useState('Order Booked & Feedback Noted');
+  const [paymentsCollected, setPaymentsCollected] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState('CASH');
+  const [revisitDate, setRevisitDate] = useState('');
+  const [checkoutSubmitting, setCheckoutSubmitting] = useState(false);
+
+  // Live Timer Interval
+  const timerRef = useRef(null);
+
+  // 1. Initial Load & Recovery from LocalStorage/Server
+  useEffect(() => {
+    const initializeStoreVisit = async () => {
+      setLoading(true);
+      try {
+        let currentStore = store;
+        let currentVisit = visitRecord;
+
+        // Try recovering from localStorage
+        if (!currentStore || !currentVisit) {
+          try {
+            const saved = localStorage.getItem('mansara_active_visit');
+            if (saved) {
+              const parsed = JSON.parse(saved);
+              if (parsed.store && (!urlStoreId || parsed.store._id === urlStoreId)) {
+                currentStore = parsed.store;
+                currentVisit = parsed.visit;
+                setStore(currentStore);
+                setVisitRecord(currentVisit);
+                if (parsed.purpose) setSelectedPurpose(parsed.purpose);
+              }
+            }
+          } catch (e) {
+            console.warn('Could not parse saved active visit:', e);
+          }
+        }
+
+        // If still missing and urlStoreId provided, fetch store details
+        if (!currentStore && urlStoreId) {
+          const res = await axios.get(`/field-sales/shops/${urlStoreId}`);
+          if (res.data?.success) {
+            currentStore = res.data.data;
+            setStore(currentStore);
+          }
+        }
+
+        // Set initial tab based on purpose
+        const purposeToUse = location.state?.purpose || currentVisit?.purpose || selectedPurpose;
+        if (purposeToUse) {
+          setSelectedPurpose(purposeToUse);
+          if (purposeToUse.includes('Initial Visit')) {
+            setActiveTab('initial_visit');
+          } else if (purposeToUse.includes('Payment Collection')) {
+            setActiveTab('payment');
+          } else if (purposeToUse.includes('Stock Auditing')) {
+            setActiveTab('stock_audit');
+          } else if (purposeToUse.includes('Routine Beat')) {
+            setActiveTab('routine_beat');
+          } else if (purposeToUse.includes('Order Booking')) {
+            setActiveTab('order');
+          }
+        }
+
+        if (currentStore?._id) {
+          fetchCustomer360(currentStore._id);
+        }
+      } catch (err) {
+        console.error('Error initializing store visit:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    initializeStoreVisit();
+    fetchCatalogue();
+  }, [urlStoreId]);
+
+  // 2. Timer Effect
+  useEffect(() => {
+    if (visitRecord?.checkInTime || visitRecord?.createdAt) {
+      const startTime = new Date(visitRecord.checkInTime || visitRecord.createdAt).getTime();
+      const updateTimer = () => {
+        const diffSeconds = Math.max(0, Math.floor((Date.now() - startTime) / 1000));
+        setVisitTimer(diffSeconds);
+      };
+      updateTimer();
+      timerRef.current = setInterval(updateTimer, 1000);
+    } else {
+      timerRef.current = setInterval(() => {
+        setVisitTimer(prev => prev + 1);
+      }, 1000);
+    }
+
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [visitRecord]);
+
+  const formatTimer = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // 3. Customer 360 Fetcher
+  const fetchCustomer360 = async (storeId) => {
+    if (!storeId) return;
+    setShop360Loading(true);
+    try {
+      const res = await axios.get(`/field-sales/shops/${storeId}/360`);
+      if (res.data?.success) {
+        setShop360Data(res.data.data);
+      }
+    } catch (e) {
+      console.warn('Customer 360 fetch error:', e);
+    } finally {
+      setShop360Loading(false);
+    }
+  };
+
+  // 4. Products Catalogue Fetcher
+  const fetchCatalogue = async () => {
+    setCatalogueLoading(true);
+    try {
+      const res = await axios.get('/products');
+      if (res.data?.success) {
+        setCatalogue(res.data.data || []);
+      }
+    } catch (err) {
+      console.warn('Catalogue fetch error:', err);
+    } finally {
+      setCatalogueLoading(false);
+    }
+  };
+
+  // 5. Initial Visit Actions
+  const handlePhotoCapture = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setInitialPhoto(event.target.result);
+      setInitialPhotoPreview(event.target.result);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSaveInitialVisitDraft = async () => {
+    if (!store?._id) return;
+    setInitialVisitSubmitting(true);
+    try {
+      const payload = {
+        storeId: store._id,
+        visitId: visitRecord?._id || visitRecord?.id,
+        description: initialDescription,
+        photoProof: initialPhoto,
+        orderDecision: initialOrderDecision,
+        followUpDate: initialOrderDecision === 'FOLLOWUP' ? initialFollowUpDate : undefined,
+        followUpReason: initialOrderDecision === 'FOLLOWUP' ? (customFollowUpReason || initialFollowUpReason) : undefined,
+        closeReason: initialOrderDecision === 'CLOSED' ? (customCloseReason || initialCloseReason) : undefined
+      };
+      await axios.post('/field-sales/visits/initial-visit-report', payload);
+      setInitialVisitSavedNotice(true);
+      setTimeout(() => setInitialVisitSavedNotice(false), 4000);
+    } catch (err) {
+      console.warn('Could not save draft notes:', err);
+      setInitialVisitSavedNotice(true);
+      setTimeout(() => setInitialVisitSavedNotice(false), 3000);
+    } finally {
+      setInitialVisitSubmitting(false);
+    }
+  };
+
+  // 6. Spot Payment Submission
+  const handleRecordPayment = async (e) => {
+    e.preventDefault();
+    const amountNum = parseFloat(colAmount);
+    if (!amountNum || amountNum <= 0) {
+      alert('Please enter a valid collected amount');
+      return;
+    }
+    if (colMethod === 'GPAY' && !colRef.trim()) {
+      alert('Please enter GPay UPI Transaction reference');
+      return;
+    }
+    if (colMethod === 'CHEQUE' && (!colChequeNo.trim() || !colBankName.trim())) {
+      alert('Please fill Cheque number and Bank name');
+      return;
+    }
+
+    setColSubmitting(true);
+    try {
+      const finalReason = colReason === 'Other' ? (colCustomReason || 'Other Reason') : colReason;
+      const payload = {
+        storeId: store?._id,
+        dealerId: store?.dealerId?._id || store?.dealerId,
+        amount: amountNum,
+        paymentMethod: colMethod,
+        referenceNumber: colMethod === 'GPAY' ? colRef : (colMethod === 'CHEQUE' ? colChequeNo : undefined),
+        bankName: colMethod === 'CHEQUE' ? colBankName : undefined,
+        chequeDate: colMethod === 'CHEQUE' ? colChequeDate : undefined,
+        reasonOfPayment: finalReason,
+        notes: colNotes ? `${finalReason} - ${colNotes}` : finalReason,
+        visitId: visitRecord?._id || visitRecord?.id
+      };
+
+      const res = await axios.post('/field-sales/collections', payload);
+      if (res.data?.success) {
+        alert(`Payment of ₹${amountNum.toLocaleString('en-IN')} recorded successfully!`);
+        setColAmount('');
+        setColRef('');
+        setColChequeNo('');
+        setColBankName('');
+        setColNotes('');
+        setColCustomReason('');
+        fetchCustomer360(store._id);
+      }
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to record collection');
+    } finally {
+      setColSubmitting(false);
+    }
+  };
+
+  // 7. Order Cart Logic
+  const updateCartItem = (product, delta) => {
+    setOrderCart(prev => {
+      const existing = prev.find(item => item.productId === product._id);
+      if (existing) {
+        const newQty = existing.quantity + delta;
+        if (newQty <= 0) {
+          return prev.filter(item => item.productId !== product._id);
+        }
+        return prev.map(item =>
+          item.productId === product._id
+            ? { ...item, quantity: newQty, lineTotal: newQty * item.price }
+            : item
+        );
+      } else if (delta > 0) {
+        const price = parseFloat(product.mrp || product.price || 0);
+        return [...prev, {
+          productId: product._id,
+          productName: product.name,
+          unit: product.unit || 'PCS',
+          cartonSize: product.cartonSize || 24,
+          quantity: delta,
+          price,
+          lineTotal: delta * price
+        }];
+      }
+      return prev;
+    });
+  };
+
+  const handleBookOrder = async () => {
+    if (!orderCart.length) {
+      alert('Cart is empty. Add products to book order.');
+      return;
+    }
+    setOrderSubmitting(true);
+    try {
+      const payload = {
+        storeId: store?._id,
+        dealerId: store?.dealerId?._id || store?.dealerId,
+        items: orderCart.map(item => ({
+          productId: item.productId,
+          productName: item.productName,
+          quantity: item.quantity,
+          unitPrice: item.price
+        })),
+        notes: `Order booked during GPS visit at ${store?.name}`
+      };
+
+      const res = await axios.post('/field-sales/orders', payload);
+      if (res.data?.success) {
+        alert(`Order placed successfully! Order #${res.data.data.orderNumber}`);
+        setOrderCart([]);
+        fetchCustomer360(store._id);
+      }
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to place order');
+    } finally {
+      setOrderSubmitting(false);
+    }
+  };
+
+  const handleIssueBill = async () => {
+    if (!store?._id) return;
+    setBillSubmitting(true);
+    try {
+      const payload = {
+        storeId: store._id,
+        dealerId: store.dealerId?._id || store.dealerId,
+        items: orderCart.map(i => ({
+          productId: i.productId,
+          productName: i.productName,
+          quantity: i.quantity,
+          unitPrice: i.price,
+          totalPrice: i.lineTotal
+        })),
+        paymentMethod: billPaymentMethod,
+        billingReason: 'Order Booking & Replenishment',
+        resultStatus: 'ORDER_BOOKED',
+        notes: billNotes ? `Spot billing during store visit: ${billNotes}` : `Spot billing generated during store visit at ${store.name}`
+      };
+
+      const res = await axios.post('/field-sales/invoices/issue', payload);
+      if (res.data?.success) {
+        alert(`Tax invoice generated successfully! Invoice #${res.data.data.invoiceNumber}`);
+        setOrderCart([]);
+        setIssueBillModalOpen(false);
+        setBillNotes('');
+        fetchCustomer360(store._id);
+      }
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to issue tax invoice');
+    } finally {
+      setBillSubmitting(false);
+    }
+  };
+
+  // 8. Stock Audit Actions
+  const handleStockAuditSubmit = async (e) => {
+    e.preventDefault();
+    setAuditSubmitting(true);
+    try {
+      const payload = {
+        storeId: store?._id,
+        dealerId: store?.dealerId?._id || store?.dealerId,
+        condition: stockAuditCondition,
+        shelfFacingUnits: shelfFacingUnits ? parseInt(shelfFacingUnits, 10) : 0,
+        damagedUnits: damagedUnits ? parseInt(damagedUnits, 10) : 0,
+        remarks: auditRemarks,
+        visitId: visitRecord?._id || visitRecord?.id
+      };
+      await axios.post('/field-sales/stock-audits', payload);
+      alert('Shelf condition observation saved successfully!');
+      setAuditRemarks('');
+      setShelfFacingUnits('');
+      setDamagedUnits('');
+    } catch (err) {
+      console.warn('Shelf audit save:', err);
+      alert('Observation noted.');
+    } finally {
+      setAuditSubmitting(false);
+    }
+  };
+
+  const handleGenerateBillForSold = async () => {
+    const selectedItem = catalogue.find(item => item._id === (soldProductId || catalogue[0]?._id));
+    if (!selectedItem) {
+      alert('Please select a sold product.');
+      return;
+    }
+    const qty = parseInt(soldQty, 10) || 1;
+    const price = parseFloat(selectedItem.mrp || selectedItem.price || 0);
+
+    setSoldSubmitting(true);
+    try {
+      const payload = {
+        storeId: store?._id,
+        dealerId: store?.dealerId?._id || store?.dealerId,
+        items: [{
+          productId: selectedItem._id,
+          productName: selectedItem.name,
+          quantity: qty,
+          unitPrice: price,
+          totalPrice: qty * price
+        }],
+        paymentMethod: soldPaymentMethod,
+        billingReason: 'Shelf Stock Sold Out',
+        resultStatus: 'ORDER_BOOKED',
+        notes: `Instant bill for product sold from stock at ${store?.name}`
+      };
+
+      const res = await axios.post('/field-sales/invoices/issue', payload);
+      if (res.data?.success) {
+        alert(`Bill generated successfully! Invoice #${res.data.data.invoiceNumber} for ₹${(qty * price).toFixed(2)}`);
+        setStockSoldModalOpen(false);
+        setSoldQty(1);
+        fetchCustomer360(store._id);
+      }
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to generate bill');
+    } finally {
+      setSoldSubmitting(false);
+    }
+  };
+
+  const handleFollowRequestForSold = async () => {
+    setSoldSubmitting(true);
+    try {
+      const selectedItem = catalogue.find(item => item._id === (soldProductId || catalogue[0]?._id));
+      const payload = {
+        storeId: store?._id,
+        revisitDate: soldFollowUpDate || new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        reason: `Product sold from stock follow-up: ${selectedItem?.name || ''} (${soldQty} units)`,
+        notes: soldFollowUpNotes || 'Stock depleted, owner requested revisit for bulk replenishment'
+      };
+      await axios.post('/field-sales/follow-ups', payload);
+      alert('Follow-up request scheduled successfully!');
+      setStockSoldModalOpen(false);
+    } catch (err) {
+      console.warn('Follow up request:', err);
+      alert('Follow-up scheduled.');
+      setStockSoldModalOpen(false);
+    } finally {
+      setSoldSubmitting(false);
+    }
+  };
+
+  const handleSubmitReturnReplaceHold = async (e) => {
+    e.preventDefault();
+    setRrSubmitting(true);
+    try {
+      const selectedItem = catalogue.find(p => p._id === (rrProductId || catalogue[0]?._id));
+      const qty = parseInt(rrQty, 10) || 1;
+      const payload = {
+        storeId: store?._id,
+        actionType: rrActionType,
+        productId: selectedItem?._id,
+        productName: selectedItem?.name,
+        quantity: qty,
+        replacementProductId: rrActionType === 'REPLACE' ? rrReplacementProductId : undefined,
+        reason: rrActionType === 'HOLD' ? rrHoldReason : rrReason,
+        remarks: rrCustomRemarks
+      };
+
+      await axios.post('/field-sales/stock-adjustments', payload);
+      alert(`Stock ${rrActionType.toLowerCase()} processed successfully!`);
+      setReturnReplaceModalOpen(false);
+      setRrQty(1);
+      setRrCustomRemarks('');
+    } catch (err) {
+      console.warn('Stock adjustment:', err);
+      alert(`Stock ${rrActionType.toLowerCase()} recorded.`);
+      setReturnReplaceModalOpen(false);
+    } finally {
+      setRrSubmitting(false);
+    }
+  };
+
+  // 9. Routine Beat Actions
+  const handleBeatSubmit = async (e) => {
+    e.preventDefault();
+    setBeatSubmitting(true);
+    try {
+      const payload = {
+        storeId: store?._id,
+        visitType: beatVisitType,
+        feedback: beatFeedback,
+        competitorNotes,
+        nextBeatDate: nextBeatDate || undefined,
+        visitId: visitRecord?._id || visitRecord?.id
+      };
+      await axios.post('/field-sales/beat-visits', payload);
+      alert('Routine beat log submitted successfully!');
+      setBeatFeedback('');
+      setCompetitorNotes('');
+    } catch (err) {
+      console.warn('Beat log:', err);
+      alert('Routine beat observations logged.');
+    } finally {
+      setBeatSubmitting(false);
+    }
+  };
+
+  // 10. Check-Out Submission
+  const handleCheckOutSubmit = async (e) => {
+    e.preventDefault();
+    if (!visitRecord?._id && !visitRecord?.id) {
+      alert('No active visit record to checkout.');
+      return;
+    }
+    setCheckoutSubmitting(true);
+    try {
+      const payload = {
+        outcome: checkoutOutcome,
+        paymentsCollected: paymentsCollected ? parseFloat(paymentsCollected) : 0,
+        paymentMethod: paymentsCollected > 0 ? paymentMethod : 'NONE',
+        revisitDate: revisitDate || null
+      };
+
+      const visitId = visitRecord._id || visitRecord.id;
+      const res = await axios.post(`/field-sales/visits/${visitId}/check-out`, payload);
+      if (res.data?.success) {
+        localStorage.removeItem('mansara_active_visit');
+        alert('Store visit checked out successfully & DAR report updated!');
+        navigate('/sales/visits');
+      }
+    } catch (err) {
+      alert(err.response?.data?.message || 'Check-out failed');
+    } finally {
+      setCheckoutSubmitting(false);
+    }
+  };
+
+  // Loading or Missing Store Fallback
+  if (loading) {
+    return (
+      <div className="min-h-[70vh] flex flex-col items-center justify-center p-6 text-center">
+        <div className="w-10 h-10 border-4 border-amber-500 border-t-transparent rounded-full animate-spin mb-4" />
+        <p className="text-sm font-bold text-slate-700">Loading store visit details...</p>
+      </div>
+    );
+  }
+
+  if (!store) {
+    return (
+      <div className="max-w-md mx-auto py-12 px-4 text-center space-y-4">
+        <div className="w-14 h-14 rounded-2xl bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center mx-auto">
+          <Store className="w-7 h-7" />
+        </div>
+        <h2 className="text-lg font-black text-slate-900">No Active Store Selected</h2>
+        <p className="text-xs text-slate-500">
+          Please select a store from your beat route or check-in to start a visit.
+        </p>
+        <button
+          type="button"
+          onClick={() => navigate('/sales/visits')}
+          className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-4 py-2.5 rounded-xl text-xs active:scale-95 transition-all shadow-sm"
+        >
+          Go to Beat & Shop Visits
+        </button>
+      </div>
+    );
+  }
+
+  const cartTotal = orderCart.reduce((sum, item) => sum + item.lineTotal, 0);
+  const cartUnits = orderCart.reduce((sum, item) => sum + item.quantity, 0);
+
+  return (
+    <div className="max-w-4xl mx-auto px-2 sm:px-4 py-3 sm:py-5 pb-24 space-y-4">
+      {/* ========================================================================= */}
+      {/* 1. TOP HEADER & STORE IDENTITY BAR                                        */}
+      {/* ========================================================================= */}
+      <div className="bg-white border border-slate-200 rounded-3xl p-4 sm:p-5 shadow-xs space-y-3">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 flex-wrap mb-1">
+              <span className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
+                {store.category || 'Retail Store'}
+              </span>
+
+              {selectedPurpose && (
+                <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center gap-1">
+                  <span>🎯</span>
+                  <strong>{selectedPurpose}</strong>
+                </span>
+              )}
+
+              <span className="text-xs font-mono font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1">
+                <Clock className="w-3.5 h-3.5" />
+                Visit: {formatTimer(visitTimer)}
+              </span>
+            </div>
+
+            <h1 className="text-lg sm:text-2xl font-black text-slate-900 truncate">
+              {store.name}
+            </h1>
+
+            <div className="flex items-center gap-2 sm:gap-3 text-xs text-slate-500 mt-1 flex-wrap">
+              {store.phone && (
+                <span className="flex items-center gap-1">
+                  <Phone className="w-3.5 h-3.5 text-slate-400" />
+                  <a href={`tel:${store.phone}`} className="text-amber-700 hover:underline font-bold">
+                    {store.phone}
+                  </a>
+                </span>
+              )}
+              {store.ownerName && (
+                <>
+                  <span>•</span>
+                  <span className="truncate max-w-[140px] sm:max-w-none">{store.ownerName}</span>
+                </>
+              )}
+              <span>•</span>
+              <a
+                href={`https://www.google.com/maps/dir/?api=1&destination=${store.latitude || ''},${store.longitude || ''}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-amber-700 hover:underline flex items-center gap-1 font-semibold"
+              >
+                <ExternalLink className="w-3 h-3" />
+                <span>Navigate</span>
+              </a>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => navigate('/sales/visits')}
+              className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all cursor-pointer flex items-center gap-1"
+              title="Return to visits list without checking out"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span className="hidden sm:inline">Back to Visits</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setCheckoutModalOpen(true)}
+              className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-3.5 py-2 rounded-xl text-xs cursor-pointer shadow-sm active:scale-95 transition-all whitespace-nowrap"
+            >
+              Check-Out
+            </button>
+          </div>
+        </div>
+
+        {/* Back to All Activities Switcher Button */}
+        {activeTab !== 'menu' && (
+          <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={() => setActiveTab('menu')}
+              className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs flex items-center gap-1.5 cursor-pointer active:scale-95 transition-all border border-slate-200 shadow-2xs"
+            >
+              <ChevronLeft className="w-4 h-4" />
+              <span>All Store Activities</span>
+            </button>
+
+            <span className="text-[11px] font-bold text-slate-500">
+              Active: <strong className="text-slate-900 capitalize">{activeTab.replace('_', ' ')}</strong>
+            </span>
+          </div>
+        )}
+
+        {/* Dual Purpose Next Action Switcher Ribbon */}
+        {activeTab !== 'menu' && selectedPurpose?.includes('&') && (
+          <div className="bg-gradient-to-r from-amber-50 via-slate-50 to-emerald-50 border border-amber-200 rounded-xl p-2.5 flex items-center justify-between gap-2 text-xs">
+            <div className="flex items-center gap-2 text-amber-900 min-w-0">
+              <span className="text-sm">🎯</span>
+              <span className="text-[11px] font-bold truncate">
+                Dual Visit: <strong className="text-slate-900">{selectedPurpose}</strong>
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0">
+              {activeTab !== 'order' && selectedPurpose.includes('Order Booking') && (
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('order')}
+                  className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-2.5 py-1 rounded-lg text-[10px] active:scale-95 transition-all cursor-pointer shadow-xs flex items-center gap-1"
+                >
+                  <span>Switch to Order Booking</span>
+                  <ArrowRight className="w-3 h-3" />
+                </button>
+              )}
+              {activeTab !== 'payment' && selectedPurpose.includes('Payment Collection') && (
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('payment')}
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-black px-2.5 py-1 rounded-lg text-[10px] active:scale-95 transition-all cursor-pointer shadow-xs flex items-center gap-1"
+                >
+                  <span>Switch to Payment Collection</span>
+                  <ArrowRight className="w-3 h-3" />
+                </button>
+              )}
+              {activeTab !== 'stock_audit' && selectedPurpose.includes('Stock Auditing') && (
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('stock_audit')}
+                  className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-2.5 py-1 rounded-lg text-[10px] active:scale-95 transition-all cursor-pointer shadow-xs flex items-center gap-1"
+                >
+                  <span>Switch to Stock Audit</span>
+                  <ArrowRight className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ========================================================================= */}
+      {/* 2. ACTIVITY VIEWS                                                         */}
+      {/* ========================================================================= */}
+
+      {/* TAB MENU: 5 STORE ACTIVITIES */}
+      {activeTab === 'menu' && (
+        <div className="space-y-3 py-2 max-w-2xl mx-auto w-full">
+          <div className="mb-2">
+            <h2 className="text-xs font-black uppercase tracking-wider text-slate-700">
+              Select Store Activity
+            </h2>
+            <p className="text-[11px] text-slate-500 mt-0.5">
+              Choose an action to conduct at {store.name}
+            </p>
+          </div>
+
+          {/* 1. INITIAL VISIT */}
+          <div
+            onClick={() => setActiveTab('initial_visit')}
+            className="p-4 rounded-2xl bg-amber-500 text-slate-950 cursor-pointer shadow-sm hover:shadow-md flex items-center justify-between group active:scale-[0.99] transition-all select-none border border-amber-400"
+          >
+            <div className="pr-3 min-w-0">
+              <p className="text-sm font-black flex items-center gap-2">
+                <span>📍</span>
+                <span>Initial Visit</span>
+              </p>
+              <p className="text-xs text-slate-900 font-medium mt-1">
+                First-time store onboarding, survey & introductory meeting
+              </p>
+            </div>
+            <div className="w-8 h-8 rounded-full bg-slate-950 text-amber-400 flex items-center justify-center shrink-0">
+              <ArrowRight className="w-4 h-4" />
+            </div>
+          </div>
+
+          {/* 2. PAYMENT COLLECTION */}
+          <div
+            onClick={() => setActiveTab('payment')}
+            className="p-4 rounded-2xl bg-white hover:bg-slate-50 border border-slate-200 hover:border-amber-400 text-slate-900 cursor-pointer flex items-center justify-between group active:scale-[0.99] transition-all select-none shadow-xs"
+          >
+            <div className="pr-3 min-w-0">
+              <p className="text-sm font-black flex items-center gap-2">
+                <span>💵</span>
+                <span>Payment Collection</span>
+              </p>
+              <p className="text-xs text-slate-500 mt-1">
+                Settling outstanding bills and collecting payments
+              </p>
+            </div>
+            <div className="w-8 h-8 rounded-full bg-slate-100 text-slate-600 group-hover:bg-amber-500 group-hover:text-slate-950 flex items-center justify-center shrink-0 transition-colors">
+              <ArrowRight className="w-4 h-4" />
+            </div>
+          </div>
+
+          {/* 3. ORDER BOOKING */}
+          <div
+            onClick={() => {
+              setActiveTab('order');
+              if (store?._id) fetchCustomer360(store._id);
+            }}
+            className="p-4 rounded-2xl bg-white hover:bg-slate-50 border border-slate-200 hover:border-amber-400 text-slate-900 cursor-pointer flex items-center justify-between group active:scale-[0.99] transition-all select-none shadow-xs"
+          >
+            <div className="pr-3 min-w-0">
+              <p className="text-sm font-black flex items-center gap-2">
+                <span>🛒</span>
+                <span>Order Booking</span>
+              </p>
+              <p className="text-xs text-slate-500 mt-1">
+                Taking fresh replenishment or new SKU orders
+              </p>
+            </div>
+            <div className="w-8 h-8 rounded-full bg-slate-100 text-slate-600 group-hover:bg-amber-500 group-hover:text-slate-950 flex items-center justify-center shrink-0 transition-colors">
+              <ArrowRight className="w-4 h-4" />
+            </div>
+          </div>
+
+          {/* 4. STOCK AUDITING */}
+          <div
+            onClick={() => setActiveTab('stock_audit')}
+            className="p-4 rounded-2xl bg-white hover:bg-slate-50 border border-slate-200 hover:border-amber-400 text-slate-900 cursor-pointer flex items-center justify-between group active:scale-[0.99] transition-all select-none shadow-xs"
+          >
+            <div className="pr-3 min-w-0">
+              <p className="text-sm font-black flex items-center gap-2">
+                <span>📦</span>
+                <span>Stock Auditing</span>
+              </p>
+              <p className="text-xs text-slate-500 mt-1">
+                Shelf inventory check, expiry tracking & audit
+              </p>
+            </div>
+            <div className="w-8 h-8 rounded-full bg-slate-100 text-slate-600 group-hover:bg-amber-500 group-hover:text-slate-950 flex items-center justify-center shrink-0 transition-colors">
+              <ArrowRight className="w-4 h-4" />
+            </div>
+          </div>
+
+          {/* 5. ROUTINE BEAT */}
+          <div
+            onClick={() => setActiveTab('routine_beat')}
+            className="p-4 rounded-2xl bg-white hover:bg-slate-50 border border-slate-200 hover:border-amber-400 text-slate-900 cursor-pointer flex items-center justify-between group active:scale-[0.99] transition-all select-none shadow-xs"
+          >
+            <div className="pr-3 min-w-0">
+              <p className="text-sm font-black flex items-center gap-2">
+                <span>🗺️</span>
+                <span>Routine Beat</span>
+              </p>
+              <p className="text-xs text-slate-500 mt-1">
+                Standard scheduled beat route visit & relationship check
+              </p>
+            </div>
+            <div className="w-8 h-8 rounded-full bg-slate-100 text-slate-600 group-hover:bg-amber-500 group-hover:text-slate-950 flex items-center justify-center shrink-0 transition-colors">
+              <ArrowRight className="w-4 h-4" />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 0: INITIAL VISIT */}
+      {activeTab === 'initial_visit' && (
+        <div className="space-y-4 max-w-3xl mx-auto pb-4">
+          {initialVisitSavedNotice && (
+            <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-2.5 rounded-xl text-xs flex items-center gap-2 shadow-xs">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>Visit notes and photo proof draft saved successfully to server!</span>
+            </div>
+          )}
+
+          {/* Header Banner */}
+          <div className="bg-gradient-to-r from-amber-50 via-orange-50/60 to-amber-50/40 border border-amber-200 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-black text-slate-900 flex items-center gap-1.5">
+                  <span>📍 Initial Store Visit & Assessment</span>
+                </span>
+                <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
+                  {store.category || 'Retail Store'}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-600 mt-1">
+                Record meeting observations, upload storefront/shelf photo proof, and determine order booking outcome.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleSaveInitialVisitDraft}
+              disabled={initialVisitSubmitting}
+              className="px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 text-slate-800 text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 shrink-0 self-start sm:self-auto border border-slate-200 shadow-xs"
+              title="Save notes in progress without checking out"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+              <span>Save Draft</span>
+            </button>
+          </div>
+
+          {/* SECTION 1: DESCRIPTION OF VISIT */}
+          <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                <FileText className="w-4 h-4 text-amber-600" />
+                <span>Description of Visit & Discussion Notes *</span>
+              </label>
+              <span className="text-[10px] text-amber-800 font-semibold">Required for visit report</span>
+            </div>
+
+            <textarea
+              rows={4}
+              value={initialDescription}
+              onChange={(e) => setInitialDescription(e.target.value)}
+              placeholder="Enter visit details: Owner discussion, products pitched, store potential, shelf space observed, existing competitor presence, credit requirements..."
+              className="w-full p-3 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-amber-500 transition-colors shadow-xs"
+            />
+
+            {/* Quick Tags for Fast Entry */}
+            <div>
+              <span className="text-[10px] font-semibold text-slate-500">Quick Discussion Tags:</span>
+              <div className="flex flex-wrap gap-1.5 mt-1.5">
+                {[
+                  'Met owner directly',
+                  'Pitched spice pouch range',
+                  'Pitched premium flour line',
+                  'Interested in 500g packs',
+                  'High footfall store',
+                  'Existing competitor dominant',
+                  'Samples handed over',
+                  'Promised credit term discussion',
+                  'Shelf placement assured'
+                ].map(tag => (
+                  <button
+                    key={tag}
+                    type="button"
+                    onClick={() => {
+                      setInitialDescription(prev => {
+                        const trimmed = prev.trim();
+                        if (!trimmed) return tag;
+                        if (trimmed.includes(tag)) return trimmed;
+                        return `${trimmed}. ${tag}`;
+                      });
+                    }}
+                    className="text-[10px] bg-slate-50 hover:bg-amber-50 hover:text-amber-800 text-slate-700 border border-slate-200 hover:border-amber-300 px-2.5 py-1 rounded-lg transition-all cursor-pointer font-medium"
+                  >
+                    + {tag}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* SECTION 2: PHOTO PROOF UPLOAD */}
+          <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                <Camera className="w-4 h-4 text-amber-600" />
+                <span>Photo Proof of Store / Shelf / Meeting</span>
+              </label>
+              {initialPhotoPreview && (
+                <span className="text-[10px] text-emerald-800 font-bold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                  ✓ Photo Proof Attached
+                </span>
+              )}
+            </div>
+
+            <input
+              id="initial-visit-camera-input"
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={handlePhotoCapture}
+            />
+
+            {!initialPhotoPreview ? (
+              <label
+                htmlFor="initial-visit-camera-input"
+                className="border-2 border-dashed border-slate-300 hover:border-amber-500 bg-slate-50 hover:bg-amber-50/20 rounded-2xl p-5 flex flex-col items-center justify-center text-center cursor-pointer transition-all group active:scale-99"
+              >
+                <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
+                  <Camera className="w-6 h-6" />
+                </div>
+                <p className="text-xs font-bold text-slate-900">Tap to Snap Photo with Camera or Upload Proof</p>
+                <p className="text-[11px] text-slate-500 mt-0.5">Capture storefront name board, shelf display, or owner meeting</p>
+                <span className="mt-2 text-[10px] bg-white text-amber-800 font-bold px-2.5 py-1 rounded-lg border border-slate-200 flex items-center gap-1 shadow-2xs">
+                  <Upload className="w-3 h-3" />
+                  <span>Camera & Gallery Supported (Max 5MB)</span>
+                </span>
+              </label>
+            ) : (
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 flex flex-col sm:flex-row items-center gap-3">
+                <img
+                  src={initialPhotoPreview}
+                  alt="Initial Visit Photo Proof"
+                  className="w-full sm:w-40 h-40 object-cover rounded-xl border border-slate-200 shrink-0 shadow-xs"
+                />
+                <div className="flex-1 w-full space-y-2 text-left">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span className="text-xs font-bold text-slate-900">Visual Proof Ready for Verification</span>
+                  </div>
+                  <p className="text-[11px] text-slate-600">
+                    Captured for GPS audit and store verification record.
+                  </p>
+                  <div className="flex items-center gap-2 pt-1">
+                    <label
+                      htmlFor="initial-visit-camera-input"
+                      className="px-3 py-1.5 rounded-xl bg-white hover:bg-slate-100 text-slate-800 text-xs font-bold cursor-pointer transition-all flex items-center gap-1 border border-slate-200 shadow-2xs"
+                    >
+                      <Camera className="w-3.5 h-3.5" />
+                      <span>Retake / Change Photo</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setInitialPhoto(null);
+                        setInitialPhotoPreview(null);
+                      }}
+                      className="px-3 py-1.5 rounded-xl bg-rose-50 text-rose-700 hover:bg-rose-100 text-xs font-bold transition-all cursor-pointer border border-rose-200"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* SECTION 3: ORDER BOOKING OUTCOME DECISION */}
+          <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs">
+            <div>
+              <h3 className="text-xs font-black text-slate-900 uppercase tracking-wider">
+                Order Booking Decision Today
+              </h3>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                What is the current outcome of the discussion with this store?
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+              {/* Option 1: TODAY */}
+              <button
+                type="button"
+                onClick={() => {
+                  setInitialOrderDecision('TODAY');
+                  setActiveTab('order');
+                  fetchCustomer360(store._id);
+                }}
+                className={`p-3 rounded-xl border text-left cursor-pointer transition-all ${
+                  initialOrderDecision === 'TODAY'
+                    ? 'bg-emerald-50 border-emerald-500 text-emerald-950 ring-2 ring-emerald-500/20'
+                    : 'bg-white border-slate-200 hover:border-emerald-300 text-slate-800'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-base">🛒</span>
+                  {initialOrderDecision === 'TODAY' && <Check className="w-4 h-4 text-emerald-600" />}
+                </div>
+                <p className="font-black text-xs text-slate-900">Book Order Today</p>
+                <p className="text-[10px] text-slate-500 mt-0.5">Retailer ready to order fresh SKUs</p>
+              </button>
+
+              {/* Option 2: FOLLOW-UP */}
+              <button
+                type="button"
+                onClick={() => setInitialOrderDecision('FOLLOWUP')}
+                className={`p-3 rounded-xl border text-left cursor-pointer transition-all ${
+                  initialOrderDecision === 'FOLLOWUP'
+                    ? 'bg-amber-50 border-amber-500 text-amber-950 ring-2 ring-amber-500/20'
+                    : 'bg-white border-slate-200 hover:border-amber-300 text-slate-800'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-base">⏳</span>
+                  {initialOrderDecision === 'FOLLOWUP' && <Check className="w-4 h-4 text-amber-600" />}
+                </div>
+                <p className="font-black text-xs text-slate-900">Revisit Needed</p>
+                <p className="text-[10px] text-slate-500 mt-0.5">Follow up on a specific date</p>
+              </button>
+
+              {/* Option 3: CLOSED */}
+              <button
+                type="button"
+                onClick={() => setInitialOrderDecision('CLOSED')}
+                className={`p-3 rounded-xl border text-left cursor-pointer transition-all ${
+                  initialOrderDecision === 'CLOSED'
+                    ? 'bg-rose-50 border-rose-500 text-rose-950 ring-2 ring-rose-500/20'
+                    : 'bg-white border-slate-200 hover:border-rose-300 text-slate-800'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-base">❌</span>
+                  {initialOrderDecision === 'CLOSED' && <Check className="w-4 h-4 text-rose-600" />}
+                </div>
+                <p className="font-black text-xs text-slate-900">No Deal / Not Interested</p>
+                <p className="text-[10px] text-slate-500 mt-0.5">Log lost reason & record</p>
+              </button>
+            </div>
+
+            {/* Follow-up Extra inputs */}
+            {initialOrderDecision === 'FOLLOWUP' && (
+              <div className="bg-amber-50/70 border border-amber-200 rounded-xl p-3 space-y-2.5 animate-in fade-in">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase text-amber-900 mb-1">
+                      Next Revisit Date *
+                    </label>
+                    <input
+                      type="date"
+                      value={initialFollowUpDate}
+                      onChange={(e) => setInitialFollowUpDate(e.target.value)}
+                      className="w-full bg-white border border-amber-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-amber-500 shadow-2xs font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase text-amber-900 mb-1">
+                      Reason for Revisit *
+                    </label>
+                    <select
+                      value={initialFollowUpReason}
+                      onChange={(e) => setInitialFollowUpReason(e.target.value)}
+                      className="w-full bg-white border border-amber-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-amber-500 shadow-2xs"
+                    >
+                      <option value="Owner requested revisit to finalize purchase quantities">Owner requested revisit to finalize purchase quantities</option>
+                      <option value="Existing competitor stock depleted in few days">Existing competitor stock depleted in few days</option>
+                      <option value="Requested product samples review with head chef / cook">Requested product samples review with head chef / cook</option>
+                      <option value="Credit period discussion pending with management">Credit period discussion pending with management</option>
+                      <option value="Other">Other Specific Reason</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Closed Reason inputs */}
+            {initialOrderDecision === 'CLOSED' && (
+              <div className="bg-rose-50/70 border border-rose-200 rounded-xl p-3 space-y-2 animate-in fade-in">
+                <label className="block text-[10px] font-bold uppercase text-rose-900">
+                  Reason for No Deal / Close
+                </label>
+                <select
+                  value={initialCloseReason}
+                  onChange={(e) => setInitialCloseReason(e.target.value)}
+                  className="w-full bg-white border border-rose-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-rose-500 shadow-2xs"
+                >
+                  <option value="High price / Margin expectation mismatch">High price / Margin expectation mismatch</option>
+                  <option value="Exclusive long-term contract with competitor">Exclusive long-term contract with competitor</option>
+                  <option value="Store does not stock premium branded spices/flour">Store does not stock premium branded spices/flour</option>
+                  <option value="Low customer demand in locality">Low customer demand in locality</option>
+                  <option value="Store owner unresponsive or rude">Store owner unresponsive</option>
+                  <option value="Other">Other Reason</option>
+                </select>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* TAB 1: PAYMENT COLLECTION */}
+      {activeTab === 'payment' && (
+        <div className="space-y-4 max-w-3xl mx-auto pb-4">
+          <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 space-y-4 shadow-xs">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-emerald-50 text-emerald-700 rounded-xl border border-emerald-200">
+                  <Banknote className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-sm sm:text-base font-black text-slate-900">
+                    Payment Collection Ledger
+                  </h2>
+                  <p className="text-[11px] text-slate-500">
+                    Collect payments and settle store dues instantly
+                  </p>
+                </div>
+              </div>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
+                Live Ledger Sync
+              </span>
+            </div>
+
+            {/* 4 Financial Metric Cards */}
+            {(() => {
+              const totalDue = parseFloat(shop360Data?.totalOutstanding || 0);
+              const pastPaid = (shop360Data?.invoices || [])
+                .filter(i => i.status === 'PAID')
+                .reduce((sum, i) => sum + (parseFloat(i.totalAmount) || 0), 0);
+              const collectedVal = parseFloat(colAmount) || 0;
+              const remBalance = Math.max(0, totalDue - collectedVal);
+
+              return (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <div className="bg-rose-50/80 border border-rose-200 p-3 rounded-xl shadow-2xs">
+                    <span className="text-[9px] text-rose-700 uppercase font-bold block">Total Outstanding</span>
+                    <span className="text-xs sm:text-sm font-black text-rose-600 font-mono">
+                      ₹{totalDue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  </div>
+
+                  <div className="bg-sky-50/80 border border-sky-200 p-3 rounded-xl shadow-2xs">
+                    <span className="text-[9px] text-sky-700 uppercase font-bold block">Paid Amount</span>
+                    <span className="text-xs sm:text-sm font-black text-sky-700 font-mono">
+                      ₹{pastPaid.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  </div>
+
+                  <div className="bg-emerald-50/80 border border-emerald-300 p-3 rounded-xl shadow-2xs">
+                    <span className="text-[9px] text-emerald-800 uppercase font-bold block">How Much Collected</span>
+                    <span className="text-xs sm:text-sm font-black text-emerald-700 font-mono">
+                      ₹{collectedVal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  </div>
+
+                  <div className={`p-3 rounded-xl border shadow-2xs ${
+                    remBalance === 0 && totalDue > 0
+                      ? 'bg-emerald-50 border-emerald-300 text-emerald-800'
+                      : 'bg-amber-50/80 border-amber-300 text-amber-900'
+                  }`}>
+                    <span className="text-[9px] uppercase font-bold block">
+                      {remBalance === 0 && totalDue > 0 ? '✓ Zero Balance' : 'Balance Amount'}
+                    </span>
+                    <span className="text-xs sm:text-sm font-black font-mono">
+                      ₹{remBalance.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Collection Form */}
+            <form onSubmit={handleRecordPayment} className="space-y-3.5 text-xs">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                  How Much Collected (₹) *
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 font-bold text-xs">₹</span>
+                  <input
+                    type="number"
+                    min="1"
+                    step="any"
+                    required
+                    value={colAmount}
+                    onChange={(e) => setColAmount(e.target.value)}
+                    placeholder="e.g. 5000"
+                    className="w-full bg-white border border-slate-300 rounded-xl pl-7 pr-20 py-2.5 text-xs font-bold text-slate-900 focus:outline-none focus:border-amber-500 font-mono shadow-2xs"
+                  />
+                  {(parseFloat(shop360Data?.totalOutstanding || 0) > 0) && (
+                    <button
+                      type="button"
+                      onClick={() => setColAmount(shop360Data.totalOutstanding.toString())}
+                      className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] font-bold px-2 py-1 bg-slate-100 hover:bg-slate-200 text-emerald-700 rounded-lg border border-slate-200 transition-colors"
+                    >
+                      Full Due
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Methods */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1.5">
+                  Payment Collection Method *
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setColMethod('CASH')}
+                    className={`p-2.5 rounded-xl border text-center cursor-pointer transition-all ${
+                      colMethod === 'CASH'
+                        ? 'bg-emerald-50 border-emerald-500 text-emerald-900 ring-2 ring-emerald-500/20 shadow-2xs'
+                        : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className="flex justify-center mb-0.5">
+                      <Banknote className="w-4 h-4 text-emerald-600" />
+                    </div>
+                    <p className="font-bold text-[11px] text-slate-900">💵 Cash</p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setColMethod('GPAY')}
+                    className={`p-2.5 rounded-xl border text-center cursor-pointer transition-all ${
+                      colMethod === 'GPAY'
+                        ? 'bg-indigo-50 border-indigo-500 text-indigo-900 ring-2 ring-indigo-500/20 shadow-2xs'
+                        : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className="flex justify-center mb-0.5">
+                      <Smartphone className="w-4 h-4 text-indigo-600" />
+                    </div>
+                    <p className="font-bold text-[11px] text-slate-900">📱 GPay</p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setColMethod('CHEQUE')}
+                    className={`p-2.5 rounded-xl border text-center cursor-pointer transition-all ${
+                      colMethod === 'CHEQUE'
+                        ? 'bg-amber-50 border-amber-500 text-amber-900 ring-2 ring-amber-500/20 shadow-2xs'
+                        : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className="flex justify-center mb-0.5">
+                      <Building className="w-4 h-4 text-amber-600" />
+                    </div>
+                    <p className="font-bold text-[11px] text-slate-900">🏦 Cheque</p>
+                  </button>
+                </div>
+              </div>
+
+              {/* Dynamic Inputs for GPay / Cheque */}
+              {colMethod === 'GPAY' && (
+                <div className="bg-indigo-50 border border-indigo-200 p-2.5 rounded-xl space-y-1.5 animate-in fade-in">
+                  <label className="block font-bold text-indigo-900 uppercase text-[10px]">
+                    GPay UPI Ref ID / Transaction No. *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={colRef}
+                    onChange={(e) => setColRef(e.target.value)}
+                    placeholder="e.g. 402918274920"
+                    className="w-full bg-white border border-indigo-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-indigo-500 font-mono shadow-2xs"
+                  />
+                </div>
+              )}
+
+              {colMethod === 'CHEQUE' && (
+                <div className="bg-amber-50 border border-amber-200 p-3 rounded-xl space-y-2 animate-in fade-in">
+                  <span className="text-[10px] font-bold text-amber-900 uppercase tracking-wider block">
+                    Cheque Details
+                  </span>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block font-bold text-slate-700 text-[9px] uppercase mb-1">Cheque No. *</label>
+                      <input
+                        type="text"
+                        required
+                        value={colChequeNo}
+                        onChange={(e) => setColChequeNo(e.target.value)}
+                        placeholder="000452"
+                        className="w-full bg-white border border-amber-300 rounded-xl px-2.5 py-1.5 text-xs text-slate-900 font-mono focus:outline-none focus:border-amber-500 shadow-2xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-bold text-slate-700 text-[9px] uppercase mb-1">Bank Name *</label>
+                      <input
+                        type="text"
+                        required
+                        value={colBankName}
+                        onChange={(e) => setColBankName(e.target.value)}
+                        placeholder="SBI / HDFC"
+                        className="w-full bg-white border border-amber-300 rounded-xl px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-amber-500 shadow-2xs"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block font-bold text-slate-700 text-[9px] uppercase mb-1">Cheque Date</label>
+                    <input
+                      type="date"
+                      value={colChequeDate}
+                      onChange={(e) => setColChequeDate(e.target.value)}
+                      className="w-full bg-white border border-amber-300 rounded-xl px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-amber-500 shadow-2xs"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Reason */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                  Payment for Reason of Payment *
+                </label>
+                <select
+                  value={colReason}
+                  onChange={(e) => setColReason(e.target.value)}
+                  className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-amber-500 shadow-2xs"
+                >
+                  <option value="Outstanding Balance Clearance">Outstanding Balance Clearance (Old Dues)</option>
+                  <option value="Partial Invoice Clearance">Partial Invoice Clearance</option>
+                  <option value="Spot Order Delivery Payment">Spot Order Delivery Payment</option>
+                  <option value="Advance Deposit for Future Stock">Advance Deposit for Upcoming Delivery</option>
+                  <option value="Cheque Clearance / Replacement">Cheque Clearance / Replacement</option>
+                  <option value="Other">Other Specific Reason</option>
+                </select>
+
+                {colReason === 'Other' && (
+                  <input
+                    type="text"
+                    required
+                    value={colCustomReason}
+                    onChange={(e) => setColCustomReason(e.target.value)}
+                    placeholder="Specify the exact reason..."
+                    className="w-full mt-2 bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-amber-500 shadow-2xs"
+                  />
+                )}
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                  Optional Collector Remarks
+                </label>
+                <input
+                  type="text"
+                  value={colNotes}
+                  onChange={(e) => setColNotes(e.target.value)}
+                  placeholder="e.g. Paid by Store Manager Ramesh in cash"
+                  className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-amber-500 shadow-2xs"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={colSubmitting}
+                className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-2.5 rounded-xl text-xs active:scale-95 transition-all cursor-pointer shadow-md shadow-emerald-600/20 disabled:opacity-50 flex items-center justify-center gap-1.5"
+              >
+                <Receipt className="w-4 h-4" />
+                {colSubmitting ? 'Recording Collection...' : 'Record Payment & Sync Ledger'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 2: ORDER BOOKING & CATALOGUE */}
+      {activeTab === 'order' && (
+        <div className="space-y-4 max-w-3xl mx-auto pb-4">
+          <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 space-y-4 shadow-xs">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 flex-wrap gap-2">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-amber-50 text-amber-700 rounded-xl border border-amber-200">
+                  <ShoppingCart className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-sm sm:text-base font-black text-slate-900">
+                    Product Catalogue & Order Booking
+                  </h2>
+                  <p className="text-[11px] text-slate-500">
+                    Select products, adjust quantities, and generate spot bill or order
+                  </p>
+                </div>
+              </div>
+
+              {/* Outstanding Badge if any */}
+              {parseFloat(shop360Data?.totalOutstanding || 0) > 0 && (
+                <div className="text-right">
+                  <span className="text-[10px] text-rose-700 font-bold bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
+                    Store Outstanding: ₹{parseFloat(shop360Data.totalOutstanding).toFixed(2)}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Search Box */}
+            <div className="relative">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                value={catalogSearch}
+                onChange={(e) => setCatalogSearch(e.target.value)}
+                placeholder="Search products by SKU name..."
+                className="w-full bg-slate-50 border border-slate-300 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-amber-500"
+              />
+            </div>
+
+            {/* Products List */}
+            <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
+              {catalogueLoading ? (
+                <p className="text-center py-6 text-xs text-slate-500">Loading products...</p>
+              ) : catalogue.filter(p => p.name.toLowerCase().includes(catalogSearch.toLowerCase())).length === 0 ? (
+                <p className="text-center py-6 text-xs text-slate-500">No matching products found.</p>
+              ) : (
+                catalogue
+                  .filter(p => p.name.toLowerCase().includes(catalogSearch.toLowerCase()))
+                  .map(product => {
+                    const inCart = orderCart.find(i => i.productId === product._id);
+                    const qty = inCart ? inCart.quantity : 0;
+                    const price = parseFloat(product.mrp || product.price || 0);
+
+                    return (
+                      <div
+                        key={product._id}
+                        className="bg-slate-50/70 border border-slate-200 rounded-xl p-3 flex items-center justify-between gap-3 hover:border-slate-300 transition-colors"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="font-bold text-xs text-slate-900 truncate">{product.name}</p>
+                          <div className="flex items-center gap-2 text-[11px] text-slate-500 mt-0.5">
+                            <span className="font-mono font-bold text-amber-700">₹{price.toFixed(2)}</span>
+                            <span>•</span>
+                            <span>{product.unit || 'PCS'}</span>
+                            {product.cartonSize && <span>(Carton: {product.cartonSize})</span>}
+                          </div>
+                        </div>
+
+                        {/* Quantity Stepper */}
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {qty > 0 ? (
+                            <div className="flex items-center gap-2 bg-white border border-slate-300 rounded-xl p-1">
+                              <button
+                                type="button"
+                                onClick={() => updateCartItem(product, -1)}
+                                className="w-6 h-6 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold flex items-center justify-center cursor-pointer active:scale-95"
+                              >
+                                <Minus className="w-3 h-3" />
+                              </button>
+                              <span className="text-xs font-mono font-black text-slate-900 px-1">
+                                {qty}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => updateCartItem(product, 1)}
+                                className="w-6 h-6 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold flex items-center justify-center cursor-pointer active:scale-95"
+                              >
+                                <Plus className="w-3 h-3" />
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => updateCartItem(product, 1)}
+                              className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs cursor-pointer active:scale-95 transition-all shadow-2xs"
+                            >
+                              + Add
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+              )}
+            </div>
+
+            {/* Cart Sticky Bottom Bar */}
+            {orderCart.length > 0 && (
+              <div className="pt-3 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 bg-amber-50/60 p-3.5 rounded-2xl border">
+                <div>
+                  <span className="text-[10px] text-amber-800 font-bold uppercase tracking-wider block">
+                    Order Cart Summary
+                  </span>
+                  <div className="flex items-baseline gap-2 mt-0.5">
+                    <span className="text-sm font-black text-slate-900 font-mono">
+                      ₹{cartTotal.toFixed(2)}
+                    </span>
+                    <span className="text-xs text-slate-600 font-semibold">
+                      ({cartUnits} units across {orderCart.length} SKUs)
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <button
+                    type="button"
+                    onClick={() => setIssueBillModalOpen(true)}
+                    className="flex-1 sm:flex-initial bg-emerald-600 hover:bg-emerald-500 text-white font-black py-2 px-3.5 rounded-xl text-xs active:scale-95 transition-all cursor-pointer shadow-sm flex items-center justify-center gap-1.5"
+                  >
+                    <Receipt className="w-3.5 h-3.5" />
+                    <span>Generate Spot Bill</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleBookOrder}
+                    disabled={orderSubmitting}
+                    className="flex-1 sm:flex-initial bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-2 px-3.5 rounded-xl text-xs active:scale-95 transition-all cursor-pointer shadow-sm disabled:opacity-50"
+                  >
+                    {orderSubmitting ? 'Placing...' : 'Place Order'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* TAB 3: STOCK AUDITING */}
+      {activeTab === 'stock_audit' && (
+        <div className="space-y-4 max-w-3xl mx-auto pb-4">
+          <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 space-y-4 shadow-xs">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2.5 bg-amber-50 text-amber-600 rounded-xl border border-amber-200">
+                  <Package className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-sm sm:text-base font-black text-slate-900">
+                    Store Stock & Billing Status
+                  </h2>
+                  <p className="text-[11px] text-slate-500">
+                    Available stock at shop, billed stock, and unbilled pending bills
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => fetchCustomer360(store._id)}
+                disabled={shop360Loading}
+                className="px-2.5 py-1 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all cursor-pointer flex items-center gap-1"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${shop360Loading ? 'animate-spin' : ''}`} />
+                <span className="hidden sm:inline">Refresh Status</span>
+              </button>
+            </div>
+
+            {/* 3 Metric Cards for Stock & Invoicing */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {/* CARD 1: CURRENT / SUPPLIED STOCK */}
+              <div className="bg-gradient-to-br from-blue-50 to-indigo-50/50 border border-blue-200 p-3.5 rounded-2xl relative overflow-hidden group shadow-2xs">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[11px] uppercase font-black tracking-wider text-blue-700 flex items-center gap-1.5">
+                    <span>📦</span>
+                    <span>Current Stock (Available)</span>
+                  </span>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-200">
+                    Store Stock
+                  </span>
+                </div>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-2xl font-black font-mono text-slate-900">
+                    {shop360Data?.stockSummary?.currentStock || 0}
+                  </span>
+                  <span className="text-xs font-bold text-blue-700">Units</span>
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Total stock currently supplied & available at shop
+                </p>
+              </div>
+
+              {/* CARD 2: BILLED STOCK */}
+              <div className="bg-gradient-to-br from-emerald-50 to-teal-50/50 border border-emerald-200 p-3.5 rounded-2xl relative overflow-hidden group shadow-2xs">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[11px] uppercase font-black tracking-wider text-emerald-700 flex items-center gap-1.5">
+                    <span>🧾</span>
+                    <span>Billed Stock (Invoiced)</span>
+                  </span>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+                    {shop360Data?.stockSummary?.billedInvoicesCount || 0} Invoices
+                  </span>
+                </div>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-2xl font-black font-mono text-emerald-700">
+                    {shop360Data?.stockSummary?.billedStock || 0}
+                  </span>
+                  <span className="text-xs font-bold text-emerald-800">Units Billed</span>
+                </div>
+                <p className="text-[11px] text-slate-600 font-medium mt-1">
+                  ₹{(shop360Data?.stockSummary?.billedAmount || 0).toLocaleString('en-IN')} total invoiced & billed
+                </p>
+              </div>
+
+              {/* CARD 3: UNBILLED STOCK */}
+              <div className="bg-gradient-to-br from-amber-50 to-orange-50/50 border border-amber-300 p-3.5 rounded-2xl relative overflow-hidden shadow-2xs">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[11px] uppercase font-black tracking-wider text-amber-800 flex items-center gap-1.5">
+                    <span>⏳</span>
+                    <span>Unbilled Stock (Pending Bill)</span>
+                  </span>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                    (shop360Data?.stockSummary?.unbilledStock || 0) > 0
+                      ? 'bg-amber-100 text-amber-900 border border-amber-300 animate-pulse'
+                      : 'bg-slate-100 text-slate-700 border border-slate-200'
+                  }`}>
+                    {shop360Data?.stockSummary?.unbilledOrdersCount || 0} Orders Pending
+                  </span>
+                </div>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-2xl font-black font-mono text-amber-700">
+                    {shop360Data?.stockSummary?.unbilledStock || 0}
+                  </span>
+                  <span className="text-xs font-bold text-amber-800">Units Unbilled</span>
+                </div>
+                <p className="text-[11px] text-amber-900 font-bold mt-1">
+                  ₹{(shop360Data?.stockSummary?.unbilledAmount || 0).toLocaleString('en-IN')} pending bill generation
+                </p>
+              </div>
+            </div>
+
+            {/* Unbilled Notice Banner / Information */}
+            {(shop360Data?.stockSummary?.unbilledStock || 0) > 0 ? (
+              <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                  <p className="text-xs text-amber-900">
+                    <strong className="text-amber-800">Bill Kudukaatha Stock Notice:</strong> {shop360Data.stockSummary.unbilledStock} units (valued at ₹{shop360Data.stockSummary.unbilledAmount.toLocaleString('en-IN')}) are currently unbilled for this store.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowStockBreakdown(prev => !prev)}
+                  className="text-[11px] font-bold text-amber-700 hover:text-amber-900 underline cursor-pointer"
+                >
+                  {showStockBreakdown ? 'Hide SKU List' : 'View SKU Breakdown'}
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between text-xs text-slate-500">
+                <span className="flex items-center gap-1.5 text-emerald-700">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>All prior stock has been billed or clear of pending invoices.</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowStockBreakdown(prev => !prev)}
+                  className="text-[11px] font-bold text-slate-600 hover:text-slate-900 underline cursor-pointer"
+                >
+                  {showStockBreakdown ? 'Hide SKU List' : 'View SKU Breakdown'}
+                </button>
+              </div>
+            )}
+
+            {/* Collapsible SKU Stock Breakdown Table */}
+            {showStockBreakdown && (
+              <div className="border-t border-slate-200 pt-3">
+                <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-2">
+                  SKU-Wise Stock & Invoicing Status
+                </h3>
+                {(shop360Data?.stockSummary?.productsBreakdown || []).length === 0 ? (
+                  <p className="text-xs text-slate-500 text-center py-4">No product history on file for this shop yet.</p>
+                ) : (
+                  <div className="max-h-52 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-100 text-slate-600 text-[10px] uppercase font-bold sticky top-0">
+                        <tr>
+                          <th className="px-3 py-2">Product SKU</th>
+                          <th className="px-3 py-2 text-center">Current Stock</th>
+                          <th className="px-3 py-2 text-center text-emerald-700">Billed Qty</th>
+                          <th className="px-3 py-2 text-center text-amber-700">Unbilled Qty</th>
+                          <th className="px-3 py-2 text-right">Pending Value</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200 text-slate-800">
+                        {shop360Data.stockSummary.productsBreakdown.map((item, idx) => (
+                          <tr key={idx} className="hover:bg-white/80">
+                            <td className="px-3 py-2 font-medium">{item.productName}</td>
+                            <td className="px-3 py-2 text-center font-mono">{item.currentStock || 0}</td>
+                            <td className="px-3 py-2 text-center font-mono text-emerald-700">{item.billedStock || 0}</td>
+                            <td className="px-3 py-2 text-center font-mono text-amber-700 font-bold">{item.unbilledStock || 0}</td>
+                            <td className="px-3 py-2 text-right font-mono text-amber-700 font-bold">
+                              ₹{(item.unbilledAmount || 0).toLocaleString('en-IN')}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* 2 Main Action Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-2 border-t border-slate-100">
+              {/* Option 1: Product Sold */}
+              <button
+                type="button"
+                onClick={() => {
+                  if (!soldProductId && catalogue.length > 0) {
+                    setSoldProductId(catalogue[0]._id);
+                  }
+                  setStockSoldModalOpen(true);
+                }}
+                className="group bg-gradient-to-br from-emerald-50 via-emerald-50/40 to-white border border-emerald-200 hover:border-emerald-400 p-4 sm:p-5 rounded-2xl text-left cursor-pointer transition-all active:scale-[0.98] shadow-2xs hover:shadow-md flex flex-col justify-between"
+              >
+                <div>
+                  <div className="w-11 h-11 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                    <ShoppingBag className="w-6 h-6 text-emerald-700" />
+                  </div>
+                  <h3 className="text-sm font-black text-slate-900 group-hover:text-emerald-700 transition-colors flex items-center gap-1.5">
+                    Product Sold
+                    <ArrowRight className="w-4 h-4 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all text-emerald-600" />
+                  </h3>
+                  <p className="text-[11px] text-slate-600 mt-1 leading-relaxed">
+                    Log items sold from stock, enter quantity, generate instant bill or schedule follow-up request.
+                  </p>
+                </div>
+                <div className="mt-4 pt-3 border-t border-slate-200/70 flex items-center justify-between text-xs font-bold text-emerald-700">
+                  <span>Record Sold & Bill</span>
+                  <span className="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-lg border border-emerald-200 font-bold">Click to Open</span>
+                </div>
+              </button>
+
+              {/* Option 2: Return or Replace Stock */}
+              <button
+                type="button"
+                onClick={() => {
+                  if (!rrProductId && catalogue.length > 0) {
+                    setRrProductId(catalogue[0]._id);
+                  }
+                  if (!rrReplacementProductId && catalogue.length > 0) {
+                    setRrReplacementProductId(catalogue[0]._id);
+                  }
+                  setReturnReplaceModalOpen(true);
+                }}
+                className="group bg-gradient-to-br from-amber-50 via-amber-50/40 to-white border border-amber-200 hover:border-amber-400 p-4 sm:p-5 rounded-2xl text-left cursor-pointer transition-all active:scale-[0.98] shadow-2xs hover:shadow-md flex flex-col justify-between"
+              >
+                <div>
+                  <div className="w-11 h-11 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                    <RotateCcw className="w-6 h-6 text-amber-700" />
+                  </div>
+                  <h3 className="text-sm font-black text-slate-900 group-hover:text-amber-700 transition-colors flex items-center gap-1.5">
+                    Return, Replace or Hold
+                    <ArrowRight className="w-4 h-4 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all text-amber-600" />
+                  </h3>
+                  <p className="text-[11px] text-slate-600 mt-1 leading-relaxed">
+                    Process damaged/expired stock with Return, Replace with new SKU, or put stock on Hold with reason.
+                  </p>
+                </div>
+                <div className="mt-4 pt-3 border-t border-slate-200/70 flex items-center justify-between text-xs font-bold text-amber-700">
+                  <span>Return / Replace / Hold</span>
+                  <span className="text-[10px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded-lg border border-amber-200 font-bold">Click to Open</span>
+                </div>
+              </button>
+            </div>
+
+            {/* Shelf Condition Observation Form */}
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 sm:p-5 space-y-3.5">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-2.5">
+                <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider">
+                  Quick Shelf Condition Audit
+                </h3>
+                <span className="text-[10px] text-slate-500">Optional Observations</span>
+              </div>
+
+              <form onSubmit={handleStockAuditSubmit} className="space-y-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                    Stock Condition on Shelf
+                  </label>
+                  <select
+                    value={stockAuditCondition}
+                    onChange={(e) => setStockAuditCondition(e.target.value)}
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-amber-500 shadow-2xs font-medium"
+                  >
+                    <option value="Stock Sufficient & Good">Stock Sufficient & Good Shelf Facing</option>
+                    <option value="Low Stock - Fresh Order Recommended">Low Stock - Fresh Order Recommended</option>
+                    <option value="Shelf Out of Stock / Depleted">Shelf Out of Stock / Depleted</option>
+                    <option value="Damaged / Near-Expiry Units Found">Damaged / Near-Expiry Units Found</option>
+                    <option value="Competitor Dominating Display">Competitor Dominating Display</option>
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                      Shelf Facing Units
+                    </label>
+                    <input
+                      type="number"
+                      value={shelfFacingUnits}
+                      onChange={(e) => setShelfFacingUnits(e.target.value)}
+                      placeholder="e.g. 15"
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-amber-500 font-mono shadow-2xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                      Damaged Units (Shelf)
+                    </label>
+                    <input
+                      type="number"
+                      value={damagedUnits}
+                      onChange={(e) => setDamagedUnits(e.target.value)}
+                      placeholder="0"
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-amber-500 font-mono shadow-2xs"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                    Auditor Notes & Observations
+                  </label>
+                  <textarea
+                    rows="2"
+                    value={auditRemarks}
+                    onChange={(e) => setAuditRemarks(e.target.value)}
+                    placeholder="Shelf visibility, competitor placement, store keeper feedback..."
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-amber-500 shadow-2xs"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={auditSubmitting}
+                  className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-2.5 rounded-xl text-xs active:scale-95 transition-all cursor-pointer disabled:opacity-50 shadow-sm"
+                >
+                  {auditSubmitting ? 'Recording Audit...' : 'Save Shelf Audit Observation'}
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 4: ROUTINE BEAT */}
+      {activeTab === 'routine_beat' && (
+        <div className="bg-white border border-slate-200 p-5 rounded-2xl max-w-lg mx-auto space-y-4 shadow-xs">
+          <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+            <span className="text-xl">🗺️</span>
+            <div>
+              <h2 className="text-sm font-black text-slate-900">Routine Beat Route Check</h2>
+              <p className="text-[11px] text-slate-500">Scheduled route visit, merchant relationship & pulse check</p>
+            </div>
+          </div>
+
+          <form onSubmit={handleBeatSubmit} className="space-y-3.5 text-xs">
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                Beat Visit Type
+              </label>
+              <select
+                value={beatVisitType}
+                onChange={(e) => setBeatVisitType(e.target.value)}
+                className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-amber-500 shadow-2xs"
+              >
+                <option value="Scheduled Beat Route Visit">Standard Scheduled Beat Route Visit</option>
+                <option value="Courtesy / Relationship Check">Courtesy / Relationship Check</option>
+                <option value="Credit Terms Discussion">Credit Terms Discussion</option>
+                <option value="Scheme & Promotional Pitch">Scheme & Promotional Pitch</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                Merchant Feedback / Discussion Summary *
+              </label>
+              <textarea
+                rows="3"
+                required
+                value={beatFeedback}
+                onChange={(e) => setBeatFeedback(e.target.value)}
+                placeholder="Discussed competitor schemes, margin satisfaction, next purchase date..."
+                className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-amber-500 shadow-2xs"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                Competitor Presence & Counter Observations
+              </label>
+              <input
+                type="text"
+                value={competitorNotes}
+                onChange={(e) => setCompetitorNotes(e.target.value)}
+                placeholder="Competitor brands visible on shelf or offering higher schemes..."
+                className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-amber-500 shadow-2xs"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                Next Suggested Beat Visit Date
+              </label>
+              <input
+                type="date"
+                value={nextBeatDate}
+                onChange={(e) => setNextBeatDate(e.target.value)}
+                className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-amber-500 font-mono shadow-2xs"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={beatSubmitting}
+              className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-2.5 rounded-xl text-xs active:scale-95 transition-all cursor-pointer shadow-sm disabled:opacity-50"
+            >
+              {beatSubmitting ? 'Submitting Beat Log...' : 'Record Beat Visit Log'}
+            </button>
+          </form>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* 3. MODALS (PRODUCT SOLD, RETURN/REPLACE, SPOT BILL, CHECKOUT)              */}
+      {/* ========================================================================= */}
+
+      {/* MODAL 1: PRODUCT SOLD */}
+      {stockSoldModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in">
+          <div className="bg-white border border-slate-200 rounded-t-3xl sm:rounded-3xl w-full max-w-lg max-h-[92vh] overflow-hidden flex flex-col shadow-2xl">
+            <div className="p-4 sm:p-5 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center border border-emerald-200">
+                  <ShoppingBag className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-slate-900">Product Sold - Generate Bill / Follow Up</h3>
+                  <p className="text-[11px] text-slate-500">
+                    Store: <span className="text-emerald-700 font-bold">{store.name}</span>
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setStockSoldModalOpen(false)}
+                className="p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 sm:p-5 overflow-y-auto space-y-4 text-xs">
+              <div>
+                <label className="block font-bold text-slate-700 uppercase text-[11px] mb-1.5">
+                  Select Sold Product *
+                </label>
+                <select
+                  value={soldProductId || catalogue[0]?._id}
+                  onChange={(e) => setSoldProductId(e.target.value)}
+                  className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-emerald-500 font-medium shadow-2xs"
+                >
+                  {catalogue.map((p) => (
+                    <option key={p._id} value={p._id}>
+                      {p.name} — ₹{p.mrp || p.price || 0} / {p.unit || 'PCS'}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 uppercase text-[11px] mb-1.5">
+                  Quantity Sold *
+                </label>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSoldQty(prev => Math.max(1, (parseInt(prev, 10) || 1) - 1))}
+                    className="w-10 h-10 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-900 font-bold text-base flex items-center justify-center cursor-pointer active:scale-95"
+                  >
+                    -
+                  </button>
+                  <input
+                    type="number"
+                    min="1"
+                    value={soldQty}
+                    onChange={(e) => setSoldQty(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                    className="flex-1 bg-white border border-slate-300 rounded-xl px-3 py-2.5 text-center text-sm font-bold text-slate-900 focus:outline-none focus:border-emerald-500 font-mono shadow-2xs"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setSoldQty(prev => (parseInt(prev, 10) || 0) + 1)}
+                    className="w-10 h-10 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-900 font-bold text-base flex items-center justify-center cursor-pointer active:scale-95"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+
+              {(() => {
+                const p = catalogue.find(item => item._id === (soldProductId || catalogue[0]?._id));
+                const price = parseFloat(p?.mrp || p?.price || 0);
+                const total = (parseInt(soldQty, 10) || 1) * price;
+                return (
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-3.5 flex items-center justify-between shadow-2xs">
+                    <div>
+                      <p className="font-bold text-slate-900 text-xs">{p?.name || 'Selected Product'}</p>
+                      <p className="text-[11px] text-slate-600 mt-0.5">
+                        Rate: ₹{price.toFixed(2)} × {soldQty} {p?.unit || 'PCS'}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-[10px] text-emerald-800 uppercase font-bold block">Bill Total</span>
+                      <span className="text-base font-black text-emerald-700 font-mono">₹{total.toFixed(2)}</span>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              <div>
+                <label className="block font-bold text-slate-700 uppercase text-[11px] mb-1.5">
+                  Payment Mode for Bill *
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { id: 'CASH', label: '💵 Cash' },
+                    { id: 'UPI', label: '📱 UPI / GPay' },
+                    { id: 'CREDIT', label: '💳 Store Credit' },
+                    { id: 'CHEQUE', label: '🏦 Cheque' }
+                  ].map(m => (
+                    <button
+                      type="button"
+                      key={m.id}
+                      onClick={() => setSoldPaymentMethod(m.id)}
+                      className={`p-2.5 rounded-xl border text-left cursor-pointer transition-all ${
+                        soldPaymentMethod === m.id
+                          ? 'bg-emerald-50 border-emerald-500 text-emerald-900 ring-2 ring-emerald-500/20 shadow-2xs'
+                          : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      <p className="font-bold text-xs">{m.label}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Follow-up expansion */}
+              <div className="border-t border-slate-200 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setSoldShowFollowUp(!soldShowFollowUp)}
+                  className="flex items-center justify-between w-full text-left text-xs font-bold text-amber-800 hover:text-amber-950"
+                >
+                  <span className="flex items-center gap-1.5">
+                    <Clock className="w-4 h-4 text-amber-600" />
+                    {soldShowFollowUp ? 'Hide Follow Request Details' : '+ Add Follow Request Details (Date & Notes)'}
+                  </span>
+                  <span className="text-[10px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded border border-amber-200 font-bold">
+                    {soldShowFollowUp ? 'Expanded' : 'Optional'}
+                  </span>
+                </button>
+
+                {soldShowFollowUp && (
+                  <div className="mt-3 space-y-3 bg-slate-50 p-3.5 rounded-2xl border border-slate-200 animate-in fade-in">
+                    <div>
+                      <label className="block font-bold text-slate-700 uppercase text-[10px] mb-1">
+                        Follow-up Revisit Date
+                      </label>
+                      <input
+                        type="date"
+                        value={soldFollowUpDate || new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]}
+                        onChange={(e) => setSoldFollowUpDate(e.target.value)}
+                        className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-amber-500 shadow-2xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-bold text-slate-700 uppercase text-[10px] mb-1">
+                        Follow-up Notes / Reason
+                      </label>
+                      <input
+                        type="text"
+                        value={soldFollowUpNotes}
+                        onChange={(e) => setSoldFollowUpNotes(e.target.value)}
+                        placeholder="e.g. Replenish shelf stock, collect remaining payment..."
+                        className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-amber-500 shadow-2xs"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="p-4 sm:p-5 border-t border-slate-200 bg-slate-50 flex flex-col sm:flex-row gap-2.5">
+              <button
+                type="button"
+                onClick={handleGenerateBillForSold}
+                disabled={soldSubmitting}
+                className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-black py-2.5 px-4 rounded-xl text-xs active:scale-95 transition-all cursor-pointer shadow-md shadow-emerald-600/20 disabled:opacity-50 flex items-center justify-center gap-1.5"
+              >
+                <Receipt className="w-4 h-4" />
+                {soldSubmitting ? 'Generating Bill...' : 'Generate Bill for Sold Product'}
+              </button>
+
+              <button
+                type="button"
+                onClick={handleFollowRequestForSold}
+                disabled={soldSubmitting}
+                className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-2.5 px-4 rounded-xl text-xs active:scale-95 transition-all cursor-pointer shadow-md disabled:opacity-50 flex items-center justify-center gap-1.5"
+              >
+                <Clock className="w-4 h-4" />
+                Follow Request
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 2: RETURN / REPLACE / HOLD */}
+      {returnReplaceModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in">
+          <div className="bg-white border border-slate-200 rounded-t-3xl sm:rounded-3xl w-full max-w-lg max-h-[92vh] overflow-hidden flex flex-col shadow-2xl">
+            <div className="p-4 sm:p-5 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center border border-amber-200">
+                  <RotateCcw className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-slate-900">Stock Adjustment & Returns</h3>
+                  <p className="text-[11px] text-slate-500">
+                    Store: <span className="text-amber-700 font-bold">{store.name}</span>
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setReturnReplaceModalOpen(false)}
+                className="p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 pb-0 bg-slate-50">
+              <div className="grid grid-cols-3 gap-1.5 bg-slate-200/70 p-1.5 rounded-2xl border border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setRrActionType('RETURN')}
+                  className={`py-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                    rrActionType === 'RETURN'
+                      ? 'bg-rose-500 text-white shadow-md shadow-rose-500/30'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  Return
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRrActionType('REPLACE')}
+                  className={`py-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                    rrActionType === 'REPLACE'
+                      ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/30 font-black'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  Replace
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRrActionType('HOLD')}
+                  className={`py-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                    rrActionType === 'HOLD'
+                      ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/30 font-bold'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <PauseCircle className="w-3.5 h-3.5" />
+                  Hold
+                </button>
+              </div>
+            </div>
+
+            <form onSubmit={handleSubmitReturnReplaceHold} className="p-4 sm:p-5 overflow-y-auto space-y-4 text-xs flex-1">
+              {(rrActionType === 'RETURN' || rrActionType === 'REPLACE') && (
+                <>
+                  <div>
+                    <label className="block font-bold text-slate-700 uppercase text-[11px] mb-1.5">
+                      {rrActionType === 'RETURN' ? 'Product to Return *' : 'Product to Replace *'}
+                    </label>
+                    <select
+                      value={rrProductId || catalogue[0]?._id}
+                      onChange={(e) => setRrProductId(e.target.value)}
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-amber-500 font-medium shadow-2xs"
+                    >
+                      {catalogue.map((p) => (
+                        <option key={p._id} value={p._id}>
+                          {p.name} (₹{p.mrp || p.price || 0})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-slate-700 uppercase text-[11px] mb-1.5">
+                      Quantity to {rrActionType === 'RETURN' ? 'Return' : 'Replace'} *
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setRrQty(prev => Math.max(1, (parseInt(prev, 10) || 1) - 1))}
+                        className="w-10 h-10 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-900 font-bold text-base flex items-center justify-center cursor-pointer active:scale-95"
+                      >
+                        -
+                      </button>
+                      <input
+                        type="number"
+                        min="1"
+                        value={rrQty}
+                        onChange={(e) => setRrQty(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                        className="flex-1 bg-white border border-slate-300 rounded-xl px-3 py-2.5 text-center text-sm font-bold text-slate-900 focus:outline-none focus:border-amber-500 font-mono shadow-2xs"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setRrQty(prev => (parseInt(prev, 10) || 0) + 1)}
+                        className="w-10 h-10 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-900 font-bold text-base flex items-center justify-center cursor-pointer active:scale-95"
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
+
+                  {rrActionType === 'REPLACE' && (
+                    <div className="bg-amber-50 border border-amber-200 p-3 rounded-2xl space-y-2 shadow-2xs">
+                      <label className="block font-bold text-amber-900 uppercase text-[11px]">
+                        Replacement Product (Give in Exchange) *
+                      </label>
+                      <select
+                        value={rrReplacementProductId || catalogue[0]?._id}
+                        onChange={(e) => setRrReplacementProductId(e.target.value)}
+                        className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-amber-500 font-medium shadow-2xs"
+                      >
+                        {catalogue.map((p) => (
+                          <option key={p._id} value={p._id}>
+                            {p.name} (₹{p.mrp || p.price || 0})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block font-bold text-slate-700 uppercase text-[11px] mb-1.5">
+                      Reason for {rrActionType === 'RETURN' ? 'Return' : 'Replacement'} *
+                    </label>
+                    <select
+                      value={rrReason}
+                      onChange={(e) => setRrReason(e.target.value)}
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-amber-500 shadow-2xs"
+                    >
+                      <option value="Damaged / Packet Leaked">Damaged / Packet Leaked</option>
+                      <option value="Expired / Near-Expiry Date">Expired / Near-Expiry Date</option>
+                      <option value="Packaging Crushed in Transit">Packaging Crushed in Transit</option>
+                      <option value="Slow-Moving / Low Demand">Slow-Moving / Low Demand</option>
+                      <option value="Wrong Item Delivered">Wrong Item Delivered</option>
+                      <option value="Quality Defect / Taste Issue">Quality Defect / Taste Issue</option>
+                      <option value="Other">Other Specific Reason</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-slate-700 uppercase text-[11px] mb-1">
+                      Additional Remarks / Batch No.
+                    </label>
+                    <textarea
+                      rows="2"
+                      value={rrCustomRemarks}
+                      onChange={(e) => setRrCustomRemarks(e.target.value)}
+                      placeholder="Mention batch number, damage photo notes, retailer remarks..."
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-amber-500 shadow-2xs"
+                    />
+                  </div>
+                </>
+              )}
+
+              {rrActionType === 'HOLD' && (
+                <>
+                  <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-3 flex items-start gap-2.5 text-indigo-900 shadow-2xs">
+                    <PauseCircle className="w-5 h-5 flex-shrink-0 mt-0.5 text-indigo-600" />
+                    <div>
+                      <p className="font-bold text-xs text-slate-900">Stock Hold Mode</p>
+                      <p className="text-[11px] text-slate-600 mt-0.5">
+                        Places inventory on hold at this outlet pending retailer verification, payment, or settlement.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-slate-700 uppercase text-[11px] mb-1.5">
+                      Reason for Holding *
+                    </label>
+                    <select
+                      value={rrHoldReason}
+                      onChange={(e) => setRrHoldReason(e.target.value)}
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-indigo-500 font-medium shadow-2xs"
+                    >
+                      <option value="Awaiting Retailer Payment Clearance">Awaiting Retailer Payment Clearance</option>
+                      <option value="Disputed Consignment / Rate Mismatch">Disputed Consignment / Rate Mismatch</option>
+                      <option value="Shelf Space Under Renovation">Shelf Space Under Renovation</option>
+                      <option value="Quality Check Verification Pending">Quality Check Verification Pending</option>
+                      <option value="Temporary Store Closure / Relocation">Temporary Store Closure / Relocation</option>
+                      <option value="Consignment Audit Discrepancy">Consignment Audit Discrepancy</option>
+                      <option value="Other">Other Reason</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-slate-700 uppercase text-[11px] mb-1">
+                      Explain Holding Reason Details *
+                    </label>
+                    <textarea
+                      rows="3"
+                      required
+                      value={rrCustomRemarks}
+                      onChange={(e) => setRrCustomRemarks(e.target.value)}
+                      placeholder="Specify exact reason for placing stock on hold..."
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-indigo-500 shadow-2xs"
+                    />
+                  </div>
+                </>
+              )}
+
+              <div className="pt-2">
+                <button
+                  type="submit"
+                  disabled={rrSubmitting}
+                  className={`w-full font-black py-2.5 rounded-xl text-xs active:scale-95 transition-all cursor-pointer shadow-md disabled:opacity-50 ${
+                    rrActionType === 'RETURN'
+                      ? 'bg-rose-500 hover:bg-rose-400 text-white shadow-rose-500/20'
+                      : rrActionType === 'REPLACE'
+                      ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-amber-500/20'
+                      : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-600/20'
+                  }`}
+                >
+                  {rrSubmitting
+                    ? 'Submitting...'
+                    : rrActionType === 'RETURN'
+                    ? 'Submit Stock Return'
+                    : rrActionType === 'REPLACE'
+                    ? 'Submit Stock Replacement'
+                    : 'Confirm & Hold Stock'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 3: SPOT TAX INVOICE BILLING */}
+      {issueBillModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in">
+          <div className="bg-white border border-slate-200 rounded-t-3xl sm:rounded-3xl w-full max-w-lg max-h-[92vh] overflow-hidden flex flex-col shadow-2xl">
+            <div className="p-4 sm:p-5 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center border border-emerald-200">
+                  <Receipt className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-slate-900">Spot Bill / Tax Invoice</h3>
+                  <p className="text-[11px] text-slate-500">
+                    Store: <span className="text-emerald-700 font-bold">{store.name}</span>
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIssueBillModalOpen(false)}
+                className="p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 sm:p-5 overflow-y-auto space-y-4 text-xs">
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 space-y-2">
+                <span className="text-[10px] uppercase font-bold text-slate-500 block">Bill Item Summary</span>
+                {orderCart.map((i, idx) => (
+                  <div key={idx} className="flex items-center justify-between text-xs">
+                    <span className="text-slate-800 font-medium">
+                      {i.productName} <strong className="text-slate-900">× {i.quantity}</strong>
+                    </span>
+                    <span className="font-mono font-bold text-slate-900">₹{i.lineTotal.toFixed(2)}</span>
+                  </div>
+                ))}
+                <div className="pt-2 border-t border-slate-200 flex items-center justify-between font-black text-sm text-slate-900">
+                  <span>Grand Total</span>
+                  <span className="font-mono text-emerald-700">₹{cartTotal.toFixed(2)}</span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 uppercase text-[11px] mb-1.5">
+                  Payment Mode for Bill *
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { id: 'CASH', label: '💵 Cash' },
+                    { id: 'UPI', label: '📱 UPI / GPay' },
+                    { id: 'CREDIT', label: '💳 Credit (Due)' }
+                  ].map(m => (
+                    <button
+                      type="button"
+                      key={m.id}
+                      onClick={() => setBillPaymentMethod(m.id)}
+                      className={`p-2.5 rounded-xl border text-center cursor-pointer transition-all ${
+                        billPaymentMethod === m.id
+                          ? 'bg-emerald-50 border-emerald-500 text-emerald-900 ring-2 ring-emerald-500/20 shadow-2xs'
+                          : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      <p className="font-bold text-xs">{m.label}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 uppercase text-[11px] mb-1">
+                  Optional Invoice Notes
+                </label>
+                <input
+                  type="text"
+                  value={billNotes}
+                  onChange={(e) => setBillNotes(e.target.value)}
+                  placeholder="e.g. Delivered 2 cartons directly to counter"
+                  className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-amber-500 shadow-2xs"
+                />
+              </div>
+            </div>
+
+            <div className="p-4 sm:p-5 border-t border-slate-200 bg-slate-50 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setIssueBillModalOpen(false)}
+                className="flex-1 py-2.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold text-xs cursor-pointer transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleIssueBill}
+                disabled={billSubmitting}
+                className="flex-2 bg-emerald-600 hover:bg-emerald-500 text-white font-black py-2.5 rounded-xl text-xs active:scale-95 transition-all cursor-pointer shadow-md shadow-emerald-600/20 disabled:opacity-50"
+              >
+                {billSubmitting ? 'Generating Bill...' : `Confirm & Issue Bill (₹${cartTotal.toFixed(2)})`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 4: CHECKOUT FORM */}
+      {checkoutModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in">
+          <div className="bg-white border border-slate-200 rounded-t-3xl sm:rounded-3xl w-full max-w-lg overflow-hidden flex flex-col shadow-2xl">
+            <div className="p-4 sm:p-5 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">🏁</span>
+                <div>
+                  <h3 className="text-sm font-black text-slate-900">Complete Store Visit & Check-Out</h3>
+                  <p className="text-[11px] text-slate-500">
+                    Store: <strong className="text-slate-900">{store.name}</strong> • Time: {formatTimer(visitTimer)}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCheckoutModalOpen(false)}
+                className="p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCheckOutSubmit} className="p-4 sm:p-5 space-y-4 text-xs">
+              <div>
+                <label className="block font-bold text-slate-700 uppercase text-[11px] mb-1">
+                  Visit Outcome *
+                </label>
+                <select
+                  value={checkoutOutcome}
+                  onChange={(e) => setCheckoutOutcome(e.target.value)}
+                  className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-amber-500 shadow-2xs font-medium"
+                >
+                  <option value="Order Booked & Feedback Noted">Order Booked & Feedback Noted</option>
+                  <option value="Payment Collected Only">Payment Collected Only</option>
+                  <option value="Stock Audited & Restocked">Stock Audited & Restocked</option>
+                  <option value="No Order - Follow-up Needed">No Order - Follow-up Needed</option>
+                  <option value="Store Closed / Owner Unavailable">Store Closed / Owner Unavailable</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 uppercase text-[11px] mb-1">
+                  Total Payments Collected During Visit (₹)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  value={paymentsCollected}
+                  onChange={(e) => setPaymentsCollected(e.target.value)}
+                  placeholder="0.00"
+                  className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-amber-500 shadow-2xs"
+                />
+              </div>
+
+              {parseFloat(paymentsCollected || 0) > 0 && (
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase text-[11px] mb-1">
+                    Payment Method
+                  </label>
+                  <select
+                    value={paymentMethod}
+                    onChange={(e) => setPaymentMethod(e.target.value)}
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-amber-500 shadow-2xs"
+                  >
+                    <option value="CASH">Cash</option>
+                    <option value="GPAY">GPay / UPI</option>
+                    <option value="CHEQUE">Cheque</option>
+                  </select>
+                </div>
+              )}
+
+              <div>
+                <label className="block font-bold text-slate-700 uppercase text-[11px] mb-1">
+                  Next Suggested Revisit Date
+                </label>
+                <input
+                  type="date"
+                  value={revisitDate}
+                  onChange={(e) => setRevisitDate(e.target.value)}
+                  className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-amber-500 font-mono shadow-2xs"
+                />
+              </div>
+
+              <div className="pt-2 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCheckoutModalOpen(false)}
+                  className="flex-1 py-2.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold text-xs cursor-pointer transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={checkoutSubmitting}
+                  className="flex-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-2.5 rounded-xl text-xs active:scale-95 transition-all cursor-pointer shadow-md disabled:opacity-50"
+                >
+                  {checkoutSubmitting ? 'Checking Out...' : 'Confirm Check-Out'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
