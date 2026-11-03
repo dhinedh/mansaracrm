@@ -1689,141 +1689,82 @@ export default function PriceSimulatorPage() {
           </table>
         </div>
 
-        {/* ─── TAX & SHIPPING SETTINGS ─── */}
-        <div className="bg-slate-50 border border-slate-200 rounded-xl sm:rounded-2xl p-3.5 sm:p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 sm:gap-4">
-          <div className="flex flex-wrap items-center gap-3 sm:gap-4 w-full md:w-auto">
-            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 w-full sm:w-auto">
-              <span className="text-[11px] sm:text-xs font-bold text-slate-700">GST Rate:</span>
-              <div className="flex items-center gap-1">
-                {[0, 5, 12, 18].map(rate => (
-                  <button
-                    key={rate}
-                    type="button"
-                    onClick={() => setGstRate(rate)}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
-                      gstRate === rate
-                        ? 'bg-rose-600 text-white shadow-xs'
-                        : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
-                    }`}
-                  >
-                    {rate}%
-                  </button>
-                ))}
+        {/* ─── TAX, SHIPPING SETTINGS & GRAND TOTAL ─── */}
+        <div className="bg-slate-50 border border-slate-200 rounded-xl sm:rounded-2xl p-3.5 sm:p-4 space-y-3">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 sm:gap-4">
+            <div className="flex flex-wrap items-center gap-3 sm:gap-4 w-full md:w-auto">
+              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 w-full sm:w-auto">
+                <span className="text-[11px] sm:text-xs font-bold text-slate-700">GST Rate:</span>
+                <div className="flex items-center gap-1">
+                  {[0, 5, 12, 18].map(rate => (
+                    <button
+                      key={rate}
+                      type="button"
+                      onClick={() => setGstRate(rate)}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                        gstRate === rate
+                          ? 'bg-rose-600 text-white shadow-xs'
+                          : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
+                      }`}
+                    >
+                      {rate}%
+                    </button>
+                  ))}
+                </div>
+                <div className="flex items-center border border-slate-300 rounded-lg bg-white overflow-hidden w-16 sm:w-20 px-2 py-1">
+                  <input
+                    type="number"
+                    min="0"
+                    max="40"
+                    step="0.5"
+                    value={gstRate}
+                    onChange={(e) => setGstRate(Math.max(0, parseFloat(e.target.value) || 0))}
+                    className="w-full text-xs font-bold text-slate-800 text-center focus:outline-none"
+                  />
+                  <span className="text-[10px] text-slate-400 font-bold">%</span>
+                </div>
               </div>
-              <div className="flex items-center border border-slate-300 rounded-lg bg-white overflow-hidden w-16 sm:w-20 px-2 py-1">
-                <input
-                  type="number"
-                  min="0"
-                  max="40"
-                  step="0.5"
-                  value={gstRate}
-                  onChange={(e) => setGstRate(Math.max(0, parseFloat(e.target.value) || 0))}
-                  className="w-full text-xs font-bold text-slate-800 text-center focus:outline-none"
-                />
-                <span className="text-[10px] text-slate-400 font-bold">%</span>
+
+              <div className="flex items-center justify-between sm:justify-start gap-2 w-full sm:w-auto">
+                <span className="text-[11px] sm:text-xs font-bold text-slate-700">Shipping:</span>
+                <div className="flex items-center border border-slate-300 rounded-lg bg-white overflow-hidden w-28 px-2 py-1">
+                  <span className="text-xs text-slate-400 font-bold mr-1">₹</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="50"
+                    value={shippingCharges}
+                    onChange={(e) => setShippingCharges(Math.max(0, parseFloat(e.target.value) || 0))}
+                    placeholder="0"
+                    className="w-full text-xs font-bold text-slate-800 focus:outline-none"
+                  />
+                </div>
               </div>
             </div>
 
-            <div className="flex items-center justify-between sm:justify-start gap-2 w-full sm:w-auto">
-              <span className="text-[11px] sm:text-xs font-bold text-slate-700">Shipping:</span>
-              <div className="flex items-center border border-slate-300 rounded-lg bg-white overflow-hidden w-28 px-2 py-1">
-                <span className="text-xs text-slate-400 font-bold mr-1">₹</span>
-                <input
-                  type="number"
-                  min="0"
-                  step="50"
-                  value={shippingCharges}
-                  onChange={(e) => setShippingCharges(Math.max(0, parseFloat(e.target.value) || 0))}
-                  placeholder="0"
-                  className="w-full text-xs font-bold text-slate-800 focus:outline-none"
-                />
-              </div>
+            <div className="text-left md:text-right w-full md:w-auto text-[11px] sm:text-xs text-slate-500 font-medium pt-1 md:pt-0 border-t md:border-t-0 border-slate-200/60">
+              Taxes &amp; freight auto-calculate in totals
             </div>
           </div>
 
-          <div className="text-left md:text-right w-full md:w-auto text-[11px] sm:text-xs text-slate-500 font-medium pt-1 md:pt-0 border-t md:border-t-0 border-slate-200/60">
-            Taxes & freight auto-calculate in totals
-          </div>
-        </div>
-
-        {/* ─── GRAND TOTAL & CALCULATION BREAKDOWN SUMMARY CARD ─── */}
-        {calculationSummary.items.length > 0 && (
-          <div className="bg-gradient-to-br from-slate-900 via-slate-850 to-slate-950 text-white rounded-2xl p-4 sm:p-6 shadow-xl border border-slate-700 space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-700/80">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-rose-600 text-white flex items-center justify-center font-black shadow-md">
-                  ₹
-                </div>
-                <div>
-                  <h3 className="text-sm sm:text-base font-black text-white flex items-center gap-2">
-                    <span>Order Grand Total Summary</span>
-                    <span className="text-[10px] bg-rose-500/20 text-rose-300 border border-rose-500/30 px-2 py-0.5 rounded-full font-bold">
-                      {calculationSummary.isWithGst ? 'GST Included' : 'Excl. GST'}
-                    </span>
-                  </h3>
-                  <p className="text-[11px] text-slate-400">
-                    Live calculation across {calculationSummary.items.length} {calculationSummary.items.length === 1 ? 'product' : 'products'} ({calculationSummary.totalPieces.toLocaleString()} pcs • {calculationSummary.totalCartons} ctn)
-                  </p>
-                </div>
-              </div>
-              {calculationSummary.totalMarginDiscount > 0 && (
-                <div className="text-left sm:text-right">
-                  <span className="text-[10px] text-emerald-400 font-bold block uppercase tracking-wider">
-                    Total Margin Savings
-                  </span>
-                  <span className="text-sm font-black font-mono text-emerald-300">
-                    ₹{Math.round(calculationSummary.totalMarginDiscount).toLocaleString('en-IN')} ({calculationSummary.averageMarginPct}%)
-                  </span>
-                </div>
-              )}
-            </div>
-
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 text-xs">
-              {/* 1. Total MRP Value */}
-              <div className="bg-white/5 p-3 sm:p-3.5 rounded-xl border border-white/10">
-                <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">
-                  Total Catalog MRP
-                </span>
-                <span className="text-sm sm:text-base font-black font-mono text-slate-200 mt-0.5 block">
-                  ₹{Math.round(calculationSummary.totalMrpValue).toLocaleString('en-IN')}
-                </span>
-              </div>
-
-              {/* 2. Taxable Subtotal */}
-              <div className="bg-white/5 p-3 sm:p-3.5 rounded-xl border border-white/10">
-                <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">
-                  Taxable Subtotal
-                </span>
-                <span className="text-sm sm:text-base font-black font-mono text-white mt-0.5 block">
-                  ₹{Math.round(calculationSummary.subtotalWithoutGst).toLocaleString('en-IN')}
-                </span>
-              </div>
-
-              {/* 3. GST & Shipping */}
-              <div className="bg-white/5 p-3 sm:p-3.5 rounded-xl border border-white/10">
-                <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider truncate">
-                  GST ({calculationSummary.gstRate}%) + Freight
-                </span>
-                <span className="text-sm sm:text-base font-black font-mono text-amber-300 mt-0.5 block">
-                  +₹{Math.round(calculationSummary.totalGstAmount + calculationSummary.shippingCharges).toLocaleString('en-IN')}
-                </span>
-                <span className="block text-[9px] text-slate-400 mt-0.5">
-                  GST: ₹{Math.round(calculationSummary.totalGstAmount).toLocaleString('en-IN')} | Freight: ₹{calculationSummary.shippingCharges}
-                </span>
-              </div>
-
-              {/* 4. Grand Total */}
-              <div className="bg-gradient-to-br from-rose-600/40 via-amber-600/30 to-rose-700/40 p-3 sm:p-3.5 rounded-xl border border-rose-500/50 shadow-md">
-                <span className="text-[10px] uppercase font-black tracking-wider text-rose-300 block">
-                  Grand Total Amount
-                </span>
-                <span className="text-lg sm:text-2xl font-black font-mono text-white mt-0.5 block tracking-tight">
+          {/* Grand Total Row directly under shipping */}
+          {calculationSummary.items.length > 0 && (
+            <div className="pt-3 border-t border-slate-200/80 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <span className="text-xs sm:text-sm font-bold text-slate-700">Grand Total:</span>
+                <span className="text-lg sm:text-2xl font-black font-mono text-rose-600">
                   ₹{Math.round(calculationSummary.grandTotal).toLocaleString('en-IN')}
                 </span>
+                <span className="text-[10px] font-semibold text-slate-500">
+                  ({calculationSummary.isWithGst ? 'Incl. GST' : 'Excl. GST'}{calculationSummary.shippingCharges > 0 ? ' & Freight' : ''})
+                </span>
+              </div>
+              <div className="text-xs text-slate-500 font-medium">
+                Taxable: ₹{Math.round(calculationSummary.subtotalWithoutGst).toLocaleString('en-IN')} | GST ({calculationSummary.gstRate}%): ₹{Math.round(calculationSummary.totalGstAmount).toLocaleString('en-IN')}
               </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* ─── ACTION DECK: GENERATE OFFICIAL QUOTATION ─────────────────────── */}
