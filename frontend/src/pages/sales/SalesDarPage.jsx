@@ -169,30 +169,37 @@ export default function SalesDarPage() {
           </div>
         </div>
 
-        {/* Date Filter Pills */}
-        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar mt-4 pt-3 border-t border-white/20">
-          {[
-            { id: 'today', label: 'Today' },
-            { id: 'yesterday', label: 'Yesterday' },
-            { id: 'week', label: 'Last 7 Days' },
-            { id: 'month', label: 'This Month' },
-            { id: 'custom', label: 'Custom 📅' }
-          ].map((item) => (
-            <button
-              key={item.id}
-              onClick={() => {
-                setSelectedRange(item.id);
-                if (item.id === 'custom') setShowCustomPicker(true);
+        {/* Date Filter Dropdown */}
+        <div className="flex items-center justify-between gap-3 mt-4 pt-3 border-t border-white/20">
+          <label className="text-xs font-bold text-white flex items-center gap-1.5 shrink-0">
+            <Calendar className="w-3.5 h-3.5 text-amber-200" />
+            <span>Report Period:</span>
+          </label>
+
+          <div className="relative flex-1 sm:max-w-xs">
+            <select
+              value={selectedRange}
+              onChange={(e) => {
+                const val = e.target.value;
+                setSelectedRange(val);
+                if (val === 'custom') {
+                  setShowCustomPicker(true);
+                } else {
+                  setShowCustomPicker(false);
+                }
               }}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
-                selectedRange === item.id
-                  ? 'bg-white text-amber-900 shadow-sm'
-                  : 'bg-white/15 text-white hover:bg-white/25'
-              }`}
+              className="w-full appearance-none bg-white text-slate-900 font-bold text-xs pl-3 pr-8 py-2 rounded-xl border border-white/30 shadow-md focus:outline-none focus:ring-2 focus:ring-amber-300 cursor-pointer"
             >
-              {item.label}
-            </button>
-          ))}
+              <option value="today">Today</option>
+              <option value="yesterday">Yesterday</option>
+              <option value="week">Last 7 Days</option>
+              <option value="month">This Month</option>
+              <option value="custom">Custom Date Range 📅</option>
+            </select>
+            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-slate-600">
+              <ChevronDown className="w-4 h-4" />
+            </div>
+          </div>
         </div>
       </div>
 
