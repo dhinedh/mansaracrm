@@ -2522,11 +2522,11 @@ export default function SalesStoreVisitPage() {
               </div>
             </div>
 
-            <div className="p-4 sm:p-5 border-t border-slate-200 bg-slate-50 flex gap-2">
+            <div className="p-4 sm:p-5 border-t border-slate-200 bg-slate-50 flex items-center gap-2.5">
               <button
                 type="button"
                 onClick={() => setIssueBillModalOpen(false)}
-                className="flex-1 py-2.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold text-xs cursor-pointer transition-all"
+                className="w-24 sm:w-28 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs shrink-0 cursor-pointer transition-all border border-slate-200 text-center"
               >
                 Cancel
               </button>
@@ -2534,7 +2534,7 @@ export default function SalesStoreVisitPage() {
                 type="button"
                 onClick={handleIssueBill}
                 disabled={billSubmitting}
-                className="flex-2 bg-emerald-600 hover:bg-emerald-500 text-white font-black py-2.5 rounded-xl text-xs active:scale-95 transition-all cursor-pointer shadow-md shadow-emerald-600/20 disabled:opacity-50"
+                className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-black py-2.5 rounded-xl text-xs active:scale-95 transition-all cursor-pointer shadow-md shadow-emerald-600/20 disabled:opacity-50 flex items-center justify-center gap-1.5"
               >
                 {billSubmitting ? 'Generating Bill...' : `Confirm & Issue Bill (₹${cartTotal.toFixed(2)})`}
               </button>
@@ -2628,20 +2628,21 @@ export default function SalesStoreVisitPage() {
                 />
               </div>
 
-              <div className="pt-2 flex gap-2">
+              <div className="pt-2 flex items-center gap-2.5">
                 <button
                   type="button"
                   onClick={() => setCheckoutModalOpen(false)}
-                  className="flex-1 py-2.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold text-xs cursor-pointer transition-all"
+                  className="w-24 sm:w-28 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs shrink-0 cursor-pointer transition-all border border-slate-200 text-center"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={checkoutSubmitting}
-                  className="flex-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-2.5 rounded-xl text-xs active:scale-95 transition-all cursor-pointer shadow-md disabled:opacity-50"
+                  className="flex-1 py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl text-xs sm:text-sm active:scale-95 transition-all cursor-pointer shadow-md shadow-amber-500/20 disabled:opacity-50 flex items-center justify-center gap-1.5"
                 >
-                  {checkoutSubmitting ? 'Checking Out...' : 'Confirm Check-Out'}
+                  <span>{checkoutSubmitting ? 'Checking Out...' : 'Confirm Check-Out'}</span>
+                  <CheckCircle2 className="w-4 h-4" />
                 </button>
               </div>
             </form>
