@@ -124,18 +124,41 @@ export default function SalesStoreVisitPage() {
         let currentStore = store;
         let currentVisit = visitRecord;
 
+        // Try checking active check-in on server first
+        try {
+          const activeRes = await axios.get('/field-sales/visits/active-checkin');
+          if (activeRes.data?.success && activeRes.data.hasActiveCheckIn && activeRes.data.data) {
+            const serverVisit = activeRes.data.data;
+            const targetStoreId = serverVisit.storeId || serverVisit.store?._id || serverVisit.store?.id;
+            if (!urlStoreId || targetStoreId === urlStoreId) {
+              currentVisit = serverVisit;
+              if (serverVisit.store) currentStore = serverVisit.store;
+              setVisitRecord(serverVisit);
+              if (serverVisit.store) setStore(serverVisit.store);
+              if (serverVisit.purpose) setSelectedPurpose(serverVisit.purpose);
+            }
+          }
+        } catch (e) {
+          console.warn('Could not check active visit with server:', e);
+        }
+
         // Try recovering from localStorage
-        if (!currentStore || !currentVisit) {
+        if (!currentVisit) {
           try {
             const saved = localStorage.getItem('mansara_active_visit');
             if (saved) {
               const parsed = JSON.parse(saved);
-              if (parsed.store && (!urlStoreId || parsed.store._id === urlStoreId)) {
+              const targetStoreId = parsed.store?._id || parsed.store?.id;
+              const visitTime = new Date(parsed.visit?.checkInTime || parsed.visit?.createdAt || 0).getTime();
+              const isRecent = (Date.now() - visitTime) < 14 * 60 * 60 * 1000;
+              if (parsed.visit && parsed.visit.checkInTime && isRecent && (!urlStoreId || targetStoreId === urlStoreId)) {
                 currentStore = parsed.store;
                 currentVisit = parsed.visit;
                 setStore(currentStore);
                 setVisitRecord(currentVisit);
                 if (parsed.purpose) setSelectedPurpose(parsed.purpose);
+              } else if (!isRecent || !parsed.visit?.checkInTime) {
+                localStorage.removeItem('mansara_active_visit');
               }
             }
           } catch (e) {
@@ -143,7 +166,7 @@ export default function SalesStoreVisitPage() {
           }
         }
 
-        // If still missing and urlStoreId provided, fetch store details
+        // If store details missing, fetch them for display
         if (!currentStore && urlStoreId) {
           const res = await axios.get(`/field-sales/shops/${urlStoreId}`);
           if (res.data?.success) {
@@ -183,10 +206,10 @@ export default function SalesStoreVisitPage() {
     fetchCatalogue();
   }, [urlStoreId]);
 
-  // 2. Timer Effect
+  // 2. Timer Effect - Only ticks when verified checkInTime exists
   useEffect(() => {
-    if (visitRecord?.checkInTime || visitRecord?.createdAt) {
-      const startTime = new Date(visitRecord.checkInTime || visitRecord.createdAt).getTime();
+    if (visitRecord?.checkInTime) {
+      const startTime = new Date(visitRecord.checkInTime).getTime();
       const updateTimer = () => {
         const diffSeconds = Math.max(0, Math.floor((Date.now() - startTime) / 1000));
         setVisitTimer(diffSeconds);
@@ -194,9 +217,7 @@ export default function SalesStoreVisitPage() {
       updateTimer();
       timerRef.current = setInterval(updateTimer, 1000);
     } else {
-      timerRef.current = setInterval(() => {
-        setVisitTimer(prev => prev + 1);
-      }, 1000);
+      setVisitTimer(0);
     }
 
     return () => {
@@ -688,6 +709,88 @@ export default function SalesStoreVisitPage() {
         >
           Go to Beat & Shop Visits
         </button>
+      </div>
+    );
+  }
+
+  // Verify that an active, live check-in exists for this store before opening the visit workspace
+  const isStoreCheckedIn = Boolean(
+    visitRecord &&
+    visitRecord.checkInTime &&
+    visitRecord.status !== 'COMPLETED' &&
+    !visitRecord.checkOutTime &&
+    (
+      !urlStoreId ||
+      visitRecord.storeId === urlStoreId ||
+      visitRecord.store?._id === urlStoreId ||
+      visitRecord.store?.id === urlStoreId ||
+      (store && (visitRecord.storeId === store._id || visitRecord.store?._id === store._id))
+    )
+  );
+
+  if (!isStoreCheckedIn) {
+    return (
+      <div className="max-w-lg mx-auto py-12 px-4 text-center space-y-6 animate-fade-in">
+        <div className="w-16 h-16 rounded-3xl bg-amber-500/10 border-2 border-amber-500/30 text-amber-600 flex items-center justify-center mx-auto shadow-sm">
+          <MapPin className="w-8 h-8 text-amber-600 animate-pulse" />
+        </div>
+
+        <div className="space-y-2">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-100 text-red-700 text-xs font-black uppercase tracking-wider">
+            <AlertCircle className="w-3.5 h-3.5" /> Live Check-In Required
+          </div>
+          <h2 className="text-xl font-black text-slate-900">
+            {store?.name ? `Check In to Visit "${store.name}"` : 'Store Visit Locked'}
+          </h2>
+          <p className="text-xs text-slate-500 max-w-sm mx-auto leading-relaxed">
+            Company field policy strictly requires a verified live GPS check-in before opening order booking, product catalogue, payments, or audit tools.
+          </p>
+        </div>
+
+        {store && (
+          <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-left max-w-sm mx-auto space-y-1">
+            <p className="text-xs font-black text-slate-800">{store.name}</p>
+            <p className="text-[11px] text-slate-500">{store.address || store.city || 'Store Location'}</p>
+            {store.phone && <p className="text-[11px] text-slate-500 font-medium">Contact: {store.phone}</p>}
+          </div>
+        )}
+
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+          {store ? (
+            <button
+              type="button"
+              onClick={() => {
+                try {
+                  sessionStorage.setItem('mansara_pending_checkin_store', JSON.stringify(store));
+                } catch (e) {}
+                navigate('/sales/checkin/purpose', {
+                  state: { shop: store }
+                });
+              }}
+              className="w-full sm:w-auto bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-5 py-3 rounded-xl text-xs active:scale-95 transition-all shadow-md shadow-amber-500/20 flex items-center justify-center gap-2"
+            >
+              <MapPin className="w-4 h-4" />
+              <span>Perform Live GPS Check-In</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => navigate('/sales/checkin')}
+              className="w-full sm:w-auto bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-5 py-3 rounded-xl text-xs active:scale-95 transition-all shadow-md shadow-amber-500/20 flex items-center justify-center gap-2"
+            >
+              <MapPin className="w-4 h-4" />
+              <span>Go to GPS Check-In</span>
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={() => navigate('/sales/visits')}
+            className="w-full sm:w-auto bg-white hover:bg-slate-50 text-slate-700 font-bold px-5 py-3 rounded-xl text-xs border border-slate-200 active:scale-95 transition-all shadow-xs"
+          >
+            Back to Beat Route
+          </button>
+        </div>
       </div>
     );
   }

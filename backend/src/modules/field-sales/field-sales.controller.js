@@ -92,6 +92,22 @@ exports.getActiveVisit = async (req, res, next) => {
       return res.json({ success: true, hasActiveCheckIn: false, data: null });
     }
 
+    // Check if visit is from today / within 16 hours
+    const visitDate = new Date(activeVisit.checkInTime || activeVisit.createdAt);
+    const hoursOld = (Date.now() - visitDate.getTime()) / (1000 * 60 * 60);
+    if (hoursOld > 16) {
+      // Auto-complete stale orphan visits from previous days
+      await prisma.visit.update({
+        where: { id: activeVisit.id },
+        data: {
+          status: 'COMPLETED',
+          checkOutTime: new Date(),
+          outcome: 'Auto-closed stale visit'
+        }
+      });
+      return res.json({ success: true, hasActiveCheckIn: false, data: null });
+    }
+
     let store = null;
     if (activeVisit.storeId) {
       store = await prisma.store.findUnique({ where: { id: activeVisit.storeId } });
@@ -99,6 +115,11 @@ exports.getActiveVisit = async (req, res, next) => {
       store = await prisma.lead.findUnique({ where: { id: activeVisit.leadId } });
     } else if (activeVisit.dealerId) {
       store = await prisma.dealer.findUnique({ where: { id: activeVisit.dealerId } });
+    }
+
+    if (!store) {
+      // If store is deleted or missing, this is an invalid check-in
+      return res.json({ success: true, hasActiveCheckIn: false, data: null });
     }
 
     return res.json({

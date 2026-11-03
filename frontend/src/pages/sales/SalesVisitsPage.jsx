@@ -270,19 +270,53 @@ export default function SalesVisitsPage() {
       const res = await axios.get('/field-sales/visits');
       if (res.data?.success) {
         setVisitHistory(res.data.data);
-        const inProgress = res.data.data.find(v => !v.checkOutTime && v.status !== 'COMPLETED');
-        if (inProgress && !activeVisitRecord) {
-          setActiveVisitRecord(inProgress);
-          const shopObj = inProgress.storeId || inProgress.store;
-          if (shopObj) {
-            setActiveShopWindow(shopObj);
-            const targetStoreId = typeof shopObj === 'string' ? shopObj : (shopObj._id || shopObj.id);
-            if (targetStoreId && targetStoreId !== 'undefined' && targetStoreId !== 'null') {
-              fetchCustomer360(targetStoreId);
-            }
-          }
-        }
       }
+
+      // Check for verified live active check-in from server
+      try {
+        const activeRes = await axios.get('/field-sales/visits/active-checkin');
+        if (activeRes.data?.success && activeRes.data.hasActiveCheckIn && activeRes.data.data?.store?.name) {
+          const liveVisit = activeRes.data.data;
+          const liveStore = liveVisit.store;
+          setActiveVisitRecord(liveVisit);
+          setActiveShopWindow(liveStore);
+          const targetStoreId = liveStore._id || liveStore.id;
+          if (targetStoreId) fetchCustomer360(targetStoreId);
+
+          // Sync localStorage
+          localStorage.setItem('mansara_active_visit', JSON.stringify({
+            visit: liveVisit,
+            store: liveStore,
+            purpose: liveVisit.purpose || 'Store Visit',
+            startedAt: liveVisit.checkInTime || liveVisit.createdAt || new Date().toISOString()
+          }));
+          return;
+        }
+      } catch (err) {
+        console.warn('Could not fetch active check-in from server:', err);
+      }
+
+      // If server has no active check-in, verify if localStorage has a valid recent check-in
+      const saved = localStorage.getItem('mansara_active_visit');
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          const started = new Date(parsed.startedAt || parsed.visit?.checkInTime || 0).getTime();
+          const hoursOld = (Date.now() - started) / (1000 * 60 * 60);
+          if (parsed.visit && parsed.store?.name && hoursOld < 14) {
+            setActiveVisitRecord(parsed.visit);
+            setActiveShopWindow(parsed.store);
+            if (parsed.purpose) setSelectedPurpose(parsed.purpose);
+            return;
+          }
+        } catch (e) {}
+        // Stale or invalid visit in localStorage - clear it!
+        localStorage.removeItem('mansara_active_visit');
+      }
+
+      // No verified live check-in active
+      setActiveVisitRecord(null);
+      setActiveShopWindow(null);
     } catch (err) {
       console.error('Error fetching visits:', err);
     }
@@ -351,10 +385,14 @@ export default function SalesVisitsPage() {
   // Timer for active visit
   useEffect(() => {
     let interval = null;
-    if (activeVisitRecord) {
-      interval = setInterval(() => {
-        setVisitTimer(prev => prev + 1);
-      }, 1000);
+    if (activeVisitRecord?.checkInTime || activeVisitRecord?.createdAt) {
+      const startTime = new Date(activeVisitRecord.checkInTime || activeVisitRecord.createdAt).getTime();
+      const updateTimer = () => {
+        const diffSeconds = Math.max(0, Math.floor((Date.now() - startTime) / 1000));
+        setVisitTimer(diffSeconds);
+      };
+      updateTimer();
+      interval = setInterval(updateTimer, 1000);
     } else {
       setVisitTimer(0);
     }
@@ -1339,7 +1377,7 @@ export default function SalesVisitsPage() {
       </div>
 
       {/* ACTIVE VISIT BANNER (If Visit In Progress) */}
-      {activeVisitRecord && activeShopWindow && (
+      {Boolean(activeVisitRecord && activeVisitRecord.checkInTime && activeShopWindow && activeShopWindow.name) && (
         <div className="bg-gradient-to-r from-amber-500/20 via-slate-800 to-slate-900 border border-amber-500/50 p-4 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xl">
           <div className="flex items-center gap-3.5">
             <div className="relative">
@@ -1665,29 +1703,14 @@ export default function SalesVisitsPage() {
                         </button>
                       </>
                     ) : (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => handleCheckInToShop(shop, visitInfo.purpose)}
-                          className="flex-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-2.5 px-3 rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-all shadow-md shadow-amber-500/20"
-                        >
-                          <Navigation className="w-3.5 h-3.5" />
-                          <span>GPS Check-In</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => navigate(`/sales/store-visit/${shop._id || shop.id}`, {
-                            state: {
-                              store: shop,
-                              purpose: visitInfo?.purpose || 'Order Booking'
-                            }
-                          })}
-                          className="p-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-slate-300 hover:text-white transition-all cursor-pointer"
-                          title="Open Store Details & Ordering"
-                        >
-                          <ChevronRight className="w-4 h-4" />
-                        </button>
-                      </>
+                      <button
+                        type="button"
+                        onClick={() => handleCheckInToShop(shop, visitInfo.purpose)}
+                        className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-2.5 px-3 rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-all shadow-md shadow-amber-500/20"
+                      >
+                        <Navigation className="w-3.5 h-3.5" />
+                        <span>GPS Check-In to Start Visit</span>
+                      </button>
                     )}
                   </div>
                 </div>
