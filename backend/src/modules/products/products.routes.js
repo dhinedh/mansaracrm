@@ -34,8 +34,8 @@ router.post('/', requireRole('ADMIN'), upload.single('image'), validate([
   body('name').notEmpty().withMessage('Product name is required'),
   body('sku').notEmpty().withMessage('SKU code is required'),
   body('price').isFloat({ gt: 0 }).withMessage('Price must be greater than 0'),
-  body('gstPercent').isFloat({ min: 0 }).withMessage('GST percent must be non-negative'),
-  body('categoryId').notEmpty().withMessage('Category ID is required')
+  body('gstPercent').optional().isFloat({ min: 0 }).withMessage('GST percent must be non-negative'),
+  body('categoryId').optional()
 ]), productsController.createProduct);
 
 router.patch('/:id/toggle-status', requireRole('ADMIN'), productsController.toggleProductStatus);

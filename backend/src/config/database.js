@@ -1989,7 +1989,13 @@ async function resolveRelationFilters(where, modelName) {
       if (key === 'id') {
         query['_id'] = val;
       } else if (key === 'categoryId' && modelName === 'Product') {
-        query['category'] = val;
+        if (val && val !== 'all' && val !== 'undefined' && val !== 'null' && String(val).trim() !== '') {
+          if (mongoose.Types.ObjectId.isValid(val)) {
+            query['category'] = new mongoose.Types.ObjectId(val);
+          } else {
+            query['category'] = val;
+          }
+        }
       } else {
         query[key] = val;
       }
