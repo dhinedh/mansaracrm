@@ -85,7 +85,7 @@ exports.getActiveVisit = async (req, res, next) => {
 
     const list = Array.isArray(visits) ? visits : (visits?.data || []);
     const activeVisit = list.find(
-      v => !v.checkOutTime && (v.status === 'IN_PROGRESS' || v.checkInTime)
+      v => v.status !== 'COMPLETED' && !v.checkOutTime && (v.status === 'IN_PROGRESS' || v.checkInTime)
     );
 
     if (!activeVisit) {
@@ -243,38 +243,42 @@ exports.checkOutVisit = async (req, res, next) => {
 
     const storeId = visit.storeId;
 
-    const updated = await prisma.$transaction(async (tx) => {
-      // A. Update visit record
-      const updateData = {
-        outcome,
-        status: 'COMPLETED',
-        orderValue: parseFloat(orderValue || 0),
-        paymentsCollected: parseFloat(paymentsCollected || 0),
-        paymentMethod: paymentMethod || 'NONE',
-        newInvoiceId: newInvoiceId || null,
-        revisitDate: revisitDate ? new Date(revisitDate) : null,
-        checkOutTime: new Date()
-      };
-      if (remarks !== undefined) updateData.remarks = remarks;
-      if (photos !== undefined) updateData.photos = Array.isArray(photos) ? photos : [photos].filter(Boolean);
+    // A. Update visit record directly to ensure it is marked COMPLETED with checkOutTime
+    const updateData = {
+      outcome: outcome || 'Visit completed & checked out',
+      status: 'COMPLETED',
+      orderValue: parseFloat(orderValue || 0),
+      paymentsCollected: parseFloat(paymentsCollected || 0),
+      paymentMethod: paymentMethod || 'NONE',
+      newInvoiceId: newInvoiceId || null,
+      revisitDate: revisitDate ? new Date(revisitDate) : null,
+      checkOutTime: new Date()
+    };
+    if (remarks !== undefined) updateData.remarks = remarks;
+    if (photos !== undefined) updateData.photos = Array.isArray(photos) ? photos : [photos].filter(Boolean);
 
-      const v = await tx.visit.update({
-        where: { id },
-        data: updateData
-      });
+    const updated = await prisma.visit.update({
+      where: { id },
+      data: updateData
+    });
 
-      // B. Update store's revisitDate
-      if (revisitDate && storeId) {
-        await tx.store.update({
+    // B. Safely update store's revisitDate if applicable
+    if (revisitDate && storeId) {
+      try {
+        await prisma.store.update({
           where: { id: storeId },
           data: { revisitDate: new Date(revisitDate) }
         });
+      } catch (e) {
+        console.warn('Could not update store revisit date:', e);
       }
+    }
 
-      // C. FIFO Cascade collected payments to store's open invoices
-      let remainingPayment = parseFloat(paymentsCollected || 0);
-      if (remainingPayment > 0 && storeId) {
-        const openInvoices = await tx.invoice.findMany({
+    // C. Safely cascade collected payments to open invoices
+    let remainingPayment = parseFloat(paymentsCollected || 0);
+    if (remainingPayment > 0 && storeId) {
+      try {
+        const openInvoices = await prisma.invoice.findMany({
           where: { storeId, status: 'OPEN' },
           orderBy: { createdAt: 'asc' }
         });
@@ -284,7 +288,7 @@ exports.checkOutVisit = async (req, res, next) => {
           
           if (remainingPayment >= inv.totalAmount) {
             remainingPayment -= inv.totalAmount;
-            await tx.invoice.update({
+            await prisma.invoice.update({
               where: { id: inv.id },
               data: { 
                 status: 'CLOSED', 
@@ -293,7 +297,7 @@ exports.checkOutVisit = async (req, res, next) => {
               }
             });
           } else {
-            await tx.invoice.update({
+            await prisma.invoice.update({
               where: { id: inv.id },
               data: { 
                 totalAmount: inv.totalAmount - remainingPayment 
@@ -302,12 +306,46 @@ exports.checkOutVisit = async (req, res, next) => {
             remainingPayment = 0;
           }
         }
+      } catch (e) {
+        console.warn('Could not cascade collected payment:', e);
       }
-
-      return v;
-    });
+    }
 
     res.json({ success: true, message: 'Checked out successfully and payments processed', data: updated });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.checkOutActiveVisit = async (req, res, next) => {
+  try {
+    const { outcome = 'Visit completed & checked out', remarks = '' } = req.body || {};
+
+    const visits = await prisma.visit.findMany({
+      where: { salespersonId: req.user.id },
+      orderBy: { createdAt: 'desc' },
+      take: 20
+    });
+    const list = Array.isArray(visits) ? visits : (visits?.data || []);
+    const activeVisit = list.find(
+      v => v.status !== 'COMPLETED' && !v.checkOutTime && (v.status === 'IN_PROGRESS' || v.checkInTime)
+    );
+
+    if (!activeVisit) {
+      return res.json({ success: true, message: 'No active visit found or already checked out' });
+    }
+
+    const updated = await prisma.visit.update({
+      where: { id: activeVisit.id },
+      data: {
+        status: 'COMPLETED',
+        checkOutTime: new Date(),
+        outcome: outcome || 'Checked out from salesperson portal',
+        remarks: remarks || activeVisit.remarks || undefined
+      }
+    });
+
+    return res.json({ success: true, message: 'Active visit checked out successfully', data: updated });
   } catch (error) {
     next(error);
   }

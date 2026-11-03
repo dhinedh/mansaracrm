@@ -291,6 +291,12 @@ export default function SalesVisitsPage() {
             startedAt: liveVisit.checkInTime || liveVisit.createdAt || new Date().toISOString()
           }));
           return;
+        } else if (activeRes.data?.success && !activeRes.data.hasActiveCheckIn) {
+          // Server explicitly confirms no active check-in - purge local cache immediately
+          localStorage.removeItem('mansara_active_visit');
+          setActiveVisitRecord(null);
+          setActiveShopWindow(null);
+          return;
         }
       } catch (err) {
         console.warn('Could not fetch active check-in from server:', err);

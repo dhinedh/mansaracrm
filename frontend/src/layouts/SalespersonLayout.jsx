@@ -21,6 +21,7 @@ export default function SalespersonLayout() {
   const [checkingLogout, setCheckingLogout] = useState(false);
   const [blockedLogoutModalOpen, setBlockedLogoutModalOpen] = useState(false);
   const [activeCheckInVisit, setActiveCheckInVisit] = useState(null);
+  const [instantCheckingOut, setInstantCheckingOut] = useState(false);
 
   const isDashboard = location.pathname === '/sales/dashboard' || location.pathname === '/sales';
   const isBillingActive = location.pathname === '/sales/orders' || location.pathname === '/sales/pricing' || location.pathname === '/sales/quotations' || location.pathname === '/sales/amendments';
@@ -67,97 +68,110 @@ export default function SalespersonLayout() {
   const handleLogout = async () => {
     setCheckingLogout(true);
     try {
-      let activeVisit = null;
+      // 1. When online, ALWAYS verify with server first (source of truth)
+      if (navigator.onLine) {
+        try {
+          const res = await axios.get('/field-sales/visits/active');
+          if (res.data?.success) {
+            if (!res.data.hasActiveCheckIn) {
+              // Server confirms visit is already checked out!
+              // Clear stale local cache and log out immediately
+              localStorage.removeItem('mansara_active_visit');
+              logout();
+              navigate('/sales/login');
+              return;
+            } else if (res.data.data) {
+              // Server confirms active check-in in progress
+              setActiveCheckInVisit(res.data.data);
+              setBlockedLogoutModalOpen(true);
+              setMobileMenuOpen(false);
+              return;
+            }
+          }
+        } catch (err) {
+          console.warn('Could not query active visit from server:', err);
+        }
+      }
 
-      // 1. Check local active visit storage first (instant & works offline)
+      // 2. Offline fallback: check local storage only if offline or server unreachable
       try {
         const saved = localStorage.getItem('mansara_active_visit');
         if (saved) {
           const parsed = JSON.parse(saved);
           const startedAt = new Date(parsed.startedAt || parsed.visit?.checkInTime || parsed.visit?.createdAt || 0).getTime();
           const hoursOld = (Date.now() - startedAt) / (1000 * 60 * 60);
-          if (parsed.visit && !parsed.visit.checkOutTime && hoursOld < 18) {
-            activeVisit = {
+          if (parsed.visit && !parsed.visit.checkOutTime && hoursOld < 12) {
+            setActiveCheckInVisit({
               ...parsed.visit,
               store: parsed.store || { name: 'Active Store Visit' },
               purpose: parsed.purpose || parsed.visit.purpose
-            };
+            });
+            setBlockedLogoutModalOpen(true);
+            setMobileMenuOpen(false);
+            return;
+          } else {
+            // Older than 12h or stale
+            localStorage.removeItem('mansara_active_visit');
           }
         }
       } catch (e) {
         console.warn('Error checking local active visit:', e);
       }
 
-      // 2. Query active check-in endpoint from server
-      if (!activeVisit) {
-        try {
-          const res = await axios.get('/field-sales/visits/active');
-          if (res.data?.success && res.data?.hasActiveCheckIn && res.data?.data) {
-            activeVisit = res.data.data;
-          }
-        } catch (err) {
-          console.warn('Could not query /visits/active:', err);
-        }
-      }
-
-      // 3. Fallback check against visits history
-      if (!activeVisit) {
-        try {
-          const res = await axios.get('/field-sales/visits?limit=30');
-          const list = Array.isArray(res.data?.data) ? res.data.data : [];
-          const found = list.find(v => !v.checkOutTime && (v.status === 'IN_PROGRESS' || v.checkInTime || v.status !== 'COMPLETED'));
-          if (found) {
-            activeVisit = found;
-          }
-        } catch (e) {
-          console.warn('Visits list fallback query failed:', e);
-        }
-      }
-
-      // 4. STRICT ENFORCEMENT: If there is an active check-in, BLOCK LOGOUT!
-      if (activeVisit) {
-        setActiveCheckInVisit(activeVisit);
-        setBlockedLogoutModalOpen(true);
-        setMobileMenuOpen(false);
-        return;
-      }
-
-      // 5. Final fallback check of localStorage before allowing sign-out
-      const finalLocal = localStorage.getItem('mansara_active_visit');
-      if (finalLocal) {
-        try {
-          const p = JSON.parse(finalLocal);
-          if (p?.visit && !p.visit.checkOutTime) {
-            setActiveCheckInVisit(p.visit);
-            setBlockedLogoutModalOpen(true);
-            setMobileMenuOpen(false);
-            return;
-          }
-        } catch (e) {}
-      }
-
-      // 6. Safe to proceed with logout
+      // 3. Clear local visit cache and proceed to log out
+      localStorage.removeItem('mansara_active_visit');
       logout();
       navigate('/sales/login');
     } catch (error) {
       console.error('Logout error:', error);
-      // If error occurs, inspect localStorage before any sign-out
-      const fallbackLocal = localStorage.getItem('mansara_active_visit');
-      if (fallbackLocal) {
-        try {
-          const parsed = JSON.parse(fallbackLocal);
-          if (parsed?.visit && !parsed.visit.checkOutTime) {
-            setActiveCheckInVisit(parsed.visit);
-            setBlockedLogoutModalOpen(true);
-            setMobileMenuOpen(false);
-            return;
-          }
-        } catch (e) {}
-      }
-      alert('Cannot log out while checking active visit status. Please verify all visits are checked out.');
+      localStorage.removeItem('mansara_active_visit');
+      logout();
+      navigate('/sales/login');
     } finally {
       setCheckingLogout(false);
     }
+  };
+
+  // Instant Check-Out and Log Out
+  const handleInstantCheckOutAndExit = async () => {
+    setInstantCheckingOut(true);
+    try {
+      const visitId = activeCheckInVisit?._id || activeCheckInVisit?.id;
+      if (visitId) {
+        await axios.post(`/field-sales/visits/${visitId}/check-out`, {
+          outcome: 'Store visit checked out upon logout'
+        }).catch(async () => {
+          await axios.post('/field-sales/visits/active/check-out', {
+            outcome: 'Store visit checked out upon logout'
+          }).catch(() => {});
+        });
+      } else {
+        await axios.post('/field-sales/visits/active/check-out', {
+          outcome: 'Store visit checked out upon logout'
+        }).catch(() => {});
+      }
+    } catch (e) {
+      console.warn('Instant check-out error:', e);
+    } finally {
+      localStorage.removeItem('mansara_active_visit');
+      setBlockedLogoutModalOpen(false);
+      setInstantCheckingOut(false);
+      logout();
+      navigate('/sales/login');
+    }
+  };
+
+  // Force Log Out (clears local cache & tells server to complete active visit)
+  const handleForceLogOut = async () => {
+    try {
+      await axios.post('/field-sales/visits/active/check-out', {
+        outcome: 'Completed visit & forced sign-out'
+      }).catch(() => {});
+    } catch (e) {}
+    localStorage.removeItem('mansara_active_visit');
+    setBlockedLogoutModalOpen(false);
+    logout();
+    navigate('/sales/login');
   };
 
   const handleGoToCheckOut = () => {
@@ -533,22 +547,44 @@ export default function SalespersonLayout() {
             )}
 
             {/* Action Buttons */}
-            <div className="flex flex-col sm:flex-row gap-2.5 pt-1">
+            <div className="space-y-2.5 pt-1">
               <button
                 type="button"
-                onClick={handleGoToCheckOut}
-                className="flex-1 bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-500 hover:to-rose-600 text-white font-black py-3 px-4 rounded-xl text-xs flex items-center justify-center gap-2 shadow-lg shadow-rose-600/25 active:scale-95 transition-all cursor-pointer"
+                onClick={handleInstantCheckOutAndExit}
+                disabled={instantCheckingOut}
+                className="w-full bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white font-black py-3 px-4 rounded-xl text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/25 active:scale-95 transition-all cursor-pointer disabled:opacity-75"
               >
-                <MapPin className="w-4 h-4" />
-                <span>Go to Visit &amp; Check-Out</span>
+                {instantCheckingOut ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                <span>{instantCheckingOut ? 'Checking Out & Signing Out...' : 'Check-Out & Log Out Now'}</span>
               </button>
-              <button
-                type="button"
-                onClick={() => setBlockedLogoutModalOpen(false)}
-                className="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all cursor-pointer text-center"
-              >
-                Stay Logged In
-              </button>
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleGoToCheckOut}
+                  className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold py-2.5 px-3 rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer border border-slate-200"
+                >
+                  <MapPin className="w-3.5 h-3.5 text-rose-600" />
+                  <span>Go to Visit Page</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBlockedLogoutModalOpen(false)}
+                  className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold py-2.5 px-3 rounded-xl text-xs transition-all cursor-pointer text-center border border-slate-200"
+                >
+                  Stay Logged In
+                </button>
+              </div>
+
+              <div className="pt-2 border-t border-slate-100 text-center">
+                <button
+                  type="button"
+                  onClick={handleForceLogOut}
+                  className="text-[11px] text-slate-400 hover:text-slate-700 font-semibold underline underline-offset-2 transition-colors cursor-pointer"
+                >
+                  Already checked out? Clear cache &amp; force sign out
+                </button>
+              </div>
             </div>
           </div>
         </div>

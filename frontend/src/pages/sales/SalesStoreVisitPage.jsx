@@ -137,6 +137,8 @@ export default function SalesStoreVisitPage() {
               if (serverVisit.store) setStore(serverVisit.store);
               if (serverVisit.purpose) setSelectedPurpose(serverVisit.purpose);
             }
+          } else if (activeRes.data?.success && !activeRes.data.hasActiveCheckIn) {
+            localStorage.removeItem('mansara_active_visit');
           }
         } catch (e) {
           console.warn('Could not check active visit with server:', e);

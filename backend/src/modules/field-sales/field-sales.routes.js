@@ -29,6 +29,8 @@ router.get('/visits/active-checkin', fieldSalesController.getActiveVisit);
 router.post('/visits/check-in', fieldSalesController.checkInVisit);
 router.put('/visits/:id/purpose', fieldSalesController.updateVisitPurpose);
 router.put('/visits/:id', fieldSalesController.updateVisit);
+router.post('/visits/active/check-out', fieldSalesController.checkOutActiveVisit);
+router.post('/visits/active-checkout', fieldSalesController.checkOutActiveVisit);
 router.post('/visits/:id/check-out', fieldSalesController.checkOutVisit);
 router.get('/visits', fieldSalesController.getVisits);
 
