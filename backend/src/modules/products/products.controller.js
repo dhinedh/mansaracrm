@@ -41,12 +41,32 @@ exports.createCategory = async (req, res, next) => {
       ? subCategories.map(s => String(s).trim()).filter(Boolean)
       : [];
 
+    let baseSlug = (req.body.slug || name || '')
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)/g, '');
+    if (!baseSlug) baseSlug = `cat-${Date.now()}`;
+
+    // Ensure slug uniqueness
+    let slug = baseSlug;
+    let counter = 1;
+    while (await prisma.category.findFirst({ where: { slug } })) {
+      slug = `${baseSlug}-${counter++}`;
+    }
+
     const category = await prisma.category.create({
-      data: { name: name.trim(), description: description ? description.trim() : '', subCategories: cleanSubs }
+      data: {
+        name: name.trim(),
+        slug,
+        description: description ? description.trim() : '',
+        subCategories: cleanSubs
+      }
     });
 
     res.status(201).json({ success: true, message: 'Category created', data: category });
   } catch (error) {
+    console.error('❌ Error creating category:', error);
     next(error);
   }
 };
@@ -62,7 +82,12 @@ exports.updateCategory = async (req, res, next) => {
     }
 
     const updateData = {};
-    if (name !== undefined) updateData.name = name.trim();
+    if (name !== undefined) {
+      updateData.name = name.trim();
+      if (!existing.slug) {
+        updateData.slug = name.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+      }
+    }
     if (description !== undefined) updateData.description = description.trim();
     if (isActive !== undefined) updateData.isActive = Boolean(isActive);
     if (subCategories !== undefined && Array.isArray(subCategories)) {
@@ -76,6 +101,7 @@ exports.updateCategory = async (req, res, next) => {
 
     res.json({ success: true, message: 'Category updated successfully', data: updated });
   } catch (error) {
+    console.error('❌ Error updating category:', error);
     next(error);
   }
 };
