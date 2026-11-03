@@ -105,7 +105,7 @@ export default function MyLedgersPage() {
   const triggerClientSidePrint = (invoice) => {
     const company = {
       name: 'Mansara Foods Pvt. Ltd.',
-      gstNumber: '27AABCM1234F1Z5',
+      gstNumber: '33AAUCM3644B1ZJ',
       address: 'Flat No. B4, No.13, Balaji Nagar 1st street extn, Noombal, Chennai – 600077',
       phone: '+91-88388 87064',
       email: 'contact@mansarafoods.com'

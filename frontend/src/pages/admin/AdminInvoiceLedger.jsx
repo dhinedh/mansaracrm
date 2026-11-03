@@ -100,7 +100,7 @@ function InvoiceConfigModal({ isOpen, onClose, onSettingsUpdated }) {
   // Form State
   const [companyName, setCompanyName] = useState('Mansara Foods Pvt. Ltd.');
   const [logoBase64, setLogoBase64] = useState('');
-  const [gstNumber, setGstNumber] = useState('27AABCM1234F1Z5');
+  const [gstNumber, setGstNumber] = useState('33AAUCM3644B1ZJ');
   const [address, setAddress] = useState('Flat No. B4, No.13, Balaji Nagar 1st street extn, Noombal');
   const [city, setCity] = useState('Chennai');
   const [state, setState] = useState('Tamil Nadu');
@@ -134,7 +134,7 @@ function InvoiceConfigModal({ isOpen, onClose, onSettingsUpdated }) {
         const s = res.data.data;
         if (s.companyName) setCompanyName(s.companyName);
         if (s.logoBase64) setLogoBase64(s.logoBase64);
-        if (s.gstNumber) setGstNumber(s.gstNumber);
+        if (s.gstNumber) setGstNumber((s.gstNumber === '27AABCM1234F1Z5' || s.gstNumber === '33AABCM1234F1Z5') ? '33AAUCM3644B1ZJ' : s.gstNumber);
         if (s.address) setAddress(s.address);
         if (s.city) setCity(s.city || '');
         if (s.state) setState(s.state || 'Tamil Nadu');
@@ -375,7 +375,7 @@ function InvoiceConfigModal({ isOpen, onClose, onSettingsUpdated }) {
                           value={gstNumber}
                           onChange={e => setGstNumber(e.target.value.toUpperCase())}
                           className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-900 uppercase focus:outline-none focus:ring-2 focus:ring-rose-500"
-                          placeholder="e.g. 27AABCM1234F1Z5"
+                          placeholder="e.g. 33AAUCM3644B1ZJ"
                         />
                       </div>
                       <div>
@@ -604,7 +604,7 @@ function InvoiceConfigModal({ isOpen, onClose, onSettingsUpdated }) {
                       <p className="font-bold text-slate-800">{companyName}</p>
                       <p>{address}{city ? `, ${city}` : ''}</p>
                       <p>{state} - {pincode}</p>
-                      <p className="font-bold text-slate-900 mt-0.5">GSTIN: {gstNumber || '27AABCM1234F1Z5'}</p>
+                      <p className="font-bold text-slate-900 mt-0.5">GSTIN: {gstNumber || '33AAUCM3644B1ZJ'}</p>
                     </div>
                   </div>
                   <div className="text-right border-l border-slate-100 pl-3">

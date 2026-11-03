@@ -734,7 +734,7 @@ const buildAgreementHtml = (company, dealer, customTemplate = null) => {
     COMPANY_NAME: company.name || company.companyName || 'Mansara Foods Pvt. Ltd.',
     COMPANY_ADDRESS: company.address || 'B4, No.13, Balaji Nagar 1st street extn, Noombal, Chennai – 600077',
     COMPANY_PHONE: company.phone || '+91-88388 87064',
-    COMPANY_GST: company.gstNumber || '27AABCM1234F1Z5'
+    COMPANY_GST: company.gstNumber || '33AAUCM3644B1ZJ'
   };
 
   const renderedRecitals = (template.recitals || [])
@@ -805,7 +805,7 @@ const buildAgreementHtml = (company, dealer, customTemplate = null) => {
     <div class="company-hdr">
       <div class="company-title">${company.name || company.companyName || 'Mansara Foods Pvt Ltd'}</div>
       <div class="company-sub">${company.address || 'B4, No.13, Balaji Nagar 1st street extn, Noombal, Chennai – 600077'}, Tamil Nadu</div>
-      <div class="company-sub">Ph: ${company.phone || '+91-88388 87064'} | GST: ${company.gstNumber || '27AABCM1234F1Z5'}</div>
+      <div class="company-sub">Ph: ${company.phone || '+91-88388 87064'} | GST: ${company.gstNumber || '33AAUCM3644B1ZJ'}</div>
     </div>
   </div>
 
@@ -928,7 +928,7 @@ const buildClosureAgreementHtml = (company, dealer, customTemplate = null) => {
     COMPANY_NAME: company.name || company.companyName || 'Mansara Foods Pvt. Ltd.',
     COMPANY_ADDRESS: company.address || 'B4, No.13, Balaji Nagar 1st street extn, Noombal, Chennai – 600077',
     COMPANY_PHONE: company.phone || '+91-88388 87064',
-    COMPANY_GST: company.gstNumber || '27AABCM1234F1Z5'
+    COMPANY_GST: company.gstNumber || '33AAUCM3644B1ZJ'
   };
 
   const renderedRecitals = (template.recitals || [])
@@ -995,7 +995,7 @@ const buildClosureAgreementHtml = (company, dealer, customTemplate = null) => {
     <div class="company-hdr">
       <div class="company-title">${company.name || company.companyName || 'Mansara Foods Pvt Ltd'}</div>
       <div class="company-sub">${company.address || 'B4, No.13, Balaji Nagar 1st street extn, Noombal, Chennai – 600077'}, Tamil Nadu</div>
-      <div class="company-sub">Ph: ${company.phone || '+91-88388 87064'} | GST: ${company.gstNumber || '27AABCM1234F1Z5'}</div>
+      <div class="company-sub">Ph: ${company.phone || '+91-88388 87064'} | GST: ${company.gstNumber || '33AAUCM3644B1ZJ'}</div>
     </div>
   </div>
 

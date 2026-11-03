@@ -1429,7 +1429,7 @@ const SettingSchema = new Schema({
   companyName: { type: String, default: 'Mansara Foods Pvt. Ltd.' },
   logoBase64: { type: String, default: '' },
   logoUrl: { type: String, default: '' },
-  gstNumber: { type: String, default: '27AABCM1234F1Z5' },
+  gstNumber: { type: String, default: '33AAUCM3644B1ZJ' },
   city: { type: String, default: '' },
   state: { type: String, default: 'Tamil Nadu' },
   pincode: { type: String, default: '600077' },

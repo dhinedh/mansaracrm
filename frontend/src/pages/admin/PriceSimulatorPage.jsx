@@ -123,7 +123,7 @@ export default function PriceSimulatorPage() {
   // Exact company & invoice settings matching the dealer invoice template
   const [companySettings, setCompanySettings] = useState({
     companyName: 'MANSARA FOODS PVT. LTD.',
-    gstNumber: '33AABCM1234F1Z5',
+    gstNumber: '33AAUCM3644B1ZJ',
     address: 'Flat No. B4, No.13, Balaji Nagar 1st street extn, Noombal',
     city: 'Chennai',
     state: 'Tamil Nadu',
@@ -225,7 +225,11 @@ export default function PriceSimulatorPage() {
       setDealers(dealerRes.data.data || []);
       setStores(storeRes.data.data || []);
       if (settingsRes.data?.success && settingsRes.data.data) {
-        setCompanySettings(prev => ({ ...prev, ...settingsRes.data.data }));
+        const s = { ...settingsRes.data.data };
+        if (!s.gstNumber || s.gstNumber === '27AABCM1234F1Z5' || s.gstNumber === '33AABCM1234F1Z5') {
+          s.gstNumber = '33AAUCM3644B1ZJ';
+        }
+        setCompanySettings(prev => ({ ...prev, ...s }));
       }
       setSimulationItems([]); // Clean slate: Zero mock data
     } catch (err) {

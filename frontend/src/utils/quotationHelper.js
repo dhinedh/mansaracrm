@@ -49,7 +49,7 @@ export const cleanPhoneNumber = (phone) => {
  */
 export const DEFAULT_COMPANY_SETTINGS = {
   companyName: 'MANSARA FOODS PVT. LTD.',
-  gstNumber: '33AABCM1234F1Z5',
+  gstNumber: '33AAUCM3644B1ZJ',
   address: 'Flat No. B4, No.13, Balaji Nagar 1st street extn, Noombal',
   city: 'Chennai',
   state: 'Tamil Nadu',
@@ -330,8 +330,8 @@ export const buildQuotationHtml = (rawData) => {
   const billerAddress = company.address || 'Flat No. B4, No.13, Balaji Nagar 1st street extn, Noombal';
   const billerCity = company.city || 'Chennai';
   const billerState = company.state || 'Tamil Nadu';
-  const billerPin = company.pincode || '600077';
-  const billerGst = company.gstNumber || '27AABCM1234F1Z5';
+  const rawGst = company.gstNumber;
+  const billerGst = (!rawGst || rawGst === '27AABCM1234F1Z5' || rawGst === '33AABCM1234F1Z5') ? '33AAUCM3644B1ZJ' : rawGst;
   const billerPhone = company.phone || '+91-88388 87064';
   const placeOfSupply = company.placeOfSupply || 'Tamil Nadu (33)';
 

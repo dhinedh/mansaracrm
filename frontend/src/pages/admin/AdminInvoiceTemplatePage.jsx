@@ -34,7 +34,7 @@ export const formatInvoiceNumber = (prefix = 'MF/INV/25-26', seqNumber = 10) => 
 const OFFICIAL_DEFAULTS = {
   companyName: 'Mansara Foods Pvt. Ltd.',
   logoBase64: '',
-  gstNumber: '27AABCM1234F1Z5',
+  gstNumber: '33AAUCM3644B1ZJ',
   address: 'Flat No. B4, No.13, Balaji Nagar 1st street extn, Noombal',
   city: 'Chennai',
   state: 'Tamil Nadu',
@@ -97,7 +97,7 @@ export default function AdminInvoiceTemplatePage() {
         const s = res.data.data;
         if (s.companyName) setCompanyName(s.companyName);
         if (s.logoBase64) setLogoBase64(s.logoBase64);
-        if (s.gstNumber) setGstNumber(s.gstNumber);
+        if (s.gstNumber) setGstNumber((s.gstNumber === '27AABCM1234F1Z5' || s.gstNumber === '33AABCM1234F1Z5') ? '33AAUCM3644B1ZJ' : s.gstNumber);
         if (s.address) setAddress(s.address);
         if (s.city !== undefined) setCity(s.city || '');
         if (s.state !== undefined) setState(s.state || 'Tamil Nadu');
@@ -451,7 +451,7 @@ export default function AdminInvoiceTemplatePage() {
                       type="text"
                       value={gstNumber}
                       onChange={(e) => setGstNumber(e.target.value.toUpperCase())}
-                      placeholder="e.g. 27AABCM1234F1Z5"
+                      placeholder="e.g. 33AAUCM3644B1ZJ"
                       className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-rose-500 font-semibold uppercase font-mono"
                     />
                   </div>
@@ -652,7 +652,7 @@ export default function AdminInvoiceTemplatePage() {
                   <h4 className="text-[13px] font-black text-[#D6295A] uppercase tracking-tight">{companyName || 'Mansara Foods Pvt. Ltd.'}</h4>
                   <p className="text-[9.5px] text-slate-600 mt-0.5 leading-snug">{formattedAddressPreview}</p>
                   <p className="text-[9px] text-slate-700 font-bold mt-0.5">Phone : {phone || '+91-88388 87064'}</p>
-                  <p className="text-[9px] font-bold text-slate-900 mt-0.5">GST No. {gstNumber || '27AABCM1234F1Z5'}</p>
+                  <p className="text-[9px] font-bold text-slate-900 mt-0.5">GST No. {gstNumber || '33AAUCM3644B1ZJ'}</p>
                 </div>
               </div>
 

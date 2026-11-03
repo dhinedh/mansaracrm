@@ -23,12 +23,17 @@ const getCompanyDetails = async (dealer = null) => {
     console.error('Error loading invoice settings from DB:', err.message);
   }
 
+  let gst = settings?.gstNumber || process.env.COMPANY_GST || '33AAUCM3644B1ZJ';
+  if (!gst || gst === '27AABCM1234F1Z5' || gst === '33AABCM1234F1Z5') {
+    gst = '33AAUCM3644B1ZJ';
+  }
+
   const base = {
     name: settings?.companyName || process.env.COMPANY_NAME || 'Mansara Foods Pvt. Ltd.',
     companyName: settings?.companyName || process.env.COMPANY_NAME || 'Mansara Foods Pvt. Ltd.',
     logoBase64: settings?.logoBase64 || '',
     logoUrl: settings?.logoUrl || '',
-    gstNumber: settings?.gstNumber || process.env.COMPANY_GST || '27AABCM1234F1Z5',
+    gstNumber: gst,
     address: settings?.address || process.env.COMPANY_ADDRESS || 'Flat No. B4, No.13, Balaji Nagar 1st street extn, Noombal',
     city: settings?.city || process.env.COMPANY_CITY || 'Chennai',
     state: settings?.state || process.env.COMPANY_STATE || 'Tamil Nadu',
@@ -70,7 +75,7 @@ exports.getInvoiceSettings = async (req, res, next) => {
           companyName: 'Mansara Foods Pvt. Ltd.',
           logoBase64: '',
           logoUrl: '',
-          gstNumber: '27AABCM1234F1Z5',
+          gstNumber: '33AAUCM3644B1ZJ',
           address: 'Flat No. B4, No.13, Balaji Nagar 1st street extn, Noombal',
           city: 'Chennai',
           state: 'Tamil Nadu',
@@ -92,6 +97,15 @@ exports.getInvoiceSettings = async (req, res, next) => {
           signatoryName: 'Mansara Foods Pvt. Ltd.'
         }
       });
+    } else if (!settings.gstNumber || settings.gstNumber === '27AABCM1234F1Z5' || settings.gstNumber === '33AABCM1234F1Z5') {
+      try {
+        settings = await prisma.setting.update({
+          where: { id: settings.id },
+          data: { gstNumber: '33AAUCM3644B1ZJ' }
+        });
+      } catch (e) {
+        settings.gstNumber = '33AAUCM3644B1ZJ';
+      }
     }
 
     const seq = await prisma.invoiceSequence.findUnique({
