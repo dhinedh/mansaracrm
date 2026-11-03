@@ -1639,42 +1639,68 @@ exports.createQuotation = async (req, res, next) => {
       ? parseFloat(req.body.grandTotal) 
       : (calcSubtotal + calcTaxTotal + parsedShipping);
 
-    const quotationNo = requestedQuotationNo 
-      ? requestedQuotationNo.trim() 
-      : `MF/QTN/${new Date().getFullYear()}-${String(new Date().getFullYear() + 1).slice(-2)}/${Date.now().toString().slice(-5)}`;
-
     const QuotationModel = mongoose.model('Quotation');
 
-    // If a quotation with this number already exists and is not approved, update it
-    let existingQuote = await QuotationModel.findOne({ quotationNo });
-    if (existingQuote && existingQuote.status !== 'APPROVED') {
-      existingQuote.customerName = customerName;
-      if (customerPhone) existingQuote.customerPhone = customerPhone;
-      if (customerAddress) existingQuote.customerAddress = customerAddress;
-      if (customerType) existingQuote.customerType = customerType;
-      if (customerId) existingQuote.customerId = customerId;
-      if (dealerId) existingQuote.dealerId = dealerId;
-      existingQuote.items = quoteItems;
-      if (rawItems) existingQuote.rawItems = rawItems;
-      existingQuote.subtotal = calcSubtotal;
-      existingQuote.discountTotal = calcDiscountTotal;
-      existingQuote.taxTotal = calcTaxTotal;
-      existingQuote.shippingCharges = parsedShipping;
-      existingQuote.grandTotal = calcGrandTotal;
-      existingQuote.isWithGst = isWithGst;
-      existingQuote.specialTerms = specialTerms || existingQuote.specialTerms;
-      existingQuote.status = status;
-      await existingQuote.save();
+    let finalQuotationNo = requestedQuotationNo ? requestedQuotationNo.trim() : '';
 
-      return res.json({ 
-        success: true, 
-        message: 'Quotation draft updated successfully', 
-        data: existingQuote 
-      });
+    if (finalQuotationNo) {
+      let existingQuote = await QuotationModel.findOne({ quotationNo: finalQuotationNo });
+      if (existingQuote) {
+        if (existingQuote.status !== 'APPROVED') {
+          // If draft or pending approval, update in place
+          existingQuote.customerName = customerName;
+          if (customerPhone) existingQuote.customerPhone = customerPhone;
+          if (customerAddress) existingQuote.customerAddress = customerAddress;
+          if (customerType) existingQuote.customerType = customerType;
+          if (customerId) existingQuote.customerId = customerId;
+          if (dealerId) existingQuote.dealerId = dealerId;
+          existingQuote.items = quoteItems;
+          if (rawItems) existingQuote.rawItems = rawItems;
+          existingQuote.subtotal = calcSubtotal;
+          existingQuote.discountTotal = calcDiscountTotal;
+          existingQuote.taxTotal = calcTaxTotal;
+          existingQuote.shippingCharges = parsedShipping;
+          existingQuote.grandTotal = calcGrandTotal;
+          existingQuote.isWithGst = isWithGst;
+          existingQuote.specialTerms = specialTerms || existingQuote.specialTerms;
+          existingQuote.status = status;
+          await existingQuote.save();
+
+          return res.json({ 
+            success: true, 
+            message: 'Quotation draft updated successfully', 
+            data: existingQuote 
+          });
+        } else {
+          // The previous quotation with this number was ALREADY APPROVED!
+          // We must NOT reuse this number or cause a duplicate key error!
+          // Auto-generate a new unique revision or sequence number
+          let suffix = 1;
+          let candidateNo = `${finalQuotationNo}-R${suffix}`;
+          while (await QuotationModel.findOne({ quotationNo: candidateNo })) {
+            suffix++;
+            candidateNo = `${finalQuotationNo}-R${suffix}`;
+          }
+          finalQuotationNo = candidateNo;
+        }
+      }
+    } else {
+      const count = await QuotationModel.countDocuments();
+      const year = new Date().getFullYear();
+      const nextYear = String(year + 1).slice(-2);
+      finalQuotationNo = `MF/QTN/${year}-${nextYear}/${String(count + 1).padStart(5, '0')}`;
     }
 
+    // Guard against any race condition duplicate
+    let candidate = finalQuotationNo;
+    let counter = 1;
+    while (await QuotationModel.findOne({ quotationNo: candidate })) {
+      candidate = `${finalQuotationNo}-${Date.now().toString().slice(-4)}${counter++}`;
+    }
+    finalQuotationNo = candidate;
+
     const newQuote = await QuotationModel.create({
-      quotationNo,
+      quotationNo: finalQuotationNo,
       salespersonId: userId || undefined,
       customerId: customerId || undefined,
       dealerId: dealerId || undefined,
@@ -1701,6 +1727,7 @@ exports.createQuotation = async (req, res, next) => {
       data: newQuote 
     });
   } catch (error) {
+    console.error('Error creating quotation:', error);
     next(error);
   }
 };
@@ -1708,8 +1735,10 @@ exports.createQuotation = async (req, res, next) => {
 exports.getQuotations = async (req, res, next) => {
   try {
     const userId = req.user.id;
+    const isSalesperson = req.user.role === 'SALESPERSON';
+    const where = isSalesperson ? { salespersonId: userId } : {};
     const { data: quotes } = await prisma.quotation.findMany({
-      where: { salespersonId: userId },
+      where,
       orderBy: { createdAt: 'desc' }
     });
     res.json({ success: true, data: quotes });

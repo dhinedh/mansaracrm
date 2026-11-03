@@ -904,9 +904,9 @@ const CompetitorIntelSchema = new Schema({
 // Quotation Schema
 const QuotationSchema = new Schema({
   quotationNo: { type: String, unique: true, required: true },
-  salespersonId: { type: Schema.Types.ObjectId, ref: 'User' },
-  customerId: { type: Schema.Types.ObjectId, ref: 'Store' },
-  dealerId: { type: Schema.Types.ObjectId, ref: 'Dealer' },
+  salespersonId: { type: Schema.Types.Mixed, ref: 'User' },
+  customerId: { type: Schema.Types.Mixed, ref: 'Store' },
+  dealerId: { type: Schema.Types.Mixed, ref: 'Dealer' },
   customerName: { type: String, required: true },
   customerPhone: { type: String },
   customerAddress: { type: String },
@@ -934,10 +934,10 @@ const QuotationSchema = new Schema({
   specialTerms: { type: String },
   status: { type: String, enum: ['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'REJECTED', 'CONVERTED'], default: 'DRAFT' },
   invoiceNo: { type: String },
-  invoiceId: { type: Schema.Types.ObjectId, ref: 'Invoice' },
-  approvedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+  invoiceId: { type: Schema.Types.Mixed, ref: 'Invoice' },
+  approvedBy: { type: Schema.Types.Mixed, ref: 'User' },
   approvedAt: { type: Date },
-  rejectedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+  rejectedBy: { type: Schema.Types.Mixed, ref: 'User' },
   rejectedAt: { type: Date },
   adminRemarks: { type: String }
 }, {

@@ -821,6 +821,9 @@ export default function PriceSimulatorPage() {
         const saved = res.data.data;
         setShowQuotationModal(false);
         setSubmittedQuotation(saved);
+        if (saved?.quotationNo) {
+          setQuotationRefNumber(saved.quotationNo);
+        }
         setToastMessage({
           text: `Quotation "${saved.quotationNo}" saved as draft & submitted to Admin Invoice Requests!`,
           type: 'success'
