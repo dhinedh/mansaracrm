@@ -126,7 +126,7 @@ export default function SalesStoreVisitPage() {
 
         // Try checking active check-in on server first
         try {
-          const activeRes = await axios.get('/field-sales/visits/active-checkin');
+          const activeRes = await axios.get('/field-sales/visits/active');
           if (activeRes.data?.success && activeRes.data.hasActiveCheckIn && activeRes.data.data) {
             const serverVisit = activeRes.data.data;
             const targetStoreId = serverVisit.storeId || serverVisit.store?._id || serverVisit.store?.id;
@@ -168,10 +168,14 @@ export default function SalesStoreVisitPage() {
 
         // If store details missing, fetch them for display
         if (!currentStore && urlStoreId) {
-          const res = await axios.get(`/field-sales/shops/${urlStoreId}`);
-          if (res.data?.success) {
-            currentStore = res.data.data;
-            setStore(currentStore);
+          try {
+            const res = await axios.get(`/field-sales/shops/${urlStoreId}`);
+            if (res.data?.success && res.data.data) {
+              currentStore = res.data.data;
+              setStore(currentStore);
+            }
+          } catch (e) {
+            console.warn('Could not fetch shop details by id:', e);
           }
         }
 

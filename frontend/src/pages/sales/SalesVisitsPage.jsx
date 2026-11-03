@@ -274,7 +274,7 @@ export default function SalesVisitsPage() {
 
       // Check for verified live active check-in from server
       try {
-        const activeRes = await axios.get('/field-sales/visits/active-checkin');
+        const activeRes = await axios.get('/field-sales/visits/active');
         if (activeRes.data?.success && activeRes.data.hasActiveCheckIn && activeRes.data.data?.store?.name) {
           const liveVisit = activeRes.data.data;
           const liveStore = liveVisit.store;

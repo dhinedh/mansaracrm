@@ -863,6 +863,37 @@ exports.getShops = async (req, res, next) => {
   }
 };
 
+exports.getShopById = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const StoreModel = mongoose.model('Store');
+    let store = null;
+    try {
+      store = await StoreModel.findById(id).populate('dealer', 'companyName phone');
+    } catch (e) {}
+
+    if (!store) {
+      try {
+        store = await prisma.store.findUnique({ where: { id } });
+      } catch (e) {}
+    }
+
+    if (!store) {
+      try {
+        store = await prisma.lead.findUnique({ where: { id } });
+      } catch (e) {}
+    }
+
+    if (!store) {
+      return res.status(404).json({ success: false, message: 'Shop not found' });
+    }
+
+    res.json({ success: true, data: store });
+  } catch (error) {
+    next(error);
+  }
+};
+
 exports.registerShopLead = async (req, res, next) => {
   try {
     const { name, ownerName, phone, address, city, pincode, gstNumber, dealerId, category = 'RETAIL', latitude, longitude, locationName, googlePlaceId } = req.body;

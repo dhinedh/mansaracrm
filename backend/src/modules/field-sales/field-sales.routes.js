@@ -21,6 +21,7 @@ router.get('/dashboard/stats', fieldSalesController.getDashboardStats);
 
 // 3–10. Shops, Check-in/Check-out, Visits, Customer 360, Beat Planning (Modules 3–9)
 router.get('/shops', fieldSalesController.getShops);
+router.get('/shops/:id', fieldSalesController.getShopById);
 router.post('/shops', fieldSalesController.registerShopLead);
 router.get('/shops/:id/360', fieldSalesController.getCustomer360);
 router.get('/visits/active', fieldSalesController.getActiveVisit);
