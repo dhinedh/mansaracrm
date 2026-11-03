@@ -330,23 +330,26 @@ export default function SalesStoreVisitPage() {
 
   // 7. Order Cart Logic
   const updateCartItem = (product, delta) => {
-    const prodId = product._id || product.id;
+    const prodId = String(product._id || product.id || '').trim();
     if (!prodId) return;
+    const price = parseFloat(product.price !== undefined && product.price !== null && product.price !== '' ? product.price : (product.mrp || 0));
+
     setOrderCart(prev => {
-      const existing = prev.find(item => item.productId === prodId);
+      // Filter out any stale/malformed items without valid productId
+      const validCart = prev.filter(item => Boolean(item && item.productId));
+      const existing = validCart.find(item => String(item.productId) === prodId);
       if (existing) {
         const newQty = existing.quantity + delta;
         if (newQty <= 0) {
-          return prev.filter(item => item.productId !== prodId);
+          return validCart.filter(item => String(item.productId) !== prodId);
         }
-        return prev.map(item =>
-          item.productId === prodId
-            ? { ...item, quantity: newQty, lineTotal: newQty * item.price }
+        return validCart.map(item =>
+          String(item.productId) === prodId
+            ? { ...item, quantity: newQty, price, lineTotal: newQty * price }
             : item
         );
       } else if (delta > 0) {
-        const price = parseFloat(product.mrp || product.price || 0);
-        return [...prev, {
+        return [...validCart, {
           productId: prodId,
           productName: product.name,
           unit: product.unit || 'PCS',
@@ -356,7 +359,7 @@ export default function SalesStoreVisitPage() {
           lineTotal: delta * price
         }];
       }
-      return prev;
+      return validCart;
     });
   };
 
@@ -1511,20 +1514,24 @@ export default function SalesStoreVisitPage() {
                 catalogue
                   .filter(p => (p?.name || '').toLowerCase().includes(catalogSearch.toLowerCase()))
                   .map((product, idx) => {
-                    const prodId = product._id || product.id || `prod-${idx}`;
-                    const inCart = orderCart.find(i => i.productId === prodId || (product._id && i.productId === product._id));
+                    const prodId = String(product._id || product.id || '').trim();
+                    const inCart = prodId ? orderCart.find(i => String(i.productId) === prodId) : null;
                     const qty = inCart ? inCart.quantity : 0;
-                    const price = parseFloat(product.mrp || product.price || 0);
+                    const price = parseFloat(product.price !== undefined && product.price !== null && product.price !== '' ? product.price : (product.mrp || 0));
+                    const mrp = parseFloat(product.mrp || product.originalPrice || 0);
 
                     return (
                       <div
-                        key={product._id ? `${product._id}-${idx}` : `catalog-prod-${idx}`}
+                        key={prodId ? `${prodId}-${idx}` : `catalog-prod-${idx}`}
                         className="bg-slate-50/70 border border-slate-200 rounded-xl p-3 flex items-center justify-between gap-3 hover:border-slate-300 transition-colors"
                       >
                         <div className="min-w-0 flex-1">
                           <p className="font-bold text-xs text-slate-900 truncate">{product.name || 'Unnamed Product'}</p>
                           <div className="flex items-center gap-2 text-[11px] text-slate-500 mt-0.5">
                             <span className="font-mono font-bold text-amber-700">₹{price.toFixed(2)}</span>
+                            {mrp > price && (
+                              <span className="text-[10px] text-slate-400 line-through">MRP: ₹{mrp.toFixed(2)}</span>
+                            )}
                             <span>•</span>
                             <span>{product.unit || 'PCS'}</span>
                             {product.cartonSize && <span>(Carton: {product.cartonSize})</span>}
@@ -2049,7 +2056,7 @@ export default function SalesStoreVisitPage() {
                 >
                   {catalogue.map((p, idx) => (
                     <option key={p._id ? `${p._id}-${idx}` : `sold-opt-${idx}`} value={p._id || p.id}>
-                      {p.name} — ₹{p.mrp || p.price || 0} / {p.unit || 'PCS'}
+                      {p.name} — ₹{p.price !== undefined && p.price !== null && p.price !== '' ? p.price : (p.mrp || 0)} / {p.unit || 'PCS'}
                     </option>
                   ))}
                 </select>
@@ -2085,8 +2092,8 @@ export default function SalesStoreVisitPage() {
               </div>
 
               {(() => {
-                const p = catalogue.find(item => item._id === (soldProductId || catalogue[0]?._id));
-                const price = parseFloat(p?.mrp || p?.price || 0);
+                const p = catalogue.find(item => String(item._id || item.id) === String(soldProductId || catalogue[0]?._id || catalogue[0]?.id));
+                const price = parseFloat(p?.price !== undefined && p?.price !== null && p?.price !== '' ? p.price : (p?.mrp || 0));
                 const total = (parseInt(soldQty, 10) || 1) * price;
                 return (
                   <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-3.5 flex items-center justify-between shadow-2xs">
@@ -2282,7 +2289,7 @@ export default function SalesStoreVisitPage() {
                     >
                       {catalogue.map((p, idx) => (
                         <option key={p._id ? `${p._id}-${idx}` : `rr-opt-${idx}`} value={p._id || p.id}>
-                          {p.name} (₹{p.mrp || p.price || 0})
+                          {p.name} (₹{p.price !== undefined && p.price !== null && p.price !== '' ? p.price : (p.mrp || 0)})
                         </option>
                       ))}
                     </select>
@@ -2329,7 +2336,7 @@ export default function SalesStoreVisitPage() {
                       >
                         {catalogue.map((p, idx) => (
                           <option key={p._id ? `${p._id}-${idx}` : `repl-opt-${idx}`} value={p._id || p.id}>
-                            {p.name} (₹{p.mrp || p.price || 0})
+                            {p.name} (₹{p.price !== undefined && p.price !== null && p.price !== '' ? p.price : (p.mrp || 0)})
                           </option>
                         ))}
                       </select>

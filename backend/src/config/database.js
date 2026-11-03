@@ -2099,14 +2099,16 @@ function cleanDoc(obj) {
     let val = obj[key];
     if (key === '_id') {
       cleaned['id'] = val.toString();
+      cleaned['_id'] = val.toString();
     } else if (key === '__v') {
       // skip
     } else {
       cleaned[key] = cleanDoc(val);
     }
   }
-  if (obj._id && !cleaned.id) {
-    cleaned.id = obj._id.toString();
+  if (obj._id) {
+    if (!cleaned.id) cleaned.id = obj._id.toString();
+    if (!cleaned._id) cleaned._id = obj._id.toString();
   }
   return cleaned;
 }
