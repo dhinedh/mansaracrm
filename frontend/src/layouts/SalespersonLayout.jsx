@@ -67,29 +67,54 @@ export default function SalespersonLayout() {
   const handleLogout = async () => {
     setCheckingLogout(true);
     try {
-      // 1. Check if there is an active check-in that has not been checked out
       let activeVisit = null;
+
+      // 1. Check local active visit storage first (instant & works offline)
       try {
-        const res = await axios.get('/field-sales/visits/active');
-        if (res.data?.success && res.data?.hasActiveCheckIn) {
-          activeVisit = res.data.data;
+        const saved = localStorage.getItem('mansara_active_visit');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          const startedAt = new Date(parsed.startedAt || parsed.visit?.checkInTime || parsed.visit?.createdAt || 0).getTime();
+          const hoursOld = (Date.now() - startedAt) / (1000 * 60 * 60);
+          if (parsed.visit && !parsed.visit.checkOutTime && hoursOld < 18) {
+            activeVisit = {
+              ...parsed.visit,
+              store: parsed.store || { name: 'Active Store Visit' },
+              purpose: parsed.purpose || parsed.visit.purpose
+            };
+          }
         }
-      } catch (err) {
-        console.warn('Could not query /visits/active, trying visits list fallback:', err);
+      } catch (e) {
+        console.warn('Error checking local active visit:', e);
       }
 
-      // 2. Fallback check against visits history if /visits/active didn't catch
+      // 2. Query active check-in endpoint from server
       if (!activeVisit) {
         try {
-          const res = await axios.get('/field-sales/visits?limit=15');
-          const list = Array.isArray(res.data?.data) ? res.data.data : [];
-          activeVisit = list.find(v => !v.checkOutTime && (v.status === 'IN_PROGRESS' || v.checkInTime)) || null;
-        } catch (e) {
-          console.warn('Visits list fallback failed:', e);
+          const res = await axios.get('/field-sales/visits/active');
+          if (res.data?.success && res.data?.hasActiveCheckIn && res.data?.data) {
+            activeVisit = res.data.data;
+          }
+        } catch (err) {
+          console.warn('Could not query /visits/active:', err);
         }
       }
 
-      // 3. If there is an active check-in, BLOCK logout!
+      // 3. Fallback check against visits history
+      if (!activeVisit) {
+        try {
+          const res = await axios.get('/field-sales/visits?limit=30');
+          const list = Array.isArray(res.data?.data) ? res.data.data : [];
+          const found = list.find(v => !v.checkOutTime && (v.status === 'IN_PROGRESS' || v.checkInTime || v.status !== 'COMPLETED'));
+          if (found) {
+            activeVisit = found;
+          }
+        } catch (e) {
+          console.warn('Visits list fallback query failed:', e);
+        }
+      }
+
+      // 4. STRICT ENFORCEMENT: If there is an active check-in, BLOCK LOGOUT!
       if (activeVisit) {
         setActiveCheckInVisit(activeVisit);
         setBlockedLogoutModalOpen(true);
@@ -97,13 +122,39 @@ export default function SalespersonLayout() {
         return;
       }
 
-      // 4. Safe to proceed with logout
+      // 5. Final fallback check of localStorage before allowing sign-out
+      const finalLocal = localStorage.getItem('mansara_active_visit');
+      if (finalLocal) {
+        try {
+          const p = JSON.parse(finalLocal);
+          if (p?.visit && !p.visit.checkOutTime) {
+            setActiveCheckInVisit(p.visit);
+            setBlockedLogoutModalOpen(true);
+            setMobileMenuOpen(false);
+            return;
+          }
+        } catch (e) {}
+      }
+
+      // 6. Safe to proceed with logout
       logout();
       navigate('/sales/login');
     } catch (error) {
       console.error('Logout error:', error);
-      logout();
-      navigate('/sales/login');
+      // If error occurs, inspect localStorage before any sign-out
+      const fallbackLocal = localStorage.getItem('mansara_active_visit');
+      if (fallbackLocal) {
+        try {
+          const parsed = JSON.parse(fallbackLocal);
+          if (parsed?.visit && !parsed.visit.checkOutTime) {
+            setActiveCheckInVisit(parsed.visit);
+            setBlockedLogoutModalOpen(true);
+            setMobileMenuOpen(false);
+            return;
+          }
+        } catch (e) {}
+      }
+      alert('Cannot log out while checking active visit status. Please verify all visits are checked out.');
     } finally {
       setCheckingLogout(false);
     }

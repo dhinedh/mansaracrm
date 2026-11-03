@@ -111,23 +111,29 @@ exports.getActiveVisit = async (req, res, next) => {
     let store = null;
     if (activeVisit.storeId) {
       store = await prisma.store.findUnique({ where: { id: activeVisit.storeId } });
+      if (!store) {
+        try {
+          store = await prisma.lead.findUnique({ where: { id: activeVisit.storeId } });
+        } catch (e) {}
+      }
     } else if (activeVisit.leadId) {
       store = await prisma.lead.findUnique({ where: { id: activeVisit.leadId } });
     } else if (activeVisit.dealerId) {
       store = await prisma.dealer.findUnique({ where: { id: activeVisit.dealerId } });
     }
 
-    if (!store) {
-      // If store is deleted or missing, this is an invalid check-in
-      return res.json({ success: true, hasActiveCheckIn: false, data: null });
-    }
+    const storeData = store || {
+      id: activeVisit.storeId,
+      _id: activeVisit.storeId,
+      name: activeVisit.visitorName || 'Active Store Visit'
+    };
 
     return res.json({
       success: true,
       hasActiveCheckIn: true,
       data: {
         ...activeVisit,
-        store
+        store: storeData
       }
     });
   } catch (error) {

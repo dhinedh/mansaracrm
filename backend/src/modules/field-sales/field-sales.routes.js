@@ -24,6 +24,7 @@ router.get('/shops', fieldSalesController.getShops);
 router.post('/shops', fieldSalesController.registerShopLead);
 router.get('/shops/:id/360', fieldSalesController.getCustomer360);
 router.get('/visits/active', fieldSalesController.getActiveVisit);
+router.get('/visits/active-checkin', fieldSalesController.getActiveVisit);
 router.post('/visits/check-in', fieldSalesController.checkInVisit);
 router.put('/visits/:id/purpose', fieldSalesController.updateVisitPurpose);
 router.put('/visits/:id', fieldSalesController.updateVisit);
