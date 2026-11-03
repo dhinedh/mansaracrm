@@ -259,7 +259,7 @@ export default function SalespersonLayout() {
       {/* Bottom Navigation Bar - Modern styled downbar */}
       <nav 
         aria-label="Sales Navigation"
-        className="fixed bottom-0 inset-x-0 z-50 bg-white/95 backdrop-blur-xl border-t border-slate-200 shadow-[0_-4px_20px_rgba(0,0,0,0.06)] px-2 py-1.5 flex items-center justify-around"
+        className="fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur-xl border-t border-slate-200 shadow-[0_-4px_20px_rgba(0,0,0,0.06)] px-2 py-1.5 flex items-center justify-around"
       >
         {/* 1. Home */}
         <Link
@@ -349,7 +349,7 @@ export default function SalespersonLayout() {
 
       {/* Slide-out Full 34-Module Hub Modal / Drawer */}
       {mobileMenuOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex justify-end animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-[60] bg-slate-900/40 backdrop-blur-xs flex justify-end animate-in fade-in duration-200">
           <div className="w-full max-w-sm bg-white border-l border-slate-200 h-full flex flex-col p-5 overflow-y-auto shadow-2xl">
             {/* Drawer Header */}
             <div className="flex items-center justify-between pb-4 border-b border-slate-200">
