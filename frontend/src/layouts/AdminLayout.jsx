@@ -248,9 +248,9 @@ function NavLinkEcom({ item, onLinkClick }) {
   );
 }
 
-function NavGroup({ item, submenusOpen, toggleSubmenu, onLinkClick }) {
+function NavGroup({ item, submenusOpen, toggleSubmenu, onLinkClick, forceOpen }) {
   const location = useLocation();
-  const isOpen = !!submenusOpen[item.name];
+  const isOpen = forceOpen || !!submenusOpen[item.name];
   const isAnySubActive = item.subItems?.some(sub => location.pathname === sub.path);
   const ParentIcon = item.icon;
   return (
@@ -314,6 +314,8 @@ function SectionLabel({ label, color = 'slate' }) {
 }
 
 function SidebarNav({ submenusOpen, toggleSubmenu, onLinkClick, unreadNotifications, staffRole, licensing = { enableB2cStall: true, enableFieldSales: true } }) {
+  const [navSearch, setNavSearch] = useState('');
+
   const overviewItems = getOverviewMenuItems(unreadNotifications);
   const rndItems = getRndMenuItems();
   const inventoryItems = getInventoryMenuItems();
@@ -325,6 +327,50 @@ function SidebarNav({ submenusOpen, toggleSubmenu, onLinkClick, unreadNotificati
   const analyticsItems = getAnalyticsMenuItems();
   const integrationItems = getIntegrationMenuItems();
   const systemItems = getSystemMenuItems();
+
+  const sections = [
+    { label: 'Overview', items: overviewItems, color: 'slate' },
+    { label: 'R&D Department', items: rndItems, color: 'rose' },
+    { label: 'Inventory', items: inventoryItems, color: 'slate' },
+    { label: 'Vendor & Procurement', items: vendorItems, color: 'slate' },
+    { label: 'Stock Management', items: stockItems, color: 'slate' },
+    { label: 'Sales & Marketing', items: salesMarketingItems, color: 'rose' },
+    { label: 'Finance & Accounting', items: financeItems, color: 'slate' },
+    { label: 'Customer Support', items: supportItems, color: 'slate' },
+    { label: 'Analytics & Reports', items: analyticsItems, color: 'blue' },
+    { label: 'Integrations', items: integrationItems, color: 'slate' },
+    { label: 'System & Settings', items: systemItems, color: 'slate' }
+  ];
+
+  const query = navSearch.toLowerCase().trim();
+
+  // Filter sections and items based on search query
+  const filteredSections = sections.map(section => {
+    if (!query) return section;
+
+    const filteredItems = section.items
+      .map(item => {
+        if (item.subItems) {
+          const parentMatches = item.name.toLowerCase().includes(query);
+          const matchingSubs = item.subItems.filter(sub => sub.name.toLowerCase().includes(query));
+
+          if (parentMatches) {
+            return item;
+          }
+          if (matchingSubs.length > 0) {
+            return { ...item, subItems: matchingSubs };
+          }
+          return null;
+        }
+
+        return item.name.toLowerCase().includes(query) ? item : null;
+      })
+      .filter(Boolean);
+
+    return { ...section, items: filteredItems };
+  }).filter(section => section.items.length > 0);
+
+  const totalResults = filteredSections.reduce((acc, s) => acc + s.items.length, 0);
 
   const renderNavSection = (label, items, color = 'slate') => {
     if (!items || items.length === 0) return null;
@@ -339,6 +385,7 @@ function SidebarNav({ submenusOpen, toggleSubmenu, onLinkClick, unreadNotificati
               submenusOpen={submenusOpen}
               toggleSubmenu={toggleSubmenu}
               onLinkClick={onLinkClick}
+              forceOpen={Boolean(query)}
             />
           ) : (
             <NavLink key={item.name} item={item} onLinkClick={onLinkClick} />
@@ -349,19 +396,53 @@ function SidebarNav({ submenusOpen, toggleSubmenu, onLinkClick, unreadNotificati
   };
 
   return (
-    <nav className="flex-1 px-4 py-3 space-y-2 overflow-y-auto">
-      {renderNavSection('Overview', overviewItems, 'slate')}
-      {renderNavSection('R&D Department', rndItems, 'rose')}
-      {renderNavSection('Inventory', inventoryItems, 'slate')}
-      {renderNavSection('Vendor & Procurement', vendorItems, 'slate')}
-      {renderNavSection('Stock Management', stockItems, 'slate')}
-      {renderNavSection('Sales & Marketing', salesMarketingItems, 'rose')}
-      {renderNavSection('Finance & Accounting', financeItems, 'slate')}
-      {renderNavSection('Customer Support', supportItems, 'slate')}
-      {renderNavSection('Analytics & Reports', analyticsItems, 'blue')}
-      {renderNavSection('Integrations', integrationItems, 'slate')}
-      {renderNavSection('System & Settings', systemItems, 'slate')}
-    </nav>
+    <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+      {/* Sidebar Search Bar */}
+      <div className="px-3.5 pt-3 pb-2 shrink-0 border-b border-slate-100">
+        <div className="relative">
+          <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+          <input
+            type="text"
+            value={navSearch}
+            onChange={(e) => setNavSearch(e.target.value)}
+            placeholder="Search menu or pages..."
+            className="w-full bg-slate-50 hover:bg-slate-100/70 focus:bg-white text-slate-800 placeholder-slate-400 text-xs rounded-xl pl-8 pr-7 py-2 border border-slate-200/90 focus:border-rose-400 focus:outline-none transition-all shadow-2xs"
+          />
+          {navSearch && (
+            <button
+              type="button"
+              onClick={() => setNavSearch('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-200 cursor-pointer"
+              title="Clear search"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Navigation Links */}
+      <nav className="flex-1 px-3.5 py-2 space-y-2 overflow-y-auto">
+        {totalResults === 0 && query ? (
+          <div className="py-8 px-4 text-center">
+            <div className="w-9 h-9 rounded-full bg-slate-100 text-slate-400 mx-auto flex items-center justify-center mb-2">
+              <Search className="w-4 h-4" />
+            </div>
+            <p className="text-xs font-bold text-slate-700">No menu items found</p>
+            <p className="text-[11px] text-slate-400 mt-0.5">No results matching "{navSearch}"</p>
+            <button
+              type="button"
+              onClick={() => setNavSearch('')}
+              className="mt-3 px-3 py-1.5 text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg cursor-pointer transition-colors"
+            >
+              Clear Search
+            </button>
+          </div>
+        ) : (
+          filteredSections.map(section => renderNavSection(section.label, section.items, section.color))
+        )}
+      </nav>
+    </div>
   );
 }
 
