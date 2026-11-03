@@ -123,6 +123,78 @@ const ProtectedRoute = ({ children, allowedRole }) => {
   return children;
 };
 
+// Error Boundary for dynamic chunk import errors (e.g. following new deployments)
+class ChunkErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error) {
+    const errorMsg = error?.message || '';
+    const isChunkError =
+      errorMsg.includes('Failed to fetch dynamically imported module') ||
+      errorMsg.includes('error loading dynamically imported module') ||
+      errorMsg.includes('Failed to load module script') ||
+      errorMsg.includes('Importing a module script failed');
+
+    if (isChunkError) {
+      const reloadKey = 'chunk_error_reload_ts';
+      const lastReload = Number(sessionStorage.getItem(reloadKey) || 0);
+      const now = Date.now();
+      // Auto-reload once if not reloaded within the last 15 seconds
+      if (now - lastReload > 15000) {
+        sessionStorage.setItem(reloadKey, String(now));
+        window.location.reload();
+      }
+    }
+  }
+
+  render() {
+    if (this.state.hasError) {
+      const errorMsg = this.state.error?.message || '';
+      const isChunkError =
+        errorMsg.includes('Failed to fetch dynamically imported module') ||
+        errorMsg.includes('error loading dynamically imported module') ||
+        errorMsg.includes('Failed to load module script');
+
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6">
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 max-w-md w-full text-center shadow-xl">
+            <div className="w-14 h-14 bg-amber-50 text-amber-600 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-amber-200">
+              <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+            </div>
+            <h3 className="text-base font-black text-slate-900 mb-1">
+              {isChunkError ? 'New CRM Update Available' : 'Something Went Wrong'}
+            </h3>
+            <p className="text-xs text-slate-500 mb-5">
+              {isChunkError
+                ? 'A new version of Mansara CRM was just deployed. Please reload the page to load the updated application.'
+                : 'An unexpected application error occurred.'}
+            </p>
+            <button
+              onClick={() => {
+                sessionStorage.removeItem('chunk_error_reload_ts');
+                window.location.reload();
+              }}
+              className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-2.5 px-4 rounded-xl text-xs active:scale-95 transition-all cursor-pointer shadow-sm"
+            >
+              Refresh Application
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export default function App() {
   const { fetchCurrentUser, isAuthenticated, token } = useAuthStore();
 
@@ -134,8 +206,9 @@ export default function App() {
 
   return (
     <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-      <Suspense fallback={null}>
-        <Routes>
+      <ChunkErrorBoundary>
+        <Suspense fallback={null}>
+          <Routes>
         {/* Public Routes */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
@@ -493,6 +566,7 @@ export default function App() {
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
       </Suspense>
+      </ChunkErrorBoundary>
     </BrowserRouter>
   );
 }
