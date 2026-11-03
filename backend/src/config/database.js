@@ -9,7 +9,7 @@ if (process.env.NODE_ENV === 'development') {
 }
 
 const mongooseOptions = {
-  serverSelectionTimeoutMS: 5000,
+  serverSelectionTimeoutMS: 30000,
   socketTimeoutMS: 45000,
   family: 4
 };
@@ -19,10 +19,12 @@ mongoose.connect(dbUrl, mongooseOptions)
   .then(() => console.log('🔌 Connected to MongoDB via Mongoose'))
   .catch(err => {
     console.error('❌ MongoDB Atlas Connection Error:', err.message);
-    console.log('🔄 Attempting fallback connection to local MongoDB...');
-    mongoose.connect('mongodb://127.0.0.1:27017/mansara_crm', mongooseOptions)
-      .then(() => console.log('🔌 Connected to Local MongoDB'))
-      .catch(localErr => console.error('❌ Local MongoDB Fallback Error:', localErr.message));
+    if (process.env.NODE_ENV !== 'production' && !dbUrl.includes('localhost') && !dbUrl.includes('127.0.0.1')) {
+      console.log('🔄 Attempting fallback connection to local MongoDB...');
+      mongoose.connect('mongodb://127.0.0.1:27017/mansara_crm', mongooseOptions)
+        .then(() => console.log('🔌 Connected to Local MongoDB'))
+        .catch(localErr => console.error('❌ Local MongoDB Fallback Error:', localErr.message));
+    }
   });
 
 const Schema = mongoose.Schema;

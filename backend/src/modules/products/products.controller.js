@@ -13,14 +13,17 @@ exports.getCategories = async (req, res, next) => {
     const limit = parseInt(req.query.limit) || 25;
     const skip = (page - 1) * limit;
 
-    const { data: categories, total } = await prisma.category.findMany({
+    const result = await prisma.category.findMany({
       where: { isActive: true },
       orderBy: { name: 'asc' },
       skip,
       take: limit
     });
+    const categories = Array.isArray(result) ? result : (result?.data || []);
+    const total = result?.total !== undefined ? result.total : categories.length;
     res.json({ success: true, data: categories, total, page, limit });
   } catch (error) {
+    console.error('❌ Error fetching categories:', error);
     next(error);
   }
 };
