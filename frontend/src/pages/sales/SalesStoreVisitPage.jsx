@@ -1522,7 +1522,7 @@ export default function SalesStoreVisitPage() {
 
       {/* TAB 2: ORDER BOOKING & CATALOGUE */}
       {activeTab === 'order' && (
-        <div className="space-y-4 max-w-3xl mx-auto pb-4">
+        <div className="space-y-4 max-w-3xl mx-auto pb-36 sm:pb-32">
           <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 space-y-4 shadow-xs">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3 flex-wrap gap-2">
               <div className="flex items-center gap-2">
@@ -1700,22 +1700,33 @@ export default function SalesStoreVisitPage() {
               )}
             </div>
 
-            {/* Cart Sticky Bottom Bar */}
-            {orderCart.length > 0 && (
-              <div className="pt-3 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 bg-amber-50/60 p-3.5 rounded-2xl border">
-                <div>
-                  <span className="text-[10px] text-amber-800 font-bold uppercase tracking-wider block">
-                    Order Cart Summary
-                  </span>
+            {/* Always Visible Order Cart Summary Dock (Fixed directly above bottom navigation bar) */}
+            <div className="fixed bottom-[58px] sm:bottom-[62px] inset-x-0 z-30 px-3 sm:px-6 pointer-events-none">
+              <div className="max-w-3xl mx-auto pointer-events-auto bg-amber-50/95 backdrop-blur-md border border-amber-300/90 rounded-2xl p-3 sm:p-3.5 shadow-[0_-4px_24px_rgba(0,0,0,0.12)] flex flex-col sm:flex-row items-center justify-between gap-3">
+                <div className="w-full sm:w-auto">
+                  <div className="flex items-center justify-between sm:justify-start gap-2">
+                    <span className="text-[10px] text-amber-800 font-black uppercase tracking-wider block">
+                      Order Cart Summary
+                    </span>
+                    {orderCart.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setOrderCart([])}
+                        className="text-[10px] text-rose-600 hover:text-rose-700 font-bold underline sm:hidden cursor-pointer"
+                      >
+                        Clear Cart
+                      </button>
+                    )}
+                  </div>
                   <div className="flex items-baseline gap-2 mt-0.5 flex-wrap">
-                    <span className="text-sm font-black text-slate-900 font-mono">
+                    <span className="text-base font-black text-slate-900 font-mono">
                       ₹{cartTotal.toFixed(2)}
                     </span>
                     <span className="text-xs text-slate-600 font-semibold">
                       ({cartUnits} units across {orderCart.length} SKUs)
                     </span>
                     {totalMarginSavings > 0 && (
-                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100/70 px-2 py-0.5 rounded-full border border-emerald-200">
+                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100/80 px-2 py-0.5 rounded-full border border-emerald-300">
                         Margin Savings: ₹{totalMarginSavings.toFixed(2)}
                       </span>
                     )}
@@ -1723,10 +1734,22 @@ export default function SalesStoreVisitPage() {
                 </div>
 
                 <div className="flex items-center gap-2 w-full sm:w-auto">
+                  {orderCart.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setOrderCart([])}
+                      className="hidden sm:inline-block text-[11px] text-rose-600 hover:text-rose-700 font-bold px-2 py-1 rounded-lg hover:bg-rose-50 cursor-pointer transition-colors"
+                      title="Clear Cart"
+                    >
+                      Clear
+                    </button>
+                  )}
+
                   <button
                     type="button"
                     onClick={() => setIssueBillModalOpen(true)}
-                    className="flex-1 sm:flex-initial bg-emerald-600 hover:bg-emerald-500 text-white font-black py-2 px-3.5 rounded-xl text-xs active:scale-95 transition-all cursor-pointer shadow-sm flex items-center justify-center gap-1.5"
+                    disabled={orderCart.length === 0}
+                    className="flex-1 sm:flex-initial bg-emerald-600 hover:bg-emerald-500 text-white font-black py-2.5 px-3.5 rounded-xl text-xs active:scale-95 transition-all cursor-pointer shadow-sm flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     <Receipt className="w-3.5 h-3.5" />
                     <span>Generate Spot Bill</span>
@@ -1735,14 +1758,14 @@ export default function SalesStoreVisitPage() {
                   <button
                     type="button"
                     onClick={handleBookOrder}
-                    disabled={orderSubmitting}
-                    className="flex-1 sm:flex-initial bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-2 px-3.5 rounded-xl text-xs active:scale-95 transition-all cursor-pointer shadow-sm disabled:opacity-50"
+                    disabled={orderSubmitting || orderCart.length === 0}
+                    className="flex-1 sm:flex-initial bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-2.5 px-4 rounded-xl text-xs active:scale-95 transition-all cursor-pointer shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     {orderSubmitting ? 'Placing...' : 'Place Order'}
                   </button>
                 </div>
               </div>
-            )}
+            </div>
           </div>
         </div>
       )}
