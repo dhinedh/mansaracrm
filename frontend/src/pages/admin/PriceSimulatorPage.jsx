@@ -1390,6 +1390,20 @@ export default function PriceSimulatorPage() {
                 ))
               )}
             </tbody>
+            {calculationSummary.items.length > 0 && (
+              <tfoot className="bg-slate-100 border-t-2 border-slate-300 text-xs">
+                <tr>
+                  <td colSpan="3" className="py-2.5 px-2.5 text-right font-black uppercase text-[10px] text-slate-600">
+                    Grand Total ({calculationSummary.isWithGst ? 'Incl. GST & Shipping' : 'Net'}):
+                  </td>
+                  <td className="py-2.5 px-2 text-right">
+                    <span className="text-xs sm:text-sm font-black font-mono text-rose-600">
+                      ₹{Math.round(calculationSummary.grandTotal).toLocaleString('en-IN')}
+                    </span>
+                  </td>
+                </tr>
+              </tfoot>
+            )}
           </table>
         </div>
 
@@ -1552,6 +1566,21 @@ export default function PriceSimulatorPage() {
                 ))
               )}
             </tbody>
+            {calculationSummary.items.length > 0 && (
+              <tfoot className="bg-slate-100 border-t-2 border-slate-300 text-xs">
+                <tr>
+                  <td colSpan="8" className="py-3 px-4 text-right font-black uppercase text-[11px] text-slate-600">
+                    Grand Total ({calculationSummary.isWithGst ? 'Incl. GST & Shipping' : 'Net'}):
+                  </td>
+                  <td className="py-3 px-4 text-right">
+                    <span className="text-base font-black font-mono text-rose-600">
+                      ₹{Math.round(calculationSummary.grandTotal).toLocaleString('en-IN')}
+                    </span>
+                  </td>
+                  <td></td>
+                </tr>
+              </tfoot>
+            )}
           </table>
         </div>
 
@@ -1611,6 +1640,85 @@ export default function PriceSimulatorPage() {
             Taxes & freight auto-calculate in totals
           </div>
         </div>
+
+        {/* ─── GRAND TOTAL & CALCULATION BREAKDOWN SUMMARY CARD ─── */}
+        {calculationSummary.items.length > 0 && (
+          <div className="bg-gradient-to-br from-slate-900 via-slate-850 to-slate-950 text-white rounded-2xl p-4 sm:p-6 shadow-xl border border-slate-700 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-700/80">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-rose-600 text-white flex items-center justify-center font-black shadow-md">
+                  ₹
+                </div>
+                <div>
+                  <h3 className="text-sm sm:text-base font-black text-white flex items-center gap-2">
+                    <span>Order Grand Total Summary</span>
+                    <span className="text-[10px] bg-rose-500/20 text-rose-300 border border-rose-500/30 px-2 py-0.5 rounded-full font-bold">
+                      {calculationSummary.isWithGst ? 'GST Included' : 'Excl. GST'}
+                    </span>
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    Live calculation across {calculationSummary.items.length} {calculationSummary.items.length === 1 ? 'product' : 'products'} ({calculationSummary.totalPieces.toLocaleString()} pcs • {calculationSummary.totalCartons} ctn)
+                  </p>
+                </div>
+              </div>
+              {calculationSummary.totalMarginDiscount > 0 && (
+                <div className="text-left sm:text-right">
+                  <span className="text-[10px] text-emerald-400 font-bold block uppercase tracking-wider">
+                    Total Margin Savings
+                  </span>
+                  <span className="text-sm font-black font-mono text-emerald-300">
+                    ₹{Math.round(calculationSummary.totalMarginDiscount).toLocaleString('en-IN')} ({calculationSummary.averageMarginPct}%)
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 text-xs">
+              {/* 1. Total MRP Value */}
+              <div className="bg-white/5 p-3 sm:p-3.5 rounded-xl border border-white/10">
+                <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">
+                  Total Catalog MRP
+                </span>
+                <span className="text-sm sm:text-base font-black font-mono text-slate-200 mt-0.5 block">
+                  ₹{Math.round(calculationSummary.totalMrpValue).toLocaleString('en-IN')}
+                </span>
+              </div>
+
+              {/* 2. Taxable Subtotal */}
+              <div className="bg-white/5 p-3 sm:p-3.5 rounded-xl border border-white/10">
+                <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">
+                  Taxable Subtotal
+                </span>
+                <span className="text-sm sm:text-base font-black font-mono text-white mt-0.5 block">
+                  ₹{Math.round(calculationSummary.subtotalWithoutGst).toLocaleString('en-IN')}
+                </span>
+              </div>
+
+              {/* 3. GST & Shipping */}
+              <div className="bg-white/5 p-3 sm:p-3.5 rounded-xl border border-white/10">
+                <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider truncate">
+                  GST ({calculationSummary.gstRate}%) + Freight
+                </span>
+                <span className="text-sm sm:text-base font-black font-mono text-amber-300 mt-0.5 block">
+                  +₹{Math.round(calculationSummary.totalGstAmount + calculationSummary.shippingCharges).toLocaleString('en-IN')}
+                </span>
+                <span className="block text-[9px] text-slate-400 mt-0.5">
+                  GST: ₹{Math.round(calculationSummary.totalGstAmount).toLocaleString('en-IN')} | Freight: ₹{calculationSummary.shippingCharges}
+                </span>
+              </div>
+
+              {/* 4. Grand Total */}
+              <div className="bg-gradient-to-br from-rose-600/40 via-amber-600/30 to-rose-700/40 p-3 sm:p-3.5 rounded-xl border border-rose-500/50 shadow-md">
+                <span className="text-[10px] uppercase font-black tracking-wider text-rose-300 block">
+                  Grand Total Amount
+                </span>
+                <span className="text-lg sm:text-2xl font-black font-mono text-white mt-0.5 block tracking-tight">
+                  ₹{Math.round(calculationSummary.grandTotal).toLocaleString('en-IN')}
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ─── ACTION DECK: GENERATE OFFICIAL QUOTATION ─────────────────────── */}
