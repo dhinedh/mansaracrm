@@ -79,11 +79,23 @@ export const normalizeQuotationData = (raw) => {
   const company = { ...DEFAULT_COMPANY_SETTINGS, ...(raw.companySettings || {}) };
   const isApprovedInvoice = Boolean(
     raw.isInvoice || 
+    raw.status === 'APPROVED' || 
     (raw.status === 'APPROVED' && raw.invoiceNo) || 
-    (raw.invoiceNo && !raw.quotationRefNumber && !raw.quotationNo)
+    (raw.invoiceNo && !raw.quotationRefNumber && !raw.quotationNo) ||
+    raw.invoiceNumber
   );
+
+  const getDerivedInvoiceNo = (quotationNo = '') => {
+    if (!quotationNo) return 'INV-' + Date.now().toString().slice(-6);
+    if (quotationNo.includes('QTN')) return quotationNo.replace(/QTN/g, 'INV');
+    if (quotationNo.includes('qtn')) return quotationNo.replace(/qtn/g, 'inv');
+    if (quotationNo.startsWith('QT-')) return quotationNo.replace('QT-', 'INV-');
+    if (quotationNo.startsWith('QTN-')) return quotationNo.replace('QTN-', 'INV-');
+    return `INV-${quotationNo}`;
+  };
+
   const refNo = isApprovedInvoice 
-    ? (raw.invoiceNo || raw.quotationRefNumber || raw.quotationNo) 
+    ? (raw.invoiceNo || raw.invoiceNumber || getDerivedInvoiceNo(raw.quotationRefNumber || raw.quotationNo)) 
     : (raw.quotationRefNumber || raw.quotationNo || `MF/QTN/${new Date().getFullYear()}-${String(new Date().getFullYear() + 1).slice(-2)}/${Date.now().toString().slice(-5)}`);
   const dateStr = raw.date || new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
   const dueDateStr = raw.dueDate || new Date(Date.now() + 15 * 86400000).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
@@ -326,16 +338,19 @@ export const buildQuotationHtml = (rawData) => {
   const discount = 0;
   const grandRounded = Math.round(grandTotal);
 
+  const defaultTerms = isApprovedInvoice
+    ? `1. Payment within 15 days from invoice date.<br>2. Interest @ 2% per month on delayed payment.<br>3. Goods once sold cannot be returned unless transit damage is reported upon receipt.`
+    : `1. Quotation valid for 15 days from issue date.<br>2. Wholesale pricing is contingent upon order quantities and margin tiers selected.<br>3. Goods once sold cannot be returned unless transit damage is reported upon receipt.`;
   const rawTerms = specialTerms || company.invoiceTerms;
   const terms = rawTerms
     ? rawTerms.split('\n').filter(Boolean).map((t, i) => `${i + 1}. ${t.replace(/^\d+\.\s*/, '')}`).join('<br>')
-    : `1. Payment within 15 days.<br>2. Interest @ 2% per month on delay.<br>3. Claims if any must be reported at delivery.`;
+    : defaultTerms;
 
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Invoice ${refNo}</title>
+<title>${isApprovedInvoice ? 'Tax Invoice' : 'Quotation'} ${refNo}</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
@@ -621,7 +636,7 @@ export const downloadQuotationHtml = (htmlContent, fileName = 'Quotation.html') 
  */
 export const formatQuotationWhatsAppText = (rawData) => {
   const data = normalizeQuotationData(rawData);
-  const { company, customer, refNo, dateStr, dueDateStr, items, subtotal, isWithGst, gstRate, totalGst, shipping, grandTotal } = data;
+  const { company, customer, refNo, dateStr, dueDateStr, items, subtotal, isWithGst, gstRate, totalGst, shipping, grandTotal, isApprovedInvoice } = data;
   const bd = company.bankDetails || {};
 
   const itemsList = items.map((it, idx) => {
@@ -632,14 +647,19 @@ export const formatQuotationWhatsAppText = (rawData) => {
    • Line Total: *₹${Number(it.lineTotal).toLocaleString('en-IN')}*`;
   }).join('\n\n');
 
+  const docTitle = isApprovedInvoice ? 'OFFICIAL TAX INVOICE' : 'OFFICIAL COMMERCIAL QUOTATION';
+  const docRefLabel = isApprovedInvoice ? 'Invoice No' : 'Quotation Ref';
+  const docDateLabel = isApprovedInvoice ? 'Invoice Date' : 'Date';
+  const docDueLabel = isApprovedInvoice ? 'Due Date' : 'Valid Until';
+
   const textLines = [
     `*========================================*`,
     `🏢 *MANSARA FOODS PVT. LTD.*`,
-    `📋 *OFFICIAL COMMERCIAL QUOTATION*`,
+    `📋 *${docTitle}*`,
     `*========================================*`,
-    `🔖 *Quotation Ref:* ${refNo}`,
-    `📅 *Date:* ${dateStr}`,
-    `⏳ *Valid Until:* ${dueDateStr}`,
+    `🔖 *${docRefLabel}:* ${refNo}`,
+    `📅 *${docDateLabel}:* ${dateStr}`,
+    `⏳ *${docDueLabel}:* ${dueDateStr}`,
     `👤 *Prepared For:* *${customer.name}*`,
     customer.phone ? `📞 *Contact:* ${customer.phone}` : null,
     customer.gstNumber ? `🏛️ *GSTIN:* ${customer.gstNumber}` : null,
@@ -664,9 +684,9 @@ export const formatQuotationWhatsAppText = (rawData) => {
     bd.upiId ? `• UPI ID: *${bd.upiId}*` : null,
     `----------------------------------------`,
     `📌 *Terms & Conditions:*`,
-    `1. Quotation is valid for 15 days from issue date.`,
-    `2. Wholesale rates are subject to confirmed order quantities.`,
-    `3. Dispatched within 24-48 hours upon order confirmation.`,
+    isApprovedInvoice 
+      ? `1. Payment within 15 days from invoice date.\n2. Interest @ 2% per month on overdue payment.\n3. Goods once sold cannot be returned unless transit damage is reported upon receipt.`
+      : `1. Quotation is valid for 15 days from issue date.\n2. Wholesale rates are subject to confirmed order quantities.\n3. Dispatched within 24-48 hours upon order confirmation.`,
     `----------------------------------------`,
     `_Mansara Foods Pvt. Ltd. | Ph: ${company.phone}_`,
     `_Website: ${company.website}_`
@@ -692,14 +712,15 @@ export const openWhatsAppQuotation = (rawData, targetPhone = null) => {
 };
 
 /**
- * Generates an authentic binary PDF Blob from quotation data.
+ * Generates an authentic binary PDF Blob from quotation or approved invoice data.
  * Tries html2pdf client-side first; falls back to backend Puppeteer endpoint.
  */
 export const generateQuotationPdfBlob = async (rawData) => {
   const data = normalizeQuotationData(rawData);
   const html = buildQuotationHtml(rawData);
   const safeRef = (data.refNo || 'Mansara').replace(/[^a-zA-Z0-9_-]/g, '_');
-  const fileName = `Quotation_${safeRef}.pdf`;
+  const prefix = data.isApprovedInvoice ? 'Invoice' : 'Quotation';
+  const fileName = `${prefix}_${safeRef}.pdf`;
 
   // 1. Try client-side html2pdf
   try {
@@ -746,7 +767,9 @@ export const generateQuotationPdfBlob = async (rawData) => {
   try {
     const res = await axios.post('/field-sales/quotations/pdf', {
       html,
-      quotationNo: safeRef
+      quotationNo: safeRef,
+      isInvoice: data.isApprovedInvoice,
+      invoiceNo: safeRef
     }, {
       responseType: 'blob'
     });
@@ -757,13 +780,13 @@ export const generateQuotationPdfBlob = async (rawData) => {
     console.error('Backend PDF generation also failed:', backendErr);
     // Ultimate fallback: generate HTML file blob if PDF conversion fails
     const fallbackBlob = new Blob([html], { type: 'text/html;charset=utf-8;' });
-    const fallbackFile = new File([fallbackBlob], `Quotation_${safeRef}.html`, { type: 'text/html' });
-    return { blob: fallbackBlob, file: fallbackFile, fileName: `Quotation_${safeRef}.html`, data };
+    const fallbackFile = new File([fallbackBlob], `${prefix}_${safeRef}.html`, { type: 'text/html' });
+    return { blob: fallbackBlob, file: fallbackFile, fileName: `${prefix}_${safeRef}.html`, data };
   }
 };
 
 /**
- * Download Quotation directly as a .PDF file
+ * Download Quotation / Invoice directly as a .PDF file
  */
 export const downloadQuotationPdf = async (rawData) => {
   const { blob, fileName } = await generateQuotationPdfBlob(rawData);
@@ -778,7 +801,7 @@ export const downloadQuotationPdf = async (rawData) => {
 };
 
 /**
- * Share Quotation as an official PDF file directly to WhatsApp.
+ * Share Quotation / Invoice as an official PDF file directly to WhatsApp.
  * - On Mobile / Supported Desktop: uses Web Share API to attach the PDF file directly into WhatsApp!
  * - On Standard Desktop: automatically downloads the PDF and opens WhatsApp with an attached cover note.
  */
@@ -786,15 +809,18 @@ export const shareQuotationPdf = async (rawData, targetPhone = '', customNote = 
   const { file, blob, fileName, data } = await generateQuotationPdfBlob(rawData);
   const rawPhone = targetPhone || data.customer?.phone || '';
   const cleanPhone = cleanPhoneNumber(rawPhone);
+  const isInvoice = data.isApprovedInvoice;
+  const docTypeLabel = isInvoice ? 'Official Tax Invoice' : 'Commercial Price Quotation';
+  const docName = isInvoice ? 'Invoice' : 'Quotation';
 
   const shareText = [
     `🏢 *MANSARA FOODS PVT. LTD.*`,
-    `📋 *Commercial Price Quotation - ${data.refNo}*`,
+    `📋 *${docTypeLabel} - ${data.refNo}*`,
     `👤 *Valued Partner:* ${data.customer?.name || 'Customer'}`,
     `💰 *Grand Total:* ₹${data.grandTotal.toLocaleString('en-IN')}`,
-    `⏳ *Valid Until:* ${data.dueDateStr}`,
+    `⏳ *${isInvoice ? 'Due Date' : 'Valid Until'}:* ${data.dueDateStr}`,
     customNote ? `\n💬 *Note:* ${customNote}` : null,
-    `\n📎 *Please find attached the official PDF Quotation document.*`,
+    `\n📎 *Please find attached the official PDF ${docName} document.*`,
     `\n_Mansara Foods Pvt. Ltd. | Ph: ${data.company?.phone || '+91-88388 87064'}_`
   ].filter(Boolean).join('\n');
 
@@ -807,7 +833,7 @@ export const shareQuotationPdf = async (rawData, targetPhone = '', customNote = 
     try {
       await navigator.share({
         files: [file],
-        title: `Quotation ${data.refNo} - Mansara Foods`,
+        title: `${docName} ${data.refNo} - Mansara Foods`,
         text: shareText
       });
       return { success: true, method: 'web-share', fileName };

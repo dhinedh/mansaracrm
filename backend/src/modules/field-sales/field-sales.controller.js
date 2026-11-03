@@ -1624,13 +1624,16 @@ exports.getQuotations = async (req, res, next) => {
 
 exports.exportQuotationPdf = async (req, res, next) => {
   try {
-    const { html, quotationNo } = req.body;
+    const { html, quotationNo, isInvoice, invoiceNo } = req.body;
     if (!html) {
       return res.status(400).json({ success: false, message: 'Quotation HTML content is required' });
     }
     const pdfBuffer = await generateInvoicePdf(html);
     res.contentType('application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="Quotation_${quotationNo || 'Mansara'}.pdf"`);
+    const isInv = Boolean(isInvoice || invoiceNo || quotationNo?.startsWith('INV') || quotationNo?.includes('INV'));
+    const prefix = isInv ? 'Invoice' : 'Quotation';
+    const docNo = invoiceNo || quotationNo || 'Mansara';
+    res.setHeader('Content-Disposition', `attachment; filename="${prefix}_${docNo}.pdf"`);
     res.send(pdfBuffer);
   } catch (error) {
     console.error('Field sales quotation PDF generation failed:', error);

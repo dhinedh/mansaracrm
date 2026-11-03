@@ -12,6 +12,7 @@ import {
   buildQuotationHtml,
   triggerPrintQuotation,
   downloadQuotationHtml,
+  downloadQuotationPdf,
   formatQuotationWhatsAppText
 } from '../../utils/quotationHelper';
 
@@ -171,16 +172,32 @@ export default function SalesOrdersPage() {
     }
   };
 
-  const handleDownloadQuotation = (q) => {
-    const htmlContent = buildQuotationHtml(q);
-    const fileName = `Quotation_${(q.quotationNo || 'Mansara').replace(/[^a-zA-Z0-9_-]/g, '_')}.html`;
-    downloadQuotationHtml(htmlContent, fileName);
-    triggerPrintQuotation(htmlContent);
+  const handleDownloadQuotation = async (q) => {
+    const isApproved = q.status === 'APPROVED';
+    const enriched = {
+      ...q,
+      isInvoice: isApproved
+    };
+    try {
+      await downloadQuotationPdf(enriched);
+    } catch (err) {
+      const htmlContent = buildQuotationHtml(enriched);
+      const prefix = isApproved ? 'Invoice' : 'Quotation';
+      const num = isApproved ? (q.invoiceNo || (q.quotationNo ? q.quotationNo.replace(/QTN|qtn|QT-/g, 'INV-') : 'INV')) : q.quotationNo;
+      const fileName = `${prefix}_${(num || 'Mansara').replace(/[^a-zA-Z0-9_-]/g, '_')}.html`;
+      downloadQuotationHtml(htmlContent, fileName);
+      triggerPrintQuotation(htmlContent);
+    }
   };
 
   const handleShareWhatsApp = (q) => {
-    setActiveQuotationData(q);
-    const text = formatQuotationWhatsAppText(q);
+    const isApproved = q.status === 'APPROVED';
+    const enriched = {
+      ...q,
+      isInvoice: isApproved
+    };
+    setActiveQuotationData(enriched);
+    const text = formatQuotationWhatsAppText(enriched);
     const phone = q.customerPhone || '';
     setWhatsAppPhone(phone);
     setWhatsAppMessage(text);

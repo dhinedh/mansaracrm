@@ -12,6 +12,7 @@ import {
   buildQuotationHtml,
   triggerPrintQuotation,
   downloadQuotationHtml,
+  downloadQuotationPdf,
   formatQuotationWhatsAppText
 } from '../../utils/quotationHelper';
 
@@ -292,23 +293,36 @@ export default function AdminApprovalsPage() {
   };
 
   // Document & Sharing Handlers
-  const handleDownloadQuotationDoc = (q) => {
+  const handleDownloadQuotationDoc = async (q) => {
     const isApproved = q.status === 'APPROVED';
-    const htmlContent = buildQuotationHtml({
+    const invoiceNo = q.invoiceNo || (isApproved ? getDerivedInvoiceNo(q.quotationNo) : undefined);
+    const enriched = {
       ...q,
       isInvoice: isApproved,
-      invoiceNo: q.invoiceNo || (isApproved ? getDerivedInvoiceNo(q.quotationNo) : undefined)
-    });
-    const prefix = isApproved ? 'Invoice' : 'Quotation';
-    const num = isApproved ? (q.invoiceNo || getDerivedInvoiceNo(q.quotationNo)) : q.quotationNo;
-    const fileName = `${prefix}_${(num || 'Mansara').replace(/[^a-zA-Z0-9_-]/g, '_')}.html`;
-    downloadQuotationHtml(htmlContent, fileName);
-    triggerPrintQuotation(htmlContent);
+      invoiceNo
+    };
+    try {
+      await downloadQuotationPdf(enriched);
+    } catch (err) {
+      const htmlContent = buildQuotationHtml(enriched);
+      const prefix = isApproved ? 'Invoice' : 'Quotation';
+      const num = isApproved ? invoiceNo : q.quotationNo;
+      const fileName = `${prefix}_${(num || 'Mansara').replace(/[^a-zA-Z0-9_-]/g, '_')}.html`;
+      downloadQuotationHtml(htmlContent, fileName);
+      triggerPrintQuotation(htmlContent);
+    }
   };
 
   const handleShareWhatsApp = (q) => {
-    setActiveQuotationData(q);
-    const text = formatQuotationWhatsAppText(q);
+    const isApproved = q.status === 'APPROVED';
+    const invoiceNo = q.invoiceNo || (isApproved ? getDerivedInvoiceNo(q.quotationNo) : undefined);
+    const enriched = {
+      ...q,
+      isInvoice: isApproved,
+      invoiceNo
+    };
+    setActiveQuotationData(enriched);
+    const text = formatQuotationWhatsAppText(enriched);
     const phone = q.customerPhone || '';
     setWhatsAppPhone(phone);
     setWhatsAppMessage(text);
