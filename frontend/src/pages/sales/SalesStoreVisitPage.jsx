@@ -7,7 +7,8 @@ import {
   ChevronLeft, Clock, CheckCircle2, AlertCircle, ShoppingBag,
   ShoppingCart, RefreshCw, RotateCcw, DollarSign, Calendar,
   FileText, Camera, Upload, Sparkles, Check, X, Building,
-  Smartphone, Banknote, Receipt, PauseCircle, Search, Plus, Minus
+  Smartphone, Banknote, Receipt, PauseCircle, Search, Plus, Minus,
+  Percent, Tag
 } from 'lucide-react';
 
 export default function SalesStoreVisitPage() {
@@ -32,7 +33,8 @@ export default function SalesStoreVisitPage() {
   const [catalogue, setCatalogue] = useState([]);
   const [catalogueLoading, setCatalogueLoading] = useState(false);
   const [catalogSearch, setCatalogSearch] = useState('');
-  const [orderCart, setOrderCart] = useState([]); // [{ productId, productName, quantity, price, lineTotal }]
+  const [orderCart, setOrderCart] = useState([]); // [{ productId, productName, quantity, mrp, marginPct, price, lineTotal }]
+  const [orderDefaultMargin, setOrderDefaultMargin] = useState(0);
   const [orderSubmitting, setOrderSubmitting] = useState(false);
   const [issueBillModalOpen, setIssueBillModalOpen] = useState(false);
   const [billPaymentMethod, setBillPaymentMethod] = useState('CASH');
@@ -328,11 +330,19 @@ export default function SalesStoreVisitPage() {
     }
   };
 
-  // 7. Order Cart Logic
+  // 7. Order Cart Logic with Retailer Margin Control
+  const calculateEffectivePrice = (product, marginPct = orderDefaultMargin) => {
+    const mrp = parseFloat(product.mrp || product.originalPrice || product.price || 0);
+    const m = Math.max(0, Math.min(99, parseFloat(marginPct) || 0));
+    const discount = mrp * (m / 100);
+    const discountedPrice = Math.max(0, mrp - discount);
+    return Math.round(discountedPrice * 100) / 100;
+  };
+
   const updateCartItem = (product, delta) => {
     const prodId = String(product._id || product.id || '').trim();
     if (!prodId) return;
-    const price = parseFloat(product.price !== undefined && product.price !== null && product.price !== '' ? product.price : (product.mrp || 0));
+    const mrp = parseFloat(product.mrp || product.originalPrice || product.price || 0);
 
     setOrderCart(prev => {
       // Filter out any stale/malformed items without valid productId
@@ -343,24 +353,63 @@ export default function SalesStoreVisitPage() {
         if (newQty <= 0) {
           return validCart.filter(item => String(item.productId) !== prodId);
         }
+        const effectivePrice = calculateEffectivePrice(product, existing.marginPct ?? orderDefaultMargin);
         return validCart.map(item =>
           String(item.productId) === prodId
-            ? { ...item, quantity: newQty, price, lineTotal: newQty * price }
+            ? { ...item, quantity: newQty, price: effectivePrice, lineTotal: Math.round(newQty * effectivePrice * 100) / 100 }
             : item
         );
       } else if (delta > 0) {
+        const itemMargin = orderDefaultMargin;
+        const effectivePrice = calculateEffectivePrice(product, itemMargin);
         return [...validCart, {
           productId: prodId,
           productName: product.name,
           unit: product.unit || 'PCS',
           cartonSize: product.cartonSize || 24,
           quantity: delta,
-          price,
-          lineTotal: delta * price
+          mrp,
+          marginPct: itemMargin,
+          price: effectivePrice,
+          lineTotal: Math.round(delta * effectivePrice * 100) / 100
         }];
       }
       return validCart;
     });
+  };
+
+  const updateItemMargin = (prodId, newMargin) => {
+    const m = Math.max(0, Math.min(99, parseFloat(newMargin) || 0));
+    setOrderCart(prev => prev.map(item => {
+      if (String(item.productId) === String(prodId)) {
+        const mrp = item.mrp || item.price;
+        const discount = mrp * (m / 100);
+        const newPrice = Math.round(Math.max(0, mrp - discount) * 100) / 100;
+        return {
+          ...item,
+          marginPct: m,
+          price: newPrice,
+          lineTotal: Math.round(item.quantity * newPrice * 100) / 100
+        };
+      }
+      return item;
+    }));
+  };
+
+  const handleApplyOrderMargin = (newMargin) => {
+    const m = Math.max(0, Math.min(99, parseFloat(newMargin) || 0));
+    setOrderDefaultMargin(m);
+    setOrderCart(prev => prev.map(item => {
+      const mrp = item.mrp || item.price;
+      const discount = mrp * (m / 100);
+      const newPrice = Math.round(Math.max(0, mrp - discount) * 100) / 100;
+      return {
+        ...item,
+        marginPct: m,
+        price: newPrice,
+        lineTotal: Math.round(item.quantity * newPrice * 100) / 100
+      };
+    }));
   };
 
   const handleBookOrder = async () => {
@@ -377,9 +426,13 @@ export default function SalesStoreVisitPage() {
           productId: item.productId,
           productName: item.productName,
           quantity: item.quantity,
-          unitPrice: item.price
+          mrp: item.mrp || item.price,
+          marginPct: item.marginPct || 0,
+          unitPrice: item.price,
+          price: item.price,
+          lineTotal: item.lineTotal
         })),
-        notes: `Order booked during GPS visit at ${store?.name}`
+        notes: `Order booked during GPS visit at ${store?.name}${orderDefaultMargin > 0 ? ` (Margin: ${orderDefaultMargin}%)` : ''}`
       };
 
       const res = await axios.post('/field-sales/orders', payload);
@@ -406,13 +459,15 @@ export default function SalesStoreVisitPage() {
           productId: i.productId,
           productName: i.productName,
           quantity: i.quantity,
+          mrp: i.mrp || i.price,
+          marginPct: i.marginPct || 0,
           unitPrice: i.price,
           totalPrice: i.lineTotal
         })),
         paymentMethod: billPaymentMethod,
         billingReason: 'Order Booking & Replenishment',
         resultStatus: 'ORDER_BOOKED',
-        notes: billNotes ? `Spot billing during store visit: ${billNotes}` : `Spot billing generated during store visit at ${store.name}`
+        notes: billNotes ? `Spot billing during store visit: ${billNotes}` : `Spot billing generated during store visit at ${store.name}${orderDefaultMargin > 0 ? ` (Margin: ${orderDefaultMargin}%)` : ''}`
       };
 
       const res = await axios.post('/field-sales/invoices/issue', payload);
@@ -639,6 +694,8 @@ export default function SalesStoreVisitPage() {
 
   const cartTotal = orderCart.reduce((sum, item) => sum + item.lineTotal, 0);
   const cartUnits = orderCart.reduce((sum, item) => sum + item.quantity, 0);
+  const totalCartMrp = orderCart.reduce((sum, item) => sum + ((item.mrp || item.price) * item.quantity), 0);
+  const totalMarginSavings = Math.max(0, totalCartMrp - cartTotal);
 
   return (
     <div className="max-w-4xl mx-auto px-2 sm:px-4 py-3 sm:py-5 pb-24 space-y-4">
@@ -1504,6 +1561,49 @@ export default function SalesStoreVisitPage() {
               />
             </div>
 
+            {/* Quick Order Margin Preset Bar */}
+            <div className="bg-gradient-to-r from-amber-50 via-amber-50/70 to-slate-50 border border-amber-200/90 rounded-2xl p-3 flex flex-wrap items-center justify-between gap-2.5 shadow-2xs">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-amber-500 text-slate-950 font-black text-xs flex items-center justify-center shadow-xs">
+                  %
+                </div>
+                <div>
+                  <span className="text-xs font-black text-slate-900 block leading-tight">Retailer Margin %</span>
+                  <span className="text-[10px] text-slate-500">Set discount percentage from catalog MRP for this order</span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {[0, 5, 10, 15, 20].map(m => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => handleApplyOrderMargin(m)}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                      orderDefaultMargin === m
+                        ? 'bg-amber-500 text-slate-950 shadow-xs ring-1 ring-amber-600/30'
+                        : 'bg-white border border-slate-300 text-slate-700 hover:bg-slate-100'
+                    }`}
+                  >
+                    {m}%
+                  </button>
+                ))}
+                <div className="flex items-center bg-white border border-slate-300 rounded-lg px-2 py-0.5 w-20 shadow-2xs">
+                  <input
+                    type="number"
+                    min="0"
+                    max="99"
+                    step="0.5"
+                    value={orderDefaultMargin}
+                    onChange={(e) => handleApplyOrderMargin(Math.max(0, Math.min(99, parseFloat(e.target.value) || 0)))}
+                    className="w-full text-xs font-black text-center text-slate-900 focus:outline-none"
+                    placeholder="Custom"
+                  />
+                  <span className="text-[10px] font-bold text-slate-400">%</span>
+                </div>
+              </div>
+            </div>
+
             {/* Products List */}
             <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
               {catalogueLoading ? (
@@ -1517,20 +1617,28 @@ export default function SalesStoreVisitPage() {
                     const prodId = String(product._id || product.id || '').trim();
                     const inCart = prodId ? orderCart.find(i => String(i.productId) === prodId) : null;
                     const qty = inCart ? inCart.quantity : 0;
-                    const price = parseFloat(product.price !== undefined && product.price !== null && product.price !== '' ? product.price : (product.mrp || 0));
-                    const mrp = parseFloat(product.mrp || product.originalPrice || 0);
+                    const itemMargin = inCart ? (inCart.marginPct ?? orderDefaultMargin) : orderDefaultMargin;
+                    const mrp = parseFloat(product.mrp || product.originalPrice || product.price || 0);
+                    const effectivePrice = inCart ? inCart.price : calculateEffectivePrice(product, itemMargin);
 
                     return (
                       <div
                         key={prodId ? `${prodId}-${idx}` : `catalog-prod-${idx}`}
-                        className="bg-slate-50/70 border border-slate-200 rounded-xl p-3 flex items-center justify-between gap-3 hover:border-slate-300 transition-colors"
+                        className="bg-slate-50/70 border border-slate-200 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 hover:border-slate-300 transition-colors"
                       >
                         <div className="min-w-0 flex-1">
                           <p className="font-bold text-xs text-slate-900 truncate">{product.name || 'Unnamed Product'}</p>
-                          <div className="flex items-center gap-2 text-[11px] text-slate-500 mt-0.5">
-                            <span className="font-mono font-bold text-amber-700">₹{price.toFixed(2)}</span>
-                            {mrp > price && (
+                          <div className="flex items-center gap-2 text-[11px] text-slate-500 mt-0.5 flex-wrap">
+                            <span className="font-mono font-black text-amber-700 text-xs">₹{effectivePrice.toFixed(2)}</span>
+                            {mrp > effectivePrice ? (
                               <span className="text-[10px] text-slate-400 line-through">MRP: ₹{mrp.toFixed(2)}</span>
+                            ) : (
+                              <span className="text-[10px] text-slate-400">MRP: ₹{mrp.toFixed(2)}</span>
+                            )}
+                            {itemMargin > 0 && (
+                              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
+                                {itemMargin}% margin (-₹{(mrp - effectivePrice).toFixed(2)})
+                              </span>
                             )}
                             <span>•</span>
                             <span>{product.unit || 'PCS'}</span>
@@ -1538,8 +1646,24 @@ export default function SalesStoreVisitPage() {
                           </div>
                         </div>
 
-                        {/* Quantity Stepper */}
-                        <div className="flex items-center gap-1.5 shrink-0">
+                        {/* Quantity Stepper & Margin Control */}
+                        <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+                          {qty > 0 && (
+                            <div className="flex items-center border border-amber-300 rounded-xl bg-white px-2 py-1 shadow-2xs" title="Adjust Margin % for this SKU">
+                              <span className="text-[10px] font-bold text-slate-400 mr-1">Margin:</span>
+                              <input
+                                type="number"
+                                min="0"
+                                max="99"
+                                step="0.5"
+                                value={itemMargin}
+                                onChange={(e) => updateItemMargin(prodId, parseFloat(e.target.value) || 0)}
+                                className="w-10 text-xs font-black text-amber-700 text-center focus:outline-none"
+                              />
+                              <span className="text-[10px] font-bold text-slate-400">%</span>
+                            </div>
+                          )}
+
                           {qty > 0 ? (
                             <div className="flex items-center gap-2 bg-white border border-slate-300 rounded-xl p-1">
                               <button
@@ -1583,13 +1707,18 @@ export default function SalesStoreVisitPage() {
                   <span className="text-[10px] text-amber-800 font-bold uppercase tracking-wider block">
                     Order Cart Summary
                   </span>
-                  <div className="flex items-baseline gap-2 mt-0.5">
+                  <div className="flex items-baseline gap-2 mt-0.5 flex-wrap">
                     <span className="text-sm font-black text-slate-900 font-mono">
                       ₹{cartTotal.toFixed(2)}
                     </span>
                     <span className="text-xs text-slate-600 font-semibold">
                       ({cartUnits} units across {orderCart.length} SKUs)
                     </span>
+                    {totalMarginSavings > 0 && (
+                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100/70 px-2 py-0.5 rounded-full border border-emerald-200">
+                        Margin Savings: ₹{totalMarginSavings.toFixed(2)}
+                      </span>
+                    )}
                   </div>
                 </div>
 

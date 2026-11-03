@@ -1276,14 +1276,18 @@ exports.createSalesOrder = async (req, res, next) => {
     const orderItems = [];
 
     for (const item of items) {
-      const unitPrice = parseFloat(item.unitPrice) || 0;
+      const unitPrice = parseFloat(item.unitPrice || item.price) || 0;
       const qty = parseInt(item.quantity) || 1;
+      const mrp = parseFloat(item.mrp || unitPrice) || unitPrice;
+      const marginPct = parseFloat(item.marginPct || 0) || 0;
       const lineTotal = unitPrice * qty;
       subtotal += lineTotal;
       orderItems.push({
         productId: (item.productId && mongoose.Types.ObjectId.isValid(item.productId)) ? item.productId : undefined,
         productName: item.productName || 'Product',
         quantity: qty,
+        mrp,
+        marginPct,
         price: unitPrice,
         lineTotal
       });
@@ -1443,6 +1447,7 @@ exports.issueFieldBill = async (req, res, next) => {
         quantity: Number(bit.quantity) || 1,
         unitPrice: Number(bit.unitPrice || bit.price) || 0,
         sellingPrice: Number(bit.unitPrice || bit.price) || 0,
+        marginPct: Number(bit.marginPct || 0),
         gstPercent: 5,
         gstAmount: Math.round(((Number(bit.quantity) || 1) * (Number(bit.unitPrice || bit.price) || 0) * 0.05) * 100) / 100,
         lineTotal: Math.round(((Number(bit.quantity) || 1) * (Number(bit.unitPrice || bit.price) || 0) * 1.05) * 100) / 100
