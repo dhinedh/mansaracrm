@@ -1444,8 +1444,23 @@ exports.getSalesOrders = async (req, res, next) => {
 
 exports.createQuotation = async (req, res, next) => {
   try {
-    const userId = req.user.id;
-    const { customerId, customerName, customerPhone, dealerId, items, specialTerms, validUntil } = req.body;
+    const userId = req.user?.id || req.user?._id;
+    const { 
+      customerId, 
+      customerName, 
+      customerPhone, 
+      customerAddress,
+      customerType,
+      dealerId, 
+      items, 
+      specialTerms, 
+      validUntil,
+      quotationNo: requestedQuotationNo,
+      status = 'PENDING_APPROVAL',
+      shippingCharges = 0,
+      isWithGst = true,
+      rawItems
+    } = req.body;
 
     if (!customerName || !items || !items.length) {
       return res.status(400).json({ success: false, message: 'Customer name and items are required' });
@@ -1454,46 +1469,95 @@ exports.createQuotation = async (req, res, next) => {
     let subtotal = 0;
     const quoteItems = [];
     for (const item of items) {
-      const qty = parseInt(item.quantity) || 1;
-      const unitPrice = parseFloat(item.unitPrice) || 0;
-      const lineTotal = qty * unitPrice;
+      const qty = parseInt(item.quantity || item.pieces) || 1;
+      const unitPrice = parseFloat(item.unitPrice || item.sellingPrice) || 0;
+      const mrp = parseFloat(item.mrp || unitPrice);
+      const discountPercent = parseFloat(item.discountPercent || item.marginPct || 0);
+      const lineTotal = parseFloat(item.totalPrice || item.lineTotal || (qty * unitPrice));
       subtotal += lineTotal;
       quoteItems.push({
-        productId: item.productId,
-        productName: item.productName || 'Product',
+        productId: item.productId || undefined,
+        productName: item.productName || item.name || 'Product',
         quantity: qty,
-        mrp: parseFloat(item.mrp || unitPrice),
+        pieces: item.pieces || qty,
+        cartons: item.cartons || 0,
+        mrp,
         unitPrice,
-        discountPercent: parseFloat(item.discountPercent || 0),
-        taxPercent: 5,
+        discountPercent,
+        taxPercent: item.taxPercent || 5,
         totalPrice: lineTotal
       });
     }
 
-    const taxTotal = subtotal * 0.05;
-    const grandTotal = subtotal + taxTotal;
-    const quotationNo = 'QT-' + Date.now().toString().slice(-6);
+    const calcSubtotal = req.body.subtotal !== undefined ? parseFloat(req.body.subtotal) : subtotal;
+    const calcDiscountTotal = req.body.discountTotal !== undefined ? parseFloat(req.body.discountTotal) : 0;
+    const calcTaxTotal = req.body.taxTotal !== undefined ? parseFloat(req.body.taxTotal) : (calcSubtotal * 0.05);
+    const parsedShipping = parseFloat(shippingCharges || 0);
+    const calcGrandTotal = req.body.grandTotal !== undefined 
+      ? parseFloat(req.body.grandTotal) 
+      : (calcSubtotal + calcTaxTotal + parsedShipping);
 
-    const quote = await prisma.quotation.create({
-      data: {
-        quotationNo,
-        salespersonId: userId,
-        customerId: customerId || null,
-        dealerId: dealerId || null,
-        customerName,
-        customerPhone,
-        items: quoteItems,
-        subtotal,
-        discountTotal: 0,
-        taxTotal,
-        grandTotal,
-        validUntil: validUntil ? new Date(validUntil) : new Date(Date.now() + 15 * 86400000),
-        specialTerms,
-        status: 'PENDING_APPROVAL'
-      }
+    const quotationNo = requestedQuotationNo 
+      ? requestedQuotationNo.trim() 
+      : `MF/QTN/${new Date().getFullYear()}-${String(new Date().getFullYear() + 1).slice(-2)}/${Date.now().toString().slice(-5)}`;
+
+    const QuotationModel = mongoose.model('Quotation');
+
+    // If a quotation with this number already exists and is not approved, update it
+    let existingQuote = await QuotationModel.findOne({ quotationNo });
+    if (existingQuote && existingQuote.status !== 'APPROVED') {
+      existingQuote.customerName = customerName;
+      if (customerPhone) existingQuote.customerPhone = customerPhone;
+      if (customerAddress) existingQuote.customerAddress = customerAddress;
+      if (customerType) existingQuote.customerType = customerType;
+      if (customerId) existingQuote.customerId = customerId;
+      if (dealerId) existingQuote.dealerId = dealerId;
+      existingQuote.items = quoteItems;
+      if (rawItems) existingQuote.rawItems = rawItems;
+      existingQuote.subtotal = calcSubtotal;
+      existingQuote.discountTotal = calcDiscountTotal;
+      existingQuote.taxTotal = calcTaxTotal;
+      existingQuote.shippingCharges = parsedShipping;
+      existingQuote.grandTotal = calcGrandTotal;
+      existingQuote.isWithGst = isWithGst;
+      existingQuote.specialTerms = specialTerms || existingQuote.specialTerms;
+      existingQuote.status = status;
+      await existingQuote.save();
+
+      return res.json({ 
+        success: true, 
+        message: 'Quotation draft updated successfully', 
+        data: existingQuote 
+      });
+    }
+
+    const newQuote = await QuotationModel.create({
+      quotationNo,
+      salespersonId: userId || undefined,
+      customerId: customerId || undefined,
+      dealerId: dealerId || undefined,
+      customerName,
+      customerPhone,
+      customerAddress,
+      customerType,
+      items: quoteItems,
+      rawItems,
+      subtotal: calcSubtotal,
+      discountTotal: calcDiscountTotal,
+      taxTotal: calcTaxTotal,
+      shippingCharges: parsedShipping,
+      grandTotal: calcGrandTotal,
+      isWithGst,
+      validUntil: validUntil ? new Date(validUntil) : new Date(Date.now() + 15 * 86400000),
+      specialTerms,
+      status: status || 'PENDING_APPROVAL'
     });
 
-    res.status(201).json({ success: true, message: 'Quotation created and submitted for review', data: quote });
+    res.status(201).json({ 
+      success: true, 
+      message: 'Quotation created and saved as draft', 
+      data: newQuote 
+    });
   } catch (error) {
     next(error);
   }
@@ -2601,11 +2665,13 @@ exports.getAdminApprovals = async (req, res, next) => {
       .populate('salespersonId', 'name email phone')
       .sort({ createdAt: -1 });
 
-    // Pending quotations
+    // Pending quotations with complete creator, customer, dealer and approval metadata
     const quotations = await QuotationModel.find({})
       .populate('salespersonId', 'name email phone')
       .populate('customerId', 'name address phone')
       .populate('dealerId', 'companyName phone')
+      .populate('approvedBy', 'name email')
+      .populate('rejectedBy', 'name email')
       .sort({ createdAt: -1 });
 
     // Pending order amendments / cancellations / returns
@@ -2657,16 +2723,153 @@ exports.reviewQuotationApproval = async (req, res, next) => {
     const { status, adminRemarks } = req.body; // 'APPROVED', 'REJECTED'
 
     const QuotationModel = mongoose.model('Quotation');
-    const updated = await QuotationModel.findByIdAndUpdate(
-      id,
-      {
-        status,
-        adminRemarks: adminRemarks || ''
-      },
-      { new: true }
-    );
+    const quotation = await QuotationModel.findById(id);
+    if (!quotation) {
+      return res.status(404).json({ success: false, message: 'Quotation not found' });
+    }
 
-    res.json({ success: true, message: `Quotation ${status.toLowerCase()} successfully`, data: updated });
+    if (status === 'APPROVED') {
+      // 1. Generate Invoice Number based on quotation number (swapping QTN -> INV)
+      let baseInvNo = quotation.quotationNo || '';
+      if (baseInvNo.includes('QTN')) {
+        baseInvNo = baseInvNo.replace(/QTN/g, 'INV');
+      } else if (baseInvNo.includes('qtn')) {
+        baseInvNo = baseInvNo.replace(/qtn/g, 'inv');
+      } else if (baseInvNo.startsWith('QT-')) {
+        baseInvNo = baseInvNo.replace('QT-', 'INV-');
+      } else if (baseInvNo.startsWith('QTN-')) {
+        baseInvNo = baseInvNo.replace('QTN-', 'INV-');
+      } else {
+        baseInvNo = `INV-${baseInvNo}`;
+      }
+
+      const InvoiceModel = mongoose.model('Invoice');
+      let finalInvoiceNo = baseInvNo;
+      let existingInvoice = await InvoiceModel.findOne({ invoiceNo: finalInvoiceNo });
+      let seq = 1;
+      while (existingInvoice) {
+        finalInvoiceNo = `${baseInvNo}-${seq++}`;
+        existingInvoice = await InvoiceModel.findOne({ invoiceNo: finalInvoiceNo });
+      }
+
+      // 2. Create official Invoice document
+      const invoiceDoc = await InvoiceModel.create({
+        invoiceNo: finalInvoiceNo,
+        dealerId: quotation.dealerId || undefined,
+        storeId: quotation.customerId || undefined,
+        customerName: quotation.customerName,
+        customerPhone: quotation.customerPhone,
+        customerAddress: quotation.customerAddress || '',
+        channel: 'B2B',
+        subtotal: quotation.subtotal,
+        totalDiscount: quotation.discountTotal || 0,
+        totalGst: quotation.taxTotal || 0,
+        cgst: quotation.isWithGst ? (quotation.taxTotal / 2) : 0,
+        sgst: quotation.isWithGst ? (quotation.taxTotal / 2) : 0,
+        isGstEnabled: quotation.isWithGst !== false,
+        shippingCharges: quotation.shippingCharges || 0,
+        totalAmount: quotation.grandTotal,
+        status: 'OPEN',
+        notes: quotation.specialTerms ? `${quotation.specialTerms}\nApproval Reason: ${adminRemarks || ''}` : (adminRemarks || ''),
+        salespersonId: quotation.salespersonId || req.user.id
+      });
+
+      // 3. Create items in InvoiceItem if products are valid
+      const InvoiceItemModel = mongoose.model('InvoiceItem');
+      if (quotation.items && quotation.items.length) {
+        for (const it of quotation.items) {
+          const isValidOid = it.productId && mongoose.Types.ObjectId.isValid(String(it.productId));
+          await InvoiceItemModel.create({
+            invoiceId: invoiceDoc._id,
+            productId: isValidOid ? it.productId : undefined,
+            quantity: it.quantity || it.pieces || 1,
+            unitPrice: it.unitPrice || it.mrp || 0,
+            marginPct: it.discountPercent || 0,
+            sellingPrice: it.unitPrice || 0,
+            gstPercent: it.taxPercent || 5,
+            gstAmount: ((it.totalPrice || 0) * (it.taxPercent || 5)) / 100,
+            lineTotal: it.totalPrice || 0
+          }).catch(() => null);
+        }
+      }
+
+      // 4. Update quotation record with invoice reference & approval reason
+      quotation.status = 'APPROVED';
+      quotation.invoiceNo = finalInvoiceNo;
+      quotation.invoiceId = invoiceDoc._id;
+      quotation.approvedBy = req.user.id;
+      quotation.approvedAt = new Date();
+      quotation.adminRemarks = adminRemarks || '';
+      await quotation.save();
+
+      return res.json({ 
+        success: true, 
+        message: `Quotation approved and official Invoice ${finalInvoiceNo} generated successfully!`, 
+        data: quotation 
+      });
+    }
+
+    if (status === 'REJECTED') {
+      quotation.status = 'REJECTED';
+      quotation.rejectedBy = req.user.id;
+      quotation.rejectedAt = new Date();
+      quotation.adminRemarks = adminRemarks || '';
+      await quotation.save();
+
+      return res.json({ 
+        success: true, 
+        message: 'Quotation rejected with reason noted', 
+        data: quotation 
+      });
+    }
+
+    res.json({ success: true, data: quotation });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.editQuotationApproval = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { 
+      items, 
+      subtotal, 
+      discountTotal, 
+      taxTotal, 
+      shippingCharges, 
+      grandTotal, 
+      adminRemarks,
+      customerName,
+      customerPhone,
+      customerAddress
+    } = req.body;
+
+    const QuotationModel = mongoose.model('Quotation');
+    const quotation = await QuotationModel.findById(id);
+    if (!quotation) {
+      return res.status(404).json({ success: false, message: 'Quotation not found' });
+    }
+
+    if (customerName) quotation.customerName = customerName;
+    if (customerPhone) quotation.customerPhone = customerPhone;
+    if (customerAddress) quotation.customerAddress = customerAddress;
+    if (items && items.length) quotation.items = items;
+    if (subtotal !== undefined) quotation.subtotal = parseFloat(subtotal);
+    if (discountTotal !== undefined) quotation.discountTotal = parseFloat(discountTotal);
+    if (taxTotal !== undefined) quotation.taxTotal = parseFloat(taxTotal);
+    if (shippingCharges !== undefined) quotation.shippingCharges = parseFloat(shippingCharges);
+    if (grandTotal !== undefined) quotation.grandTotal = parseFloat(grandTotal);
+    if (adminRemarks) {
+      quotation.adminRemarks = adminRemarks;
+    }
+    await quotation.save();
+
+    res.json({ 
+      success: true, 
+      message: 'Quotation updated and edit reason recorded successfully', 
+      data: quotation 
+    });
   } catch (error) {
     next(error);
   }

@@ -77,7 +77,14 @@ export const DEFAULT_COMPANY_SETTINGS = {
 export const normalizeQuotationData = (raw) => {
   const isSimulator = !!raw.calculationSummary;
   const company = { ...DEFAULT_COMPANY_SETTINGS, ...(raw.companySettings || {}) };
-  const refNo = raw.quotationRefNumber || raw.quotationNo || `QT-${Date.now().toString().slice(-6)}`;
+  const isApprovedInvoice = Boolean(
+    raw.isInvoice || 
+    (raw.status === 'APPROVED' && raw.invoiceNo) || 
+    (raw.invoiceNo && !raw.quotationRefNumber && !raw.quotationNo)
+  );
+  const refNo = isApprovedInvoice 
+    ? (raw.invoiceNo || raw.quotationRefNumber || raw.quotationNo) 
+    : (raw.quotationRefNumber || raw.quotationNo || `MF/QTN/${new Date().getFullYear()}-${String(new Date().getFullYear() + 1).slice(-2)}/${Date.now().toString().slice(-5)}`);
   const dateStr = raw.date || new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
   const dueDateStr = raw.dueDate || new Date(Date.now() + 15 * 86400000).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 
@@ -209,7 +216,8 @@ export const normalizeQuotationData = (raw) => {
     sgst: isWithGst ? totalGst / 2 : 0,
     shipping,
     grandTotal: Math.round(grandTotal),
-    specialTerms: raw.specialTerms || raw.quotationNotes || company.invoiceTerms
+    specialTerms: raw.specialTerms || raw.quotationNotes || company.invoiceTerms,
+    isApprovedInvoice
   };
 };
 
@@ -218,7 +226,11 @@ export const normalizeQuotationData = (raw) => {
  */
 export const buildQuotationHtml = (rawData) => {
   const data = normalizeQuotationData(rawData);
-  const { company, customer, refNo, dateStr, dueDateStr, items, subtotal, isWithGst, gstRate, totalGst, cgst, sgst, shipping, grandTotal, specialTerms } = data;
+  const { company, customer, refNo, dateStr, dueDateStr, items, subtotal, isWithGst, gstRate, totalGst, cgst, sgst, shipping, grandTotal, specialTerms, isApprovedInvoice } = data;
+  const docTitle = isApprovedInvoice ? 'TAX INVOICE' : 'PRICE QUOTATION';
+  const docNoLabel = isApprovedInvoice ? 'Invoice #' : 'Quotation #';
+  const docDateLabel = isApprovedInvoice ? 'Invoice Date :' : 'Quotation Date :';
+  const docDueLabel = isApprovedInvoice ? 'Due Date :' : 'Valid Until :';
 
   const billerName = company.companyName || company.name || 'MANSARA FOODS PVT. LTD.';
   const billerAddress = company.address || 'Flat No. B4, No.13, Balaji Nagar 1st street extn, Noombal';
@@ -426,10 +438,10 @@ export const buildQuotationHtml = (rawData) => {
       </div>
     </div>
     <div class="inv-meta-cell">
-      <div class="inv-title">TAX INVOICE</div>
-      <div class="meta-line"><span>Invoice #</span><strong>${refNo}</strong></div>
-      <div class="meta-line"><span>Invoice Date :</span><strong>${dateStr}</strong></div>
-      <div class="meta-line"><span>Due Date :</span><strong>${dueDateStr}</strong></div>
+      <div class="inv-title">${docTitle}</div>
+      <div class="meta-line"><span>${docNoLabel}</span><strong>${refNo}</strong></div>
+      <div class="meta-line"><span>${docDateLabel}</span><strong>${dateStr}</strong></div>
+      <div class="meta-line"><span>${docDueLabel}</span><strong>${dueDateStr}</strong></div>
       <div class="meta-line" style="margin-top:6px;">
         <span>Place of Supply :</span><strong>${placeOfSupply}</strong>
       </div>

@@ -7,6 +7,7 @@
 // 4. Generate Quotation & Export Excel
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import {
   Calculator,
@@ -48,12 +49,16 @@ import {
 } from '../../utils/quotationHelper';
 
 export default function PriceSimulatorPage() {
+  const navigate = useNavigate();
+
   // ─── DATA FETCHING ──────────────────────────────────────────────────────────
   const [products, setProducts] = useState([]);
   const [dealers, setDealers] = useState([]);
   const [stores, setStores] = useState([]);
   const [loading, setLoading] = useState(false);
   const [toastMessage, setToastMessage] = useState({ text: '', type: '' });
+  const [savingDraft, setSavingDraft] = useState(false);
+  const [submittedQuotation, setSubmittedQuotation] = useState(null);
 
   // ─── CUSTOMER SEARCH & SELECTION ───────────────────────────────────────────
   const [selectedCustomer, setSelectedCustomer] = useState(null);
@@ -710,9 +715,10 @@ export default function PriceSimulatorPage() {
       console.warn('Could not refresh billing settings:', e);
     }
 
-    const prefix = currentSettings.invoicePrefix || 'MF/INV/25-26';
+    const rawPrefix = currentSettings.invoicePrefix || 'MF/INV/25-26';
+    const quotePrefix = rawPrefix.replace(/INV/i, 'QTN');
     const seqNum = currentSettings.nextSequenceNumber !== undefined ? currentSettings.nextSequenceNumber : 10;
-    setQuotationRefNumber(formatInvoiceNumber(prefix, seqNum));
+    setQuotationRefNumber(formatInvoiceNumber(quotePrefix, seqNum));
     setShowQuotationModal(true);
   };
 
@@ -766,6 +772,67 @@ export default function PriceSimulatorPage() {
       quotationRefNumber: resolvedRef,
       quotationNotes
     };
+  };
+
+  const handleSaveQuotationDraft = async () => {
+    if (!calculationSummary.items || calculationSummary.items.length === 0) {
+      setToastMessage({ text: 'Please add at least one product before saving quotation', type: 'error' });
+      return;
+    }
+
+    setSavingDraft(true);
+    try {
+      const activeCustomerName = selectedCustomer?.companyName || selectedCustomer?.name || customClientName || 'Valued Trade Partner';
+      const quoteNo = quotationRefNumber || `MF/QTN/${new Date().getFullYear()}-${String(new Date().getFullYear() + 1).slice(-2)}/${Date.now().toString().slice(-5)}`;
+
+      const payload = {
+        quotationNo: quoteNo,
+        customerId: selectedCustomer?.type === 'STORE' ? (selectedCustomer.id || selectedCustomer._id) : undefined,
+        dealerId: selectedCustomer?.type === 'DEALER' ? (selectedCustomer.id || selectedCustomer._id) : undefined,
+        customerName: activeCustomerName,
+        customerPhone: selectedCustomer?.phone || '',
+        customerAddress: selectedCustomer?.address || '',
+        customerType: selectedCustomer?.type || 'PROSPECT',
+        items: calculationSummary.items.map(it => ({
+          productId: it.productId,
+          productName: it.name,
+          quantity: it.pieces,
+          pieces: it.pieces,
+          cartons: it.cartons,
+          mrp: it.mrp,
+          unitPrice: it.wholesalePricePerUnit,
+          discountPercent: it.marginPct,
+          taxPercent: calculationSummary.gstRate,
+          totalPrice: it.lineWholesaleTotal
+        })),
+        rawItems: calculationSummary.items,
+        subtotal: calculationSummary.subtotalWithoutGst,
+        discountTotal: calculationSummary.totalMarginDiscount,
+        taxTotal: calculationSummary.totalGstAmount,
+        shippingCharges: calculationSummary.shippingCharges,
+        grandTotal: calculationSummary.grandTotal,
+        isWithGst: calculationSummary.isWithGst,
+        status: 'PENDING_APPROVAL',
+        specialTerms: quotationNotes
+      };
+
+      const res = await axios.post('/field-sales/quotations', payload);
+      if (res.data?.success) {
+        const saved = res.data.data;
+        setShowQuotationModal(false);
+        setSubmittedQuotation(saved);
+        setToastMessage({
+          text: `Quotation "${saved.quotationNo}" saved as draft & submitted to Admin Invoice Requests!`,
+          type: 'success'
+        });
+      }
+    } catch (err) {
+      console.error('Failed to save quotation draft:', err);
+      const errMsg = err.response?.data?.message || 'Failed to save quotation draft';
+      setToastMessage({ text: errMsg, type: 'error' });
+    } finally {
+      setSavingDraft(false);
+    }
   };
 
   const handleDownloadQuotation = async () => {
@@ -822,6 +889,44 @@ export default function PriceSimulatorPage() {
             <Check className="w-4 h-4 text-emerald-600 shrink-0" />
           )}
           <span className="truncate">{toastMessage.text}</span>
+        </div>
+      )}
+
+      {/* ─── DRAFT SAVED CONFIRMATION BANNER ─────────────────────────────────── */}
+      {submittedQuotation && (
+        <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-100 border border-emerald-300 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-md animate-fade-in">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold shrink-0 shadow-sm">
+              <Check className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="font-black text-sm text-emerald-950 flex items-center gap-2">
+                <span>Quotation Draft Saved:</span>
+                <span className="font-mono bg-emerald-200/70 text-emerald-900 px-2 py-0.5 rounded-md">{submittedQuotation.quotationNo}</span>
+              </p>
+              <p className="text-xs text-emerald-700 mt-0.5">
+                Successfully submitted to Admin Invoice Requests. Before approval, this remains strictly as a Quotation; upon approval, official Invoice number will be generated.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 w-full sm:w-auto justify-end shrink-0">
+            <button
+              type="button"
+              onClick={() => navigate('/admin/approvals')}
+              className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold rounded-xl shadow-sm cursor-pointer flex items-center gap-1.5 transition active:scale-95"
+            >
+              <span>Go to Admin Invoice Requests</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setSubmittedQuotation(null)}
+              className="p-1.5 text-emerald-600 hover:text-emerald-900 rounded-lg hover:bg-emerald-200/50 cursor-pointer"
+              title="Dismiss"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       )}
 
@@ -1872,12 +1977,13 @@ export default function PriceSimulatorPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={handleDownloadQuotation}
-                  className="py-1.5 sm:py-2 px-2.5 sm:px-3 rounded-xl bg-rose-600 hover:bg-rose-700 text-white flex items-center gap-1.5 text-xs font-bold transition cursor-pointer shadow-xs active:scale-95"
-                  title="Download Quotation Document & Print"
+                  onClick={handleSaveQuotationDraft}
+                  disabled={savingDraft}
+                  className="py-1.5 sm:py-2 px-3 sm:px-4 rounded-xl bg-rose-600 hover:bg-rose-700 text-white flex items-center gap-1.5 text-xs font-bold transition cursor-pointer shadow-xs active:scale-95 disabled:opacity-50"
+                  title="Save Quotation as Draft & Submit to Admin Invoice Requests"
                 >
-                  <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
-                  <span className="hidden sm:inline">Download</span>
+                  <FileText className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
+                  <span>{savingDraft ? 'Saving Draft...' : 'Save as Draft'}</span>
                 </button>
                 <button
                   type="button"
@@ -1910,13 +2016,13 @@ export default function PriceSimulatorPage() {
                     <p className="text-[10px] text-slate-400 mt-0.5">Tamil Nadu, India</p>
                   </div>
                   <div className="text-left sm:text-right border-t sm:border-t-0 pt-2 sm:pt-0 border-slate-100">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">Invoice / Quotation Ref</span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">Quotation Number</span>
                     <input
                       type="text"
                       value={quotationRefNumber}
                       onChange={(e) => setQuotationRefNumber(e.target.value)}
                       className="font-mono font-black text-rose-700 text-xs sm:text-sm text-left sm:text-right bg-slate-50 border border-slate-200 rounded-lg px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-rose-500 w-full sm:w-auto"
-                      placeholder="e.g. MF/INV/25-26/00010"
+                      placeholder="e.g. MF/QTN/25-26/00010"
                     />
                     <p className="text-[10px] text-slate-400 mt-1">Date: {new Date().toLocaleDateString('en-IN')}</p>
                   </div>
@@ -2172,12 +2278,13 @@ export default function PriceSimulatorPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={handleDownloadQuotation}
-                  className="px-3 sm:px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold text-xs transition cursor-pointer flex items-center gap-1.5 shadow-md shadow-rose-600/20 active:scale-95"
-                  title="Download Quotation Document & Print"
+                  onClick={handleSaveQuotationDraft}
+                  disabled={savingDraft}
+                  className="px-3 sm:px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold text-xs transition cursor-pointer flex items-center gap-1.5 shadow-md shadow-rose-600/20 active:scale-95 disabled:opacity-50"
+                  title="Save Quotation as Draft & Request Invoice Approval"
                 >
-                  <Download className="w-4 h-4" />
-                  <span>Download Quotation</span>
+                  <FileText className="w-4 h-4" />
+                  <span>{savingDraft ? 'Saving Draft...' : 'Save as Draft'}</span>
                 </button>
                 <button
                   type="button"

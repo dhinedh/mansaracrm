@@ -80,6 +80,7 @@ router.post('/admin/beats/assign', fieldSalesController.updateAdminBeatRoute);
 router.get('/admin/approvals', fieldSalesController.getAdminApprovals);
 router.put('/admin/approvals/margins/:id', fieldSalesController.reviewMarginApproval);
 router.put('/admin/approvals/quotations/:id', fieldSalesController.reviewQuotationApproval);
+router.put('/admin/approvals/quotations/:id/edit', fieldSalesController.editQuotationApproval);
 router.put('/admin/approvals/amendments/:id', fieldSalesController.reviewAmendmentApproval);
 
 router.get('/admin/competitors', fieldSalesController.getAdminCompetitorFeed);
