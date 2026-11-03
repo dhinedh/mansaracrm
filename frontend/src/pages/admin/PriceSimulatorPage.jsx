@@ -783,7 +783,14 @@ export default function PriceSimulatorPage() {
     setSavingDraft(true);
     try {
       const activeCustomerName = selectedCustomer?.companyName || selectedCustomer?.name || customClientName || 'Valued Trade Partner';
-      const quoteNo = quotationRefNumber || `MF/QN/${new Date().getFullYear()}-${String(new Date().getFullYear() + 1).slice(-2)}/${Date.now().toString().slice(-5)}`;
+      let quoteNo = quotationRefNumber;
+      if (!quoteNo) {
+        const rawPrefix = companySettings.invoicePrefix || 'MF/INV/25-26';
+        const quotePrefix = rawPrefix.replace(/INV/i, 'QN');
+        const seqNum = companySettings.nextSequenceNumber !== undefined ? companySettings.nextSequenceNumber : 10;
+        quoteNo = formatInvoiceNumber(quotePrefix, seqNum);
+        setQuotationRefNumber(quoteNo);
+      }
 
       const payload = {
         quotationNo: quoteNo,
@@ -1783,19 +1790,22 @@ export default function PriceSimulatorPage() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {/* 1. Generate & Preview */}
+          {/* 1. Save and Draft */}
           <button
             type="button"
-            disabled={calculationSummary.items.length === 0}
-            onClick={handleOpenQuotation}
+            disabled={calculationSummary.items.length === 0 || savingDraft}
+            onClick={handleSaveQuotationDraft}
             className="flex items-center gap-3 p-4 rounded-2xl border-2 border-slate-800 bg-slate-900 hover:bg-slate-800 disabled:opacity-40 text-white transition-all cursor-pointer group shadow-md active:scale-[0.99]"
+            title="Save as Draft & Submit to Admin Invoice Requests"
           >
             <div className="w-10 h-10 rounded-xl bg-white/10 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
               <FileText className="w-5 h-5 text-rose-400" />
             </div>
             <div className="min-w-0 text-left">
-              <h3 className="font-black text-xs sm:text-sm text-white">Generate &amp; Preview</h3>
-              <p className="text-[10px] text-slate-300">Open full quotation document</p>
+              <h3 className="font-black text-xs sm:text-sm text-white">
+                {savingDraft ? 'Saving Draft...' : 'Save and Draft'}
+              </h3>
+              <p className="text-[10px] text-slate-300">Save &amp; submit to Invoice Requests</p>
             </div>
           </button>
 
@@ -1873,11 +1883,12 @@ export default function PriceSimulatorPage() {
             </button>
             <button
               type="button"
-              onClick={handleOpenQuotation}
-              className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-black flex items-center gap-1.5 shadow-md active:scale-95 transition cursor-pointer"
+              disabled={calculationSummary.items.length === 0 || savingDraft}
+              onClick={handleSaveQuotationDraft}
+              className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-black flex items-center gap-1.5 shadow-md active:scale-95 transition cursor-pointer disabled:opacity-50"
             >
               <FileText className="w-3.5 h-3.5 text-rose-400" />
-              <span>Quote</span>
+              <span>{savingDraft ? 'Saving...' : 'Save Draft'}</span>
             </button>
           </div>
         </div>
