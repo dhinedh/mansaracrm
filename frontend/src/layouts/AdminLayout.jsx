@@ -132,20 +132,6 @@ const getSalesMarketingMenuItems = (licensing) => {
       icon: Store,
       allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'],
       subItems: fieldSubItems
-    },
-    {
-      name: 'E-Commerce Store',
-      icon: ShoppingCart,
-      allowedStaffRoles: ['ADMIN', 'ECOM_MANAGER'],
-      subItems: [
-        { name: 'E-Com Products',  path: '/admin/ecom/products',  icon: Package },
-        { name: 'Website Orders',  path: '/admin/ecom/orders',    icon: ShoppingCart },
-        { name: 'Customers',       path: '/admin/ecom/customers', icon: Users },
-        { name: 'Product Combos',  path: '/admin/ecom/combos',    icon: PackageSearch },
-        { name: 'Banners & Hero',  path: '/admin/ecom/banners',   icon: Image },
-        { name: 'Product Reviews', path: '/admin/ecom/reviews',   icon: MessageSquare },
-        { name: 'Website Content', path: '/admin/ecom/content',   icon: FileText }
-      ]
     }
   ];
 };
