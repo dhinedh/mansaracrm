@@ -1,0 +1,174 @@
+[
+  {
+    "_id": "6a1fbf1525981dc956d5b27f",
+    "productId": "6a1fbf1425981dc956d5b27e",
+    "quantity": 0,
+    "minQuantity": 20,
+    "updatedAt": "2026-10-25T07:54:29.687Z",
+    "__v": 0,
+    "storageLocation": "Warehouse 1, Rack A",
+    "unit": "Cartons"
+  },
+  {
+    "_id": "6a1fbf6532244e30666ded78",
+    "productId": "69620f7e7f9c4b0e78ddbc4d",
+    "quantity": 0,
+    "minQuantity": 20,
+    "updatedAt": "2026-10-25T07:55:44.184Z",
+    "__v": 0,
+    "storageLocation": "Warehouse 1, Rack A",
+    "unit": "Cartons"
+  },
+  {
+    "_id": "6a1fbf6632244e30666ded79",
+    "productId": "69620f7e7f9c4b0e78ddbc4e",
+    "quantity": 0,
+    "minQuantity": 20,
+    "updatedAt": "2026-10-25T07:55:28.934Z",
+    "__v": 0,
+    "storageLocation": "Warehouse 1, Rack A",
+    "unit": "Cartons"
+  },
+  {
+    "_id": "6a1fbf6632244e30666ded7a",
+    "productId": "69620f7f7f9c4b0e78ddbc4f",
+    "quantity": 0,
+    "minQuantity": 20,
+    "updatedAt": "2026-10-25T07:55:07.297Z",
+    "__v": 0,
+    "storageLocation": "Warehouse 1, Rack A",
+    "unit": "Cartons"
+  },
+  {
+    "_id": "6a1fbf6632244e30666ded7b",
+    "productId": "69620f7f7f9c4b0e78ddbc50",
+    "quantity": 0,
+    "minQuantity": 20,
+    "updatedAt": "2026-10-25T07:54:51.553Z",
+    "__v": 0,
+    "storageLocation": "Warehouse 1, Rack A",
+    "unit": "Cartons"
+  },
+  {
+    "_id": "6a1fbf6732244e30666ded7c",
+    "productId": "69620f7f7f9c4b0e78ddbc51",
+    "quantity": 0,
+    "minQuantity": 20,
+    "updatedAt": "2026-10-25T07:54:05.173Z",
+    "__v": 0,
+    "storageLocation": "Warehouse 1, Rack A",
+    "unit": "Cartons"
+  },
+  {
+    "_id": "6a1fbf6732244e30666ded7d",
+    "productId": "69a91a0c4ee07f2c99a1aea1",
+    "quantity": 500,
+    "minQuantity": 20,
+    "updatedAt": "2026-06-19T06:32:17.733Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a1fbf6832244e30666ded7e",
+    "productId": "69a9b4091c2c00db0a9bf83e",
+    "quantity": 500,
+    "minQuantity": 20,
+    "updatedAt": "2026-06-19T06:32:18.013Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a1fbf6832244e30666ded7f",
+    "productId": "69a9b40c1c2c00db0a9bf83f",
+    "quantity": 500,
+    "minQuantity": 20,
+    "updatedAt": "2026-06-19T06:32:18.314Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a1fbf6832244e30666ded80",
+    "productId": "69620f7f7f9c4b0e78ddbc52",
+    "quantity": 500,
+    "minQuantity": 20,
+    "updatedAt": "2026-06-19T06:32:18.555Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a1fbf6832244e30666ded81",
+    "productId": "69a9b40e1c2c00db0a9bf840",
+    "quantity": 500,
+    "minQuantity": 20,
+    "updatedAt": "2026-06-19T06:32:18.831Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a1fbf6b32244e30666ded82",
+    "productId": "69a9b4111c2c00db0a9bf841",
+    "quantity": 500,
+    "minQuantity": 20,
+    "updatedAt": "2026-06-19T06:32:21.380Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a1fbf6c32244e30666ded83",
+    "productId": "69a9b4131c2c00db0a9bf842",
+    "quantity": 500,
+    "minQuantity": 20,
+    "updatedAt": "2026-06-19T06:32:21.823Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a1fbf6c32244e30666ded84",
+    "productId": "69a9b4151c2c00db0a9bf843",
+    "quantity": 500,
+    "minQuantity": 20,
+    "updatedAt": "2026-06-19T06:32:22.082Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a1fbf6c32244e30666ded85",
+    "productId": "69a9b4251c2c00db0a9bf844",
+    "quantity": 500,
+    "minQuantity": 20,
+    "updatedAt": "2026-06-19T06:32:22.356Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a4395e6b15ee4b3816e1fc8",
+    "productId": "6a4395e6b15ee4b3816e1fc7",
+    "quantity": 500,
+    "minQuantity": 20,
+    "updatedAt": "2026-06-30T10:10:23.615Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a4396124846e6d23378d02d",
+    "productId": "6a43960f4846e6d23378d02c",
+    "quantity": 500,
+    "minQuantity": 20,
+    "updatedAt": "2026-06-30T10:10:26.549Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a4396144846e6d23378d02f",
+    "productId": "6a4396124846e6d23378d02e",
+    "quantity": 500,
+    "minQuantity": 20,
+    "updatedAt": "2026-06-30T10:10:28.260Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a4396144846e6d23378d031",
+    "productId": "6a4396144846e6d23378d030",
+    "quantity": 500,
+    "minQuantity": 20,
+    "updatedAt": "2026-06-30T10:10:28.658Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a4396154846e6d23378d033",
+    "productId": "6a4396144846e6d23378d032",
+    "quantity": 500,
+    "minQuantity": 20,
+    "updatedAt": "2026-06-30T10:10:29.023Z",
+    "__v": 0
+  }
+]
