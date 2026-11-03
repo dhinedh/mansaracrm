@@ -171,10 +171,10 @@ export default function InventoriesPage() {
       });
 
       setBulkResult(res.data);
-      setMessage({
-        text: res.data?.message || 'Bulk raw material inventory uploaded successfully!',
-        type: 'success'
-      });
+      showToast(res.data?.message || 'Bulk raw material inventory uploaded successfully!', 'success');
+      setShowBulkModal(false);
+      setBulkFile(null);
+      setBulkPreviewRows([]);
       fetchStocks();
     } catch (err) {
       try {
@@ -182,10 +182,10 @@ export default function InventoriesPage() {
           headers: { 'Content-Type': 'multipart/form-data' }
         });
         setBulkResult(res2.data);
-        setMessage({
-          text: res2.data?.message || 'Bulk raw material products uploaded successfully!',
-          type: 'success'
-        });
+        showToast(res2.data?.message || 'Bulk raw material products uploaded successfully!', 'success');
+        setShowBulkModal(false);
+        setBulkFile(null);
+        setBulkPreviewRows([]);
         fetchStocks();
       } catch (fallbackErr) {
         setBulkError(err.response?.data?.message || fallbackErr.response?.data?.message || err.message || 'Bulk upload failed');
