@@ -58,16 +58,18 @@ export default function SalesOrdersPage() {
   const [amendRefNo, setAmendRefNo] = useState('');
   const [amendType, setAmendType] = useState('AMENDMENT');
   const [amendReason, setAmendReason] = useState('');
+  const [companySettings, setCompanySettings] = useState(null);
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [shopsRes, prodRes, quoteRes, amendRes, ordersRes] = await Promise.all([
+      const [shopsRes, prodRes, quoteRes, amendRes, ordersRes, settingsRes] = await Promise.all([
         axios.get('/field-sales/shops'),
         axios.get('/field-sales/catalogue'),
         axios.get('/field-sales/quotations'),
         axios.get('/field-sales/amendments'),
-        axios.get('/field-sales/orders')
+        axios.get('/field-sales/orders'),
+        axios.get('/billing/settings').catch(() => ({ data: { data: null } }))
       ]);
 
       if (shopsRes.data?.success) setShops(shopsRes.data.data || []);
@@ -75,6 +77,7 @@ export default function SalesOrdersPage() {
       if (quoteRes.data?.success) setQuotations(quoteRes.data.data || []);
       if (amendRes.data?.success) setAmendments(amendRes.data.data || []);
       if (ordersRes.data?.success) setBookedOrders(ordersRes.data.data || []);
+      if (settingsRes.data?.success && settingsRes.data.data) setCompanySettings(settingsRes.data.data);
 
       if (shopsRes.data?.data?.length > 0) {
         setSelectedShopId(shopsRes.data.data[0]._id);
@@ -176,7 +179,8 @@ export default function SalesOrdersPage() {
     const isApproved = q.status === 'APPROVED';
     const enriched = {
       ...q,
-      isInvoice: isApproved
+      isInvoice: isApproved,
+      companySettings: companySettings || q.companySettings
     };
     try {
       await downloadQuotationPdf(enriched);
@@ -194,11 +198,12 @@ export default function SalesOrdersPage() {
     const isApproved = q.status === 'APPROVED';
     const enriched = {
       ...q,
-      isInvoice: isApproved
+      isInvoice: isApproved,
+      companySettings: companySettings || q.companySettings
     };
     setActiveQuotationData(enriched);
     const text = formatQuotationWhatsAppText(enriched);
-    const phone = q.customerPhone || '';
+    const phone = q.customerPhone || q.customerId?.phone || q.dealerId?.phone || '';
     setWhatsAppPhone(phone);
     setWhatsAppMessage(text);
     setShowWhatsAppModal(true);

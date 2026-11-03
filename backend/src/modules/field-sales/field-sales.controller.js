@@ -1604,8 +1604,37 @@ exports.createQuotation = async (req, res, next) => {
       rawItems
     } = req.body;
 
-    if (!customerName || !items || !items.length) {
-      return res.status(400).json({ success: false, message: 'Customer name and items are required' });
+    const cleanVal = (val) => (!val || val === 'undefined' || val === 'null' ? '' : String(val).trim());
+    let resolvedCustomerName = cleanVal(customerName);
+    let resolvedCustomerPhone = cleanVal(customerPhone);
+    let resolvedCustomerAddress = cleanVal(customerAddress);
+
+    if (customerId && (!resolvedCustomerName || !resolvedCustomerAddress || !resolvedCustomerPhone)) {
+      try {
+        const StoreModel = mongoose.model('Store');
+        const store = await StoreModel.findById(customerId);
+        if (store) {
+          if (!resolvedCustomerName) resolvedCustomerName = cleanVal(store.name);
+          if (!resolvedCustomerAddress) resolvedCustomerAddress = cleanVal(store.address);
+          if (!resolvedCustomerPhone) resolvedCustomerPhone = cleanVal(store.phone);
+        }
+      } catch (e) {}
+    }
+    if (dealerId && (!resolvedCustomerName || !resolvedCustomerAddress || !resolvedCustomerPhone)) {
+      try {
+        const DealerModel = mongoose.model('Dealer');
+        const dealer = await DealerModel.findById(dealerId);
+        if (dealer) {
+          if (!resolvedCustomerName) resolvedCustomerName = cleanVal(dealer.companyName || dealer.name);
+          if (!resolvedCustomerAddress) resolvedCustomerAddress = cleanVal(dealer.address);
+          if (!resolvedCustomerPhone) resolvedCustomerPhone = cleanVal(dealer.phone);
+        }
+      } catch (e) {}
+    }
+    if (!resolvedCustomerName) resolvedCustomerName = 'Valued Trade Partner';
+
+    if (!items || !items.length) {
+      return res.status(400).json({ success: false, message: 'At least one item is required' });
     }
 
     let subtotal = 0;
@@ -1648,9 +1677,9 @@ exports.createQuotation = async (req, res, next) => {
       if (existingQuote) {
         if (existingQuote.status !== 'APPROVED') {
           // If draft or pending approval, update in place
-          existingQuote.customerName = customerName;
-          if (customerPhone) existingQuote.customerPhone = customerPhone;
-          if (customerAddress) existingQuote.customerAddress = customerAddress;
+          existingQuote.customerName = resolvedCustomerName;
+          existingQuote.customerPhone = resolvedCustomerPhone;
+          existingQuote.customerAddress = resolvedCustomerAddress;
           if (customerType) existingQuote.customerType = customerType;
           if (customerId) existingQuote.customerId = customerId;
           if (dealerId) existingQuote.dealerId = dealerId;
@@ -1704,9 +1733,9 @@ exports.createQuotation = async (req, res, next) => {
       salespersonId: userId || undefined,
       customerId: customerId || undefined,
       dealerId: dealerId || undefined,
-      customerName,
-      customerPhone,
-      customerAddress,
+      customerName: resolvedCustomerName,
+      customerPhone: resolvedCustomerPhone,
+      customerAddress: resolvedCustomerAddress,
       customerType,
       items: quoteItems,
       rawItems,
@@ -2897,12 +2926,17 @@ exports.reviewQuotationApproval = async (req, res, next) => {
     const { status, adminRemarks } = req.body; // 'APPROVED', 'REJECTED'
 
     const QuotationModel = mongoose.model('Quotation');
-    const quotation = await QuotationModel.findById(id);
+    const quotation = await QuotationModel.findById(id).populate('customerId').populate('dealerId');
     if (!quotation) {
       return res.status(404).json({ success: false, message: 'Quotation not found' });
     }
 
     if (status === 'APPROVED') {
+      const cleanVal = (val) => (!val || val === 'undefined' || val === 'null' ? '' : String(val).trim());
+      const custName = cleanVal(quotation.customerName) || cleanVal(quotation.customerId?.name) || cleanVal(quotation.dealerId?.companyName) || 'Valued Trade Partner';
+      const custPhone = cleanVal(quotation.customerPhone) || cleanVal(quotation.customerId?.phone) || cleanVal(quotation.dealerId?.phone) || '';
+      const custAddress = cleanVal(quotation.customerAddress) || cleanVal(quotation.customerId?.address) || cleanVal(quotation.dealerId?.address) || '';
+
       // 1. Generate Invoice Number based on quotation number (swapping QN / QTN -> INV)
       let baseInvNo = quotation.quotationNo || '';
       if (baseInvNo.includes('QN')) {
@@ -2935,11 +2969,11 @@ exports.reviewQuotationApproval = async (req, res, next) => {
       // 2. Create official Invoice document
       const invoiceDoc = await InvoiceModel.create({
         invoiceNo: finalInvoiceNo,
-        dealerId: quotation.dealerId || undefined,
-        storeId: quotation.customerId || undefined,
-        customerName: quotation.customerName,
-        customerPhone: quotation.customerPhone,
-        customerAddress: quotation.customerAddress || '',
+        dealerId: quotation.dealerId?._id || quotation.dealerId || undefined,
+        storeId: quotation.customerId?._id || quotation.customerId || undefined,
+        customerName: custName,
+        customerPhone: custPhone,
+        customerAddress: custAddress,
         channel: 'B2B',
         subtotal: quotation.subtotal,
         totalDiscount: quotation.discountTotal || 0,
@@ -2977,6 +3011,9 @@ exports.reviewQuotationApproval = async (req, res, next) => {
       quotation.status = 'APPROVED';
       quotation.invoiceNo = finalInvoiceNo;
       quotation.invoiceId = invoiceDoc._id;
+      quotation.customerName = custName;
+      quotation.customerPhone = custPhone;
+      quotation.customerAddress = custAddress;
       quotation.approvedBy = req.user.id;
       quotation.approvedAt = new Date();
       quotation.adminRemarks = adminRemarks || '';
@@ -3031,9 +3068,10 @@ exports.editQuotationApproval = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Quotation not found' });
     }
 
-    if (customerName) quotation.customerName = customerName;
-    if (customerPhone) quotation.customerPhone = customerPhone;
-    if (customerAddress) quotation.customerAddress = customerAddress;
+    const cleanVal = (val) => (!val || val === 'undefined' || val === 'null' ? '' : String(val).trim());
+    if (customerName !== undefined) quotation.customerName = cleanVal(customerName) || 'Valued Trade Partner';
+    if (customerPhone !== undefined) quotation.customerPhone = cleanVal(customerPhone);
+    if (customerAddress !== undefined) quotation.customerAddress = cleanVal(customerAddress);
     if (items && items.length) quotation.items = items;
     if (subtotal !== undefined) quotation.subtotal = parseFloat(subtotal);
     if (discountTotal !== undefined) quotation.discountTotal = parseFloat(discountTotal);

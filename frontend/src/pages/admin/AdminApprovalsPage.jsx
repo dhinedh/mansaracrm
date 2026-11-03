@@ -56,6 +56,8 @@ export default function AdminApprovalsPage() {
     isSubmitting: false
   });
 
+  const [companySettings, setCompanySettings] = useState(null);
+
   // Auto-dismiss toast
   useEffect(() => {
     if (toastMessage.text) {
@@ -81,6 +83,13 @@ export default function AdminApprovalsPage() {
 
   useEffect(() => {
     fetchApprovals();
+    axios.get('/billing/settings')
+      .then(res => {
+        if (res.data?.success && res.data.data) {
+          setCompanySettings(res.data.data);
+        }
+      })
+      .catch(() => null);
   }, []);
 
   // Format Helper: Converts Quotation No to expected Invoice No
@@ -211,9 +220,17 @@ export default function AdminApprovalsPage() {
       totalPrice: parseFloat(item.totalPrice || (parseInt(item.quantity || item.pieces || 1) * parseFloat(item.unitPrice || 0)))
     }));
 
+    const clean = (val) => (!val || val === 'undefined' || val === 'null' ? '' : String(val).trim());
+    const initialCustName = clean(quote.customerName) || clean(quote.customerId?.name) || clean(quote.dealerId?.companyName) || '';
+    const initialCustPhone = clean(quote.customerPhone) || clean(quote.customerId?.phone) || clean(quote.dealerId?.phone) || '';
+    const initialCustAddr = clean(quote.customerAddress) || clean(quote.customerId?.address) || clean(quote.dealerId?.address) || '';
+
     setEditModal({
       isOpen: true,
       quotation: quote,
+      customerName: initialCustName,
+      customerPhone: initialCustPhone,
+      customerAddress: initialCustAddr,
       items: clonedItems,
       shippingCharges: parseFloat(quote.shippingCharges || 0),
       adminRemarks: quote.adminRemarks ? `Updated: ${quote.adminRemarks}` : '',
@@ -271,6 +288,9 @@ export default function AdminApprovalsPage() {
       const calcGrand = calculatedSubtotal + calcTax + parseFloat(editModal.shippingCharges || 0);
 
       const res = await axios.put(`/field-sales/admin/approvals/quotations/${quoteId}/edit`, {
+        customerName: editModal.customerName,
+        customerPhone: editModal.customerPhone,
+        customerAddress: editModal.customerAddress,
         items: editModal.items,
         subtotal: calculatedSubtotal,
         taxTotal: calcTax,
@@ -284,7 +304,7 @@ export default function AdminApprovalsPage() {
           text: 'Quotation updated and edit reason recorded successfully!',
           type: 'success'
         });
-        setEditModal({ isOpen: false, quotation: null, items: [], shippingCharges: 0, adminRemarks: '', isSubmitting: false });
+        setEditModal({ isOpen: false, quotation: null, customerName: '', customerPhone: '', customerAddress: '', items: [], shippingCharges: 0, adminRemarks: '', isSubmitting: false });
         fetchApprovals();
       }
     } catch (err) {
@@ -302,7 +322,8 @@ export default function AdminApprovalsPage() {
     const enriched = {
       ...q,
       isInvoice: isApproved,
-      invoiceNo
+      invoiceNo,
+      companySettings: companySettings || q.companySettings
     };
     try {
       await downloadQuotationPdf(enriched);
@@ -322,11 +343,12 @@ export default function AdminApprovalsPage() {
     const enriched = {
       ...q,
       isInvoice: isApproved,
-      invoiceNo
+      invoiceNo,
+      companySettings: companySettings || q.companySettings
     };
     setActiveQuotationData(enriched);
     const text = formatQuotationWhatsAppText(enriched);
-    const phone = q.customerPhone || '';
+    const phone = q.customerPhone || q.customerId?.phone || q.dealerId?.phone || '';
     setWhatsAppPhone(phone);
     setWhatsAppMessage(text);
     setShowWhatsAppModal(true);
@@ -609,21 +631,31 @@ export default function AdminApprovalsPage() {
 
                           {/* 2. To Whom */}
                           <td className="px-4 py-3.5 align-top">
-                            <div className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
-                              {q.customerType === 'DEALER' || q.dealerId ? (
-                                <Building2 className="w-3.5 h-3.5 text-rose-600 shrink-0" />
-                              ) : (
-                                <Store className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                              )}
-                              <span>{q.customerName || 'Valued Trade Customer'}</span>
-                            </div>
-                            <div className="text-[11px] text-slate-500 mt-0.5 space-y-0.5">
-                              {q.customerPhone && <p className="font-mono">📞 {q.customerPhone}</p>}
-                              {q.customerAddress && <p className="text-slate-400 truncate max-w-xs">{q.customerAddress}</p>}
-                              {q.customerId?.name && q.customerId.name !== q.customerName && (
-                                <p className="text-[10px] text-slate-400">Store: {q.customerId.name}</p>
-                              )}
-                            </div>
+                            {(() => {
+                              const clean = (val) => (!val || val === 'undefined' || val === 'null' ? '' : String(val).trim());
+                              const displayName = clean(q.customerName) || clean(q.customerId?.name) || clean(q.dealerId?.companyName) || 'Valued Trade Customer';
+                              const displayPhone = clean(q.customerPhone) || clean(q.customerId?.phone) || clean(q.dealerId?.phone);
+                              const displayAddr = clean(q.customerAddress) || clean(q.customerId?.address) || clean(q.dealerId?.address);
+                              return (
+                                <>
+                                  <div className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
+                                    {q.customerType === 'DEALER' || q.dealerId ? (
+                                      <Building2 className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                                    ) : (
+                                      <Store className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                    )}
+                                    <span>{displayName}</span>
+                                  </div>
+                                  <div className="text-[11px] text-slate-500 mt-0.5 space-y-0.5">
+                                    {displayPhone && <p className="font-mono">📞 {displayPhone}</p>}
+                                    {displayAddr && <p className="text-slate-400 truncate max-w-xs">{displayAddr}</p>}
+                                    {q.customerId?.name && q.customerId.name !== displayName && (
+                                      <p className="text-[10px] text-slate-400">Store: {q.customerId.name}</p>
+                                    )}
+                                  </div>
+                                </>
+                              );
+                            })()}
                           </td>
 
                           {/* 3. Time */}
@@ -1095,6 +1127,46 @@ export default function AdminApprovalsPage() {
               >
                 <X className="w-5 h-5" />
               </button>
+            </div>
+
+            {/* Customer & Address Details */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-slate-50 rounded-2xl border border-slate-200 text-xs">
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+                  Customer / Trade Partner Name
+                </label>
+                <input
+                  type="text"
+                  value={editModal.customerName || ''}
+                  onChange={(e) => setEditModal(prev => ({ ...prev, customerName: e.target.value }))}
+                  placeholder="e.g. Annai Departmental Store"
+                  className="w-full p-2 border border-slate-200 rounded-xl focus:ring-1 focus:ring-indigo-500 focus:outline-none bg-white text-xs font-bold text-slate-800"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+                  Contact Phone
+                </label>
+                <input
+                  type="text"
+                  value={editModal.customerPhone || ''}
+                  onChange={(e) => setEditModal(prev => ({ ...prev, customerPhone: e.target.value }))}
+                  placeholder="e.g. +91 98765 43210"
+                  className="w-full p-2 border border-slate-200 rounded-xl focus:ring-1 focus:ring-indigo-500 focus:outline-none bg-white text-xs font-mono font-medium text-slate-800"
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+                  Delivery / Billing Address
+                </label>
+                <input
+                  type="text"
+                  value={editModal.customerAddress || ''}
+                  onChange={(e) => setEditModal(prev => ({ ...prev, customerAddress: e.target.value }))}
+                  placeholder="e.g. No. 45, Bazaar Street, Anna Nagar, Chennai - 600040"
+                  className="w-full p-2 border border-slate-200 rounded-xl focus:ring-1 focus:ring-indigo-500 focus:outline-none bg-white text-xs font-medium text-slate-800"
+                />
+              </div>
             </div>
 
             {/* Editable Items Table */}

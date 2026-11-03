@@ -70,13 +70,14 @@ const buildInvoiceHtml = (company, invoice) => {
   }
   const formattedBillerAddress = addrParts.join(', ') + (addrParts.length ? '. India.' : '');
 
-  const shipToName    = isRetail ? invoice.store?.name : invoice.dealer?.companyName;
-  const shipToAddr    = isRetail ? invoice.store?.address : invoice.dealer?.address;
-  const shipToCity    = isRetail ? (invoice.store?.city || '') : (invoice.dealer?.city || '');
-  const shipToState   = isRetail ? (invoice.store?.state || '') : (invoice.dealer?.state || '');
-  const shipToPin     = isRetail ? (invoice.store?.pincode || '') : (invoice.dealer?.pincode || '');
-  const shipToGst     = isRetail ? (invoice.store?.gstNumber || 'N/A') : (invoice.dealer?.gstNumber || 'N/A');
-  const shipToPhone   = isRetail ? (invoice.store?.phone || '') : (invoice.dealer?.phone || '');
+  const cleanStr = (val) => (!val || val === 'undefined' || val === 'null' ? '' : String(val).trim());
+  const shipToName    = cleanStr(isRetail ? (invoice.store?.name || invoice.customerName) : (invoice.dealer?.companyName || invoice.customerName || invoice.store?.name)) || 'Valued Trade Partner';
+  const shipToAddr    = cleanStr(isRetail ? (invoice.store?.address || invoice.customerAddress) : (invoice.dealer?.address || invoice.customerAddress || invoice.store?.address));
+  const shipToCity    = cleanStr(isRetail ? (invoice.store?.city || invoice.customerCity) : (invoice.dealer?.city || invoice.customerCity || invoice.store?.city));
+  const shipToState   = cleanStr(isRetail ? (invoice.store?.state || invoice.customerState) : (invoice.dealer?.state || invoice.customerState || invoice.store?.state));
+  const shipToPin     = cleanStr(isRetail ? (invoice.store?.pincode || invoice.customerPincode) : (invoice.dealer?.pincode || invoice.customerPincode || invoice.store?.pincode));
+  const shipToGst     = cleanStr(isRetail ? (invoice.store?.gstNumber) : (invoice.dealer?.gstNumber || invoice.customerGst));
+  const shipToPhone   = cleanStr(isRetail ? (invoice.store?.phone || invoice.customerPhone) : (invoice.dealer?.phone || invoice.customerPhone || invoice.store?.phone));
 
   // Logo rendering logic (dealer logo > saved company logo > disk logo > text name)
   let logoHtml = '';
@@ -385,7 +386,7 @@ const buildInvoiceHtml = (company, invoice) => {
 
   <!-- ── Footer Strip ──────────────────────────────────────────────────── -->
   <div class="footer-strip">
-    Regd. Office &amp; Operations : Flat No. B4, No.13, Balaji Nagar 1<sup>st</sup> street extn, Noombal, Chennai – 600077, Tamil Nadu, India Ph: +91-88388 87064. |
+    Regd. Office &amp; Operations : ${formattedBillerAddress}. Ph: ${billerPhone}. |
     CIN- U10790TN2026PTC188398 | Email: contact@mansarafoods.com | Website: www.mansarafoods.com
   </div>
 </div>

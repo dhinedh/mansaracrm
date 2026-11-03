@@ -71,12 +71,48 @@ export const DEFAULT_COMPANY_SETTINGS = {
   invoiceTerms: '1. Quotation valid for 15 days from issue date.\n2. Wholesale pricing is contingent upon order quantities and margin tiers selected.\n3. Goods once sold cannot be returned unless transit damage is reported upon receipt.'
 };
 
+// String cleaner: strips null, undefined, and literal 'undefined' / 'null'
+export const cleanStr = (val) => {
+  if (val === null || val === undefined) return '';
+  const s = String(val).trim();
+  if (s.toLowerCase() === 'undefined' || s.toLowerCase() === 'null') return '';
+  return s;
+};
+
+let activeCompanySettingsCache = null;
+
+export const setCompanySettingsCache = (settings) => {
+  if (settings && typeof settings === 'object') {
+    activeCompanySettingsCache = { ...DEFAULT_COMPANY_SETTINGS, ...settings };
+  }
+};
+
+export const getCompanySettingsCache = () => activeCompanySettingsCache;
+
+export const fetchActiveCompanySettings = async () => {
+  if (activeCompanySettingsCache) return activeCompanySettingsCache;
+  try {
+    const res = await axios.get('/billing/settings');
+    if (res.data?.success && res.data.data) {
+      activeCompanySettingsCache = { ...DEFAULT_COMPANY_SETTINGS, ...res.data.data };
+      return activeCompanySettingsCache;
+    }
+  } catch (e) {
+    // Graceful fallback to default
+  }
+  return DEFAULT_COMPANY_SETTINGS;
+};
+
 /**
  * Normalizes quotation data from either PriceSimulator or FieldSales Quotation
  */
-export const normalizeQuotationData = (raw) => {
+export const normalizeQuotationData = (raw = {}) => {
   const isSimulator = !!raw.calculationSummary;
-  const company = { ...DEFAULT_COMPANY_SETTINGS, ...(raw.companySettings || {}) };
+  const company = {
+    ...DEFAULT_COMPANY_SETTINGS,
+    ...(activeCompanySettingsCache || {}),
+    ...(raw.companySettings || raw.company || {})
+  };
   const isApprovedInvoice = Boolean(
     raw.isInvoice || 
     raw.status === 'APPROVED' || 
@@ -103,36 +139,79 @@ export const normalizeQuotationData = (raw) => {
   const dateStr = raw.date || new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
   const dueDateStr = raw.dueDate || new Date(Date.now() + 15 * 86400000).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 
-  // Customer resolution
-  let customer = {
-    name: 'Valued Trade Partner',
-    phone: '',
-    address: '',
-    city: '',
-    state: '',
-    pincode: '',
-    gstNumber: ''
-  };
+  // Customer resolution (checking selectedCustomer, customerId object, dealerId object, store object, dealer object, and direct fields)
+  const rawCust = (raw.selectedCustomer && typeof raw.selectedCustomer === 'object') 
+    ? raw.selectedCustomer 
+    : ((raw.customer && typeof raw.customer === 'object') ? raw.customer : {});
+  const rawStore = (raw.customerId && typeof raw.customerId === 'object') 
+    ? raw.customerId 
+    : ((raw.store && typeof raw.store === 'object') ? raw.store : {});
+  const rawDealer = (raw.dealerId && typeof raw.dealerId === 'object') 
+    ? raw.dealerId 
+    : ((raw.dealer && typeof raw.dealer === 'object') ? raw.dealer : {});
 
-  if (raw.selectedCustomer) {
-    customer.name = raw.selectedCustomer.companyName || raw.selectedCustomer.name || raw.customClientName || 'Valued Trade Partner';
-    customer.phone = raw.selectedCustomer.phone || '';
-    customer.address = raw.selectedCustomer.address || '';
-    customer.city = raw.selectedCustomer.city || '';
-    customer.state = raw.selectedCustomer.state || '';
-    customer.pincode = raw.selectedCustomer.pincode || '';
-    customer.gstNumber = raw.selectedCustomer.gstNumber || '';
-  } else if (raw.customerName) {
-    customer.name = raw.customerName;
-    customer.phone = raw.customerPhone || '';
-    customer.address = raw.customerAddress || '';
-    customer.city = raw.customerCity || '';
-    customer.state = raw.customerState || '';
-    customer.pincode = raw.customerPincode || '';
-    customer.gstNumber = raw.customerGst || '';
-  } else if (raw.customClientName) {
-    customer.name = raw.customClientName;
-  }
+  const resolvedName = cleanStr(
+    rawCust.companyName || rawCust.name ||
+    raw.customerName ||
+    rawStore.name ||
+    rawDealer.companyName || rawDealer.name ||
+    raw.customClientName ||
+    raw.storeName ||
+    raw.dealerName
+  ) || 'Valued Trade Partner';
+
+  const resolvedPhone = cleanStr(
+    rawCust.phone ||
+    raw.customerPhone ||
+    rawStore.phone ||
+    rawDealer.phone
+  );
+
+  const resolvedAddress = cleanStr(
+    rawCust.address ||
+    raw.customerAddress ||
+    rawStore.address ||
+    rawDealer.address
+  );
+
+  const resolvedCity = cleanStr(
+    rawCust.city ||
+    raw.customerCity ||
+    rawStore.city ||
+    rawDealer.city
+  );
+
+  const resolvedState = cleanStr(
+    rawCust.state ||
+    raw.customerState ||
+    rawStore.state ||
+    rawDealer.state ||
+    (resolvedCity || resolvedAddress ? 'Tamil Nadu' : '')
+  );
+
+  const resolvedPincode = cleanStr(
+    rawCust.pincode ||
+    raw.customerPincode ||
+    rawStore.pincode ||
+    rawDealer.pincode
+  );
+
+  const resolvedGst = cleanStr(
+    rawCust.gstNumber ||
+    raw.customerGst ||
+    rawStore.gstNumber ||
+    rawDealer.gstNumber
+  );
+
+  let customer = {
+    name: resolvedName,
+    phone: resolvedPhone,
+    address: resolvedAddress,
+    city: resolvedCity,
+    state: resolvedState,
+    pincode: resolvedPincode,
+    gstNumber: resolvedGst
+  };
 
   // Items resolution
   let normalizedItems = [];
@@ -294,13 +373,20 @@ export const buildQuotationHtml = (rawData) => {
     logoHtml = `<img src="${origin}/logo.png" style="max-height:65px;max-width:180px;object-fit:contain;" onerror="this.style.display='none'" alt="${billerName}" />`;
   }
 
-  const shipToName = customer.name || 'Valued Trade Partner';
-  const shipToAddr = customer.address || '';
-  const shipToCity = customer.city || '';
-  const shipToState = customer.state || '';
-  const shipToPin = customer.pincode || '';
-  const shipToGst = customer.gstNumber && customer.gstNumber !== 'N/A' ? customer.gstNumber : '';
-  const shipToPhone = customer.phone || '';
+  const shipToName = cleanStr(customer.name) || 'Valued Trade Partner';
+  const shipToAddr = cleanStr(customer.address);
+  const shipToCity = cleanStr(customer.city);
+  const shipToState = cleanStr(customer.state);
+  const shipToPin = cleanStr(customer.pincode);
+  const shipToGst = cleanStr(customer.gstNumber && customer.gstNumber !== 'N/A' ? customer.gstNumber : '');
+  const shipToPhone = cleanStr(customer.phone);
+
+  const customerAddrParts = [shipToAddr, shipToCity, shipToState, shipToPin]
+    .map(cleanStr)
+    .filter(Boolean);
+  const formattedCustomerAddr = customerAddrParts.length > 0
+    ? customerAddrParts.join(', ')
+    : 'Commercial Delivery Consignment, Tamil Nadu, India';
 
   // Exact Mansara Dealer Format: S.NO | HSN | ITEM | NET WT (G) | RATE (RS.) | PAC | WT/ CTN (KG) | CTNS | TOT. QTY | TOTAL NT WT (KG) | PRICE
   const itemsRows = items.map((item, idx) => {
@@ -472,7 +558,7 @@ export const buildQuotationHtml = (rawData) => {
       <div class="section-hdr">BILL TO</div>
       <div class="bill-name">${shipToName}</div>
       <div class="bill-addr">
-        ${[shipToAddr, shipToCity, shipToState, shipToPin].filter(Boolean).join(', ')}<br>
+        ${formattedCustomerAddr}<br>
         ${shipToPhone ? 'PH. ' + shipToPhone : ''}
       </div>
       ${shipToGst ? `<div class="gstin-line">GSTIN: ${shipToGst}</div>` : ''}
@@ -481,7 +567,7 @@ export const buildQuotationHtml = (rawData) => {
       <div class="section-hdr">SHIP TO</div>
       <div class="bill-name">${shipToName}</div>
       <div class="bill-addr">
-        ${[shipToAddr, shipToCity, shipToState, shipToPin].filter(Boolean).join(', ')}<br>
+        ${formattedCustomerAddr}<br>
         ${shipToPhone ? 'PH. ' + shipToPhone : ''}
       </div>
     </div>
@@ -565,7 +651,7 @@ export const buildQuotationHtml = (rawData) => {
 
   <!-- ── Footer Strip ──────────────────────────────────────────────────── -->
   <div class="footer-strip">
-    Regd. Office &amp; Operations : Flat No. B4, No.13, Balaji Nagar 1<sup>st</sup> street extn, Noombal, Chennai – 600077, Tamil Nadu, India Ph: ${billerPhone}. |
+    Regd. Office &amp; Operations : ${formattedBillerAddress}. Ph: ${billerPhone}. |
     CIN- ${company.cin || 'U10790TN2026PTC188398'} | Email: ${company.email || 'contact@mansarafoods.com'} | Website: ${company.website || 'www.mansarafoods.com'}
   </div>
 </div>
@@ -719,6 +805,13 @@ export const openWhatsAppQuotation = (rawData, targetPhone = null) => {
  * Tries html2pdf client-side first; falls back to backend Puppeteer endpoint.
  */
 export const generateQuotationPdfBlob = async (rawData) => {
+  if (!rawData.companySettings && !rawData.company && !activeCompanySettingsCache) {
+    try {
+      await fetchActiveCompanySettings();
+    } catch (e) {
+      // ignore
+    }
+  }
   const data = normalizeQuotationData(rawData);
   const html = buildQuotationHtml(rawData);
   const safeRef = (data.refNo || 'Mansara').replace(/[^a-zA-Z0-9_-]/g, '_');
