@@ -581,10 +581,10 @@ export default function SalesGpsCheckInPage() {
                 type="button"
                 onClick={handleConfirmCheckIn}
                 disabled={checkInSubmitting}
-                className="w-full bg-amber-500 hover:bg-amber-600 text-white font-black py-3.5 rounded-2xl text-xs sm:text-sm active:scale-95 transition-all cursor-pointer shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2"
+                className="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-black py-3.5 rounded-2xl text-xs sm:text-sm active:scale-95 transition-all cursor-pointer shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2"
               >
                 <span>
-                  {checkInSubmitting ? 'Confirming Check-In...' : `Confirm Check-In: ${selectedPurposes.join(' & ')}`}
+                  {checkInSubmitting ? 'Confirming Check-In...' : 'Confirm Check-In'}
                 </span>
                 <ArrowRight className="w-4 h-4" />
               </button>

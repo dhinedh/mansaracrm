@@ -213,10 +213,10 @@ export default function SalesCheckInPurposePage() {
           type="button"
           onClick={handleConfirmCheckIn}
           disabled={submitting}
-          className="w-full bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-black py-4 rounded-2xl text-sm sm:text-base transition-all cursor-pointer shadow-lg shadow-amber-500/25 flex items-center justify-center gap-2 disabled:opacity-50"
+          className="w-full bg-amber-500 hover:bg-amber-600 active:scale-95 text-slate-950 font-black py-4 rounded-2xl text-sm sm:text-base transition-all cursor-pointer shadow-lg shadow-amber-500/25 flex items-center justify-center gap-2 disabled:opacity-50"
         >
           <span>
-            {submitting ? 'Confirming Check-In...' : `Confirm Check-In: ${selectedPurposes.join(' & ')}`}
+            {submitting ? 'Confirming Check-In...' : 'Confirm Check-In'}
           </span>
           <ArrowRight className="w-4 h-4" />
         </button>

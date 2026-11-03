@@ -1943,7 +1943,7 @@ export default function SalesVisitsPage() {
                 className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-3 rounded-2xl text-xs active:scale-95 transition-all cursor-pointer shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2"
               >
                 <span>
-                  Confirm Check-In: {selectedPurposes.join(' & ')}
+                  Confirm Check-In
                 </span>
                 <ArrowRight className="w-4 h-4" />
               </button>
