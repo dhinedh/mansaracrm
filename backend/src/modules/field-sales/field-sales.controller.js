@@ -1688,7 +1688,7 @@ exports.createQuotation = async (req, res, next) => {
       const count = await QuotationModel.countDocuments();
       const year = new Date().getFullYear();
       const nextYear = String(year + 1).slice(-2);
-      finalQuotationNo = `MF/QTN/${year}-${nextYear}/${String(count + 1).padStart(5, '0')}`;
+      finalQuotationNo = `MF/QN/${year}-${nextYear}/${String(count + 1).padStart(5, '0')}`;
     }
 
     // Guard against any race condition duplicate
@@ -2903,16 +2903,22 @@ exports.reviewQuotationApproval = async (req, res, next) => {
     }
 
     if (status === 'APPROVED') {
-      // 1. Generate Invoice Number based on quotation number (swapping QTN -> INV)
+      // 1. Generate Invoice Number based on quotation number (swapping QN / QTN -> INV)
       let baseInvNo = quotation.quotationNo || '';
-      if (baseInvNo.includes('QTN')) {
+      if (baseInvNo.includes('QN')) {
+        baseInvNo = baseInvNo.replace(/QN/g, 'INV');
+      } else if (baseInvNo.includes('qn')) {
+        baseInvNo = baseInvNo.replace(/qn/g, 'inv');
+      } else if (baseInvNo.includes('QTN')) {
         baseInvNo = baseInvNo.replace(/QTN/g, 'INV');
       } else if (baseInvNo.includes('qtn')) {
         baseInvNo = baseInvNo.replace(/qtn/g, 'inv');
-      } else if (baseInvNo.startsWith('QT-')) {
-        baseInvNo = baseInvNo.replace('QT-', 'INV-');
+      } else if (baseInvNo.startsWith('QN-')) {
+        baseInvNo = baseInvNo.replace('QN-', 'INV-');
       } else if (baseInvNo.startsWith('QTN-')) {
         baseInvNo = baseInvNo.replace('QTN-', 'INV-');
+      } else if (baseInvNo.startsWith('QT-')) {
+        baseInvNo = baseInvNo.replace('QT-', 'INV-');
       } else {
         baseInvNo = `INV-${baseInvNo}`;
       }

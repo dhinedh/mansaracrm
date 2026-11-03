@@ -716,7 +716,7 @@ export default function PriceSimulatorPage() {
     }
 
     const rawPrefix = currentSettings.invoicePrefix || 'MF/INV/25-26';
-    const quotePrefix = rawPrefix.replace(/INV/i, 'QTN');
+    const quotePrefix = rawPrefix.replace(/INV/i, 'QN');
     const seqNum = currentSettings.nextSequenceNumber !== undefined ? currentSettings.nextSequenceNumber : 10;
     setQuotationRefNumber(formatInvoiceNumber(quotePrefix, seqNum));
     setShowQuotationModal(true);
@@ -783,7 +783,7 @@ export default function PriceSimulatorPage() {
     setSavingDraft(true);
     try {
       const activeCustomerName = selectedCustomer?.companyName || selectedCustomer?.name || customClientName || 'Valued Trade Partner';
-      const quoteNo = quotationRefNumber || `MF/QTN/${new Date().getFullYear()}-${String(new Date().getFullYear() + 1).slice(-2)}/${Date.now().toString().slice(-5)}`;
+      const quoteNo = quotationRefNumber || `MF/QN/${new Date().getFullYear()}-${String(new Date().getFullYear() + 1).slice(-2)}/${Date.now().toString().slice(-5)}`;
 
       const payload = {
         quotationNo: quoteNo,
@@ -1966,7 +1966,7 @@ export default function PriceSimulatorPage() {
                       value={quotationRefNumber}
                       onChange={(e) => setQuotationRefNumber(e.target.value)}
                       className="font-mono font-black text-rose-700 text-xs sm:text-sm text-left sm:text-right bg-slate-50 border border-slate-200 rounded-lg px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-rose-500 w-full sm:w-auto"
-                      placeholder="e.g. MF/QTN/25-26/00010"
+                      placeholder="e.g. MF/QN/25-26/00010"
                     />
                     <p className="text-[10px] text-slate-400 mt-1">Date: {new Date().toLocaleDateString('en-IN')}</p>
                   </div>

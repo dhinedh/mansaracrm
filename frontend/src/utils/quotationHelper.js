@@ -87,16 +87,19 @@ export const normalizeQuotationData = (raw) => {
 
   const getDerivedInvoiceNo = (quotationNo = '') => {
     if (!quotationNo) return 'INV-' + Date.now().toString().slice(-6);
+    if (quotationNo.includes('QN')) return quotationNo.replace(/QN/g, 'INV');
+    if (quotationNo.includes('qn')) return quotationNo.replace(/qn/g, 'inv');
     if (quotationNo.includes('QTN')) return quotationNo.replace(/QTN/g, 'INV');
     if (quotationNo.includes('qtn')) return quotationNo.replace(/qtn/g, 'inv');
-    if (quotationNo.startsWith('QT-')) return quotationNo.replace('QT-', 'INV-');
+    if (quotationNo.startsWith('QN-')) return quotationNo.replace('QN-', 'INV-');
     if (quotationNo.startsWith('QTN-')) return quotationNo.replace('QTN-', 'INV-');
+    if (quotationNo.startsWith('QT-')) return quotationNo.replace('QT-', 'INV-');
     return `INV-${quotationNo}`;
   };
 
   const refNo = isApprovedInvoice 
     ? (raw.invoiceNo || raw.invoiceNumber || getDerivedInvoiceNo(raw.quotationRefNumber || raw.quotationNo)) 
-    : (raw.quotationRefNumber || raw.quotationNo || `MF/QTN/${new Date().getFullYear()}-${String(new Date().getFullYear() + 1).slice(-2)}/${Date.now().toString().slice(-5)}`);
+    : (raw.quotationRefNumber || raw.quotationNo || `MF/QN/${new Date().getFullYear()}-${String(new Date().getFullYear() + 1).slice(-2)}/${Date.now().toString().slice(-5)}`);
   const dateStr = raw.date || new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
   const dueDateStr = raw.dueDate || new Date(Date.now() + 15 * 86400000).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 

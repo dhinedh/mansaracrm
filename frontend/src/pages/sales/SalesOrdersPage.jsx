@@ -183,7 +183,7 @@ export default function SalesOrdersPage() {
     } catch (err) {
       const htmlContent = buildQuotationHtml(enriched);
       const prefix = isApproved ? 'Invoice' : 'Quotation';
-      const num = isApproved ? (q.invoiceNo || (q.quotationNo ? q.quotationNo.replace(/QTN|qtn|QT-/g, 'INV-') : 'INV')) : q.quotationNo;
+      const num = isApproved ? (q.invoiceNo || (q.quotationNo ? q.quotationNo.replace(/QTN|qtn|QN|qn|QT-/g, 'INV-') : 'INV')) : q.quotationNo;
       const fileName = `${prefix}_${(num || 'Mansara').replace(/[^a-zA-Z0-9_-]/g, '_')}.html`;
       downloadQuotationHtml(htmlContent, fileName);
       triggerPrintQuotation(htmlContent);
