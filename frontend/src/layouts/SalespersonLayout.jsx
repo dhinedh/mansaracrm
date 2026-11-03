@@ -142,7 +142,6 @@ export default function SalespersonLayout() {
             <div>
               <div className="flex items-center gap-1.5">
                 <span className="text-xs font-black tracking-wider text-amber-600 uppercase">Field Sales</span>
-                <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-50 text-amber-700 font-semibold border border-amber-200">v2.5</span>
               </div>
               <h2 className="text-xs font-semibold text-slate-700 truncate max-w-[150px] sm:max-w-xs">{user?.name || 'Sales Officer'}</h2>
             </div>
