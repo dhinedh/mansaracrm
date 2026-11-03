@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, NavLink, Link, useNavigate, useLocation } from 'react-router-dom';
+import axios from 'axios';
 import { useAuthStore } from '../store/authStore';
 import { 
   Home, MapPin, ShoppingBag, Package, DollarSign, Clock, 
   Menu, X, LogOut, User, CheckCircle2, AlertCircle, Wifi, 
   WifiOff, RefreshCw, ChevronRight, FileText, BarChart3, HelpCircle,
-  TrendingUp, Award, Tag, Smartphone, Receipt
+  TrendingUp, Award, Tag, Smartphone, Receipt, ShieldAlert
 } from 'lucide-react';
 
 export default function SalespersonLayout() {
@@ -17,6 +18,9 @@ export default function SalespersonLayout() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
+  const [checkingLogout, setCheckingLogout] = useState(false);
+  const [blockedLogoutModalOpen, setBlockedLogoutModalOpen] = useState(false);
+  const [activeCheckInVisit, setActiveCheckInVisit] = useState(null);
 
   const isDashboard = location.pathname === '/sales/dashboard' || location.pathname === '/sales';
   const isBillingActive = location.pathname === '/sales/orders' || location.pathname === '/sales/pricing' || location.pathname === '/sales/quotations' || location.pathname === '/sales/amendments';
@@ -60,9 +64,70 @@ export default function SalespersonLayout() {
     };
   }, []);
 
-  const handleLogout = () => {
-    logout();
-    navigate('/sales/login');
+  const handleLogout = async () => {
+    setCheckingLogout(true);
+    try {
+      // 1. Check if there is an active check-in that has not been checked out
+      let activeVisit = null;
+      try {
+        const res = await axios.get('/field-sales/visits/active');
+        if (res.data?.success && res.data?.hasActiveCheckIn) {
+          activeVisit = res.data.data;
+        }
+      } catch (err) {
+        console.warn('Could not query /visits/active, trying visits list fallback:', err);
+      }
+
+      // 2. Fallback check against visits history if /visits/active didn't catch
+      if (!activeVisit) {
+        try {
+          const res = await axios.get('/field-sales/visits?limit=15');
+          const list = Array.isArray(res.data?.data) ? res.data.data : [];
+          activeVisit = list.find(v => !v.checkOutTime && (v.status === 'IN_PROGRESS' || v.checkInTime)) || null;
+        } catch (e) {
+          console.warn('Visits list fallback failed:', e);
+        }
+      }
+
+      // 3. If there is an active check-in, BLOCK logout!
+      if (activeVisit) {
+        setActiveCheckInVisit(activeVisit);
+        setBlockedLogoutModalOpen(true);
+        setMobileMenuOpen(false);
+        return;
+      }
+
+      // 4. Safe to proceed with logout
+      logout();
+      navigate('/sales/login');
+    } catch (error) {
+      console.error('Logout error:', error);
+      logout();
+      navigate('/sales/login');
+    } finally {
+      setCheckingLogout(false);
+    }
+  };
+
+  const handleGoToCheckOut = () => {
+    setBlockedLogoutModalOpen(false);
+    const storeId = activeCheckInVisit?.storeId || activeCheckInVisit?.store?._id || activeCheckInVisit?.store?.id;
+    if (storeId) {
+      navigate(`/sales/store-visit/${storeId}`, {
+        state: {
+          visit: activeCheckInVisit,
+          activeVisitId: activeCheckInVisit._id || activeCheckInVisit.id,
+          promptCheckOut: true
+        }
+      });
+    } else {
+      navigate('/sales/visits', {
+        state: {
+          activeVisitId: activeCheckInVisit?._id || activeCheckInVisit?.id,
+          promptCheckOut: true
+        }
+      });
+    }
   };
 
   const handleManualSync = () => {
@@ -240,11 +305,12 @@ export default function SalespersonLayout() {
           <div className="pt-4 border-t border-slate-200">
             <button
               type="button"
+              disabled={checkingLogout}
               onClick={handleLogout}
-              className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-xl transition-all cursor-pointer border border-transparent hover:border-rose-200"
+              className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-xl transition-all cursor-pointer border border-transparent hover:border-rose-200 disabled:opacity-50"
             >
-              <LogOut className="w-4 h-4" />
-              <span>Log Out</span>
+              {checkingLogout ? <RefreshCw className="w-4 h-4 animate-spin" /> : <LogOut className="w-4 h-4" />}
+              <span>{checkingLogout ? 'Checking Status...' : 'Log Out'}</span>
             </button>
           </div>
         </aside>
@@ -405,11 +471,81 @@ export default function SalespersonLayout() {
             <div className="pt-4 border-t border-slate-200">
               <button
                 type="button"
+                disabled={checkingLogout}
                 onClick={handleLogout}
-                className="w-full flex items-center justify-center gap-2 py-3 bg-rose-50 text-rose-700 font-bold text-xs rounded-xl border border-rose-200 hover:bg-rose-100 cursor-pointer"
+                className="w-full flex items-center justify-center gap-2 py-3 bg-rose-50 text-rose-700 font-bold text-xs rounded-xl border border-rose-200 hover:bg-rose-100 cursor-pointer disabled:opacity-50"
               >
-                <LogOut className="w-4 h-4" />
-                <span>Log Out of Portal</span>
+                {checkingLogout ? <RefreshCw className="w-4 h-4 animate-spin" /> : <LogOut className="w-4 h-4" />}
+                <span>{checkingLogout ? 'Checking Status...' : 'Log Out of Portal'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── BLOCKED LOGOUT MODAL (Check-Out Required) ─── */}
+      {blockedLogoutModalOpen && (
+        <div className="fixed inset-0 z-[70] bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="w-full max-w-md bg-white rounded-3xl p-6 shadow-2xl border border-rose-200 space-y-5 animate-in zoom-in-95 duration-200">
+            {/* Header Icon & Title */}
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-rose-50 border border-rose-200 flex items-center justify-center text-rose-600 shrink-0 shadow-xs">
+                <ShieldAlert className="w-6 h-6" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <span className="text-[10px] font-black uppercase tracking-wider text-rose-600 bg-rose-100/70 px-2 py-0.5 rounded-full inline-block mb-1">
+                  Check-Out Required
+                </span>
+                <h3 className="text-base sm:text-lg font-black text-slate-900 leading-tight">
+                  Cannot Log Out While Checked In
+                </h3>
+                <p className="text-xs text-slate-500 mt-1">
+                  You have an active store visit in progress. Company field sales policy requires completing your visit report and check-out before logging out.
+                </p>
+              </div>
+            </div>
+
+            {/* Active Visit Details Card */}
+            {activeCheckInVisit && (
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-slate-500 uppercase text-[10px] tracking-wide">Active Store</span>
+                  <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-bold border border-amber-200 flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping"></span>
+                    Checked-In
+                  </span>
+                </div>
+                <div className="font-black text-slate-900 text-sm truncate">
+                  {activeCheckInVisit.store?.name || activeCheckInVisit.store?.companyName || activeCheckInVisit.visitorName || 'Store Visit'}
+                </div>
+                <div className="flex items-center justify-between text-xs text-slate-500 pt-1 border-t border-slate-200/80">
+                  <div className="flex items-center gap-1">
+                    <Clock className="w-3.5 h-3.5 text-slate-400" />
+                    <span>In: {new Date(activeCheckInVisit.checkInTime || activeCheckInVisit.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                  </div>
+                  <div className="truncate max-w-[180px] text-[11px] font-medium text-slate-600">
+                    {activeCheckInVisit.purpose || 'Store Visit'}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Action Buttons */}
+            <div className="flex flex-col sm:flex-row gap-2.5 pt-1">
+              <button
+                type="button"
+                onClick={handleGoToCheckOut}
+                className="flex-1 bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-500 hover:to-rose-600 text-white font-black py-3 px-4 rounded-xl text-xs flex items-center justify-center gap-2 shadow-lg shadow-rose-600/25 active:scale-95 transition-all cursor-pointer"
+              >
+                <MapPin className="w-4 h-4" />
+                <span>Go to Visit &amp; Check-Out</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setBlockedLogoutModalOpen(false)}
+                className="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all cursor-pointer text-center"
+              >
+                Stay Logged In
               </button>
             </div>
           </div>

@@ -73,6 +73,47 @@ exports.reverseGeocode = async (req, res, next) => {
 // STORE VISIT CHECK-IN / CHECK-OUT
 // ======================================================
 
+exports.getActiveVisit = async (req, res, next) => {
+  try {
+    const visits = await prisma.visit.findMany({
+      where: {
+        salespersonId: req.user.id
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 20
+    });
+
+    const list = Array.isArray(visits) ? visits : (visits?.data || []);
+    const activeVisit = list.find(
+      v => !v.checkOutTime && (v.status === 'IN_PROGRESS' || v.checkInTime)
+    );
+
+    if (!activeVisit) {
+      return res.json({ success: true, hasActiveCheckIn: false, data: null });
+    }
+
+    let store = null;
+    if (activeVisit.storeId) {
+      store = await prisma.store.findUnique({ where: { id: activeVisit.storeId } });
+    } else if (activeVisit.leadId) {
+      store = await prisma.lead.findUnique({ where: { id: activeVisit.leadId } });
+    } else if (activeVisit.dealerId) {
+      store = await prisma.dealer.findUnique({ where: { id: activeVisit.dealerId } });
+    }
+
+    return res.json({
+      success: true,
+      hasActiveCheckIn: true,
+      data: {
+        ...activeVisit,
+        store
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 exports.checkInVisit = async (req, res, next) => {
   try {
     const { leadId, dealerId, storeId, visitorName, purpose, latitude, longitude, visitId } = req.body;
