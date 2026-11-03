@@ -330,22 +330,24 @@ export default function SalesStoreVisitPage() {
 
   // 7. Order Cart Logic
   const updateCartItem = (product, delta) => {
+    const prodId = product._id || product.id;
+    if (!prodId) return;
     setOrderCart(prev => {
-      const existing = prev.find(item => item.productId === product._id);
+      const existing = prev.find(item => item.productId === prodId);
       if (existing) {
         const newQty = existing.quantity + delta;
         if (newQty <= 0) {
-          return prev.filter(item => item.productId !== product._id);
+          return prev.filter(item => item.productId !== prodId);
         }
         return prev.map(item =>
-          item.productId === product._id
+          item.productId === prodId
             ? { ...item, quantity: newQty, lineTotal: newQty * item.price }
             : item
         );
       } else if (delta > 0) {
         const price = parseFloat(product.mrp || product.price || 0);
         return [...prev, {
-          productId: product._id,
+          productId: prodId,
           productName: product.name,
           unit: product.unit || 'PCS',
           cartonSize: product.cartonSize || 24,
@@ -1503,23 +1505,24 @@ export default function SalesStoreVisitPage() {
             <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
               {catalogueLoading ? (
                 <p className="text-center py-6 text-xs text-slate-500">Loading products...</p>
-              ) : catalogue.filter(p => p.name.toLowerCase().includes(catalogSearch.toLowerCase())).length === 0 ? (
+              ) : catalogue.filter(p => (p?.name || '').toLowerCase().includes(catalogSearch.toLowerCase())).length === 0 ? (
                 <p className="text-center py-6 text-xs text-slate-500">No matching products found.</p>
               ) : (
                 catalogue
-                  .filter(p => p.name.toLowerCase().includes(catalogSearch.toLowerCase()))
-                  .map(product => {
-                    const inCart = orderCart.find(i => i.productId === product._id);
+                  .filter(p => (p?.name || '').toLowerCase().includes(catalogSearch.toLowerCase()))
+                  .map((product, idx) => {
+                    const prodId = product._id || product.id || `prod-${idx}`;
+                    const inCart = orderCart.find(i => i.productId === prodId || (product._id && i.productId === product._id));
                     const qty = inCart ? inCart.quantity : 0;
                     const price = parseFloat(product.mrp || product.price || 0);
 
                     return (
                       <div
-                        key={product._id}
+                        key={product._id ? `${product._id}-${idx}` : `catalog-prod-${idx}`}
                         className="bg-slate-50/70 border border-slate-200 rounded-xl p-3 flex items-center justify-between gap-3 hover:border-slate-300 transition-colors"
                       >
                         <div className="min-w-0 flex-1">
-                          <p className="font-bold text-xs text-slate-900 truncate">{product.name}</p>
+                          <p className="font-bold text-xs text-slate-900 truncate">{product.name || 'Unnamed Product'}</p>
                           <div className="flex items-center gap-2 text-[11px] text-slate-500 mt-0.5">
                             <span className="font-mono font-bold text-amber-700">₹{price.toFixed(2)}</span>
                             <span>•</span>
@@ -2044,8 +2047,8 @@ export default function SalesStoreVisitPage() {
                   onChange={(e) => setSoldProductId(e.target.value)}
                   className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-emerald-500 font-medium shadow-2xs"
                 >
-                  {catalogue.map((p) => (
-                    <option key={p._id} value={p._id}>
+                  {catalogue.map((p, idx) => (
+                    <option key={p._id ? `${p._id}-${idx}` : `sold-opt-${idx}`} value={p._id || p.id}>
                       {p.name} — ₹{p.mrp || p.price || 0} / {p.unit || 'PCS'}
                     </option>
                   ))}
@@ -2277,8 +2280,8 @@ export default function SalesStoreVisitPage() {
                       onChange={(e) => setRrProductId(e.target.value)}
                       className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-amber-500 font-medium shadow-2xs"
                     >
-                      {catalogue.map((p) => (
-                        <option key={p._id} value={p._id}>
+                      {catalogue.map((p, idx) => (
+                        <option key={p._id ? `${p._id}-${idx}` : `rr-opt-${idx}`} value={p._id || p.id}>
                           {p.name} (₹{p.mrp || p.price || 0})
                         </option>
                       ))}
@@ -2324,8 +2327,8 @@ export default function SalesStoreVisitPage() {
                         onChange={(e) => setRrReplacementProductId(e.target.value)}
                         className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-amber-500 font-medium shadow-2xs"
                       >
-                        {catalogue.map((p) => (
-                          <option key={p._id} value={p._id}>
+                        {catalogue.map((p, idx) => (
+                          <option key={p._id ? `${p._id}-${idx}` : `repl-opt-${idx}`} value={p._id || p.id}>
                             {p.name} (₹{p.mrp || p.price || 0})
                           </option>
                         ))}
