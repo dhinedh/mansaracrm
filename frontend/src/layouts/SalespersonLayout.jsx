@@ -188,85 +188,31 @@ export default function SalespersonLayout() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col antialiased selection:bg-amber-100 selection:text-amber-900 sales-portal-light">
-      {/* Top App Header Bar */}
-      <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200 px-4 py-3 flex items-center justify-between shadow-xs">
-        <div className="flex items-center gap-3">
-          <button 
-            type="button" 
-            onClick={() => setMobileMenuOpen(true)}
-            className="p-2 -ml-1 text-slate-600 hover:text-slate-900 rounded-xl hover:bg-slate-100 active:scale-95 transition-all lg:hidden cursor-pointer"
-            aria-label="Open Navigation Menu"
-          >
-            <Menu className="w-5 h-5" />
-          </button>
-
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-amber-500 to-amber-600 flex items-center justify-center font-black text-slate-950 text-xs shadow-md shadow-amber-500/20">
-              MF
-            </div>
-            <div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs font-black tracking-wider text-amber-600 uppercase">Field Sales</span>
-              </div>
-              <h2 className="text-xs font-semibold text-slate-700 truncate max-w-[150px] sm:max-w-xs">{user?.name || 'Sales Officer'}</h2>
-            </div>
-          </div>
-        </div>
-        
-        {/* Status Indicators & Profile */}
-        <div className="flex items-center gap-2 sm:gap-3">
-          {/* Online/Offline status */}
-          <div className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold border ${
-            isOnline 
-              ? 'bg-emerald-50 border-emerald-200 text-emerald-700' 
-              : 'bg-rose-50 border-rose-200 text-rose-700 animate-pulse'
-          }`}>
-            {isOnline ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
-            <span className="hidden sm:inline">{isOnline ? 'Online' : 'Offline Mode'}</span>
-          </div>
-
-          {/* GPS Status */}
-          <div className={`hidden sm:flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold border ${
-            gpsReady 
-              ? 'bg-cyan-50 border-cyan-200 text-cyan-700' 
-              : 'bg-amber-50 border-amber-200 text-amber-700'
-          }`}>
-            <MapPin className="w-3 h-3" />
-            <span>{gpsReady ? 'GPS Active' : 'Acquiring GPS'}</span>
-          </div>
-
-          {/* Sync status button */}
-          <button
-            type="button"
-            onClick={handleManualSync}
-            disabled={syncing}
-            className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold border cursor-pointer transition-all ${
-              pendingSyncCount > 0
-                ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-sm animate-bounce'
-                : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
-            }`}
-            title="Sync offline records to server"
-          >
-            <RefreshCw className={`w-3 h-3 ${syncing ? 'animate-spin' : ''}`} />
-            <span>{pendingSyncCount > 0 ? `${pendingSyncCount} Sync` : 'Synced'}</span>
-          </button>
-
-          {/* Quick Profile Link */}
-          <button
-            type="button"
-            onClick={() => navigate('/sales/profile')}
-            className="w-8 h-8 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-600 hover:text-slate-900 hover:border-amber-400 transition-all cursor-pointer"
-            title="Profile & Settings"
-          >
-            <User className="w-4 h-4" />
-          </button>
-        </div>
-      </header>
-
       {/* Main Container Layout */}
       <div className="flex-1 flex max-w-7xl w-full mx-auto">
         {/* Desktop Sidebar (hidden on mobile, visible lg+) */}
-        <aside className="hidden lg:flex flex-col w-64 bg-white border-r border-slate-200 p-4 space-y-6 overflow-y-auto max-h-[calc(100vh-60px)] sticky top-[60px] pb-24 shadow-xs">
+        <aside className="hidden lg:flex flex-col w-64 bg-white border-r border-slate-200 p-4 space-y-6 overflow-y-auto max-h-screen sticky top-0 pb-24 shadow-xs">
+          {/* Brand & Rep Identity in Desktop Sidebar */}
+          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-amber-500 to-amber-600 flex items-center justify-center font-black text-slate-950 text-xs shadow-md shadow-amber-500/20">
+                MF
+              </div>
+              <div className="min-w-0">
+                <span className="text-[10px] font-black tracking-wider text-amber-600 uppercase block">Field Sales</span>
+                <h2 className="text-xs font-semibold text-slate-700 truncate max-w-[130px]">{user?.name || 'Sales Officer'}</h2>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => navigate('/sales/profile')}
+              className="w-7 h-7 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-600 hover:text-slate-900 hover:border-amber-400 transition-all cursor-pointer"
+              title="Profile & Settings"
+            >
+              <User className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
           {navSections.map((sec, idx) => (
             <div key={idx} className="space-y-1.5">
               <h3 className="text-[10px] font-black uppercase tracking-wider text-slate-400 px-3">{sec.title}</h3>
@@ -418,9 +364,14 @@ export default function SalespersonLayout() {
           <div className="w-full max-w-sm bg-white border-l border-slate-200 h-full flex flex-col p-5 overflow-y-auto shadow-2xl">
             {/* Drawer Header */}
             <div className="flex items-center justify-between pb-4 border-b border-slate-200">
-              <div>
-                <span className="text-[10px] uppercase font-black tracking-widest text-amber-600">Complete SFA Portal</span>
-                <h3 className="text-base font-black text-slate-900">All 34 Sales Modules</h3>
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-amber-500 to-amber-600 flex items-center justify-center font-black text-slate-950 text-xs shadow-md shadow-amber-500/20">
+                  MF
+                </div>
+                <div>
+                  <span className="text-[10px] uppercase font-black tracking-widest text-amber-600">Field Sales</span>
+                  <h3 className="text-sm font-bold text-slate-900">{user?.name || 'Sales Officer'}</h3>
+                </div>
               </div>
               <button
                 type="button"
