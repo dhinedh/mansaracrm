@@ -450,46 +450,31 @@ export default function SalesVisitsPage() {
     }
   }, [activeVisitRecord, activeShopWindow]);
 
-  // Nearby & Matching shops based on GPS & Address
+  // Nearby & Matching shops based strictly on 200m GPS radius
   const nearbyMatchedShops = useMemo(() => {
     if (!shops.length) return [];
     const userLat = currentCoords?.latitude;
     const userLon = currentCoords?.longitude;
-    const addrTokens = geoAddress ? [
-      geoAddress.street?.toLowerCase(),
-      geoAddress.area?.toLowerCase(),
-      geoAddress.city?.toLowerCase()
-    ].filter(Boolean) : [];
+
+    if (!userLat || !userLon) return [];
 
     return shops.map(s => {
       let dist = s.distanceMeters != null ? s.distanceMeters : null;
-      if (dist === null && userLat && userLon && s.latitude && s.longitude) {
+      if (dist === null && s.latitude && s.longitude) {
         dist = calculateDistance(userLat, userLon, s.latitude, s.longitude);
       }
 
-      // Check text address similarity
-      const storeAddr = (s.address + ' ' + (s.city || '')).toLowerCase();
-      const isTextMatch = addrTokens.some(tok => tok.length > 2 && storeAddr.includes(tok));
-
       return {
         ...s,
-        computedDistance: dist,
-        isTextMatch
+        computedDistance: dist
       };
     }).filter(s => {
-      // Include if within 2500m OR text matches location
-      if (s.computedDistance !== null && s.computedDistance <= 2500) return true;
-      if (s.isTextMatch) return true;
-      return false;
+      // Strictly 200m radius
+      return s.computedDistance !== null && s.computedDistance <= 200;
     }).sort((a, b) => {
-      if (a.computedDistance !== null && b.computedDistance !== null) {
-        return a.computedDistance - b.computedDistance;
-      }
-      if (a.computedDistance !== null) return -1;
-      if (b.computedDistance !== null) return 1;
-      return 0;
+      return a.computedDistance - b.computedDistance;
     });
-  }, [shops, currentCoords, geoAddress]);
+  }, [shops, currentCoords]);
 
   // General Filtered shops for Beat tab
   // General Filtered shops for Beat tab - When a visit is active, only show the checked-in store

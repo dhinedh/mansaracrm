@@ -182,44 +182,31 @@ export default function SalesGpsCheckInPage() {
     acquireGPS();
   }, []);
 
-  // Filter nearby shops within 2500m or text address matching
+  // Filter nearby shops strictly within 200m radius
   const nearbyMatchedShops = useMemo(() => {
     if (!shops.length) return [];
     const userLat = currentCoords?.latitude;
     const userLon = currentCoords?.longitude;
-    const addrTokens = geoAddress ? [
-      geoAddress.street?.toLowerCase(),
-      geoAddress.area?.toLowerCase(),
-      geoAddress.city?.toLowerCase()
-    ].filter(Boolean) : [];
+
+    if (!userLat || !userLon) return [];
 
     return shops.map(s => {
       let dist = s.distanceMeters != null ? s.distanceMeters : null;
-      if (dist === null && userLat && userLon && s.latitude && s.longitude) {
+      if (dist === null && s.latitude && s.longitude) {
         dist = calculateDistance(userLat, userLon, s.latitude, s.longitude);
       }
 
-      const storeAddr = ((s.address || '') + ' ' + (s.city || '')).toLowerCase();
-      const isTextMatch = addrTokens.some(tok => tok.length > 2 && storeAddr.includes(tok));
-
       return {
         ...s,
-        computedDistance: dist,
-        isTextMatch
+        computedDistance: dist
       };
     }).filter(s => {
-      if (s.computedDistance !== null && s.computedDistance <= 2500) return true;
-      if (s.isTextMatch) return true;
-      return false;
+      // ONLY show registered stores within 200m radius!
+      return s.computedDistance !== null && s.computedDistance <= 200;
     }).sort((a, b) => {
-      if (a.computedDistance !== null && b.computedDistance !== null) {
-        return a.computedDistance - b.computedDistance;
-      }
-      if (a.computedDistance !== null) return -1;
-      if (b.computedDistance !== null) return 1;
-      return 0;
+      return a.computedDistance - b.computedDistance;
     });
-  }, [shops, currentCoords, geoAddress]);
+  }, [shops, currentCoords]);
 
   // Toggle Purpose selection
   const togglePurposeSelection = (purposeId) => {
@@ -442,7 +429,7 @@ export default function SalesGpsCheckInPage() {
             <span>Matching Stores at this Location ({nearbyMatchedShops.length})</span>
           </h3>
           <span className="text-[11px] font-semibold text-slate-600 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200">
-            Radius ~2km / Area Match
+            Radius ≤ 200m (GPS Geofence)
           </span>
         </div>
 
@@ -460,11 +447,11 @@ export default function SalesGpsCheckInPage() {
                     </h4>
                     {shop.computedDistance !== null && (
                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                        shop.computedDistance < 100 
+                        shop.computedDistance <= 50 
                           ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
                           : 'bg-amber-50 text-amber-700 border border-amber-200'
                       }`}>
-                        {shop.computedDistance < 100 ? '🎯 Exact Location' : `${shop.computedDistance}m away`}
+                        {shop.computedDistance <= 50 ? '🎯 Exact Location' : `${shop.computedDistance}m away`}
                       </span>
                     )}
                   </div>
@@ -490,10 +477,10 @@ export default function SalesGpsCheckInPage() {
             ))}
           </div>
         ) : (
-          /* NO STORE FOUND AT EXACT LOCATION - EXACT MATCH WITH IMAGE 1 */
+          /* NO STORE FOUND WITHIN 200M RADIUS */
           <div className="bg-slate-50 border border-dashed border-slate-300 p-6 rounded-2xl text-center space-y-2">
             <p className="text-xs sm:text-sm font-bold text-slate-800">
-              No registered store found at this exact GPS location.
+              No registered store found within 200m of your live GPS location.
             </p>
             <p className="text-[11px] sm:text-xs text-slate-500 max-w-md mx-auto">
               Are you visiting a new shop? You can register this shop now and its address will be auto-fetched from Google!
