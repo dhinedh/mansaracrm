@@ -255,6 +255,15 @@ export default function WhatsAppShareModal({
             </button>
             <button
               type="button"
+              onClick={handlePrint}
+              disabled={loading}
+              className="flex-1 sm:flex-none px-3.5 py-2.5 border border-slate-200 rounded-xl text-slate-700 font-bold hover:bg-slate-50 cursor-pointer text-xs transition flex items-center justify-center gap-1.5"
+            >
+              <Printer className="w-3.5 h-3.5 text-slate-700" />
+              <span>Print</span>
+            </button>
+            <button
+              type="button"
               onClick={onClose}
               className="flex-1 sm:flex-none px-3.5 py-2.5 border border-slate-200 rounded-xl text-slate-600 font-bold hover:bg-slate-50 cursor-pointer text-xs transition"
             >

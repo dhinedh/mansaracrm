@@ -664,18 +664,49 @@ export const buildQuotationHtml = (rawData) => {
  * Triggers non-blocking native print dialog (save to PDF) via invisible iframe
  */
 export const triggerPrintQuotation = (htmlContent) => {
+  // Method 1: Open clean popup print window (direct document write & instant native print preview)
+  try {
+    const printWin = window.open('', '_blank', 'width=950,height=850,menubar=no,toolbar=no,location=no,status=no');
+    if (printWin) {
+      printWin.document.open();
+      printWin.document.write(htmlContent);
+      printWin.document.close();
+
+      const runPrint = () => {
+        try {
+          printWin.focus();
+          printWin.print();
+        } catch (e) {
+          console.warn('Print window print() failed:', e);
+        }
+      };
+
+      if (printWin.document.readyState === 'complete') {
+        setTimeout(runPrint, 300);
+      } else {
+        printWin.onload = () => setTimeout(runPrint, 300);
+        setTimeout(runPrint, 700);
+      }
+      return;
+    }
+  } catch (winErr) {
+    console.warn('window.open popup blocked, falling back to hidden iframe:', winErr);
+  }
+
+  // Method 2: Fallback to full-viewport off-screen iframe
   const oldFrame = document.getElementById('mansara-quote-print-frame');
   if (oldFrame) oldFrame.remove();
 
   const printFrame = document.createElement('iframe');
   printFrame.id = 'mansara-quote-print-frame';
   printFrame.style.position = 'fixed';
-  printFrame.style.right = '0';
-  printFrame.style.bottom = '0';
-  printFrame.style.width = '0';
-  printFrame.style.height = '0';
-  printFrame.style.border = '0';
-  printFrame.style.opacity = '0';
+  printFrame.style.top = '0';
+  printFrame.style.left = '0';
+  printFrame.style.width = '100vw';
+  printFrame.style.height = '100vh';
+  printFrame.style.border = 'none';
+  printFrame.style.opacity = '0.01';
+  printFrame.style.zIndex = '-9999';
   printFrame.style.pointerEvents = 'none';
   document.body.appendChild(printFrame);
 
@@ -690,18 +721,12 @@ export const triggerPrintQuotation = (htmlContent) => {
       printFrame.contentWindow.print();
     } catch (err) {
       console.error('Print iframe error, fallback to window.print():', err);
-      const printWin = window.open('', '_blank');
-      if (printWin) {
-        printWin.document.write(htmlContent);
-        printWin.document.close();
-        printWin.focus();
-        printWin.print();
-      }
+      window.print();
     } finally {
       setTimeout(() => {
         const frameToRemove = document.getElementById('mansara-quote-print-frame');
         if (frameToRemove) frameToRemove.remove();
-      }, 3000);
+      }, 5000);
     }
   }, 400);
 };

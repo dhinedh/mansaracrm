@@ -316,6 +316,19 @@ export default function AdminApprovalsPage() {
   };
 
   // Document & Sharing Handlers
+  const handlePrintQuotationDoc = (q) => {
+    const isApproved = q.status === 'APPROVED';
+    const invoiceNo = q.invoiceNo || (isApproved ? getDerivedInvoiceNo(q.quotationNo) : undefined);
+    const enriched = {
+      ...q,
+      isInvoice: isApproved,
+      invoiceNo,
+      companySettings: companySettings || q.companySettings
+    };
+    const htmlContent = buildQuotationHtml(enriched);
+    triggerPrintQuotation(htmlContent);
+  };
+
   const handleDownloadQuotationDoc = async (q) => {
     const isApproved = q.status === 'APPROVED';
     const invoiceNo = q.invoiceNo || (isApproved ? getDerivedInvoiceNo(q.quotationNo) : undefined);
@@ -325,14 +338,12 @@ export default function AdminApprovalsPage() {
       invoiceNo,
       companySettings: companySettings || q.companySettings
     };
+    setToastMessage({ text: 'Generating PDF download...', type: 'info' });
     try {
       await downloadQuotationPdf(enriched);
+      setToastMessage({ text: 'PDF downloaded successfully!', type: 'success' });
     } catch (err) {
       const htmlContent = buildQuotationHtml(enriched);
-      const prefix = isApproved ? 'Invoice' : 'Quotation';
-      const num = isApproved ? invoiceNo : q.quotationNo;
-      const fileName = `${prefix}_${(num || 'Mansara').replace(/[^a-zA-Z0-9_-]/g, '_')}.html`;
-      downloadQuotationHtml(htmlContent, fileName);
       triggerPrintQuotation(htmlContent);
     }
   };
@@ -348,7 +359,13 @@ export default function AdminApprovalsPage() {
     };
     setActiveQuotationData(enriched);
     const text = formatQuotationWhatsAppText(enriched);
-    const phone = q.customerPhone || q.customerId?.phone || q.dealerId?.phone || '';
+    const phone = q.customerPhone || 
+      q.customerId?.phone || 
+      q.dealerId?.phone || 
+      q.store?.phone || 
+      q.dealer?.phone || 
+      q.phone || 
+      '';
     setWhatsAppPhone(phone);
     setWhatsAppMessage(text);
     setShowWhatsAppModal(true);
@@ -750,14 +767,24 @@ export default function AdminApprovalsPage() {
                                 </svg>
                               </button>
 
-                              {/* Print / Download Document */}
+                              {/* Print Official Document */}
                               <button
                                 type="button"
-                                onClick={() => handleDownloadQuotationDoc(q)}
+                                onClick={() => handlePrintQuotationDoc(q)}
                                 className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 transition cursor-pointer shadow-2xs"
                                 title={isApproved ? "Print Official Tax Invoice" : "Print Price Quotation"}
                               >
                                 <Printer className="w-3.5 h-3.5" />
+                              </button>
+
+                              {/* Download Document PDF */}
+                              <button
+                                type="button"
+                                onClick={() => handleDownloadQuotationDoc(q)}
+                                className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition cursor-pointer shadow-2xs"
+                                title={isApproved ? "Download Tax Invoice PDF" : "Download Quotation PDF"}
+                              >
+                                <Download className="w-3.5 h-3.5" />
                               </button>
 
                               {/* Edit Button (Available on all quotes) */}
