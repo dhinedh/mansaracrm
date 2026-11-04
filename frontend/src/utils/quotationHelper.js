@@ -330,6 +330,7 @@ export const buildQuotationHtml = (rawData) => {
   const billerAddress = company.address || 'Flat No. B4, No.13, Balaji Nagar 1st street extn, Noombal';
   const billerCity = company.city || 'Chennai';
   const billerState = company.state || 'Tamil Nadu';
+  const billerPin = company.pincode || company.pin || company.pinCode || '600077';
   const rawGst = company.gstNumber;
   const billerGst = (!rawGst || rawGst === '27AABCM1234F1Z5' || rawGst === '33AABCM1234F1Z5') ? '33AAUCM3644B1ZJ' : rawGst;
   const billerPhone = company.phone || '+91-88388 87064';
