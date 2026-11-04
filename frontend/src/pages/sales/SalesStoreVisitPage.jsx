@@ -1708,18 +1708,6 @@ export default function SalesStoreVisitPage() {
               )}
             </div>
 
-            {/* Search Box */}
-            <div className="relative">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                value={catalogSearch}
-                onChange={(e) => setCatalogSearch(e.target.value)}
-                placeholder="Search products by SKU name..."
-                className="w-full bg-slate-50 border border-slate-300 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-amber-500"
-              />
-            </div>
-
             {/* Quick Order Margin Preset Bar */}
             <div className="bg-gradient-to-r from-amber-50 via-amber-50/70 to-slate-50 border border-amber-200/90 rounded-2xl p-3 flex flex-wrap items-center justify-between gap-2.5 shadow-2xs">
               <div className="flex items-center gap-2">
@@ -1761,6 +1749,18 @@ export default function SalesStoreVisitPage() {
                   <span className="text-[10px] font-bold text-slate-400">%</span>
                 </div>
               </div>
+            </div>
+
+            {/* Search Box */}
+            <div className="relative">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                value={catalogSearch}
+                onChange={(e) => setCatalogSearch(e.target.value)}
+                placeholder="Search products by SKU name..."
+                className="w-full bg-slate-50 border border-slate-300 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-amber-500"
+              />
             </div>
 
             {/* Products List */}
