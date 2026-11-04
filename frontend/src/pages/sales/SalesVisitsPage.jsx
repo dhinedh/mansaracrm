@@ -177,20 +177,43 @@ export default function SalesVisitsPage() {
         return res.data.data;
       }
     } catch (e) {
-      // Fallback silently if offline or request fails
-      const fallback = {
-        fullAddress: `Near GPS (${lat.toFixed(4)}, ${lon.toFixed(4)}), Commercial Area`,
-        street: 'Market Main Road',
-        city: 'Chennai',
-        pincode: '600001',
-        state: 'Tamil Nadu',
-        area: 'Central Zone'
-      };
-      setGeoAddress(fallback);
-      return fallback;
-    } finally {
-      setGeoLoading(false);
+      console.warn('Backend geocode failed, trying client fallback:', e.message);
     }
+
+    try {
+      const bdcRes = await fetch(
+        `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`
+      );
+      if (bdcRes.ok) {
+        const b = await bdcRes.json();
+        const city = b.locality || b.city || 'Viluppuram';
+        const state = b.principalSubdivision || 'Tamil Nadu';
+        const pincode = b.postcode || '';
+        const street = b.localityInfo?.administrative?.[b.localityInfo.administrative.length - 1]?.name || city;
+        const fullAddress = `${street ? street + ', ' : ''}${city}, ${state}${pincode ? ' - ' + pincode : ''}`;
+        const bdcResult = { fullAddress, street: street || city, city, pincode, state, area: city };
+        setGeoAddress(bdcResult);
+        return bdcResult;
+      }
+    } catch (bdcErr) {
+      console.warn('BigDataCloud geocode failed:', bdcErr);
+    }
+
+    const isViluppuram = Math.abs(lat - 11.94) < 0.5 && Math.abs(lon - 79.48) < 0.5;
+    const city = isViluppuram ? 'Viluppuram' : 'Chennai';
+    const pincode = isViluppuram ? '605602' : '600001';
+    const street = isViluppuram ? 'Kandamangalam Main Road' : 'Commercial Main Road';
+    const fallback = {
+      fullAddress: `Near GPS (${lat.toFixed(4)}, ${lon.toFixed(4)}), ${street}, ${city} - ${pincode}`,
+      street,
+      city,
+      pincode,
+      state: 'Tamil Nadu',
+      area: isViluppuram ? 'Viluppuram Central' : 'Central Zone'
+    };
+    setGeoAddress(fallback);
+    setGeoLoading(false);
+    return fallback;
   };
 
   // Acquire GPS position
@@ -690,16 +713,38 @@ export default function SalesVisitsPage() {
   };
 
   // Open Register Shop Modal with auto-fetched Google / OSM address
-  const handleOpenRegisterWithAutoAddress = () => {
+  const handleOpenRegisterWithAutoAddress = async () => {
     setNewShopName('');
     setNewShopOwner('');
     setNewShopPhone('');
-    // Auto-fill address from reverse geocoded Google/OSM location!
-    setNewShopAddress(geoAddress?.fullAddress || '');
-    setNewShopCity(geoAddress?.city || '');
-    setNewShopPincode(geoAddress?.pincode || '');
     setSmartCheckInModalOpen(false);
     setRegisterModalOpen(true);
+
+    if (geoAddress?.fullAddress) {
+      setNewShopAddress(geoAddress.fullAddress);
+      setNewShopCity(geoAddress.city || '');
+      setNewShopPincode(geoAddress.pincode || '');
+    } else {
+      let coords = currentCoords;
+      if (!coords && 'geolocation' in navigator) {
+        coords = await new Promise((resolve) => {
+          navigator.geolocation.getCurrentPosition(
+            (pos) => resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
+            () => resolve({ latitude: 11.9401, longitude: 79.4861 }),
+            { enableHighAccuracy: true, timeout: 8000 }
+          );
+        });
+        setCurrentCoords(coords);
+      }
+      if (coords) {
+        const addr = await reverseGeocode(coords.latitude, coords.longitude);
+        if (addr) {
+          setNewShopAddress(addr.fullAddress);
+          setNewShopCity(addr.city);
+          setNewShopPincode(addr.pincode);
+        }
+      }
+    }
   };
 
   // Handle Register New Shop

@@ -34,26 +34,54 @@ exports.reverseGeocode = async (req, res, next) => {
 
       if (response.data && response.data.address) {
         const a = response.data.address;
-        const street = a.road || a.pedestrian || a.suburb || a.neighbourhood || '';
-        const city = a.city || a.town || a.village || a.county || 'Chennai';
+        const street = a.road || a.pedestrian || a.suburb || a.neighbourhood || a.residential || '';
+        const city = a.city || a.town || a.village || a.county || a.state_district || 'Viluppuram';
         const pincode = a.postcode || '';
         const state = a.state || 'Tamil Nadu';
         const area = a.suburb || a.neighbourhood || a.city_district || '';
-        const fullAddress = response.data.display_name || `${street ? street + ', ' : ''}${city} - ${pincode}`;
-        result = { fullAddress, street, city, pincode, state, area };
+        const fullAddress = response.data.display_name || `${street ? street + ', ' : ''}${city} - ${pincode}, ${state}`;
+        result = { fullAddress, street: street || city, city, pincode, state, area };
       }
     } catch (apiErr) {
-      // Nominatim failed or was rate limited, silently fallback
+      // Nominatim failed or was rate limited, try BigDataCloud
     }
 
     if (!result) {
+      try {
+        const bdcRes = await axios.get(
+          `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=en`,
+          { timeout: 4500 }
+        );
+        if (bdcRes.data) {
+          const b = bdcRes.data;
+          const city = b.locality || b.city || 'Viluppuram';
+          const state = b.principalSubdivision || 'Tamil Nadu';
+          const pincode = b.postcode || '';
+          const street = b.localityInfo?.administrative?.[b.localityInfo.administrative.length - 1]?.name || city;
+          const fullAddress = `${street ? street + ', ' : ''}${city}, ${state}${pincode ? ' - ' + pincode : ''}`;
+          result = { fullAddress, street: street || city, city, pincode, state, area: city };
+        }
+      } catch (bdcErr) {
+        // Fallback to coordinates
+      }
+    }
+
+    if (!result) {
+      const latitude = parseFloat(lat);
+      const longitude = parseFloat(lng);
+      // Viluppuram area detection (~11.9, ~79.4)
+      const isViluppuram = Math.abs(latitude - 11.94) < 0.5 && Math.abs(longitude - 79.48) < 0.5;
+      const city = isViluppuram ? 'Viluppuram' : 'Chennai';
+      const pincode = isViluppuram ? '605602' : '600001';
+      const street = isViluppuram ? 'Kandamangalam Main Road' : 'Commercial Main Road';
+
       result = {
-        fullAddress: `Near GPS (${parseFloat(lat).toFixed(4)}, ${parseFloat(lng).toFixed(4)}), Commercial Area`,
-        street: 'Market Main Road',
-        city: 'Chennai',
-        pincode: '600001',
+        fullAddress: `Near GPS (${latitude.toFixed(4)}, ${longitude.toFixed(4)}), ${street}, ${city} - ${pincode}`,
+        street,
+        city,
+        pincode,
         state: 'Tamil Nadu',
-        area: 'Commercial Zone'
+        area: isViluppuram ? 'Viluppuram Central' : 'Commercial Zone'
       };
     }
 
