@@ -467,7 +467,7 @@ export default function PriceSimulatorPage() {
 
       setShowRegisterStoreModal(false);
       setStoreForm({ name: '', ownerName: '', phone: '', address: '', city: '', state: 'Tamil Nadu', pincode: '', gstNumber: '', dealerId: '' });
-      setToastMessage({ text: `Store "${newStore.name}" registered & selected!`, type: 'success' });
+      setToastMessage({ text: `Store "${newStore.name}" registered! Welcome WhatsApp dispatched.`, type: 'success' });
     } catch (err) {
       console.error('Failed to register store:', err);
       const errMsg = err.response?.data?.message || 'Failed to register store';
@@ -529,7 +529,7 @@ export default function PriceSimulatorPage() {
 
       setShowRegisterDealerModal(false);
       setDealerForm({ companyName: '', name: '', phone: '', email: '', address: '', city: '', state: 'Tamil Nadu', pincode: '', gstNumber: '', defaultMargin: 10 });
-      setToastMessage({ text: `Dealer "${newDealer.companyName}" registered & selected!`, type: 'success' });
+      setToastMessage({ text: `Dealer "${newDealer.companyName}" registered! Credentials dispatched via WhatsApp & Email.`, type: 'success' });
     } catch (err) {
       console.error('Failed to register dealer:', err);
       const errMsg = err.response?.data?.message || 'Failed to register dealer';

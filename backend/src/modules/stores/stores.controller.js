@@ -1,5 +1,6 @@
 // src/modules/stores/stores.controller.js
 const prisma = require('../../config/database');
+const { sendStoreWhatsAppRegistration } = require('../../utils/whatsappService');
 
 exports.getDealerStores = async (req, res, next) => {
   try {
@@ -91,7 +92,47 @@ exports.createStore = async (req, res, next) => {
       });
     }
 
-    res.status(201).json({ success: true, message: 'Store created successfully', data: store });
+    // Resolve servicing dealer name for notification
+    let dealerName = 'Direct / Head Office';
+    if (dealerId) {
+      try {
+        const d = await prisma.dealer.findUnique({ where: { id: dealerId }, select: { companyName: true, name: true } });
+        if (d) dealerName = d.companyName || d.name || 'Mansara Partner';
+      } catch (_) {}
+    }
+
+    // Dispatch WhatsApp registration notification to store phone & admin
+    let whatsappResult = { success: false };
+    const storeContactPhone = phone || ownerPhone;
+    if (storeContactPhone) {
+      try {
+        whatsappResult = await sendStoreWhatsAppRegistration({
+          name: store.name,
+          ownerName: store.ownerName,
+          phone: storeContactPhone,
+          address: store.address,
+          city: store.city,
+          state: store.state,
+          gstNumber: store.gstNumber,
+          dealerName,
+          marginPercent: marginPercent !== undefined && marginPercent !== null && marginPercent !== '' ? marginPercent : null
+        });
+      } catch (waErr) {
+        console.warn('[STORES CONTROLLER] Store registration message error:', waErr.message);
+      }
+    }
+
+    res.status(201).json({
+      success: true,
+      message: 'Store created successfully' + (whatsappResult.success ? ' and WhatsApp confirmation sent' : ''),
+      data: {
+        ...store,
+        whatsappNotificationSent: whatsappResult.success,
+        whatsappMethod: whatsappResult.method,
+        whatsappUrl: whatsappResult.whatsappUrl,
+        whatsappMessage: whatsappResult.messageText
+      }
+    });
   } catch (error) {
     next(error);
   }

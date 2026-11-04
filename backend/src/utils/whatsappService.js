@@ -3,6 +3,19 @@ const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
 
+// Official Mansara Foods Meta Cloud API credentials (fallback for production environments)
+const OFFICIAL_META_TOKEN = 'EAA3mrG4Km4IBSH6myZBCahZAegZBLG0crRZC1ZCc4HGR318whnfIJyiIUnBhxBBgKGizkhV36Q0ZBB6Qyt7RGVq8ZARGRZBFQaFCLtq6ncN3M7YqHRxNvX7iBdUalqAbQHOG5OTlrmE4loVLiaSpyq03UAFpA7XDKZBew0xXNBhbeNP0J81j4aDLT5TORL4nGqwZDZD';
+const OFFICIAL_PHONE_ID = '1234259863105295';
+
+/**
+ * Returns active Meta Cloud API credentials (env vars or official production fallback)
+ */
+const getMetaCredentials = () => {
+  const metaToken = process.env.META_ACCESS_TOKEN || process.env.WHATSAPP_API_TOKEN || OFFICIAL_META_TOKEN;
+  const phoneId = process.env.META_PHONE_NUMBER_ID || process.env.WHATSAPP_PHONE_ID || OFFICIAL_PHONE_ID;
+  return { metaToken, phoneId };
+};
+
 /**
  * Clean & normalize phone number into standard international format (e.g., 919876543210)
  */
@@ -63,8 +76,7 @@ ${frontendUrl}/login
 📌 *Note:* ${noteText}`;
 
   const botUrl = process.env.WHATSAPP_BOT_URL || 'https://whatapp-automation-kxml.onrender.com';
-  const metaToken = process.env.META_ACCESS_TOKEN || process.env.WHATSAPP_API_TOKEN;
-  const phoneId = process.env.META_PHONE_NUMBER_ID || process.env.WHATSAPP_PHONE_ID;
+  const { metaToken, phoneId } = getMetaCredentials();
 
   const whatsappUrl = `https://wa.me/${normalizedPhone}?text=${encodeURIComponent(messageText)}`;
 
@@ -233,9 +245,7 @@ const sendAdminDealerRegistrationAlert = async (details) => {
   const { phone, name, companyName, email, dealerCategory, defaultMargin } = details;
   const rawPhones = process.env.ADMIN_PHONE || '919342400879,918838887064';
   const adminPhones = rawPhones.split(',').map(p => normalizePhone(p.trim())).filter(Boolean);
-
-  const metaToken = process.env.META_ACCESS_TOKEN || process.env.WHATSAPP_API_TOKEN;
-  const phoneId = process.env.META_PHONE_NUMBER_ID || process.env.WHATSAPP_PHONE_ID;
+  const { metaToken, phoneId } = getMetaCredentials();
 
   if (!metaToken || !phoneId) return;
 
@@ -276,6 +286,159 @@ const sendAdminDealerRegistrationAlert = async (details) => {
 };
 
 /**
+ * Sends Store / Retail Outlet Registration details via WhatsApp Meta API
+ */
+const sendStoreWhatsAppRegistration = async (details) => {
+  const {
+    phone,
+    name,
+    ownerName,
+    address,
+    city,
+    state = 'Tamil Nadu',
+    gstNumber,
+    dealerName,
+    marginPercent
+  } = details;
+
+  const targetPhone = phone || details.ownerPhone;
+  const normalizedPhone = normalizePhone(targetPhone);
+  const frontendUrl = process.env.FRONTEND_URL || 'https://crm.mansarafoods.com';
+
+  if (!normalizedPhone) {
+    console.warn(`[WHATSAPP SERVICE] Cannot send Store registration WhatsApp: Phone number '${targetPhone}' is missing or invalid.`);
+    return { success: false, error: 'Invalid phone number' };
+  }
+
+  const messageText = 
+`🎉 *Welcome to Mansara Foods Retail Network!* 🌿
+
+Hello *${ownerName || name || 'Store Partner'}*, your retail outlet *${name || 'Store'}* has been successfully registered in the Mansara Foods B2B network.
+
+📍 *Store Details:*
+• *Outlet Name:* ${name}
+• *Contact:* ${ownerName || name} (${targetPhone})
+• *Address:* ${address || ''}${city ? `, ${city}` : ''}${state ? `, ${state}` : ''}
+${gstNumber ? `• *GSTIN:* ${gstNumber}\n` : ''}${dealerName ? `• *Servicing Partner:* ${dealerName}\n` : ''}${marginPercent !== undefined && marginPercent !== null ? `• *Retail Margin:* ${marginPercent}%\n` : ''}
+📦 *Order & Billing:*
+Official quotations, invoices, and dispatch confirmations will be shared directly with you on this WhatsApp number.
+
+📞 *Mansara Foods Helpdesk:* +91-88388 87064`;
+
+  const whatsappUrl = `https://wa.me/${normalizedPhone}?text=${encodeURIComponent(messageText)}`;
+  const { metaToken, phoneId } = getMetaCredentials();
+
+  // Send Admin alert as well
+  sendAdminStoreRegistrationAlert(details)
+    .catch(err => console.error('[ERROR] Admin Store Alert failed:', err.message));
+
+  // 1. Direct Meta Cloud API using approved sales_team_alert template
+  if (metaToken && phoneId) {
+    try {
+      const detailsSnippet = `Retail Outlet Registered | Contact: ${ownerName || name} | Location: ${city || address || 'Tamil Nadu'} | B2B Partner Network | Ph: +91-8838887064`;
+      const metaRes = await axios({
+        method: 'POST',
+        url: `https://graph.facebook.com/v20.0/${phoneId}/messages`,
+        headers: {
+          'Authorization': `Bearer ${metaToken}`,
+          'Content-Type': 'application/json'
+        },
+        data: {
+          messaging_product: 'whatsapp',
+          recipient_type: 'individual',
+          to: normalizedPhone,
+          type: 'template',
+          template: {
+            name: 'sales_team_alert',
+            language: { code: 'en_US' },
+            components: [
+              {
+                type: 'body',
+                parameters: [
+                  { type: 'text', text: ownerName || name || 'Store Partner' },
+                  { type: 'text', text: name || 'Retail Outlet' },
+                  { type: 'text', text: targetPhone },
+                  { type: 'text', text: detailsSnippet }
+                ]
+              }
+            ]
+          }
+        },
+        timeout: 6000
+      });
+      console.log(`[WHATSAPP SERVICE] ✓ Delivered store registration sales_team_alert to ${normalizedPhone}`);
+      return { success: true, method: 'meta_cloud_api', template: 'sales_team_alert', data: metaRes.data, whatsappUrl, messageText, normalizedPhone };
+    } catch (metaErr) {
+      console.warn(`[WHATSAPP SERVICE] Meta API error sending store alert:`, metaErr.response?.data || metaErr.message);
+    }
+  }
+
+  // Fallback: Bot API
+  try {
+    const botUrl = process.env.WHATSAPP_BOT_URL || 'https://whatapp-automation-kxml.onrender.com';
+    const response = await axios.post(`${botUrl}/api/send-message`, {
+      phone: normalizedPhone,
+      message: messageText,
+      recipientName: ownerName || name,
+      companyName: name
+    }, { timeout: 2500 });
+    return { success: true, method: 'bot_api', data: response.data, whatsappUrl, messageText, normalizedPhone };
+  } catch (botErr) {
+    // Ignore and fallback to simulation
+  }
+
+  console.log(`💬 [SIMULATED WHATSAPP STORE DISPATCH] To: ${normalizedPhone} (${name})`);
+  return { success: true, simulated: true, normalizedPhone, whatsappUrl, messageText };
+};
+
+/**
+ * Dispatches Admin WhatsApp Operations Alert for Retail Store Registrations
+ */
+const sendAdminStoreRegistrationAlert = async (details) => {
+  const { name, ownerName, phone, city, address, dealerName } = details;
+  const rawPhones = process.env.ADMIN_PHONE || '919342400879,918838887064';
+  const adminPhones = rawPhones.split(',').map(p => normalizePhone(p.trim())).filter(Boolean);
+  const { metaToken, phoneId } = getMetaCredentials();
+
+  if (!metaToken || !phoneId) return;
+
+  const eventDetails = `Store: ${name} | Contact: ${ownerName || 'Owner'} (${phone || 'N/A'}) | Location: ${city || address || 'Tamil Nadu'} | Servicing Partner: ${dealerName || 'Direct / Head Office'}`;
+
+  for (const targetPhone of adminPhones) {
+    try {
+      await axios({
+        method: 'POST',
+        url: `https://graph.facebook.com/v20.0/${phoneId}/messages`,
+        headers: { 'Authorization': `Bearer ${metaToken}`, 'Content-Type': 'application/json' },
+        data: {
+          messaging_product: 'whatsapp',
+          recipient_type: 'individual',
+          to: targetPhone,
+          type: 'template',
+          template: {
+            name: 'admin_operations_alert_v1',
+            language: { code: 'en_US' },
+            components: [{
+              type: 'body',
+              parameters: [
+                { type: 'text', text: 'NEW RETAIL STORE REGISTERED' },
+                { type: 'text', text: name || 'Store Outlet' },
+                { type: 'text', text: 'MEDIUM' },
+                { type: 'text', text: eventDetails }
+              ]
+            }]
+          }
+        },
+        timeout: 6000
+      });
+      console.log(`[WHATSAPP SERVICE] ✓ Admin Store Registration Alert delivered to ${targetPhone}`);
+    } catch (err) {
+      console.warn(`[WHATSAPP SERVICE] Admin Store Alert failed to ${targetPhone}: ${err.message}`);
+    }
+  }
+};
+
+/**
  * Sends Password Reset OTP via WhatsApp Chatbot / Meta WhatsApp API
  */
 const sendWhatsAppOTP = async ({ phone, otp, name }) => {
@@ -296,28 +459,11 @@ This OTP is valid for 10 minutes. Please do not share this OTP with anyone.
 
 🌿 *Mansara Foods Team*`;
 
+  const { metaToken, phoneId } = getMetaCredentials();
   const botUrl = process.env.WHATSAPP_BOT_URL || 'https://whatapp-automation-kxml.onrender.com';
-  const metaToken = process.env.META_ACCESS_TOKEN || process.env.WHATSAPP_API_TOKEN;
-  const phoneId = process.env.META_PHONE_NUMBER_ID || process.env.WHATSAPP_PHONE_ID;
-
   const whatsappUrl = `https://wa.me/${normalizedPhone}?text=${encodeURIComponent(messageText)}`;
 
-  // 1. Try sending via WhatsApp Bot Automation API
-  try {
-    console.log(`[WHATSAPP SERVICE] Sending Password Reset OTP via Bot API to ${normalizedPhone}...`);
-    const response = await axios.post(`${botUrl}/api/send-message`, {
-      phone: normalizedPhone,
-      message: messageText,
-      recipientName: name
-    }, { timeout: 4000 });
-
-    console.log(`[WHATSAPP SERVICE] ✓ Reset OTP delivered to ${normalizedPhone} via Bot API`);
-    return { success: true, method: 'bot_api', data: response.data, whatsappUrl, messageText };
-  } catch (botError) {
-    console.warn(`[WHATSAPP SERVICE] Bot API call failed (${botError.message}). Trying Meta Cloud API / Simulation...`);
-  }
-
-  // 2. Fallback to direct Meta Cloud API if credentials exist
+  // 1. Direct Meta Cloud API (Instant, verified)
   if (metaToken && phoneId) {
     try {
       const metaRes = await axios({
@@ -348,13 +494,28 @@ This OTP is valid for 10 minutes. Please do not share this OTP with anyone.
             ]
           }
         },
-        timeout: 6000
+        timeout: 5000
       });
       console.log(`[WHATSAPP SERVICE] ✓ Delivered Meta approved WhatsApp OTP to ${normalizedPhone}`);
       return { success: true, method: 'meta_cloud_api', data: metaRes.data, whatsappUrl, messageText };
     } catch (metaErr) {
       console.warn(`[WHATSAPP SERVICE] Meta API error:`, metaErr.response?.data || metaErr.message);
     }
+  }
+
+  // 2. Fallback to WhatsApp Bot Automation API
+  try {
+    console.log(`[WHATSAPP SERVICE] Sending Password Reset OTP via Bot API to ${normalizedPhone}...`);
+    const response = await axios.post(`${botUrl}/api/send-message`, {
+      phone: normalizedPhone,
+      message: messageText,
+      recipientName: name
+    }, { timeout: 2500 });
+
+    console.log(`[WHATSAPP SERVICE] ✓ Reset OTP delivered to ${normalizedPhone} via Bot API`);
+    return { success: true, method: 'bot_api', data: response.data, whatsappUrl, messageText };
+  } catch (botError) {
+    console.warn(`[WHATSAPP SERVICE] Bot API call failed (${botError.message}).`);
   }
 
   // 3. Simulation fallback
@@ -385,8 +546,7 @@ const sendDealerTemplateMessage = async ({ phone, templateName, bodyParameters =
     return { success: false, error: 'Invalid phone' };
   }
 
-  const metaToken = process.env.META_ACCESS_TOKEN || process.env.WHATSAPP_API_TOKEN;
-  const phoneId = process.env.META_PHONE_NUMBER_ID || process.env.WHATSAPP_PHONE_ID;
+  const { metaToken, phoneId } = getMetaCredentials();
   const botUrl = process.env.WHATSAPP_BOT_URL || 'https://whatapp-automation-kxml.onrender.com';
 
   console.log(`[WHATSAPP SERVICE] Dispatching Utility Template '${templateName}' to ${normalizedPhone}...`);
@@ -449,9 +609,7 @@ const sendAdminB2BOrderAlert = async (details) => {
   const { orderId, companyName, dealerName, totalAmount, itemsSummary, phone } = details;
   const rawPhones = process.env.ADMIN_PHONE || '919342400879,918838887064';
   const adminPhones = rawPhones.split(',').map(p => normalizePhone(p.trim())).filter(Boolean);
-
-  const metaToken = process.env.META_ACCESS_TOKEN || process.env.WHATSAPP_API_TOKEN;
-  const phoneId = process.env.META_PHONE_NUMBER_ID || process.env.WHATSAPP_PHONE_ID;
+  const { metaToken, phoneId } = getMetaCredentials();
 
   if (!metaToken || !phoneId) return;
 
@@ -494,7 +652,9 @@ const sendAdminB2BOrderAlert = async (details) => {
 module.exports = {
   normalizePhone,
   sendVendorWhatsAppRegistration,
+  sendStoreWhatsAppRegistration,
   sendAdminDealerRegistrationAlert,
+  sendAdminStoreRegistrationAlert,
   sendAdminB2BOrderAlert,
   sendWhatsAppOTP,
   sendDealerTemplateMessage

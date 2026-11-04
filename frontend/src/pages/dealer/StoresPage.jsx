@@ -95,10 +95,14 @@ export default function StoresPage() {
     setMessage({ text: '', type: '' });
 
     try {
-      await axios.post('/stores', {
+      const res = await axios.post('/stores', {
         name, gstNumber, address, city, state, pincode, zone, phone, marginPercent, classification, revisitDate: revisitDate || null
       });
-      setMessage({ text: 'Outlet added successfully!', type: 'success' });
+      const waSent = res.data?.data?.whatsappNotificationSent;
+      setMessage({ 
+        text: `Outlet added successfully!${waSent ? ' Welcome WhatsApp confirmation sent to store.' : ''}`, 
+        type: 'success' 
+      });
       fetchStores();
       setShowAddModal(false);
       resetForm();
