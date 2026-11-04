@@ -37,7 +37,8 @@ import {
   ChevronDown,
   CreditCard,
   Download,
-  Share2
+  Share2,
+  Loader2
 } from 'lucide-react';
 import WhatsAppShareModal from '../../components/WhatsAppShareModal';
 import {
@@ -119,6 +120,7 @@ export default function PriceSimulatorPage() {
   const [whatsAppPhone, setWhatsAppPhone] = useState('');
   const [whatsAppMessage, setWhatsAppMessage] = useState('');
   const [activeQuotationData, setActiveQuotationData] = useState(null);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
 
   // Exact company & invoice settings matching the dealer invoice template
   const [companySettings, setCompanySettings] = useState({
@@ -857,6 +859,7 @@ export default function PriceSimulatorPage() {
       return;
     }
     const payload = getQuotationPayload();
+    setDownloadingPdf(true);
     setToastMessage({ text: 'Generating & downloading official Quotation PDF...', type: 'info' });
     try {
       await downloadQuotationPdf(payload);
@@ -865,6 +868,8 @@ export default function PriceSimulatorPage() {
       console.error('Error downloading quotation PDF, falling back to print dialog:', err);
       const htmlContent = buildQuotationHtml(payload);
       triggerPrintQuotation(htmlContent);
+    } finally {
+      setDownloadingPdf(false);
     }
   };
 
@@ -1818,15 +1823,21 @@ export default function PriceSimulatorPage() {
           {/* 2. Download Quotation */}
           <button
             type="button"
-            disabled={calculationSummary.items.length === 0}
+            disabled={calculationSummary.items.length === 0 || downloadingPdf}
             onClick={handleDownloadQuotation}
             className="flex items-center gap-3 p-4 rounded-2xl border-2 border-rose-200 bg-rose-50 hover:bg-rose-100/80 disabled:opacity-40 text-rose-900 transition-all cursor-pointer group shadow-xs active:scale-[0.99]"
           >
             <div className="w-10 h-10 rounded-xl bg-rose-600 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-xs">
-              <Download className="w-5 h-5 text-white" />
+              {downloadingPdf ? (
+                <Loader2 className="w-5 h-5 text-white animate-spin" />
+              ) : (
+                <Download className="w-5 h-5 text-white" />
+              )}
             </div>
             <div className="min-w-0 text-left">
-              <h3 className="font-black text-xs sm:text-sm text-rose-950">Download Quotation</h3>
+              <h3 className="font-black text-xs sm:text-sm text-rose-950">
+                {downloadingPdf ? 'Downloading PDF...' : 'Download Quotation'}
+              </h3>
               <p className="text-[10px] text-rose-700/80">Save offline file &amp; print PDF</p>
             </div>
           </button>
@@ -1881,11 +1892,16 @@ export default function PriceSimulatorPage() {
             </button>
             <button
               type="button"
+              disabled={downloadingPdf}
               onClick={handleDownloadQuotation}
-              className="p-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl shadow-md active:scale-95 transition cursor-pointer"
+              className="p-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl shadow-md active:scale-95 transition cursor-pointer disabled:opacity-50"
               title="Download Quotation"
             >
-              <Download className="w-4 h-4" />
+              {downloadingPdf ? (
+                <Loader2 className="w-4 h-4 text-white animate-spin" />
+              ) : (
+                <Download className="w-4 h-4" />
+              )}
             </button>
             <button
               type="button"

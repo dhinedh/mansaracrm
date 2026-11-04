@@ -831,7 +831,7 @@ export const openWhatsAppQuotation = (rawData, targetPhone = null) => {
 
 /**
  * Generates an authentic binary PDF Blob from quotation or approved invoice data.
- * Tries html2pdf client-side first; falls back to backend Puppeteer endpoint.
+ * Tries html2pdf client-side first; falls back to HTML document blob.
  */
 export const generateQuotationPdfBlob = async (rawData) => {
   if (!rawData.companySettings && !rawData.company && !activeCompanySettingsCache) {
@@ -847,7 +847,12 @@ export const generateQuotationPdfBlob = async (rawData) => {
   const prefix = data.isApprovedInvoice ? 'Invoice' : 'Quotation';
   const fileName = `${prefix}_${safeRef}.pdf`;
 
-  // 1. Try client-side html2pdf
+  // Extract style and outer content so styles are active in the off-screen element
+  const styleMatch = html.match(/<style[^>]*>([\s\S]*?)<\/style>/i);
+  const styleContent = styleMatch ? styleMatch[1] : '';
+  const outerMatch = html.match(/<div class="outer"[\s\S]*<\/div>\s*<\/body>/i);
+  const outerContent = outerMatch ? outerMatch[0].replace(/<\/body>.*$/i, '') : html;
+
   let container = null;
   try {
     container = document.createElement('div');
@@ -855,20 +860,22 @@ export const generateQuotationPdfBlob = async (rawData) => {
     container.style.left = '0';
     container.style.top = '0';
     container.style.width = '820px';
-    container.style.opacity = '0';
+    container.style.opacity = '1';
     container.style.pointerEvents = 'none';
-    container.style.zIndex = '-9999';
-    container.innerHTML = html;
+    container.style.zIndex = '-99999';
+    container.style.backgroundColor = '#ffffff';
+    container.innerHTML = `<style>${styleContent}</style>${outerContent}`;
     document.body.appendChild(container);
 
-    const img = container.querySelector('img');
-    if (img && !img.complete) {
-      await new Promise(resolve => {
+    const images = container.querySelectorAll('img');
+    await Promise.all(Array.from(images).map(img => {
+      if (img.complete) return Promise.resolve();
+      return new Promise(resolve => {
         img.onload = resolve;
         img.onerror = resolve;
-        setTimeout(resolve, 600);
+        setTimeout(resolve, 500);
       });
-    }
+    }));
 
     const opt = {
       margin: [4, 4, 4, 4],
@@ -894,56 +901,87 @@ export const generateQuotationPdfBlob = async (rawData) => {
       return { blob: pdfBlob, file, fileName, data };
     }
   } catch (clientErr) {
-    console.warn('Client-side html2pdf generation encountered an issue, trying backend generator:', clientErr);
+    console.warn('Client-side html2pdf generation encountered an issue:', clientErr);
   } finally {
     if (container && document.body.contains(container)) {
       try { document.body.removeChild(container); } catch (_) {}
     }
   }
 
-  // 2. Fallback to backend Puppeteer endpoint
-  try {
-    const res = await axios.post('/field-sales/quotations/pdf', {
-      html,
-      quotationNo: safeRef,
-      isInvoice: data.isApprovedInvoice,
-      invoiceNo: safeRef
-    }, {
-      responseType: 'blob'
-    });
-    const blob = new Blob([res.data], { type: 'application/pdf' });
-    const file = new File([blob], fileName, { type: 'application/pdf' });
-    return { blob, file, fileName, data };
-  } catch (backendErr) {
-    console.error('Backend PDF generation also failed:', backendErr);
-    // Ultimate fallback: generate HTML file blob if PDF conversion fails
-    const fallbackBlob = new Blob([html], { type: 'text/html;charset=utf-8;' });
-    const fallbackFile = new File([fallbackBlob], `${prefix}_${safeRef}.html`, { type: 'text/html' });
-    return { blob: fallbackBlob, file: fallbackFile, fileName: `${prefix}_${safeRef}.html`, data };
-  }
+  // Fallback to HTML file blob
+  const fallbackBlob = new Blob([html], { type: 'text/html;charset=utf-8;' });
+  const fallbackFile = new File([fallbackBlob], `${prefix}_${safeRef}.html`, { type: 'text/html' });
+  return { blob: fallbackBlob, file: fallbackFile, fileName: `${prefix}_${safeRef}.html`, data };
 };
 
 /**
  * Download Quotation / Invoice directly as a .PDF file
  */
 export const downloadQuotationPdf = async (rawData) => {
+  const data = normalizeQuotationData(rawData);
+  const html = buildQuotationHtml(rawData);
+  const safeRef = (data.refNo || 'Mansara').replace(/[^a-zA-Z0-9_-]/g, '_');
+  const prefix = data.isApprovedInvoice ? 'Invoice' : 'Quotation';
+  const fileName = `${prefix}_${safeRef}.pdf`;
+
+  const styleMatch = html.match(/<style[^>]*>([\s\S]*?)<\/style>/i);
+  const styleContent = styleMatch ? styleMatch[1] : '';
+  const outerMatch = html.match(/<div class="outer"[\s\S]*<\/div>\s*<\/body>/i);
+  const outerContent = outerMatch ? outerMatch[0].replace(/<\/body>.*$/i, '') : html;
+
+  let container = null;
   try {
-    const { blob, fileName } = await generateQuotationPdfBlob(rawData);
-    if (!blob) throw new Error('PDF blob generation empty');
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = fileName;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    container = document.createElement('div');
+    container.style.position = 'fixed';
+    container.style.left = '0';
+    container.style.top = '0';
+    container.style.width = '820px';
+    container.style.opacity = '1';
+    container.style.pointerEvents = 'none';
+    container.style.zIndex = '-99999';
+    container.style.backgroundColor = '#ffffff';
+    container.innerHTML = `<style>${styleContent}</style>${outerContent}`;
+    document.body.appendChild(container);
+
+    const images = container.querySelectorAll('img');
+    await Promise.all(Array.from(images).map(img => {
+      if (img.complete) return Promise.resolve();
+      return new Promise(resolve => {
+        img.onload = resolve;
+        img.onerror = resolve;
+        setTimeout(resolve, 500);
+      });
+    }));
+
+    const opt = {
+      margin: [4, 4, 4, 4],
+      filename: fileName,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { 
+        scale: 2, 
+        useCORS: true, 
+        allowTaint: true, 
+        logging: false,
+        scrollX: 0,
+        scrollY: 0,
+        windowWidth: 820
+      },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    };
+
+    const targetElement = container.querySelector('.outer') || container;
+    // Directly save PDF to browser downloads via html2pdf built-in file saver
+    await html2pdf().set(opt).from(targetElement).save();
     return { success: true, fileName };
   } catch (err) {
-    console.error('Download PDF error, falling back to print dialog:', err);
-    const html = buildQuotationHtml(rawData);
+    console.warn('html2pdf direct save failed, falling back to print dialog:', err);
     triggerPrintQuotation(html);
+    downloadQuotationHtml(html, `${prefix}_${safeRef}.html`);
     return { success: true, fallback: 'print' };
+  } finally {
+    if (container && document.body.contains(container)) {
+      try { document.body.removeChild(container); } catch (_) {}
+    }
   }
 };
 
