@@ -41,7 +41,7 @@ export default function SalesVisitsPage() {
 
   // Selected Purpose of Visit state (Supports Single or Dual Purpose Visit)
   const [selectedPurpose, setSelectedPurpose] = useState('Order Booking');
-  const [selectedPurposes, setSelectedPurposes] = useState(['Order Booking']);
+  const [selectedPurposes, setSelectedPurposes] = useState([]);
   const [pendingStoreForCheckIn, setPendingStoreForCheckIn] = useState(null); // When store is chosen, prompt for purpose
   const [purposeModalOpen, setPurposeModalOpen] = useState(false);
 
@@ -509,7 +509,6 @@ export default function SalesVisitsPage() {
   const togglePurposeSelection = (purposeId) => {
     setSelectedPurposes(prev => {
       if (prev.includes(purposeId)) {
-        if (prev.length === 1) return prev; // Keep at least one purpose selected
         return prev.filter(p => p !== purposeId);
       } else {
         if (prev.length >= 2) {
@@ -620,7 +619,8 @@ export default function SalesVisitsPage() {
     } else if (selectedPurposes && selectedPurposes.length > 0) {
       purposesArray = selectedPurposes;
     } else {
-      purposesArray = ['Order Booking & Payment Collection'];
+      alert('Please select at least 1 visit purpose to check in');
+      return;
     }
 
     const finalPurpose = purposesArray.join(' & ');
@@ -1999,10 +1999,11 @@ export default function SalesVisitsPage() {
               <button
                 type="button"
                 onClick={() => handleConfirmCheckInWithPurpose(selectedPurposes)}
-                className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-3 rounded-2xl text-xs active:scale-95 transition-all cursor-pointer shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2"
+                disabled={selectedPurposes.length === 0}
+                className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-3 rounded-2xl text-xs active:scale-95 transition-all cursor-pointer shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <span>
-                  Confirm Check-In
+                  {selectedPurposes.length === 0 ? 'Select Visit Purpose to Continue' : 'Confirm Check-In'}
                 </span>
                 <ArrowRight className="w-4 h-4" />
               </button>

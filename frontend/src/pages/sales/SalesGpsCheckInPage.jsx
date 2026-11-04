@@ -36,7 +36,7 @@ export default function SalesGpsCheckInPage() {
   // Purpose Selection Modal State (Supports Single or Dual Purpose Visit)
   const [purposeModalOpen, setPurposeModalOpen] = useState(false);
   const [pendingStoreForCheckIn, setPendingStoreForCheckIn] = useState(null);
-  const [selectedPurposes, setSelectedPurposes] = useState(['Order Booking']);
+  const [selectedPurposes, setSelectedPurposes] = useState([]);
   const [checkInSubmitting, setCheckInSubmitting] = useState(false);
 
   // Register New Shop Lead Form State
@@ -212,7 +212,6 @@ export default function SalesGpsCheckInPage() {
   const togglePurposeSelection = (purposeId) => {
     setSelectedPurposes(prev => {
       if (prev.includes(purposeId)) {
-        if (prev.length === 1) return prev;
         return prev.filter(p => p !== purposeId);
       } else {
         if (prev.length >= 2) {
@@ -243,6 +242,10 @@ export default function SalesGpsCheckInPage() {
 
   const handleConfirmCheckIn = async () => {
     if (!pendingStoreForCheckIn) return;
+    if (selectedPurposes.length === 0) {
+      alert('Please select at least 1 visit purpose');
+      return;
+    }
     setCheckInSubmitting(true);
     const finalPurpose = selectedPurposes.join(' & ');
 
@@ -635,11 +638,11 @@ export default function SalesGpsCheckInPage() {
               <button
                 type="button"
                 onClick={handleConfirmCheckIn}
-                disabled={checkInSubmitting}
-                className="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-black py-3.5 rounded-2xl text-xs sm:text-sm active:scale-95 transition-all cursor-pointer shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2"
+                disabled={checkInSubmitting || selectedPurposes.length === 0}
+                className="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-black py-3.5 rounded-2xl text-xs sm:text-sm active:scale-95 transition-all cursor-pointer shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <span>
-                  {checkInSubmitting ? 'Confirming Check-In...' : 'Confirm Check-In'}
+                  {checkInSubmitting ? 'Confirming Check-In...' : (selectedPurposes.length === 0 ? 'Select Visit Purpose to Continue' : 'Confirm Check-In')}
                 </span>
                 <ArrowRight className="w-4 h-4" />
               </button>

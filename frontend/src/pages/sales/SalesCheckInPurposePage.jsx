@@ -26,7 +26,7 @@ export default function SalesCheckInPurposePage() {
   const addressFromState = location.state?.address;
 
   const [shop, setShop] = useState(shopFromState || null);
-  const [selectedPurposes, setSelectedPurposes] = useState(['Order Booking']);
+  const [selectedPurposes, setSelectedPurposes] = useState([]);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -49,7 +49,6 @@ export default function SalesCheckInPurposePage() {
   const togglePurposeSelection = (purposeId) => {
     setSelectedPurposes(prev => {
       if (prev.includes(purposeId)) {
-        if (prev.length === 1) return prev; // Keep at least one purpose
         return prev.filter(p => p !== purposeId);
       } else {
         if (prev.length >= 2) {
@@ -66,6 +65,10 @@ export default function SalesCheckInPurposePage() {
 
   const handleConfirmCheckIn = async () => {
     if (!shop) return;
+    if (selectedPurposes.length === 0) {
+      alert('Please select at least 1 visit purpose to check in');
+      return;
+    }
     setSubmitting(true);
     const finalPurpose = selectedPurposes.join(' & ');
 
@@ -212,11 +215,11 @@ export default function SalesCheckInPurposePage() {
         <button
           type="button"
           onClick={handleConfirmCheckIn}
-          disabled={submitting}
-          className="w-full bg-amber-500 hover:bg-amber-600 active:scale-95 text-slate-950 font-black py-4 rounded-2xl text-sm sm:text-base transition-all cursor-pointer shadow-lg shadow-amber-500/25 flex items-center justify-center gap-2 disabled:opacity-50"
+          disabled={submitting || selectedPurposes.length === 0}
+          className="w-full bg-amber-500 hover:bg-amber-600 active:scale-95 text-slate-950 font-black py-4 rounded-2xl text-sm sm:text-base transition-all cursor-pointer shadow-lg shadow-amber-500/25 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <span>
-            {submitting ? 'Confirming Check-In...' : 'Confirm Check-In'}
+            {submitting ? 'Confirming Check-In...' : (selectedPurposes.length === 0 ? 'Select Visit Purpose to Continue' : 'Confirm Check-In')}
           </span>
           <ArrowRight className="w-4 h-4" />
         </button>
