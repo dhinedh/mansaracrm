@@ -20,7 +20,15 @@ export default function SalesStoreVisitPage() {
   const [store, setStore] = useState(location.state?.store || null);
   const [visitRecord, setVisitRecord] = useState(location.state?.visit || null);
   const [selectedPurpose, setSelectedPurpose] = useState(location.state?.purpose || 'Order Booking');
-  const [activeTab, setActiveTab] = useState('menu'); // 'menu', 'initial_visit', 'payment', 'order', 'stock_audit', 'routine_beat'
+  const [activeTab, setActiveTab] = useState(() => {
+    const p = location.state?.purpose || 'Order Booking';
+    if (p.includes('Initial Visit')) return 'initial_visit';
+    if (p.includes('Payment Collection')) return 'payment';
+    if (p.includes('Stock Auditing')) return 'stock_audit';
+    if (p.includes('Routine Beat')) return 'routine_beat';
+    return 'order';
+  });
+  const [switchActivityModalOpen, setSwitchActivityModalOpen] = useState(false);
   const [visitTimer, setVisitTimer] = useState(0);
   const [loading, setLoading] = useState(true);
 
@@ -823,16 +831,13 @@ export default function SalesStoreVisitPage() {
                 {store.category || 'Retail Store'}
               </span>
 
-              {selectedPurpose && (
-                <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center gap-1">
-                  <span>🎯</span>
-                  <strong>{selectedPurpose}</strong>
-                </span>
-              )}
-
               <span className="text-xs font-mono font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1">
                 <Clock className="w-3.5 h-3.5" />
                 Visit: {formatTimer(visitTimer)}
+              </span>
+
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200 flex items-center gap-1">
+                Active: <strong className="text-amber-700 capitalize">{activeTab.replace('_', ' ')}</strong>
               </span>
             </div>
 
@@ -868,15 +873,15 @@ export default function SalesStoreVisitPage() {
             </div>
           </div>
 
+          {/* ONLY 2 OPTIONS: SWITCH ACTIVITY & CHECK-OUT */}
           <div className="flex items-center gap-2 shrink-0">
             <button
               type="button"
-              onClick={() => navigate('/sales/visits')}
-              className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all cursor-pointer flex items-center gap-1"
-              title="Return to visits list without checking out"
+              onClick={() => setSwitchActivityModalOpen(true)}
+              className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold px-3 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer active:scale-95 transition-all border border-slate-300 shadow-2xs"
             >
-              <ArrowLeft className="w-4 h-4" />
-              <span className="hidden sm:inline">Back to Visits</span>
+              <RefreshCw className="w-3.5 h-3.5 text-amber-600" />
+              <span>Switch Activity</span>
             </button>
 
             <button
@@ -888,68 +893,6 @@ export default function SalesStoreVisitPage() {
             </button>
           </div>
         </div>
-
-        {/* Back to All Activities Switcher Button */}
-        {activeTab !== 'menu' && (
-          <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2 flex-wrap">
-            <button
-              type="button"
-              onClick={() => setActiveTab('menu')}
-              className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs flex items-center gap-1.5 cursor-pointer active:scale-95 transition-all border border-slate-200 shadow-2xs"
-            >
-              <ChevronLeft className="w-4 h-4" />
-              <span>All Store Activities</span>
-            </button>
-
-            <span className="text-[11px] font-bold text-slate-500">
-              Active: <strong className="text-slate-900 capitalize">{activeTab.replace('_', ' ')}</strong>
-            </span>
-          </div>
-        )}
-
-        {/* Dual Purpose Next Action Switcher Ribbon */}
-        {activeTab !== 'menu' && selectedPurpose?.includes('&') && (
-          <div className="bg-gradient-to-r from-amber-50 via-slate-50 to-emerald-50 border border-amber-200 rounded-xl p-2.5 flex items-center justify-between gap-2 text-xs">
-            <div className="flex items-center gap-2 text-amber-900 min-w-0">
-              <span className="text-sm">🎯</span>
-              <span className="text-[11px] font-bold truncate">
-                Dual Visit: <strong className="text-slate-900">{selectedPurpose}</strong>
-              </span>
-            </div>
-            <div className="flex items-center gap-1.5 shrink-0">
-              {activeTab !== 'order' && selectedPurpose.includes('Order Booking') && (
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('order')}
-                  className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-2.5 py-1 rounded-lg text-[10px] active:scale-95 transition-all cursor-pointer shadow-xs flex items-center gap-1"
-                >
-                  <span>Switch to Order Booking</span>
-                  <ArrowRight className="w-3 h-3" />
-                </button>
-              )}
-              {activeTab !== 'payment' && selectedPurpose.includes('Payment Collection') && (
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('payment')}
-                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-black px-2.5 py-1 rounded-lg text-[10px] active:scale-95 transition-all cursor-pointer shadow-xs flex items-center gap-1"
-                >
-                  <span>Switch to Payment Collection</span>
-                  <ArrowRight className="w-3 h-3" />
-                </button>
-              )}
-              {activeTab !== 'stock_audit' && selectedPurpose.includes('Stock Auditing') && (
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('stock_audit')}
-                  className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-2.5 py-1 rounded-lg text-[10px] active:scale-95 transition-all cursor-pointer shadow-xs flex items-center gap-1"
-                >
-                  <span>Switch to Stock Audit</span>
-                  <ArrowRight className="w-3 h-3" />
-                </button>
-              )}
-            </div>
-          </div>
-        )}
       </div>
 
       {/* ========================================================================= */}
@@ -2852,6 +2795,97 @@ export default function SalesStoreVisitPage() {
                 className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-black py-2.5 rounded-xl text-xs active:scale-95 transition-all cursor-pointer shadow-md shadow-emerald-600/20 disabled:opacity-50 flex items-center justify-center gap-1.5"
               >
                 {billSubmitting ? 'Generating Bill...' : `Confirm & Issue Bill (₹${cartTotal.toFixed(2)})`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── MODAL: SWITCH ACTIVITY ────────────────────────────────────────── */}
+      {switchActivityModalOpen && (
+        <div className="fixed inset-0 z-[70] bg-slate-950/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in">
+          <div className="bg-white border border-slate-200 rounded-t-3xl sm:rounded-3xl w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
+            <div className="p-4 sm:p-5 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-amber-50 text-amber-600 rounded-xl border border-amber-200">
+                  <RefreshCw className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-slate-900">Switch Activity</h3>
+                  <p className="text-[11px] text-slate-500">
+                    Store: <strong className="text-slate-900">{store.name}</strong>
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSwitchActivityModalOpen(false)}
+                className="p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 sm:p-5 space-y-2.5 overflow-y-auto">
+              {[
+                { id: 'order', label: 'Order Booking', icon: '🛒', desc: 'Taking fresh replenishment or new SKU orders' },
+                { id: 'initial_visit', label: 'Initial Visit', icon: '📍', desc: 'First-time onboarding, survey & introductory meeting' },
+                { id: 'payment', label: 'Payment Collection', icon: '💵', desc: 'Settling outstanding bills and collecting payments' },
+                { id: 'stock_audit', label: 'Stock Auditing', icon: '📦', desc: 'Shelf inventory check, expiry tracking & audit' },
+                { id: 'routine_beat', label: 'Routine Beat', icon: '🔄', desc: 'Scheduled beat route visit and relationship maintenance' }
+              ].map((act) => {
+                const isActive = activeTab === act.id;
+                const isPurposeMatch = selectedPurpose?.includes(act.label);
+                return (
+                  <button
+                    key={act.id}
+                    type="button"
+                    onClick={() => {
+                      setActiveTab(act.id);
+                      if (act.id === 'order' && store?._id) {
+                        fetchCustomer360(store._id);
+                      }
+                      setSwitchActivityModalOpen(false);
+                    }}
+                    className={`w-full p-3.5 rounded-2xl border text-left flex items-center justify-between gap-3 transition-all cursor-pointer active:scale-95 ${
+                      isActive
+                        ? 'bg-amber-50 border-amber-400 ring-2 ring-amber-400/20'
+                        : 'bg-white hover:bg-slate-50 border-slate-200 hover:border-slate-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span className="text-2xl shrink-0">{act.icon}</span>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-xs sm:text-sm font-black text-slate-900">{act.label}</span>
+                          {isPurposeMatch && (
+                            <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+                              Selected Purpose
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-slate-500 truncate mt-0.5">{act.desc}</p>
+                      </div>
+                    </div>
+                    {isActive ? (
+                      <span className="text-[10px] font-black px-2.5 py-1 rounded-full bg-amber-500 text-slate-950 shrink-0">
+                        Active
+                      </span>
+                    ) : (
+                      <ArrowRight className="w-4 h-4 text-slate-400 shrink-0" />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="p-4 border-t border-slate-100 bg-slate-50">
+              <button
+                type="button"
+                onClick={() => setSwitchActivityModalOpen(false)}
+                className="w-full py-2.5 rounded-xl bg-white hover:bg-slate-100 text-slate-700 font-bold text-xs border border-slate-200 cursor-pointer text-center"
+              >
+                Cancel
               </button>
             </div>
           </div>
