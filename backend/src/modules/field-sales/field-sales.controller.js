@@ -3196,6 +3196,66 @@ exports.editQuotationApproval = async (req, res, next) => {
   }
 };
 
+exports.deleteQuotationApproval = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const QuotationModel = mongoose.model('Quotation');
+    const InvoiceModel = mongoose.model('Invoice');
+    const InvoiceItemModel = mongoose.model('InvoiceItem');
+
+    let quotation = null;
+    if (mongoose.Types.ObjectId.isValid(id)) {
+      quotation = await QuotationModel.findById(id);
+    }
+    if (!quotation) {
+      quotation = await QuotationModel.findOne({
+        $or: [{ quotationNo: id }, { invoiceNo: id }]
+      });
+    }
+
+    if (!quotation) {
+      const inv = await InvoiceModel.findOne({
+        $or: [
+          ...(mongoose.Types.ObjectId.isValid(id) ? [{ _id: id }] : []),
+          { invoiceNo: id }
+        ]
+      });
+      if (inv) {
+        await InvoiceItemModel.deleteMany({ invoiceId: inv._id }).catch(() => null);
+        await InvoiceModel.findByIdAndDelete(inv._id).catch(() => null);
+        return res.json({ success: true, message: `Invoice ${inv.invoiceNo} deleted successfully.` });
+      }
+      return res.status(404).json({ success: false, message: 'Quotation or invoice record not found.' });
+    }
+
+    // 1. Delete associated Invoice & items
+    const linkedInvoiceId = quotation.invoiceId;
+    const linkedInvoiceNo = quotation.invoiceNo;
+
+    if (linkedInvoiceId) {
+      await InvoiceItemModel.deleteMany({ invoiceId: linkedInvoiceId }).catch(() => null);
+      await InvoiceModel.findByIdAndDelete(linkedInvoiceId).catch(() => null);
+    }
+    if (linkedInvoiceNo) {
+      const inv = await InvoiceModel.findOne({ invoiceNo: linkedInvoiceNo });
+      if (inv) {
+        await InvoiceItemModel.deleteMany({ invoiceId: inv._id }).catch(() => null);
+        await InvoiceModel.findByIdAndDelete(inv._id).catch(() => null);
+      }
+    }
+
+    // 2. Delete the quotation itself
+    await QuotationModel.findByIdAndDelete(quotation._id);
+
+    res.json({
+      success: true,
+      message: `Quotation ${quotation.quotationNo || ''} and linked invoices removed successfully.`
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 exports.reviewAmendmentApproval = async (req, res, next) => {
   try {
     const { id } = req.params;

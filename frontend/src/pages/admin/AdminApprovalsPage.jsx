@@ -5,7 +5,7 @@ import {
   CheckCircle2, XCircle, Clock, AlertCircle, 
   DollarSign, FileText, ShoppingBag, Check, X, ArrowRight,
   Download, Printer, Edit3, Eye, Search, Filter, Store, Building2, User,
-  Calendar, Hash, Sparkles, MessageSquare
+  Calendar, Hash, Sparkles, MessageSquare, Trash2
 } from 'lucide-react';
 import WhatsAppShareModal from '../../components/WhatsAppShareModal';
 import {
@@ -369,6 +369,33 @@ export default function AdminApprovalsPage() {
     setWhatsAppPhone(phone);
     setWhatsAppMessage(text);
     setShowWhatsAppModal(true);
+  };
+
+  const handleDeleteQuotation = async (q) => {
+    const isApproved = q.status === 'APPROVED';
+    const quoteNo = q.invoiceNo || q.quotationNo || 'this item';
+    const label = isApproved ? `Official Invoice & Quotation (${quoteNo})` : `Quotation (${quoteNo})`;
+
+    if (!window.confirm(`Are you sure you want to permanently delete ${label} from production?\n\nThis will remove the quotation and any linked invoice records. This action cannot be undone.`)) {
+      return;
+    }
+
+    const id = q._id || q.id || quoteNo;
+    try {
+      setToastMessage({ text: 'Deleting from production...', type: 'info' });
+      const res = await axios.delete(`/field-sales/admin/approvals/quotations/${id}`);
+      if (res.data?.success) {
+        setToastMessage({ 
+          text: res.data.message || 'Record successfully deleted from production!', 
+          type: 'success' 
+        });
+        fetchApprovals();
+      }
+    } catch (err) {
+      console.error('Failed to delete quotation:', err);
+      const errMsg = err.response?.data?.message || 'Failed to delete record from production';
+      setToastMessage({ text: errMsg, type: 'error' });
+    }
   };
 
   // Margin Approval / Rejection Handlers
@@ -796,6 +823,16 @@ export default function AdminApprovalsPage() {
                               >
                                 <Edit3 className="w-3 h-3" />
                                 <span>Edit</span>
+                              </button>
+
+                              {/* Delete Quotation Button */}
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteQuotation(q)}
+                                className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 transition cursor-pointer shadow-2xs"
+                                title={isApproved ? "Delete official Invoice & Quotation from production" : "Delete Quotation from production"}
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
                               </button>
 
                               {/* Approve Button (for pending or rejected) */}

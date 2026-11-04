@@ -1863,6 +1863,59 @@ async function runDatabaseMigrations() {
       console.log('[Migration] Created default demo salesperson: sales@mansarafoods.com / Sales@123');
     }
 
+    // Clean up test quotations / invoices requested by admin (e.g. MF/ON/25-26/00010-R3 and R4)
+    try {
+      const QuotationModel = mongoose.model('Quotation');
+      const InvoiceModel = mongoose.model('Invoice');
+      const InvoiceItemModel = mongoose.model('InvoiceItem');
+
+      const testQuotePatterns = [
+        'MF/ON/25-26/00010-R4',
+        'MF/ON/25-26/00010-R3',
+        'MF/ON/25-26/00010'
+      ];
+      const testInvPatterns = [
+        'INV-MF/ON/25-26/00010-R4',
+        'INV-MF/ON/25-26/00010-R3',
+        'INV-MF/ON/25-26/00010'
+      ];
+
+      const foundQuotes = await QuotationModel.find({
+        $or: [
+          { quotationNo: { $in: testQuotePatterns } },
+          { quotationRefNumber: { $in: testQuotePatterns } },
+          { invoiceNo: { $in: testInvPatterns } }
+        ]
+      });
+
+      for (const q of foundQuotes) {
+        if (q.invoiceId) {
+          await InvoiceItemModel.deleteMany({ invoiceId: q.invoiceId }).catch(() => null);
+          await InvoiceModel.findByIdAndDelete(q.invoiceId).catch(() => null);
+        }
+        if (q.invoiceNo) {
+          const inv = await InvoiceModel.findOne({ invoiceNo: q.invoiceNo });
+          if (inv) {
+            await InvoiceItemModel.deleteMany({ invoiceId: inv._id }).catch(() => null);
+            await InvoiceModel.findByIdAndDelete(inv._id).catch(() => null);
+          }
+        }
+        await QuotationModel.findByIdAndDelete(q._id).catch(() => null);
+        console.log(`[Migration] Cleaned up test quotation from database: ${q.quotationNo || q.invoiceNo}`);
+      }
+
+      for (const invNo of testInvPatterns) {
+        const danglingInvoices = await InvoiceModel.find({ invoiceNo: new RegExp(invNo, 'i') });
+        for (const inv of danglingInvoices) {
+          await InvoiceItemModel.deleteMany({ invoiceId: inv._id }).catch(() => null);
+          await InvoiceModel.findByIdAndDelete(inv._id).catch(() => null);
+          console.log(`[Migration] Cleaned up dangling invoice from database: ${inv.invoiceNo}`);
+        }
+      }
+    } catch (cleanupErr) {
+      console.warn('[Migration] Non-fatal quotation cleanup notice:', cleanupErr.message);
+    }
+
     console.log('[Migration] Database migrations completed successfully.');
   } catch (err) {
     console.error('[Migration] Database migration error:', err);
