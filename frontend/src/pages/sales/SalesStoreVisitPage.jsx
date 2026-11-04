@@ -1102,27 +1102,40 @@ export default function SalesStoreVisitPage() {
           </div>
 
           {/* SECTION 1: DESCRIPTION OF VISIT */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs">
+          <div className="bg-white border border-slate-200 rounded-2xl p-3 space-y-2 shadow-xs">
             <div className="flex items-center justify-between">
               <label className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-                <FileText className="w-4 h-4 text-amber-600" />
-                <span>Description of Visit & Discussion Notes *</span>
+                <FileText className="w-3.5 h-3.5 text-amber-600" />
+                <span>Visit & Discussion Notes *</span>
               </label>
-              <span className="text-[10px] text-amber-800 font-semibold">Required for visit report</span>
+              <span className="text-[10px] text-amber-800 font-semibold bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                Required
+              </span>
             </div>
 
             <textarea
-              rows={4}
+              rows={2}
               value={initialDescription}
               onChange={(e) => setInitialDescription(e.target.value)}
-              placeholder="Enter visit details: Owner discussion, products pitched, store potential, shelf space observed, existing competitor presence, credit requirements..."
-              className="w-full p-3 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-amber-500 transition-colors shadow-xs"
+              placeholder="Enter visit details: Owner discussion, products pitched, store potential, competitor presence..."
+              className="w-full px-3 py-2 bg-slate-50/50 focus:bg-white border border-slate-200 focus:border-amber-500 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none transition-all shadow-xs resize-y min-h-[52px]"
             />
 
             {/* Quick Tags for Fast Entry */}
-            <div>
-              <span className="text-[10px] font-semibold text-slate-500">Quick Discussion Tags:</span>
-              <div className="flex flex-wrap gap-1.5 mt-1.5">
+            <div className="space-y-1">
+              <div className="flex items-center justify-between text-[10px]">
+                <span className="font-semibold text-slate-500">Quick Discussion Tags (tap to add / remove):</span>
+                {initialDescription && (
+                  <button
+                    type="button"
+                    onClick={() => setInitialDescription('')}
+                    className="text-slate-400 hover:text-rose-600 transition-colors font-medium cursor-pointer"
+                  >
+                    Clear Notes
+                  </button>
+                )}
+              </div>
+              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1 pt-0.5 -mx-1 px-1">
                 {[
                   'Met owner directly',
                   'Pitched spice pouch range',
@@ -1133,23 +1146,40 @@ export default function SalesStoreVisitPage() {
                   'Samples handed over',
                   'Promised credit term discussion',
                   'Shelf placement assured'
-                ].map(tag => (
-                  <button
-                    key={tag}
-                    type="button"
-                    onClick={() => {
-                      setInitialDescription(prev => {
-                        const trimmed = prev.trim();
-                        if (!trimmed) return tag;
-                        if (trimmed.includes(tag)) return trimmed;
-                        return `${trimmed}. ${tag}`;
-                      });
-                    }}
-                    className="text-[10px] bg-slate-50 hover:bg-amber-50 hover:text-amber-800 text-slate-700 border border-slate-200 hover:border-amber-300 px-2.5 py-1 rounded-lg transition-all cursor-pointer font-medium"
-                  >
-                    + {tag}
-                  </button>
-                ))}
+                ].map(tag => {
+                  const isSelected = initialDescription.includes(tag);
+                  return (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => {
+                        setInitialDescription(prev => {
+                          const trimmed = prev.trim();
+                          if (trimmed.includes(tag)) {
+                            return trimmed
+                              .split(tag)
+                              .join('')
+                              .replace(/\s*\.\s*\./g, '.')
+                              .replace(/^\s*\.\s*/, '')
+                              .replace(/\s*\.\s*$/, '')
+                              .replace(/\s{2,}/g, ' ')
+                              .trim();
+                          }
+                          if (!trimmed) return tag;
+                          return `${trimmed}. ${tag}`;
+                        });
+                      }}
+                      className={`shrink-0 text-[10px] px-2.5 py-1 rounded-lg transition-all cursor-pointer font-medium border flex items-center gap-1 ${
+                        isSelected
+                          ? 'bg-amber-100 text-amber-900 border-amber-300 shadow-2xs font-bold'
+                          : 'bg-slate-50 hover:bg-amber-50/70 text-slate-700 border-slate-200 hover:border-amber-300'
+                      }`}
+                    >
+                      <span>{isSelected ? '✓' : '+'}</span>
+                      <span>{tag}</span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </div>
