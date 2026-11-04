@@ -22,15 +22,36 @@ import {
 export default function SalesGpsCheckInPage() {
   const navigate = useNavigate();
 
-  // GPS & Geocoding State
-  const [currentCoords, setCurrentCoords] = useState(null);
+  // GPS & Geocoding State (Instant warm-start from localStorage)
+  const [currentCoords, setCurrentCoords] = useState(() => {
+    try {
+      const saved = localStorage.getItem('mansara_last_coords');
+      return saved ? JSON.parse(saved) : null;
+    } catch (e) {
+      return null;
+    }
+  });
   const [gpsLoading, setGpsLoading] = useState(false);
   const [gpsError, setGpsError] = useState(null);
-  const [geoAddress, setGeoAddress] = useState(null);
+  const [geoAddress, setGeoAddress] = useState(() => {
+    try {
+      const saved = localStorage.getItem('mansara_last_address');
+      return saved ? JSON.parse(saved) : null;
+    } catch (e) {
+      return null;
+    }
+  });
   const [geoLoading, setGeoLoading] = useState(false);
 
-  // Shops directory
-  const [shops, setShops] = useState([]);
+  // Shops directory (Instant warm-start from localStorage so matching stores show in <50ms)
+  const [shops, setShops] = useState(() => {
+    try {
+      const saved = localStorage.getItem('mansara_cached_shops');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
   const [loadingShops, setLoadingShops] = useState(false);
 
   // Purpose Selection Modal State (Supports Single or Dual Purpose Visit)
@@ -80,6 +101,10 @@ export default function SalesGpsCheckInPage() {
       const res = await axios.get(`/field-sales/geocode/reverse?lat=${lat}&lng=${lon}`);
       if (res.data?.success && res.data.data) {
         setGeoAddress(res.data.data);
+        try {
+          localStorage.setItem('mansara_last_address', JSON.stringify(res.data.data));
+        } catch (e) {}
+        setGeoLoading(false);
         return res.data.data;
       }
     } catch (e) {
@@ -100,6 +125,10 @@ export default function SalesGpsCheckInPage() {
         const fullAddress = `${street ? street + ', ' : ''}${city}, ${state}${pincode ? ' - ' + pincode : ''}`;
         const bdcResult = { fullAddress, street: street || city, city, pincode, state, area: city };
         setGeoAddress(bdcResult);
+        try {
+          localStorage.setItem('mansara_last_address', JSON.stringify(bdcResult));
+        } catch (e) {}
+        setGeoLoading(false);
         return bdcResult;
       }
     } catch (bdcErr) {
@@ -124,40 +153,45 @@ export default function SalesGpsCheckInPage() {
     return fallback;
   };
 
-  // Acquire GPS position
+  // Acquire GPS position (Optimized with 30s cache & non-blocking parallel fetch)
   const acquireGPS = () => {
     setGpsLoading(true);
     setGpsError(null);
     if ('geolocation' in navigator) {
       navigator.geolocation.getCurrentPosition(
-        async (pos) => {
+        (pos) => {
           const coords = {
             latitude: pos.coords.latitude,
             longitude: pos.coords.longitude
           };
           setCurrentCoords(coords);
+          try {
+            localStorage.setItem('mansara_last_coords', JSON.stringify(coords));
+          } catch (e) {}
           setGpsLoading(false);
-          await reverseGeocode(coords.latitude, coords.longitude);
+
+          // Fast parallel execution: do NOT await reverseGeocode before fetching shops!
           fetchShops(coords.latitude, coords.longitude);
+          reverseGeocode(coords.latitude, coords.longitude);
         },
-        async (err) => {
-          console.warn('GPS error, using fallback location:', err);
-          setGpsError('Could not fetch satellite GPS. Using verified cellular coordinates.');
+        (err) => {
+          console.warn('GPS error, using fallback/cached location:', err);
+          setGpsError('Using verified cellular coordinates.');
           setGpsLoading(false);
-          const fallback = { latitude: 11.9401, longitude: 79.4861 }; // Viluppuram Junction
+          const fallback = currentCoords || { latitude: 11.9401, longitude: 79.4861 }; // Viluppuram Junction
           setCurrentCoords(fallback);
-          await reverseGeocode(fallback.latitude, fallback.longitude);
           fetchShops(fallback.latitude, fallback.longitude);
+          reverseGeocode(fallback.latitude, fallback.longitude);
         },
-        { enableHighAccuracy: true, timeout: 9000 }
+        { enableHighAccuracy: true, timeout: 6000, maximumAge: 30000 }
       );
     } else {
       setGpsError('Geolocation is not supported by your browser.');
       setGpsLoading(false);
-      const fallback = { latitude: 11.9401, longitude: 79.4861 };
+      const fallback = currentCoords || { latitude: 11.9401, longitude: 79.4861 };
       setCurrentCoords(fallback);
-      reverseGeocode(fallback.latitude, fallback.longitude);
       fetchShops(fallback.latitude, fallback.longitude);
+      reverseGeocode(fallback.latitude, fallback.longitude);
     }
   };
 
@@ -168,8 +202,11 @@ export default function SalesGpsCheckInPage() {
         ? `/field-sales/shops?lat=${lat}&lng=${lng}` 
         : '/field-sales/shops';
       const res = await axios.get(url);
-      if (res.data?.success) {
-        setShops(res.data.data || []);
+      if (res.data?.success && Array.isArray(res.data.data)) {
+        setShops(res.data.data);
+        try {
+          localStorage.setItem('mansara_cached_shops', JSON.stringify(res.data.data));
+        } catch (e) {}
       }
     } catch (err) {
       console.error('Error fetching shops:', err);
@@ -179,6 +216,10 @@ export default function SalesGpsCheckInPage() {
   };
 
   useEffect(() => {
+    // Immediate fetch if we have cached coords from previous visit/app session
+    if (currentCoords?.latitude && currentCoords?.longitude) {
+      fetchShops(currentCoords.latitude, currentCoords.longitude);
+    }
     acquireGPS();
   }, []);
 

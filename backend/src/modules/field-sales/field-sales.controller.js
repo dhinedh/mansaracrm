@@ -867,11 +867,22 @@ exports.getDashboardStats = async (req, res, next) => {
 };
 
 // ======================================================
+// In-memory cache for fast nearby shops lookups (15-second TTL)
+const shopsCache = new Map();
+
 // 3–10. SHOPS & CUSTOMER 360 & BEAT (Modules 3-10)
 // ======================================================
 exports.getShops = async (req, res, next) => {
   try {
     const { search, category, zone, lat, lng } = req.query;
+
+    // Fast-path in-memory cache check
+    const cacheKey = `${search || ''}_${category || ''}_${lat ? parseFloat(lat).toFixed(3) : ''}_${lng ? parseFloat(lng).toFixed(3) : ''}`;
+    const cachedEntry = shopsCache.get(cacheKey);
+    if (cachedEntry && (Date.now() - cachedEntry.timestamp < 15000)) {
+      return res.json({ success: true, data: cachedEntry.data, cached: true });
+    }
+
     const query = {};
 
     if (search) {
@@ -885,7 +896,12 @@ exports.getShops = async (req, res, next) => {
     if (category) query.category = category;
 
     const StoreModel = mongoose.model('Store');
-    let stores = await StoreModel.find(query).populate('dealer', 'companyName phone').sort({ updatedAt: -1 }).limit(100);
+    let stores = await StoreModel.find(query)
+      .select('name ownerName phone address city state pincode category latitude longitude dealer')
+      .populate('dealer', 'companyName phone')
+      .sort({ updatedAt: -1 })
+      .limit(100)
+      .lean();
 
     // If salesperson GPS coordinates are provided, compute distance in meters and sort by proximity
     if (lat && lng) {
@@ -896,7 +912,7 @@ exports.getShops = async (req, res, next) => {
       const R = 6371000; // Earth radius in meters
 
       stores = stores.map(store => {
-        const sObj = store.toObject ? store.toObject() : { ...store };
+        const sObj = { ...store };
         if (sObj.latitude != null && sObj.longitude != null) {
           const dLat = toRad(sObj.latitude - userLat);
           const dLon = toRad(sObj.longitude - userLng);
@@ -921,6 +937,13 @@ exports.getShops = async (req, res, next) => {
         if (b.distanceMeters !== null) return 1;
         return 0;
       });
+    }
+
+    // Save in cache (cap at 100 entries)
+    shopsCache.set(cacheKey, { timestamp: Date.now(), data: stores });
+    if (shopsCache.size > 100) {
+      const firstKey = shopsCache.keys().next().value;
+      shopsCache.delete(firstKey);
     }
 
     res.json({ success: true, data: stores });
@@ -991,6 +1014,9 @@ exports.registerShopLead = async (req, res, next) => {
       locationName: locationName || undefined,
       googlePlaceId: googlePlaceId || undefined
     });
+
+    // Invalidate cached shops so newly registered shop shows up immediately
+    shopsCache.clear();
 
     res.status(201).json({ success: true, message: 'Shop registered successfully', data: newStore });
   } catch (error) {
