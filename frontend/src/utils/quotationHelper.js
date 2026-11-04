@@ -675,6 +675,9 @@ export const triggerPrintQuotation = (htmlContent) => {
       const runPrint = () => {
         try {
           printWin.focus();
+          printWin.onafterprint = () => {
+            try { printWin.close(); } catch (_) {}
+          };
           printWin.print();
         } catch (e) {
           console.warn('Print window print() failed:', e);
@@ -1016,7 +1019,11 @@ export const shareQuotationPdf = async (rawData, targetPhone = '', customNote = 
     ? `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(shareText)}`
     : `https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}`;
 
-  window.open(waUrl, '_blank');
+  try {
+    window.open(waUrl, '_blank');
+  } catch (openErr) {
+    console.warn('Could not auto-open WhatsApp link:', openErr);
+  }
 
-  return { success: true, method: 'download-and-open', fileName: defaultFileName };
+  return { success: true, method: 'download-and-open', fileName: defaultFileName, waUrl };
 };

@@ -68,7 +68,8 @@ export default function WhatsAppShareModal({
           // Desktop fallback: PDF downloaded + WhatsApp opened
           setShareSuccessNotice({
             type: 'desktop-guide',
-            fileName: result.fileName || `${filePrefix}_${refNo}.pdf`
+            fileName: result.fileName || `${filePrefix}_${refNo}.pdf`,
+            waUrl: result.waUrl
           });
         }
       }
@@ -230,14 +231,27 @@ export default function WhatsAppShareModal({
 
         {/* Desktop Step-by-Step Guide Banner (shown when browser opens WhatsApp Web) */}
         {shareSuccessNotice?.type === 'desktop-guide' && (
-          <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl space-y-1.5 animate-fade-in">
+          <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl space-y-2 animate-fade-in">
             <div className="flex items-center gap-2 text-emerald-800 font-black text-xs">
               <Check className="w-4 h-4 text-emerald-600 stroke-[3]" />
-              <span>{docTypeLabel} PDF Downloaded &amp; WhatsApp Opened!</span>
+              <span>{docTypeLabel} PDF Downloaded &amp; WhatsApp Ready!</span>
             </div>
             <p className="text-[11px] text-emerald-700 leading-relaxed">
               <strong>{shareSuccessNotice.fileName}</strong> was downloaded to your device. In WhatsApp, click the 📎 (Paperclip/Attach) icon &rarr; <strong>Document</strong> &rarr; select the downloaded PDF to send.
             </p>
+            {shareSuccessNotice.waUrl && (
+              <div className="pt-1">
+                <a
+                  href={shareSuccessNotice.waUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-xs transition cursor-pointer"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>Click here if WhatsApp didn't open automatically</span>
+                </a>
+              </div>
+            )}
           </div>
         )}
 
