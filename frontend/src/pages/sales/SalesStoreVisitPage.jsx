@@ -8,7 +8,7 @@ import {
   ShoppingCart, RefreshCw, RotateCcw, DollarSign, Calendar,
   FileText, Camera, Upload, Sparkles, Check, X, Building,
   Smartphone, Banknote, Receipt, PauseCircle, Search, Plus, Minus,
-  Percent, Tag
+  Percent, Tag, Send
 } from 'lucide-react';
 
 export default function SalesStoreVisitPage() {
@@ -439,9 +439,9 @@ export default function SalesStoreVisitPage() {
     }));
   };
 
-  const handleBookOrder = async () => {
+  const handleRequestOrder = async () => {
     if (!orderCart.length) {
-      alert('Cart is empty. Add products to book order.');
+      alert('Cart is empty. Please select products to request an order.');
       return;
     }
     setOrderSubmitting(true);
@@ -459,17 +459,18 @@ export default function SalesStoreVisitPage() {
           price: item.price,
           lineTotal: item.lineTotal
         })),
-        notes: `Order booked during GPS visit at ${store?.name}${orderDefaultMargin > 0 ? ` (Margin: ${orderDefaultMargin}%)` : ''}`
+        notes: `Order request submitted by sales officer during store visit at ${store?.name}${orderDefaultMargin > 0 ? ` (Retailer Margin: ${orderDefaultMargin}%)` : ''}`
       };
 
       const res = await axios.post('/field-sales/orders', payload);
       if (res.data?.success) {
-        alert(`Order placed successfully! Order #${res.data.data.orderNumber}`);
+        const orderNo = res.data.data?.orderNumber || 'Pending';
+        alert(`Order Request #${orderNo} Sent to Admin Successfully!\n\nOrder Details:\n• To Store: ${store?.name || ''}\n• Total Items: ${orderCart.length} SKUs (${cartUnits} units)\n• Total Amount: ₹${cartTotal.toFixed(2)}\n• Retailer Profit Margin Savings: ₹${totalMarginSavings.toFixed(2)}\n• Status: Sent for Admin Approval`);
         setOrderCart([]);
         fetchCustomer360(store._id);
       }
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to place order');
+      alert(err.response?.data?.message || 'Failed to send order request to admin');
     } finally {
       setOrderSubmitting(false);
     }
@@ -1689,10 +1690,10 @@ export default function SalesStoreVisitPage() {
                 </div>
                 <div>
                   <h2 className="text-sm sm:text-base font-black text-slate-900">
-                    Product Catalogue & Order Booking
+                    Product Catalogue & Order Request
                   </h2>
                   <p className="text-[11px] text-slate-500">
-                    Select products, adjust quantities, and generate spot bill or order
+                    Select products, customize retailer margins, and send order request to Admin
                   </p>
                 </div>
               </div>
@@ -1905,21 +1906,12 @@ export default function SalesStoreVisitPage() {
 
                   <button
                     type="button"
-                    onClick={() => setIssueBillModalOpen(true)}
-                    disabled={orderCart.length === 0}
-                    className="flex-1 sm:flex-initial bg-emerald-600 hover:bg-emerald-500 text-white font-black py-2.5 px-3.5 rounded-xl text-xs active:scale-95 transition-all cursor-pointer shadow-sm flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    <Receipt className="w-3.5 h-3.5" />
-                    <span>Generate Spot Bill</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleBookOrder}
+                    onClick={handleRequestOrder}
                     disabled={orderSubmitting || orderCart.length === 0}
-                    className="flex-1 sm:flex-initial bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-2.5 px-4 rounded-xl text-xs active:scale-95 transition-all cursor-pointer shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="flex-1 sm:flex-initial bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black py-2.5 px-6 rounded-xl text-xs active:scale-95 transition-all cursor-pointer shadow-md shadow-amber-500/20 flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
                   >
-                    {orderSubmitting ? 'Placing...' : 'Place Order'}
+                    <Send className="w-3.5 h-3.5 text-slate-950" />
+                    <span>{orderSubmitting ? 'Sending Request to Admin...' : `Request Order (${cartUnits} units • ₹${cartTotal.toFixed(2)})`}</span>
                   </button>
                 </div>
               </div>

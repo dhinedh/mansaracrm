@@ -1386,17 +1386,25 @@ exports.createSalesOrder = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Order must contain at least one item' });
     }
 
+    const UserModel = mongoose.model('User');
+    const user = await UserModel.findById(userId).select('name phone email role');
+
     const StoreModel = mongoose.model('Store');
     const store = storeId ? await StoreModel.findById(storeId) : null;
     let targetDealerId = dealerId || store?.dealerId;
 
-    if (!targetDealerId) {
-      const DealerModel = mongoose.model('Dealer');
-      const firstDealer = await DealerModel.findOne({ status: 'ACTIVE' });
-      targetDealerId = firstDealer?._id || null;
+    const DealerModel = mongoose.model('Dealer');
+    let dealer = null;
+    if (targetDealerId) {
+      dealer = await DealerModel.findById(targetDealerId);
+    }
+    if (!dealer) {
+      dealer = await DealerModel.findOne({ status: 'ACTIVE' });
+      targetDealerId = dealer?._id || null;
     }
 
     let subtotal = 0;
+    let totalMarginSavings = 0;
     const orderItems = [];
 
     for (const item of items) {
@@ -1404,31 +1412,51 @@ exports.createSalesOrder = async (req, res, next) => {
       const qty = parseInt(item.quantity) || 1;
       const mrp = parseFloat(item.mrp || unitPrice) || unitPrice;
       const marginPct = parseFloat(item.marginPct || 0) || 0;
+      const marginSavingsPerUnit = Math.max(0, mrp - unitPrice);
+      const lineMarginSavings = marginSavingsPerUnit * qty;
       const lineTotal = unitPrice * qty;
+
       subtotal += lineTotal;
+      totalMarginSavings += lineMarginSavings;
+
       orderItems.push({
         productId: (item.productId && mongoose.Types.ObjectId.isValid(item.productId)) ? item.productId : undefined,
         productName: item.productName || 'Product',
         quantity: qty,
         mrp,
         marginPct,
+        profitMarginAmount: lineMarginSavings,
+        unitPrice,
         price: unitPrice,
         lineTotal
       });
     }
+
+    const averageMarginPct = subtotal > 0 && totalMarginSavings > 0 
+      ? Math.round((totalMarginSavings / (subtotal + totalMarginSavings)) * 100 * 10) / 10 
+      : 0;
 
     const orderNo = 'FSO-' + Date.now().toString().slice(-6);
     const FieldOrderModel = mongoose.model('FieldSalesOrder');
     const order = await FieldOrderModel.create({
       orderNumber: orderNo,
       salespersonId: userId,
+      salespersonName: user?.name || 'Sales Representative',
+      salespersonPhone: user?.phone || '',
       storeId: store?._id || storeId,
       storeName: store?.name || 'Retail Outlet',
+      storeOwnerName: store?.ownerName || '',
+      storePhone: store?.phone || '',
+      storeAddress: store?.address || '',
       dealerId: targetDealerId,
+      dealerName: dealer?.companyName || '',
       items: orderItems,
       totalAmount: subtotal,
+      totalMarginSavings,
+      averageMarginPct,
       paymentMethod,
       notes: notes || 'Booked via Field Sales Portal',
+      orderType: 'ORDER_REQUEST',
       status: 'PENDING'
     });
 
@@ -1445,16 +1473,37 @@ exports.createSalesOrder = async (req, res, next) => {
         },
         { 
           $inc: { orderValue: subtotal },
-          $set: { outcome: `Order ${orderNo} booked (₹${subtotal})` }
+          $set: { outcome: `Order request ${orderNo} submitted (₹${subtotal.toFixed(2)})` }
         }
       );
     } catch (e) {
       console.warn('Could not update visit orderValue:', e.message);
     }
 
+    // Notify Admin of new Order Request
+    try {
+      const NotificationModel = mongoose.model('Notification');
+      await NotificationModel.create({
+        type: 'ORDER_REQUEST',
+        title: `New Order Request: ${orderNo}`,
+        message: `${user?.name || 'Sales Officer'} requested an order for ${store?.name || 'Retail Store'} worth ₹${subtotal.toFixed(2)} (${orderItems.length} SKUs, ₹${totalMarginSavings.toFixed(2)} retailer margin).`,
+        metadata: {
+          orderId: order._id,
+          orderNumber: orderNo,
+          storeId: store?._id || storeId,
+          storeName: store?.name || '',
+          salespersonId: userId,
+          salespersonName: user?.name || '',
+          totalAmount: subtotal
+        }
+      });
+    } catch (e) {
+      console.warn('Could not create admin notification for order request:', e.message);
+    }
+
     res.status(201).json({
       success: true,
-      message: 'Sales order booked successfully',
+      message: `Order request ${orderNo} sent to Admin successfully!`,
       data: order
     });
   } catch (error) {
@@ -3272,7 +3321,7 @@ exports.getAdminSalesOrders = async (req, res, next) => {
 
     const orders = await FieldOrderModel.find(query)
       .populate('salespersonId', 'name email phone')
-      .populate('storeId', 'name address phone category zones')
+      .populate('storeId', 'name address phone category zones ownerName')
       .populate('dealerId', 'companyName phone gstNumber')
       .sort({ createdAt: -1 });
 

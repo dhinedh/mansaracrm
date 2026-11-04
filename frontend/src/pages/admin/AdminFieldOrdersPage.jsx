@@ -331,36 +331,41 @@ export default function AdminFieldOrdersPage() {
               {/* Stakeholders grid */}
               <div className="grid grid-cols-2 gap-3 bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
                 <div>
-                  <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">Sales Executive</span>
-                  <p className="font-black text-slate-800">{selectedOrder.salespersonId?.name || 'Sales Representative'}</p>
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">Requested By (Sales Executive)</span>
+                  <p className="font-black text-slate-800">{selectedOrder.salespersonName || selectedOrder.salespersonId?.name || 'Sales Representative'}</p>
+                  <p className="text-[11px] text-slate-500">{selectedOrder.salespersonPhone || selectedOrder.salespersonId?.phone || ''}</p>
                   <p className="text-[11px] text-slate-500">{selectedOrder.salespersonId?.email || 'N/A'}</p>
-                  <p className="text-[11px] text-slate-500">{selectedOrder.salespersonId?.phone || ''}</p>
                 </div>
                 <div>
-                  <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">Retail Customer Store</span>
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">To Whom (Retail Store Customer)</span>
                   <p className="font-black text-slate-800">{selectedOrder.storeName || selectedOrder.storeId?.name}</p>
-                  <p className="text-[11px] text-slate-500">{selectedOrder.storeId?.address || 'Retail Customer'}</p>
-                  <p className="text-[11px] text-slate-500">{selectedOrder.storeId?.phone || ''}</p>
+                  {(selectedOrder.storeOwnerName || selectedOrder.storeId?.ownerName) && (
+                    <p className="text-[11px] font-semibold text-amber-700">Owner: {selectedOrder.storeOwnerName || selectedOrder.storeId?.ownerName}</p>
+                  )}
+                  <p className="text-[11px] text-slate-500">{selectedOrder.storeAddress || selectedOrder.storeId?.address || 'Retail Customer'}</p>
+                  <p className="text-[11px] text-slate-500">{selectedOrder.storePhone || selectedOrder.storeId?.phone || ''}</p>
                 </div>
               </div>
 
               <div>
                 <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">Assigned Distributor Dealer</span>
                 <p className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 font-semibold text-slate-800">
-                  {selectedOrder.dealerId?.companyName || 'Main Distributor'}
+                  {selectedOrder.dealerName || selectedOrder.dealerId?.companyName || 'Main Distributor'}
                 </p>
               </div>
 
               {/* Items List */}
               <div>
-                <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1.5">Booked Items Breakdown</span>
+                <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1.5">Requested Products & Profit Margins</span>
                 <div className="border border-slate-200 rounded-2xl overflow-hidden">
                   <table className="w-full text-left text-xs">
                     <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-[10px]">
                       <tr>
-                        <th className="px-3 py-2">Item</th>
-                        <th className="px-3 py-2 text-center">Qty</th>
-                        <th className="px-3 py-2 text-right">Price</th>
+                        <th className="px-3 py-2">Product</th>
+                        <th className="px-2 py-2 text-center">Qty</th>
+                        <th className="px-2 py-2 text-right">MRP</th>
+                        <th className="px-2 py-2 text-center">Margin %</th>
+                        <th className="px-2 py-2 text-right">Unit Price</th>
                         <th className="px-3 py-2 text-right">Line Total</th>
                       </tr>
                     </thead>
@@ -368,8 +373,12 @@ export default function AdminFieldOrdersPage() {
                       {selectedOrder.items?.map((item, idx) => (
                         <tr key={idx}>
                           <td className="px-3 py-2 font-medium">{item.productName}</td>
-                          <td className="px-3 py-2 text-center font-bold">{item.quantity}</td>
-                          <td className="px-3 py-2 text-right font-mono">₹{item.price}</td>
+                          <td className="px-2 py-2 text-center font-bold">{item.quantity}</td>
+                          <td className="px-2 py-2 text-right font-mono text-slate-400">₹{item.mrp || item.price}</td>
+                          <td className="px-2 py-2 text-center font-bold text-emerald-600">
+                            {item.marginPct ? `${item.marginPct}%` : '0%'}
+                          </td>
+                          <td className="px-2 py-2 text-right font-mono">₹{item.price}</td>
                           <td className="px-3 py-2 text-right font-mono font-bold">
                             ₹{(item.lineTotal || (item.price * item.quantity)).toLocaleString('en-IN')}
                           </td>
@@ -377,8 +386,18 @@ export default function AdminFieldOrdersPage() {
                       ))}
                     </tbody>
                     <tfoot className="bg-slate-50 font-black border-t border-slate-200 text-xs">
+                      {selectedOrder.totalMarginSavings > 0 && (
+                        <tr>
+                          <td colSpan="5" className="px-3 py-1.5 text-right uppercase text-[11px] text-emerald-700">
+                            Total Retailer Profit Margin Savings:
+                          </td>
+                          <td className="px-3 py-1.5 text-right font-mono text-emerald-700 text-xs font-bold">
+                            ₹{selectedOrder.totalMarginSavings.toLocaleString('en-IN')}
+                          </td>
+                        </tr>
+                      )}
                       <tr>
-                        <td colSpan="3" className="px-3 py-2.5 text-right uppercase">Total Amount:</td>
+                        <td colSpan="5" className="px-3 py-2.5 text-right uppercase">Total Order Value:</td>
                         <td className="px-3 py-2.5 text-right font-mono text-rose-600 text-sm">
                           ₹{(selectedOrder.totalAmount || 0).toLocaleString('en-IN')}
                         </td>

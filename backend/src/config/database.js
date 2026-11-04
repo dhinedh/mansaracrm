@@ -1009,19 +1009,32 @@ const PaymentCommitmentSchema = new Schema({
 const FieldSalesOrderSchema = new Schema({
   orderNumber: { type: String, unique: true, required: true, index: true },
   salespersonId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+  salespersonName: { type: String },
+  salespersonPhone: { type: String },
   storeId: { type: Schema.Types.ObjectId, ref: 'Store', required: true, index: true },
   storeName: { type: String },
+  storeOwnerName: { type: String },
+  storePhone: { type: String },
+  storeAddress: { type: String },
   dealerId: { type: Schema.Types.ObjectId, ref: 'Dealer', index: true },
+  dealerName: { type: String },
   items: [{
     productId: { type: Schema.Types.ObjectId, ref: 'Product' },
     productName: { type: String, required: true },
     quantity: { type: Number, required: true },
+    mrp: { type: Number },
+    marginPct: { type: Number, default: 0 },
+    profitMarginAmount: { type: Number, default: 0 },
+    unitPrice: { type: Number },
     price: { type: Number, required: true },
     lineTotal: { type: Number }
   }],
   totalAmount: { type: Number, required: true },
+  totalMarginSavings: { type: Number, default: 0 },
+  averageMarginPct: { type: Number, default: 0 },
   paymentMethod: { type: String, enum: ['CASH', 'UPI', 'CREDIT', 'CHEQUE', 'NONE'], default: 'NONE' },
   status: { type: String, enum: ['PENDING', 'APPROVED', 'DISPATCHED', 'DELIVERED', 'CANCELLED'], default: 'PENDING' },
+  orderType: { type: String, default: 'ORDER_REQUEST' },
   notes: { type: String },
   invoiceId: { type: Schema.Types.ObjectId, ref: 'Invoice' }
 }, {
