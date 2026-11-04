@@ -238,7 +238,7 @@ export default function SalesStoreVisitPage() {
   };
 
   // 3. Customer 360 Fetcher
-  const fetchCustomer360 = async (storeId) => {
+  const fetchCustomer360 = async (storeId, retries = 1) => {
     if (!storeId) return;
     setShop360Loading(true);
     try {
@@ -248,6 +248,9 @@ export default function SalesStoreVisitPage() {
       }
     } catch (e) {
       console.warn('Customer 360 fetch error:', e);
+      if (retries > 0) {
+        setTimeout(() => fetchCustomer360(storeId, retries - 1), 2500);
+      }
     } finally {
       setShop360Loading(false);
     }
