@@ -820,13 +820,15 @@ export const generateQuotationPdfBlob = async (rawData) => {
   const fileName = `${prefix}_${safeRef}.pdf`;
 
   // 1. Try client-side html2pdf
+  let container = null;
   try {
-    const container = document.createElement('div');
+    container = document.createElement('div');
     container.style.position = 'fixed';
-    container.style.left = '-9999px';
+    container.style.left = '0';
     container.style.top = '0';
     container.style.width = '820px';
-    container.style.background = '#ffffff';
+    container.style.opacity = '0';
+    container.style.pointerEvents = 'none';
     container.style.zIndex = '-9999';
     container.innerHTML = html;
     document.body.appendChild(container);
@@ -844,13 +846,20 @@ export const generateQuotationPdfBlob = async (rawData) => {
       margin: [4, 4, 4, 4],
       filename: fileName,
       image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true, allowTaint: true, logging: false },
+      html2canvas: { 
+        scale: 2, 
+        useCORS: true, 
+        allowTaint: true, 
+        logging: false,
+        scrollX: 0,
+        scrollY: 0,
+        windowWidth: 820
+      },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
     };
 
     const targetElement = container.querySelector('.outer') || container;
     const pdfBlob = await html2pdf().set(opt).from(targetElement).outputPdf('blob');
-    document.body.removeChild(container);
 
     if (pdfBlob && pdfBlob.size > 1000) {
       const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
@@ -858,6 +867,10 @@ export const generateQuotationPdfBlob = async (rawData) => {
     }
   } catch (clientErr) {
     console.warn('Client-side html2pdf generation encountered an issue, trying backend generator:', clientErr);
+  } finally {
+    if (container && document.body.contains(container)) {
+      try { document.body.removeChild(container); } catch (_) {}
+    }
   }
 
   // 2. Fallback to backend Puppeteer endpoint
@@ -886,15 +899,24 @@ export const generateQuotationPdfBlob = async (rawData) => {
  * Download Quotation / Invoice directly as a .PDF file
  */
 export const downloadQuotationPdf = async (rawData) => {
-  const { blob, fileName } = await generateQuotationPdfBlob(rawData);
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = fileName;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+  try {
+    const { blob, fileName } = await generateQuotationPdfBlob(rawData);
+    if (!blob) throw new Error('PDF blob generation empty');
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    return { success: true, fileName };
+  } catch (err) {
+    console.error('Download PDF error, falling back to print dialog:', err);
+    const html = buildQuotationHtml(rawData);
+    triggerPrintQuotation(html);
+    return { success: true, fallback: 'print' };
+  }
 };
 
 /**
@@ -903,12 +925,14 @@ export const downloadQuotationPdf = async (rawData) => {
  * - On Standard Desktop: automatically downloads the PDF and opens WhatsApp with an attached cover note.
  */
 export const shareQuotationPdf = async (rawData, targetPhone = '', customNote = '') => {
-  const { file, blob, fileName, data } = await generateQuotationPdfBlob(rawData);
+  const data = normalizeQuotationData(rawData);
   const rawPhone = targetPhone || data.customer?.phone || '';
   const cleanPhone = cleanPhoneNumber(rawPhone);
   const isInvoice = data.isApprovedInvoice;
   const docTypeLabel = isInvoice ? 'Official Tax Invoice' : 'Commercial Price Quotation';
   const docName = isInvoice ? 'Invoice' : 'Quotation';
+  const safeRef = (data.refNo || 'Mansara').replace(/[^a-zA-Z0-9_-]/g, '_');
+  const defaultFileName = `${docName}_${safeRef}.pdf`;
 
   const shareText = [
     `🏢 *MANSARA FOODS PVT. LTD.*`,
@@ -921,37 +945,46 @@ export const shareQuotationPdf = async (rawData, targetPhone = '', customNote = 
     `\n_Mansara Foods Pvt. Ltd. | Ph: ${data.company?.phone || '+91-88388 87064'}_`
   ].filter(Boolean).join('\n');
 
-  // Check if Web Share API with File sharing is supported
-  const canShareFiles = typeof navigator !== 'undefined' && 
-    typeof navigator.canShare === 'function' && 
-    navigator.canShare({ files: [file] });
+  try {
+    const { file, blob, fileName } = await generateQuotationPdfBlob(rawData);
 
-  if (canShareFiles) {
-    try {
-      await navigator.share({
-        files: [file],
-        title: `${docName} ${data.refNo} - Mansara Foods`,
-        text: shareText
-      });
-      return { success: true, method: 'web-share', fileName };
-    } catch (err) {
-      if (err.name === 'AbortError') {
-        return { success: false, aborted: true };
+    // Check if Web Share API with File sharing is supported
+    const canShareFiles = typeof navigator !== 'undefined' && 
+      typeof navigator.canShare === 'function' && 
+      file &&
+      navigator.canShare({ files: [file] });
+
+    if (canShareFiles) {
+      try {
+        await navigator.share({
+          files: [file],
+          title: `${docName} ${data.refNo} - Mansara Foods`,
+          text: shareText
+        });
+        return { success: true, method: 'web-share', fileName };
+      } catch (err) {
+        if (err.name === 'AbortError') {
+          return { success: false, aborted: true };
+        }
+        console.warn('Native share failed or dismissed, using WhatsApp link fallback:', err);
       }
-      console.warn('Native share failed or dismissed, using WhatsApp link fallback:', err);
     }
-  }
 
-  // Desktop / Fallback method:
-  // 1. Automatically download the PDF to user's device so it's ready to attach in 1 click
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = fileName;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+    // Desktop / Fallback method:
+    // 1. Automatically download the PDF to user's device so it's ready to attach in 1 click
+    if (blob) {
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+    }
+  } catch (pdfErr) {
+    console.warn('PDF generation in shareQuotationPdf encountered an issue, proceeding to open WhatsApp:', pdfErr);
+  }
 
   // 2. Open WhatsApp chat with contact (or contact chooser) and cover note
   const waUrl = cleanPhone
@@ -960,5 +993,5 @@ export const shareQuotationPdf = async (rawData, targetPhone = '', customNote = 
 
   window.open(waUrl, '_blank');
 
-  return { success: true, method: 'download-and-open', fileName };
+  return { success: true, method: 'download-and-open', fileName: defaultFileName };
 };

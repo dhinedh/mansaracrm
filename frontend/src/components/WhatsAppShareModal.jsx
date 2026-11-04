@@ -10,7 +10,8 @@ import {
   shareQuotationPdf, 
   downloadQuotationPdf,
   buildQuotationHtml,
-  triggerPrintQuotation
+  triggerPrintQuotation,
+  openWhatsAppQuotation
 } from '../utils/quotationHelper';
 
 export default function WhatsAppShareModal({ 
@@ -50,17 +51,14 @@ export default function WhatsAppShareModal({
   if (!isOpen) return null;
 
   const handleSharePdf = async () => {
-    if (!quotationData) {
-      alert(`${docTypeLabel} data not available to generate PDF`);
-      return;
-    }
+    if (!quotationData) return;
     setLoading(true);
     setShareSuccessNotice(null);
 
     try {
       const result = await shareQuotationPdf(quotationData, phoneNumber, customNote);
 
-      if (result.success) {
+      if (result?.success) {
         if (result.method === 'web-share') {
           // Native mobile/supported desktop share opened with PDF file attached
           setTimeout(() => {
@@ -75,8 +73,12 @@ export default function WhatsAppShareModal({
         }
       }
     } catch (err) {
-      console.error('Error sharing PDF on WhatsApp:', err);
-      alert('Failed to generate or share PDF. Please try the "Download PDF" button.');
+      console.error('Error sharing PDF on WhatsApp, falling back to direct message:', err);
+      openWhatsAppQuotation(quotationData, phoneNumber);
+      setShareSuccessNotice({
+        type: 'desktop-guide',
+        fileName: `${filePrefix}_${refNo}.pdf`
+      });
     } finally {
       setLoading(false);
     }
@@ -88,8 +90,8 @@ export default function WhatsAppShareModal({
     try {
       await downloadQuotationPdf(quotationData);
     } catch (err) {
-      console.error('Download PDF error:', err);
-      alert('Could not download PDF.');
+      console.error('Download PDF error, opening print fallback:', err);
+      handlePrint();
     } finally {
       setLoading(false);
     }
