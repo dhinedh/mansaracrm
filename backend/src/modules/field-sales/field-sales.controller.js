@@ -3,6 +3,7 @@ const prisma = require('../../config/database');
 const mongoose = require('mongoose');
 const axios = require('axios');
 const { generateInvoicePdf } = require('../../utils/pdfGenerator');
+const { getNextInvoiceNumber, getNextQuotationNumber, extractTrailingNumber } = require('../../utils/invoiceSequenceHelper');
 
 // In-memory geocode cache to avoid external API rate limits (429) and CORS
 const geoCache = new Map();
@@ -1805,22 +1806,30 @@ exports.createQuotation = async (req, res, next) => {
           });
         } else {
           // The previous quotation with this number was ALREADY APPROVED!
-          // We must NOT reuse this number or cause a duplicate key error!
-          // Auto-generate a new unique revision or sequence number
-          let suffix = 1;
-          let candidateNo = `${finalQuotationNo}-R${suffix}`;
-          while (await QuotationModel.findOne({ quotationNo: candidateNo })) {
-            suffix++;
-            candidateNo = `${finalQuotationNo}-R${suffix}`;
-          }
-          finalQuotationNo = candidateNo;
+          // Allocate the next sequential continuous quotation number
+          const nextQ = await getNextQuotationNumber({ commit: true });
+          finalQuotationNo = nextQ.quotationNo;
         }
       }
     } else {
-      const count = await QuotationModel.countDocuments();
-      const year = new Date().getFullYear();
-      const nextYear = String(year + 1).slice(-2);
-      finalQuotationNo = `MF/QN/${year}-${nextYear}/${String(count + 1).padStart(5, '0')}`;
+      const nextQ = await getNextQuotationNumber({ commit: true });
+      finalQuotationNo = nextQ.quotationNo;
+    }
+
+    // Ensure sequence pointer is always kept in sync with the assigned number
+    const assignedNum = extractTrailingNumber(finalQuotationNo);
+    if (assignedNum > 0) {
+      const InvoiceSequenceModel = mongoose.model('InvoiceSequence');
+      const SettingModel = mongoose.model('Setting');
+      await InvoiceSequenceModel.findOneAndUpdate(
+        { _id: 'singleton' },
+        { $max: { lastNumber: assignedNum } },
+        { upsert: true }
+      ).catch(() => null);
+      await SettingModel.updateMany(
+        { key: 'invoice_settings' },
+        { $max: { nextSequenceNumber: assignedNum + 1 } }
+      ).catch(() => null);
     }
 
     // Guard against any race condition duplicate
@@ -3040,33 +3049,12 @@ exports.reviewQuotationApproval = async (req, res, next) => {
       const custPhone = cleanVal(quotation.customerPhone) || cleanVal(quotation.customerId?.phone) || cleanVal(quotation.dealerId?.phone) || '';
       const custAddress = cleanVal(quotation.customerAddress) || cleanVal(quotation.customerId?.address) || cleanVal(quotation.dealerId?.address) || '';
 
-      // 1. Generate Invoice Number based on quotation number (swapping QN / QTN -> INV)
-      let baseInvNo = quotation.quotationNo || '';
-      if (baseInvNo.includes('QN')) {
-        baseInvNo = baseInvNo.replace(/QN/g, 'INV');
-      } else if (baseInvNo.includes('qn')) {
-        baseInvNo = baseInvNo.replace(/qn/g, 'inv');
-      } else if (baseInvNo.includes('QTN')) {
-        baseInvNo = baseInvNo.replace(/QTN/g, 'INV');
-      } else if (baseInvNo.includes('qtn')) {
-        baseInvNo = baseInvNo.replace(/qtn/g, 'inv');
-      } else if (baseInvNo.startsWith('QN-')) {
-        baseInvNo = baseInvNo.replace('QN-', 'INV-');
-      } else if (baseInvNo.startsWith('QTN-')) {
-        baseInvNo = baseInvNo.replace('QTN-', 'INV-');
-      } else if (baseInvNo.startsWith('QT-')) {
-        baseInvNo = baseInvNo.replace('QT-', 'INV-');
-      } else {
-        baseInvNo = `INV-${baseInvNo}`;
-      }
-
+      // 1. Generate next continuous sequential Invoice Number (Official GST Invoice Sequence)
       const InvoiceModel = mongoose.model('Invoice');
-      let finalInvoiceNo = baseInvNo;
-      let existingInvoice = await InvoiceModel.findOne({ invoiceNo: finalInvoiceNo });
-      let seq = 1;
-      while (existingInvoice) {
-        finalInvoiceNo = `${baseInvNo}-${seq++}`;
-        existingInvoice = await InvoiceModel.findOne({ invoiceNo: finalInvoiceNo });
+      let finalInvoiceNo = quotation.invoiceNo;
+      if (!finalInvoiceNo || finalInvoiceNo.startsWith('INV-') || await InvoiceModel.findOne({ invoiceNo: finalInvoiceNo })) {
+        const nextInvInfo = await getNextInvoiceNumber({ commit: true });
+        finalInvoiceNo = nextInvInfo.invoiceNo;
       }
 
       // 2. Create official Invoice document

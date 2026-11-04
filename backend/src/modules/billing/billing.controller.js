@@ -5,6 +5,7 @@ const { buildInvoiceHtml, buildSimpleRetailInvoiceHtml, buildAgreementHtml, buil
 const { getOrAssignDealerAgreementNumber, getOrAssignDealerClosureAgreementNumber } = require('../../utils/agreementSequence');
 const { mergeAppointmentTemplate, mergeClosureTemplate } = require('../../utils/defaultAgreementTemplates');
 const centralNotificationService = require('../../utils/centralNotificationService');
+const { getNextInvoiceNumber, getNextQuotationNumber } = require('../../utils/invoiceSequenceHelper');
 
 
 // Helper to fetch company settings dynamically
@@ -108,12 +109,9 @@ exports.getInvoiceSettings = async (req, res, next) => {
       }
     }
 
-    const seq = await prisma.invoiceSequence.findUnique({
-      where: { id: 'singleton' }
-    });
-
-    const currentLast = seq ? seq.lastNumber : (settings.nextSequenceNumber ? settings.nextSequenceNumber - 1 : 9);
-    const nextSeq = currentLast + 1;
+    const nextInvInfo = await getNextInvoiceNumber({ commit: false });
+    const nextSeq = nextInvInfo.number;
+    const currentLast = nextSeq - 1;
 
     const settingsData = settings.toJSON ? settings.toJSON() : settings;
     const rawBd = settingsData.bankDetails || {};
@@ -133,7 +131,7 @@ exports.getInvoiceSettings = async (req, res, next) => {
         bankDetails: effectiveBankDetails,
         nextSequenceNumber: nextSeq,
         currentLastNumber: currentLast,
-        invoicePrefix: seq?.prefix || settings.invoicePrefix || 'MF/INV/25-26'
+        invoicePrefix: nextInvInfo.prefix || settings.invoicePrefix || 'MF/INV/25-26'
       }
     });
   } catch (error) {

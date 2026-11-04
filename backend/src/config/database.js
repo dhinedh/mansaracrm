@@ -1912,6 +1912,28 @@ async function runDatabaseMigrations() {
           console.log(`[Migration] Cleaned up dangling invoice from database: ${inv.invoiceNo}`);
         }
       }
+
+      // Synchronize and verify invoice sequence pointer so next invoice starts fresh and continuous
+      const allInvs = await InvoiceModel.find({}).select('invoiceNo').lean();
+      let maxNum = 0;
+      for (const inv of allInvs) {
+        const m = (inv.invoiceNo || '').replace(/-R\d+$/i, '').match(/(\d+)$/);
+        if (m) {
+          const num = parseInt(m[1], 10);
+          if (!isNaN(num) && num > maxNum && num < 1000000) maxNum = num;
+        }
+      }
+      const nextAvailable = Math.max(maxNum + 1, 10);
+      await InvoiceSequence.findOneAndUpdate(
+        { _id: 'singleton' },
+        { $set: { lastNumber: nextAvailable - 1, prefix: 'MF/INV/25-26' } },
+        { upsert: true }
+      );
+      await Setting.updateMany(
+        { key: 'invoice_settings' },
+        { $set: { nextSequenceNumber: nextAvailable } }
+      );
+      console.log(`[Migration] Invoice sequence synchronized. Next continuous invoice will be #${nextAvailable}.`);
     } catch (cleanupErr) {
       console.warn('[Migration] Non-fatal quotation cleanup notice:', cleanupErr.message);
     }
