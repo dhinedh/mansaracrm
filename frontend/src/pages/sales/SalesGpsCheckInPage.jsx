@@ -532,15 +532,15 @@ export default function SalesGpsCheckInPage() {
           </div>
         )}
 
-        {/* ACTION: REGISTER NEW SHOP AT CURRENT LOCATION BUTTON */}
+        {/* ACTION: REGISTER NEW SHOP BUTTON */}
         <div className="pt-2">
           <button
             type="button"
             onClick={handleOpenRegisterWithAutoAddress}
             className="w-full bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-800 font-bold py-3.5 rounded-2xl text-xs sm:text-sm flex items-center justify-center gap-2 cursor-pointer active:scale-95 transition-all shadow-xs"
           >
-            <Plus className="w-4 h-4 text-amber-600" />
-            <span>+ Register New Shop at this Location (Auto-fetch Address)</span>
+            <Plus className="w-4 h-4 text-amber-600 shrink-0" />
+            <span>Register New Shop</span>
           </button>
         </div>
       </div>

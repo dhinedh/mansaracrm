@@ -1354,7 +1354,7 @@ export default function SalesVisitsPage() {
             className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-white/10 font-bold px-3 py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-all text-center"
           >
             <Plus className="w-4 h-4 text-amber-400 shrink-0" />
-            <span className="truncate">+ Register New Shop</span>
+            <span className="truncate">Register New Shop</span>
           </button>
         </div>
       </div>
