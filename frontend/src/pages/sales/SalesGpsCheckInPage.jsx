@@ -426,39 +426,39 @@ export default function SalesGpsCheckInPage() {
   return (
     <div className="space-y-4 sm:space-y-5 pb-24 font-sans text-slate-900 max-w-4xl mx-auto">
       {/* ─── PAGE HEADER & NAVIGATION BAR ─────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
-        <div className="flex items-center gap-3">
+      <div className="flex items-center justify-between gap-2.5 sm:gap-3 bg-white border border-slate-200 rounded-2xl p-3 sm:p-4 shadow-xs">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           <Link
             to="/sales/visits"
-            className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-all cursor-pointer border border-slate-200"
+            className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-all cursor-pointer border border-slate-200 shrink-0"
             title="Back to Daily Beat Outlets"
           >
-            <ArrowLeft className="w-5 h-5" />
+            <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
           </Link>
-          <div className="p-2.5 sm:p-3 bg-amber-50 text-amber-600 rounded-2xl border border-amber-200 shrink-0">
-            <Compass className="w-5 h-5 sm:w-6 sm:h-6 animate-pulse" />
+          <div className="p-2 sm:p-2.5 bg-amber-50 text-amber-600 rounded-xl sm:rounded-2xl border border-amber-200 shrink-0">
+            <Compass className="w-4 h-4 sm:w-5 sm:h-5 animate-pulse" />
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-base sm:text-lg font-black text-slate-900">Live GPS Check-In</h1>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                Satellite Live
-              </span>
-            </div>
-            <p className="text-[11px] sm:text-xs text-slate-500">
-              Google Map address link &amp; Registered store matching
-            </p>
+          <div className="flex items-center gap-2 min-w-0">
+            <h1 className="text-sm sm:text-base md:text-lg font-black text-slate-900 whitespace-nowrap truncate">
+              Live GPS Check-In
+            </h1>
+            <span className="inline-flex items-center gap-1 text-[9px] sm:text-[10px] font-bold px-1.5 sm:px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 whitespace-nowrap shrink-0">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span className="hidden sm:inline">Satellite Live</span>
+              <span className="sm:hidden">Live</span>
+            </span>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 self-end sm:self-auto">
+        <div className="flex items-center gap-2 shrink-0">
           <button
             type="button"
             onClick={() => navigate('/sales/visits')}
-            className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-800 border border-slate-200 flex items-center gap-1.5 transition-all cursor-pointer"
+            className="px-3 sm:px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-800 border border-slate-200 flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap shrink-0"
           >
-            <Store className="w-3.5 h-3.5 text-amber-500" />
-            <span>Daily Beat List</span>
+            <Store className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+            <span className="hidden sm:inline">Daily Beat List</span>
+            <span className="sm:hidden">Beat List</span>
           </button>
         </div>
       </div>
