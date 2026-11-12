@@ -1208,6 +1208,7 @@ exports.getCustomer360 = async (req, res, next) => {
       if (p.suppliedStock < (p.billedStock + p.unbilledStock)) {
         p.suppliedStock = p.billedStock + p.unbilledStock;
       }
+      p.currentStock = p.suppliedStock;
     }
 
     const totalStock = Math.max(transferStockQty, billedStockQty + unbilledStockQty);
@@ -1229,6 +1230,13 @@ exports.getCustomer360 = async (req, res, next) => {
         createdAt: o.createdAt,
         status: o.status,
         itemsCount: (o.items || []).length
+      })),
+      billedInvoices: activeInvoices.map(inv => ({
+        id: inv._id,
+        invoiceNumber: inv.invoiceNumber,
+        totalAmount: inv.totalAmount,
+        status: inv.status,
+        createdAt: inv.createdAt
       }))
     };
 

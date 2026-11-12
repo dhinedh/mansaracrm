@@ -36,6 +36,7 @@ export default function SalesStoreVisitPage() {
   const [shop360Loading, setShop360Loading] = useState(false);
   const [shop360Data, setShop360Data] = useState(null);
   const [showStockBreakdown, setShowStockBreakdown] = useState(false);
+  const [stockDetailFilter, setStockDetailFilter] = useState('ALL'); // 'ALL', 'CURRENT', 'BILLED', 'UNBILLED'
 
   // Products Catalogue for Order Booking
   const [catalogue, setCatalogue] = useState([]);
@@ -2045,7 +2046,23 @@ export default function SalesStoreVisitPage() {
             {/* 3 Metric Cards for Stock & Invoicing */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {/* CARD 1: CURRENT / SUPPLIED STOCK */}
-              <div className="bg-gradient-to-br from-blue-50 to-indigo-50/50 border border-blue-200 p-3.5 rounded-2xl relative overflow-hidden group shadow-2xs">
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={() => {
+                  if (showStockBreakdown && stockDetailFilter === 'CURRENT') {
+                    setShowStockBreakdown(false);
+                  } else {
+                    setStockDetailFilter('CURRENT');
+                    setShowStockBreakdown(true);
+                  }
+                }}
+                className={`bg-gradient-to-br from-blue-50 to-indigo-50/50 border p-3.5 rounded-2xl relative overflow-hidden group shadow-2xs cursor-pointer transition-all duration-150 select-none hover:shadow-md ${
+                  showStockBreakdown && stockDetailFilter === 'CURRENT'
+                    ? 'ring-2 ring-blue-600 border-blue-500 bg-blue-100/60 shadow-sm'
+                    : 'border-blue-200 hover:border-blue-400'
+                }`}
+              >
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-[11px] uppercase font-black tracking-wider text-blue-700 flex items-center gap-1.5">
                     <span>📦</span>
@@ -2064,10 +2081,30 @@ export default function SalesStoreVisitPage() {
                 <p className="text-[11px] text-slate-500 mt-1">
                   Total stock currently supplied & available at shop
                 </p>
+                <div className="mt-2.5 pt-2 border-t border-blue-100 flex items-center justify-between text-[11px] font-bold text-blue-700">
+                  <span>{showStockBreakdown && stockDetailFilter === 'CURRENT' ? '▼ Viewing Product List' : '👉 Tap to view products'}</span>
+                  <ChevronRight className={`w-3.5 h-3.5 transition-transform ${showStockBreakdown && stockDetailFilter === 'CURRENT' ? 'rotate-90' : ''}`} />
+                </div>
               </div>
 
               {/* CARD 2: BILLED STOCK */}
-              <div className="bg-gradient-to-br from-emerald-50 to-teal-50/50 border border-emerald-200 p-3.5 rounded-2xl relative overflow-hidden group shadow-2xs">
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={() => {
+                  if (showStockBreakdown && stockDetailFilter === 'BILLED') {
+                    setShowStockBreakdown(false);
+                  } else {
+                    setStockDetailFilter('BILLED');
+                    setShowStockBreakdown(true);
+                  }
+                }}
+                className={`bg-gradient-to-br from-emerald-50 to-teal-50/50 border p-3.5 rounded-2xl relative overflow-hidden group shadow-2xs cursor-pointer transition-all duration-150 select-none hover:shadow-md ${
+                  showStockBreakdown && stockDetailFilter === 'BILLED'
+                    ? 'ring-2 ring-emerald-600 border-emerald-500 bg-emerald-100/60 shadow-sm'
+                    : 'border-emerald-200 hover:border-emerald-400'
+                }`}
+              >
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-[11px] uppercase font-black tracking-wider text-emerald-700 flex items-center gap-1.5">
                     <span>🧾</span>
@@ -2086,10 +2123,30 @@ export default function SalesStoreVisitPage() {
                 <p className="text-[11px] text-slate-600 font-medium mt-1">
                   ₹{(shop360Data?.stockSummary?.billedAmount || 0).toLocaleString('en-IN')} total invoiced & billed
                 </p>
+                <div className="mt-2.5 pt-2 border-t border-emerald-100 flex items-center justify-between text-[11px] font-bold text-emerald-700">
+                  <span>{showStockBreakdown && stockDetailFilter === 'BILLED' ? '▼ Viewing Product List' : '👉 Tap to view products'}</span>
+                  <ChevronRight className={`w-3.5 h-3.5 transition-transform ${showStockBreakdown && stockDetailFilter === 'BILLED' ? 'rotate-90' : ''}`} />
+                </div>
               </div>
 
               {/* CARD 3: UNBILLED STOCK */}
-              <div className="bg-gradient-to-br from-amber-50 to-orange-50/50 border border-amber-300 p-3.5 rounded-2xl relative overflow-hidden shadow-2xs">
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={() => {
+                  if (showStockBreakdown && stockDetailFilter === 'UNBILLED') {
+                    setShowStockBreakdown(false);
+                  } else {
+                    setStockDetailFilter('UNBILLED');
+                    setShowStockBreakdown(true);
+                  }
+                }}
+                className={`bg-gradient-to-br from-amber-50 to-orange-50/50 border p-3.5 rounded-2xl relative overflow-hidden group shadow-2xs cursor-pointer transition-all duration-150 select-none hover:shadow-md ${
+                  showStockBreakdown && stockDetailFilter === 'UNBILLED'
+                    ? 'ring-2 ring-amber-600 border-amber-500 bg-amber-100/60 shadow-sm'
+                    : 'border-amber-300 hover:border-amber-500'
+                }`}
+              >
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-[11px] uppercase font-black tracking-wider text-amber-800 flex items-center gap-1.5">
                     <span>⏳</span>
@@ -2112,6 +2169,10 @@ export default function SalesStoreVisitPage() {
                 <p className="text-[11px] text-amber-900 font-bold mt-1">
                   ₹{(shop360Data?.stockSummary?.unbilledAmount || 0).toLocaleString('en-IN')} pending bill generation
                 </p>
+                <div className="mt-2.5 pt-2 border-t border-amber-200 flex items-center justify-between text-[11px] font-bold text-amber-800">
+                  <span>{showStockBreakdown && stockDetailFilter === 'UNBILLED' ? '▼ Viewing Product List' : '👉 Tap to view products'}</span>
+                  <ChevronRight className={`w-3.5 h-3.5 transition-transform ${showStockBreakdown && stockDetailFilter === 'UNBILLED' ? 'rotate-90' : ''}`} />
+                </div>
               </div>
             </div>
 
@@ -2126,10 +2187,13 @@ export default function SalesStoreVisitPage() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => setShowStockBreakdown(prev => !prev)}
+                  onClick={() => {
+                    setStockDetailFilter('UNBILLED');
+                    setShowStockBreakdown(true);
+                  }}
                   className="text-[11px] font-bold text-amber-700 hover:text-amber-900 underline cursor-pointer"
                 >
-                  {showStockBreakdown ? 'Hide SKU List' : 'View SKU Breakdown'}
+                  {showStockBreakdown && stockDetailFilter === 'UNBILLED' ? '✓ Viewing Pending SKUs' : 'View SKU Breakdown →'}
                 </button>
               </div>
             ) : (
@@ -2140,7 +2204,10 @@ export default function SalesStoreVisitPage() {
                 </span>
                 <button
                   type="button"
-                  onClick={() => setShowStockBreakdown(prev => !prev)}
+                  onClick={() => {
+                    setStockDetailFilter('ALL');
+                    setShowStockBreakdown(prev => !prev);
+                  }}
                   className="text-[11px] font-bold text-slate-600 hover:text-slate-900 underline cursor-pointer"
                 >
                   {showStockBreakdown ? 'Hide SKU List' : 'View SKU Breakdown'}
@@ -2148,44 +2215,272 @@ export default function SalesStoreVisitPage() {
               </div>
             )}
 
-            {/* Collapsible SKU Stock Breakdown Table */}
-            {showStockBreakdown && (
-              <div className="border-t border-slate-200 pt-3">
-                <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-2">
-                  SKU-Wise Stock & Invoicing Status
-                </h3>
-                {(shop360Data?.stockSummary?.productsBreakdown || []).length === 0 ? (
-                  <p className="text-xs text-slate-500 text-center py-4">No product history on file for this shop yet.</p>
-                ) : (
-                  <div className="max-h-52 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50">
-                    <table className="w-full text-left text-xs">
-                      <thead className="bg-slate-100 text-slate-600 text-[10px] uppercase font-bold sticky top-0">
-                        <tr>
-                          <th className="px-3 py-2">Product SKU</th>
-                          <th className="px-3 py-2 text-center">Current Stock</th>
-                          <th className="px-3 py-2 text-center text-emerald-700">Billed Qty</th>
-                          <th className="px-3 py-2 text-center text-amber-700">Unbilled Qty</th>
-                          <th className="px-3 py-2 text-right">Pending Value</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-200 text-slate-800">
-                        {shop360Data.stockSummary.productsBreakdown.map((item, idx) => (
-                          <tr key={idx} className="hover:bg-white/80">
-                            <td className="px-3 py-2 font-medium">{item.productName}</td>
-                            <td className="px-3 py-2 text-center font-mono">{item.currentStock || 0}</td>
-                            <td className="px-3 py-2 text-center font-mono text-emerald-700">{item.billedStock || 0}</td>
-                            <td className="px-3 py-2 text-center font-mono text-amber-700 font-bold">{item.unbilledStock || 0}</td>
-                            <td className="px-3 py-2 text-right font-mono text-amber-700 font-bold">
-                              ₹{(item.unbilledAmount || 0).toLocaleString('en-IN')}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+            {/* Product-Wise Stock Detail Section (When Any Card / Tab is clicked) */}
+            {showStockBreakdown && (() => {
+              const allProducts = shop360Data?.stockSummary?.productsBreakdown || [];
+              const filteredProducts = allProducts.filter(item => {
+                if (stockDetailFilter === 'CURRENT') {
+                  return (item.currentStock || item.suppliedStock || 0) > 0;
+                }
+                if (stockDetailFilter === 'BILLED') {
+                  return (item.billedStock || 0) > 0;
+                }
+                if (stockDetailFilter === 'UNBILLED') {
+                  return (item.unbilledStock || 0) > 0;
+                }
+                return true; // 'ALL'
+              });
+
+              return (
+                <div className="bg-white border-2 border-slate-200 rounded-2xl p-4 shadow-sm space-y-3 transition-all">
+                  {/* Top Bar with Filter Header and Action Controls */}
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 pb-3 border-b border-slate-100">
+                    <div className="flex items-center gap-2.5">
+                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-lg ${
+                        stockDetailFilter === 'CURRENT' ? 'bg-blue-100 text-blue-700' :
+                        stockDetailFilter === 'BILLED' ? 'bg-emerald-100 text-emerald-700' :
+                        stockDetailFilter === 'UNBILLED' ? 'bg-amber-100 text-amber-700' :
+                        'bg-slate-100 text-slate-700'
+                      }`}>
+                        {stockDetailFilter === 'CURRENT' ? '📦' :
+                         stockDetailFilter === 'BILLED' ? '🧾' :
+                         stockDetailFilter === 'UNBILLED' ? '⏳' : '📊'}
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-black text-slate-900 tracking-tight flex items-center gap-2">
+                          <span>
+                            {stockDetailFilter === 'CURRENT' && 'Current Stock (Available) - Product Details'}
+                            {stockDetailFilter === 'BILLED' && 'Billed Stock (Invoiced) - Product Details'}
+                            {stockDetailFilter === 'UNBILLED' && 'Unbilled Stock (Pending Bill) - Product Details'}
+                            {stockDetailFilter === 'ALL' && 'All Products - Stock & Invoicing Breakdown'}
+                          </span>
+                          <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
+                            {filteredProducts.length} {filteredProducts.length === 1 ? 'Product' : 'Products'}
+                          </span>
+                        </h3>
+                        <p className="text-[11px] text-slate-500">
+                          {stockDetailFilter === 'CURRENT' && 'All SKU items currently supplied & available on shop shelf.'}
+                          {stockDetailFilter === 'BILLED' && 'Products already invoiced and billed to this store.'}
+                          {stockDetailFilter === 'UNBILLED' && 'Products ordered / supplied where bill generation is still pending.'}
+                          {stockDetailFilter === 'ALL' && 'Detailed SKU overview across current, billed, and unbilled stock.'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Filter Pills & Close Button */}
+                    <div className="flex items-center gap-2 flex-wrap justify-between sm:justify-end">
+                      <div className="inline-flex rounded-xl p-1 bg-slate-100 border border-slate-200 text-xs gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setStockDetailFilter('ALL')}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                            stockDetailFilter === 'ALL'
+                              ? 'bg-white text-slate-900 shadow-2xs font-black'
+                              : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                        >
+                          All ({allProducts.length})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setStockDetailFilter('CURRENT')}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                            stockDetailFilter === 'CURRENT'
+                              ? 'bg-blue-600 text-white shadow-2xs font-black'
+                              : 'text-slate-600 hover:text-blue-700'
+                          }`}
+                        >
+                          Available ({shop360Data?.stockSummary?.currentStock || 0})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setStockDetailFilter('BILLED')}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                            stockDetailFilter === 'BILLED'
+                              ? 'bg-emerald-600 text-white shadow-2xs font-black'
+                              : 'text-slate-600 hover:text-emerald-700'
+                          }`}
+                        >
+                          Billed ({shop360Data?.stockSummary?.billedStock || 0})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setStockDetailFilter('UNBILLED')}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                            stockDetailFilter === 'UNBILLED'
+                              ? 'bg-amber-600 text-white shadow-2xs font-black'
+                              : 'text-slate-600 hover:text-amber-700'
+                          }`}
+                        >
+                          Unbilled ({shop360Data?.stockSummary?.unbilledStock || 0})
+                        </button>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => setShowStockBreakdown(false)}
+                        className="px-2.5 py-1.5 text-xs font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
+                        title="Close Breakdown"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                        <span>Close</span>
+                      </button>
+                    </div>
                   </div>
-                )}
-              </div>
-            )}
+
+                  {/* Product-Wise List */}
+                  {filteredProducts.length === 0 ? (
+                    <div className="py-8 text-center text-slate-500 bg-slate-50/60 rounded-xl border border-dashed border-slate-200">
+                      <Package className="w-8 h-8 text-slate-400 mx-auto mb-2 opacity-60" />
+                      <p className="text-xs font-bold text-slate-700">No products found in this category</p>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        {stockDetailFilter === 'UNBILLED' && 'No pending unbilled items for this store.'}
+                        {stockDetailFilter === 'BILLED' && 'No billed invoices recorded yet for this store.'}
+                        {stockDetailFilter === 'CURRENT' && 'No active stock recorded at this shop.'}
+                        {stockDetailFilter === 'ALL' && 'No order or stock history available for this store.'}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
+                      {filteredProducts.map((item, idx) => (
+                        <div
+                          key={idx}
+                          className="p-3 rounded-xl bg-slate-50 hover:bg-blue-50/20 border border-slate-200 transition-all flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-bold text-xs text-slate-900">{item.productName}</span>
+                              {item.price > 0 && (
+                                <span className="text-[10px] font-semibold text-slate-500 bg-white px-1.5 py-0.5 rounded border border-slate-200">
+                                  ₹{item.price} / {item.unit || 'PCS'}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Metric badges based on current filter */}
+                          <div className="flex items-center gap-2 flex-wrap shrink-0">
+                            {/* Available Stock */}
+                            {(stockDetailFilter === 'CURRENT' || stockDetailFilter === 'ALL') && (
+                              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 border border-blue-200 text-blue-900">
+                                <span className="text-[10px] font-semibold text-blue-600 uppercase">Available:</span>
+                                <span className="text-xs font-black font-mono">{item.currentStock || item.suppliedStock || 0}</span>
+                                <span className="text-[10px] text-blue-700">{item.unit || 'PCS'}</span>
+                              </div>
+                            )}
+
+                            {/* Billed Stock */}
+                            {(stockDetailFilter === 'BILLED' || stockDetailFilter === 'ALL') && (
+                              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-900">
+                                <span className="text-[10px] font-semibold text-emerald-600 uppercase">Billed:</span>
+                                <span className="text-xs font-black font-mono">{item.billedStock || 0}</span>
+                                <span className="text-[10px] text-emerald-700">{item.unit || 'PCS'}</span>
+                                {item.billedAmount > 0 && (
+                                  <span className="text-[10px] font-bold text-emerald-700 ml-0.5">(₹{item.billedAmount.toLocaleString('en-IN')})</span>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Unbilled Stock */}
+                            {(stockDetailFilter === 'UNBILLED' || stockDetailFilter === 'ALL') && (
+                              <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border ${
+                                (item.unbilledStock || 0) > 0
+                                  ? 'bg-amber-100/90 border-amber-300 text-amber-950 font-bold'
+                                  : 'bg-slate-100 border-slate-200 text-slate-600'
+                              }`}>
+                                <span className="text-[10px] font-semibold text-amber-800 uppercase">Unbilled:</span>
+                                <span className="text-xs font-black font-mono text-amber-900">{item.unbilledStock || 0}</span>
+                                <span className="text-[10px] text-amber-800">{item.unit || 'PCS'}</span>
+                                {(item.unbilledAmount || 0) > 0 && (
+                                  <span className="text-[10px] font-black text-amber-900 bg-amber-200/80 px-1.5 py-0.5 rounded ml-0.5">
+                                    ₹{item.unbilledAmount.toLocaleString('en-IN')}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Pending Orders List (when Unbilled or All is active) */}
+                  {(stockDetailFilter === 'UNBILLED' || stockDetailFilter === 'ALL') && (shop360Data?.stockSummary?.unbilledOrders || []).length > 0 && (
+                    <div className="mt-3 pt-3 border-t border-slate-200">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                          <Clock className="w-3.5 h-3.5 text-amber-600" />
+                          <span>Pending Orders Awaiting Bill Generation ({shop360Data.stockSummary.unbilledOrders.length})</span>
+                        </span>
+                        <span className="text-xs font-black text-amber-900">
+                          Total: ₹{(shop360Data?.stockSummary?.unbilledAmount || 0).toLocaleString('en-IN')}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {shop360Data.stockSummary.unbilledOrders.map((ord, i) => (
+                          <div key={ord.id || i} className="p-2.5 rounded-xl bg-amber-50/60 border border-amber-200 flex items-center justify-between text-xs">
+                            <div>
+                              <div className="font-mono font-bold text-amber-900 flex items-center gap-1.5">
+                                <span>{ord.orderNumber || `#ORD-${i+1}`}</span>
+                                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-200 text-amber-900 uppercase font-semibold">
+                                  {ord.status || 'Pending'}
+                                </span>
+                              </div>
+                              <p className="text-[10px] text-slate-500 mt-0.5">
+                                {ord.createdAt ? new Date(ord.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : ''}
+                                {ord.itemsCount ? ` • ${ord.itemsCount} SKUs` : ''}
+                              </p>
+                            </div>
+                            <div className="text-right">
+                              <span className="font-mono font-black text-amber-900 text-sm">
+                                ₹{Number(ord.totalAmount || 0).toLocaleString('en-IN')}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Billed Invoices List (when Billed or All is active) */}
+                  {(stockDetailFilter === 'BILLED' || stockDetailFilter === 'ALL') && (shop360Data?.stockSummary?.billedInvoices || []).length > 0 && (
+                    <div className="mt-3 pt-3 border-t border-slate-200">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                          <Receipt className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>Billed Invoices ({shop360Data.stockSummary.billedInvoices.length})</span>
+                        </span>
+                        <span className="text-xs font-black text-emerald-800">
+                          Total: ₹{(shop360Data?.stockSummary?.billedAmount || 0).toLocaleString('en-IN')}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {shop360Data.stockSummary.billedInvoices.map((inv, i) => (
+                          <div key={inv.id || i} className="p-2.5 rounded-xl bg-emerald-50/60 border border-emerald-200 flex items-center justify-between text-xs">
+                            <div>
+                              <div className="font-mono font-bold text-emerald-900 flex items-center gap-1.5">
+                                <span>{inv.invoiceNumber || `#INV-${i+1}`}</span>
+                                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-200 text-emerald-900 uppercase font-semibold">
+                                  {inv.status || 'Active'}
+                                </span>
+                              </div>
+                              <p className="text-[10px] text-slate-500 mt-0.5">
+                                {inv.createdAt ? new Date(inv.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : ''}
+                              </p>
+                            </div>
+                            <div className="text-right">
+                              <span className="font-mono font-black text-emerald-900 text-sm">
+                                ₹{Number(inv.totalAmount || 0).toLocaleString('en-IN')}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* 2 Main Action Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-2 border-t border-slate-100">
