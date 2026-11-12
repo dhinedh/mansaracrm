@@ -3411,7 +3411,8 @@ exports.getAdminSalesOrders = async (req, res, next) => {
     if (search) {
       query.$or = [
         { orderNumber: new RegExp(search, 'i') },
-        { storeName: new RegExp(search, 'i') }
+        { storeName: new RegExp(search, 'i') },
+        { salespersonName: new RegExp(search, 'i') }
       ];
     }
 
@@ -3422,17 +3423,20 @@ exports.getAdminSalesOrders = async (req, res, next) => {
       .sort({ createdAt: -1 });
 
     const totalOrderValue = orders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
-    const pendingOrdersCount = orders.filter(o => o.status === 'PENDING').length;
-    const approvedOrdersCount = orders.filter(o => o.status === 'APPROVED').length;
+    const pendingOrdersCount = await FieldOrderModel.countDocuments({ status: 'PENDING' });
+    const approvedOrdersCount = await FieldOrderModel.countDocuments({ status: 'APPROVED' });
+    const dispatchedOrdersCount = await FieldOrderModel.countDocuments({ status: 'DISPATCHED' });
+    const totalOrdersCount = await FieldOrderModel.countDocuments({});
 
     res.json({
       success: true,
       data: {
         orders,
-        totalOrders: orders.length,
+        totalOrders: totalOrdersCount,
         totalOrderValue,
         pendingOrdersCount,
-        approvedOrdersCount
+        approvedOrdersCount,
+        dispatchedOrdersCount
       }
     });
   } catch (error) {
@@ -3443,20 +3447,65 @@ exports.getAdminSalesOrders = async (req, res, next) => {
 exports.updateAdminOrderStatus = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { status, notes } = req.body;
+    const { status, notes, dispatchDetails } = req.body;
+
+    const updateFields = { status };
+    if (notes) {
+      updateFields.adminNotes = notes;
+    }
+    if (dispatchDetails) {
+      updateFields.dispatchDetails = dispatchDetails;
+    }
+
+    const now = new Date();
+    if (status === 'APPROVED') updateFields.approvedAt = now;
+    if (status === 'DISPATCHED') updateFields.dispatchedAt = now;
+    if (status === 'DELIVERED') updateFields.deliveredAt = now;
+    if (status === 'CANCELLED') updateFields.cancelledAt = now;
 
     const FieldOrderModel = mongoose.model('FieldSalesOrder');
     const updated = await FieldOrderModel.findByIdAndUpdate(
       id,
-      {
-        status,
-        ...(notes && { notes })
-      },
+      { $set: updateFields },
       { new: true }
-    ).populate('salespersonId', 'name email').populate('storeId', 'name').populate('dealerId', 'companyName');
+    )
+      .populate('salespersonId', 'name email phone')
+      .populate('storeId', 'name address phone')
+      .populate('dealerId', 'companyName phone');
 
     if (!updated) {
       return res.status(404).json({ success: false, message: 'Order not found' });
+    }
+
+    // Notify Salesperson of Admin Action on their order request
+    try {
+      const salesRepId = updated.salespersonId?._id || updated.salespersonId;
+      if (salesRepId) {
+        const NotificationModel = mongoose.model('Notification');
+        const storeDisplayName = updated.storeName || updated.storeId?.name || 'Retail Store';
+        const actionLabel = 
+          status === 'APPROVED' ? 'Approved' :
+          status === 'DISPATCHED' ? 'Dispatched' :
+          status === 'DELIVERED' ? 'Marked Delivered' :
+          status === 'CANCELLED' ? 'Rejected/Cancelled' : status;
+
+        await NotificationModel.create({
+          userId: salesRepId,
+          type: 'ORDER_STATUS_UPDATE',
+          title: `Order #${updated.orderNumber} ${actionLabel}`,
+          message: `Admin has ${actionLabel.toLowerCase()} order request #${updated.orderNumber} for "${storeDisplayName}" (₹${(updated.totalAmount || 0).toFixed(2)}).${notes ? ` Note: "${notes}"` : ''}`,
+          metadata: {
+            orderId: updated._id,
+            orderNumber: updated.orderNumber,
+            status,
+            storeName: storeDisplayName,
+            totalAmount: updated.totalAmount,
+            notes: notes || ''
+          }
+        });
+      }
+    } catch (notifErr) {
+      console.warn('Could not create notification for salesperson:', notifErr.message);
     }
 
     res.json({ success: true, message: `Order status updated to ${status}`, data: updated });

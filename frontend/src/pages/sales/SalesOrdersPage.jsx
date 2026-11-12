@@ -528,6 +528,23 @@ export default function SalesOrdersPage() {
                       ))}
                     </div>
 
+                    {(ord.adminNotes || ord.dispatchDetails) && (
+                      <div className="bg-slate-900/90 rounded-xl p-2.5 border border-white/10 space-y-1 text-xs">
+                        {ord.adminNotes && (
+                          <p className="text-slate-300">
+                            <span className="font-bold text-amber-400">Admin Remarks: </span>
+                            <span className="italic">"{ord.adminNotes}"</span>
+                          </p>
+                        )}
+                        {ord.dispatchDetails && (
+                          <p className="text-slate-300">
+                            <span className="font-bold text-blue-400">Dispatch Details: </span>
+                            <span className="font-mono text-[11px]">{ord.dispatchDetails}</span>
+                          </p>
+                        )}
+                      </div>
+                    )}
+
                     <div className="flex items-center justify-between pt-2 border-t border-white/10 text-xs">
                       <div>
                         <span className="text-[10px] text-slate-400">Payment: </span>

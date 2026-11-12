@@ -1036,6 +1036,12 @@ const FieldSalesOrderSchema = new Schema({
   status: { type: String, enum: ['PENDING', 'APPROVED', 'DISPATCHED', 'DELIVERED', 'CANCELLED'], default: 'PENDING' },
   orderType: { type: String, default: 'ORDER_REQUEST' },
   notes: { type: String },
+  adminNotes: { type: String },
+  dispatchDetails: { type: String },
+  approvedAt: { type: Date },
+  dispatchedAt: { type: Date },
+  deliveredAt: { type: Date },
+  cancelledAt: { type: Date },
   invoiceId: { type: Schema.Types.ObjectId, ref: 'Invoice' }
 }, {
   timestamps: true,

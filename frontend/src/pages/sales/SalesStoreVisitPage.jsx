@@ -8,7 +8,7 @@ import {
   ShoppingCart, RefreshCw, RotateCcw, DollarSign, Calendar,
   FileText, Camera, Upload, Sparkles, Check, X, Building,
   Smartphone, Banknote, Receipt, PauseCircle, Search, Plus, Minus,
-  Percent, Tag, Send
+  Percent, Tag, Send, ChevronDown, ChevronRight
 } from 'lucide-react';
 
 export default function SalesStoreVisitPage() {
@@ -120,6 +120,10 @@ export default function SalesStoreVisitPage() {
   const [paymentMethod, setPaymentMethod] = useState('CASH');
   const [revisitDate, setRevisitDate] = useState('');
   const [checkoutSubmitting, setCheckoutSubmitting] = useState(false);
+  const [expandedStoreOrderIds, setExpandedStoreOrderIds] = useState({});
+  const toggleStoreOrderExpand = (ordId) => {
+    setExpandedStoreOrderIds(prev => ({ ...prev, [ordId]: !prev[ordId] }));
+  };
 
   // Live Timer Interval
   const timerRef = useRef(null);
@@ -1653,6 +1657,153 @@ export default function SalesStoreVisitPage() {
                 </div>
               )}
             </div>
+
+            {/* Real-Time Store Order Requests & Admin Status */}
+            {shop360Data?.fieldOrders && shop360Data.fieldOrders.length > 0 && (
+              <div className="bg-gradient-to-br from-amber-50/60 to-slate-50 border border-amber-200/80 rounded-2xl p-3 sm:p-4 space-y-3 shadow-2xs">
+                <div className="flex items-center justify-between border-b border-amber-100 pb-2">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1 bg-amber-500 text-slate-950 rounded-lg">
+                      <Clock className="w-3.5 h-3.5" />
+                    </div>
+                    <div>
+                      <h3 className="text-xs font-black text-slate-900 flex items-center gap-1.5">
+                        <span>Order Requests for this Store</span>
+                        <span className="text-[10px] font-bold px-1.5 py-0.2 bg-amber-100 text-amber-900 rounded-full">
+                          {shop360Data.fieldOrders.length}
+                        </span>
+                      </h3>
+                      <p className="text-[10px] text-slate-500">
+                        Live admin approvals, dispatches, and delivery status
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => fetchCustomer360(store?._id)}
+                    disabled={shop360Loading}
+                    className="text-[10px] font-bold text-amber-900 hover:text-amber-950 bg-white hover:bg-amber-100/50 border border-amber-300 px-2 py-1 rounded-lg flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                  >
+                    <RefreshCw className={`w-3 h-3 ${shop360Loading ? 'animate-spin' : ''}`} />
+                    <span>Refresh</span>
+                  </button>
+                </div>
+
+                <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                  {shop360Data.fieldOrders.map(ord => {
+                    const ordKey = ord._id || ord.id;
+                    const isExpanded = !!expandedStoreOrderIds[ordKey];
+                    const statusColors = {
+                      PENDING: 'bg-amber-100/80 text-amber-900 border-amber-300 animate-pulse',
+                      APPROVED: 'bg-blue-50 text-blue-800 border-blue-200',
+                      DISPATCHED: 'bg-purple-50 text-purple-800 border-purple-200',
+                      DELIVERED: 'bg-emerald-50 text-emerald-800 border-emerald-200',
+                      CANCELLED: 'bg-rose-50 text-rose-800 border-rose-200'
+                    };
+                    const statusLabels = {
+                      PENDING: '⏳ Pending Admin Approval',
+                      APPROVED: '✅ Approved by Admin',
+                      DISPATCHED: '🚚 Dispatched for Delivery',
+                      DELIVERED: '🎉 Delivered to Store',
+                      CANCELLED: '❌ Rejected by Admin'
+                    };
+                    const totalUnits = (ord.items || []).reduce((sum, it) => sum + (it.quantity || 0), 0);
+
+                    return (
+                      <div
+                        key={ordKey}
+                        className="border border-slate-200 rounded-xl p-2.5 bg-white space-y-1.5 shadow-2xs"
+                      >
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-mono text-[11px] font-black text-slate-900 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                              #{ord.orderNumber}
+                            </span>
+                            <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${statusColors[ord.status] || 'bg-slate-100 text-slate-700 border-slate-200'}`}>
+                              {statusLabels[ord.status] || ord.status}
+                            </span>
+                          </div>
+                          <span className="text-[10px] text-slate-400 font-medium">
+                            {new Date(ord.createdAt).toLocaleDateString('en-IN', {
+                              day: '2-digit', month: 'short',
+                              hour: '2-digit', minute: '2-digit'
+                            })}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center justify-between text-xs">
+                          <div className="text-slate-600">
+                            <span className="font-bold text-slate-900">₹{(ord.totalAmount || 0).toFixed(2)}</span>
+                            <span className="text-slate-500 text-[10px] ml-1">
+                              ({(ord.items || []).length} SKUs · {totalUnits} units)
+                            </span>
+                            {ord.totalMarginSavings > 0 && (
+                              <span className="ml-1.5 text-[9px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
+                                Margin: ₹{ord.totalMarginSavings.toFixed(2)}
+                              </span>
+                            )}
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => toggleStoreOrderExpand(ordKey)}
+                            className="text-[10px] font-bold text-amber-800 hover:text-amber-950 flex items-center gap-0.5 cursor-pointer"
+                          >
+                            <span>{isExpanded ? 'Hide' : 'Items'}</span>
+                            {isExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                          </button>
+                        </div>
+
+                        {/* Admin remarks or rejection reason */}
+                        {(ord.adminNotes || ord.dispatchDetails) && (
+                          <div className="text-[10px] bg-slate-50 border border-slate-200 rounded-lg p-2 space-y-0.5">
+                            {ord.adminNotes && (
+                              <p className="text-slate-800">
+                                <span className="font-black text-rose-600">Admin Remarks: </span>
+                                <span className="font-medium italic">"{ord.adminNotes}"</span>
+                              </p>
+                            )}
+                            {ord.dispatchDetails && (
+                              <p className="text-slate-800">
+                                <span className="font-black text-purple-600">Dispatch Info: </span>
+                                <span className="font-mono text-[9px]">{ord.dispatchDetails}</span>
+                              </p>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Expanded items list */}
+                        {isExpanded && ord.items && ord.items.length > 0 && (
+                          <div className="border-t border-slate-150 pt-1.5 space-y-1">
+                            {ord.items.map((it, idx) => (
+                              <div
+                                key={idx}
+                                className="bg-slate-50/70 border border-slate-200/80 rounded-lg p-1.5 text-[10px] flex items-center justify-between"
+                              >
+                                <div className="min-w-0 pr-2">
+                                  <p className="font-bold text-slate-800 truncate">{it.productName}</p>
+                                  <p className="text-[9px] text-slate-400">
+                                    MRP: ₹{it.mrp || it.price} {it.marginPct > 0 ? `· ${it.marginPct}% margin` : ''}
+                                  </p>
+                                </div>
+                                <div className="text-right shrink-0">
+                                  <span className="font-bold text-slate-800 font-mono">
+                                    {it.quantity} x ₹{it.unitPrice || it.price}
+                                  </span>
+                                  <span className="text-[9px] font-black text-amber-700 font-mono block">
+                                    ₹{(it.lineTotal || (it.quantity * (it.unitPrice || it.price))).toFixed(2)}
+                                  </span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* Quick Order Margin Preset Bar */}
             <div className="bg-gradient-to-r from-amber-50 via-amber-50/70 to-slate-50 border border-amber-200/90 rounded-2xl p-3 flex flex-wrap items-center justify-between gap-2.5 shadow-2xs">
