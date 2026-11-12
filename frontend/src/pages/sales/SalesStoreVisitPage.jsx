@@ -109,6 +109,7 @@ export default function SalesStoreVisitPage() {
 
   // Routine Beat State
   const [beatVisitType, setBeatVisitType] = useState('Scheduled Beat Route Visit');
+  const [customBeatVisitType, setCustomBeatVisitType] = useState('');
   const [beatFeedback, setBeatFeedback] = useState('');
   const [competitorNotes, setCompetitorNotes] = useState('');
   const [nextBeatDate, setNextBeatDate] = useState('');
@@ -655,9 +656,13 @@ export default function SalesStoreVisitPage() {
     e.preventDefault();
     setBeatSubmitting(true);
     try {
+      const effectiveVisitType = (beatVisitType === 'Other / Custom Visit Reason' && customBeatVisitType.trim())
+        ? customBeatVisitType.trim()
+        : beatVisitType;
+
       const payload = {
         storeId: store?._id,
-        visitType: beatVisitType,
+        visitType: effectiveVisitType,
         feedback: beatFeedback,
         competitorNotes,
         nextBeatDate: nextBeatDate || undefined,
@@ -667,6 +672,7 @@ export default function SalesStoreVisitPage() {
       alert('Routine beat log submitted successfully!');
       setBeatFeedback('');
       setCompetitorNotes('');
+      setCustomBeatVisitType('');
     } catch (err) {
       console.warn('Beat log:', err);
       alert('Routine beat observations logged.');
@@ -2645,13 +2651,55 @@ export default function SalesStoreVisitPage() {
               <select
                 value={beatVisitType}
                 onChange={(e) => setBeatVisitType(e.target.value)}
-                className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-amber-500 shadow-2xs"
+                className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-amber-500 shadow-2xs font-medium"
               >
-                <option value="Scheduled Beat Route Visit">Standard Scheduled Beat Route Visit</option>
-                <option value="Courtesy / Relationship Check">Courtesy / Relationship Check</option>
-                <option value="Credit Terms Discussion">Credit Terms Discussion</option>
-                <option value="Scheme & Promotional Pitch">Scheme & Promotional Pitch</option>
+                <optgroup label="📍 Scheduled & Routine Visits">
+                  <option value="Scheduled Beat Route Visit">Standard Scheduled Beat Route Visit</option>
+                  <option value="Courtesy / Relationship Check">Courtesy / Relationship Check</option>
+                  <option value="Market Pulse & General Feedback">Market Pulse & General Feedback</option>
+                  <option value="Store Closed / Owner Not Available (Follow-up)">Store Closed / Owner Not Available (Follow-up)</option>
+                  <option value="Key Decision Maker / Partnership Meeting">Key Decision Maker / Partnership Meeting</option>
+                </optgroup>
+
+                <optgroup label="📦 Stock & Re-Order Follow-up">
+                  <option value="Stock Replenishment & Re-Order Follow-up">Stock Replenishment & Re-Order Follow-up</option>
+                  <option value="Urgent / Emergency Stock Supply Request">Urgent / Emergency Stock Supply Request</option>
+                  <option value="Stock Expiry / Damage / Return Inspection">Stock Expiry / Damage / Replacement Inspection</option>
+                  <option value="Seasonal & Festive Bulk Booking">Seasonal & Festive Bulk Booking</option>
+                </optgroup>
+
+                <optgroup label="🚀 Products, Schemes & Promotions">
+                  <option value="Scheme & Promotional Pitch">Scheme & Promotional Offer Pitch</option>
+                  <option value="New Product Launch & Sampling">New Product Launch & Sampling Pitch</option>
+                  <option value="Trade Margin & Retailer Incentive Discussion">Trade Margin & Retailer Incentive Discussion</option>
+                  <option value="Counter Merchandising & POSM Setup">Counter Merchandising & POSM / Display Stand Setup</option>
+                </optgroup>
+
+                <optgroup label="💰 Credit, Payments & Billing">
+                  <option value="Credit Terms Discussion">Credit Terms & Credit Period Discussion</option>
+                  <option value="Payment Follow-up & Dues Collection">Payment Follow-up & Dues Collection</option>
+                  <option value="Bill / Invoice Discrepancy Resolution">Bill / Invoice Discrepancy Resolution</option>
+                </optgroup>
+
+                <optgroup label="⚠️ Grievances & Competitive Intel">
+                  <option value="Competitor Activity & Price Check">Competitor Activity & Price Intelligence Check</option>
+                  <option value="Retailer Grievance / Complaint Resolution">Retailer Grievance / Complaint Resolution</option>
+                  <option value="Other / Custom Visit Reason">Other / Custom Visit Reason</option>
+                </optgroup>
               </select>
+
+              {beatVisitType === 'Other / Custom Visit Reason' && (
+                <div className="mt-2">
+                  <input
+                    type="text"
+                    required
+                    value={customBeatVisitType}
+                    onChange={(e) => setCustomBeatVisitType(e.target.value)}
+                    placeholder="Enter custom visit purpose..."
+                    className="w-full bg-white border border-amber-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-amber-500 shadow-2xs"
+                  />
+                </div>
+              )}
             </div>
 
             <div>

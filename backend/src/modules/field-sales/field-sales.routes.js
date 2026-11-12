@@ -33,6 +33,7 @@ router.post('/visits/active/check-out', fieldSalesController.checkOutActiveVisit
 router.post('/visits/active-checkout', fieldSalesController.checkOutActiveVisit);
 router.post('/visits/:id/check-out', fieldSalesController.checkOutVisit);
 router.get('/visits', fieldSalesController.getVisits);
+router.post('/beat-visits', fieldSalesController.recordBeatVisit);
 
 // 10. Competitor Intelligence (Module 10)
 router.post('/competitor-intel', fieldSalesController.recordCompetitorIntel);

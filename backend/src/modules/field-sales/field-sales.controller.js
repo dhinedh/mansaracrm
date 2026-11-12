@@ -278,6 +278,43 @@ exports.updateVisit = async (req, res, next) => {
   }
 };
 
+exports.recordBeatVisit = async (req, res, next) => {
+  try {
+    const { storeId, visitType, feedback, competitorNotes, nextBeatDate, visitId } = req.body;
+    let visit = null;
+    const targetVisitId = visitId;
+    if (targetVisitId) {
+      visit = await prisma.visit.update({
+        where: { id: targetVisitId },
+        data: {
+          purpose: `Routine Beat: ${visitType || 'Standard'}`,
+          remarks: `[Beat: ${visitType || 'Standard'}] Feedback: ${feedback || 'None'}${competitorNotes ? `. Competitor Observation: ${competitorNotes}` : ''}`,
+          revisitDate: nextBeatDate ? new Date(nextBeatDate) : undefined
+        }
+      });
+    } else if (storeId) {
+      visit = await prisma.visit.create({
+        data: {
+          storeId,
+          salespersonId: req.user.id,
+          purpose: `Routine Beat: ${visitType || 'Standard'}`,
+          remarks: `[Beat: ${visitType || 'Standard'}] Feedback: ${feedback || 'None'}${competitorNotes ? `. Competitor Observation: ${competitorNotes}` : ''}`,
+          revisitDate: nextBeatDate ? new Date(nextBeatDate) : undefined,
+          status: 'IN_PROGRESS'
+        }
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Routine beat visit observations saved successfully',
+      data: visit
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 exports.checkOutVisit = async (req, res, next) => {
   try {
     const { id } = req.params;
