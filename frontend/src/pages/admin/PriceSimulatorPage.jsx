@@ -7,7 +7,7 @@
 // 4. Generate Quotation & Export Excel
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import {
   Calculator,
@@ -49,8 +49,13 @@ import {
   formatQuotationWhatsAppText
 } from '../../utils/quotationHelper';
 
-export default function PriceSimulatorPage() {
+export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } = {}) {
   const navigate = useNavigate();
+  const location = useLocation();
+  const isSalesPerson = Boolean(
+    isSalesPersonProp ||
+    location?.pathname?.includes('/sales')
+  );
 
   // ─── DATA FETCHING ──────────────────────────────────────────────────────────
   const [products, setProducts] = useState([]);
@@ -952,7 +957,7 @@ export default function PriceSimulatorPage() {
       )}
 
       {/* ─── CUSTOMER / TRADE PARTNER SELECTION & GST CONFIGURATION ──────── */}
-      <div className="sticky top-0 z-30 bg-white border border-slate-200 rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 lg:p-6 shadow-md space-y-3 sm:space-y-4">
+      <div className={`${isSalesPerson ? 'relative' : 'sticky top-0 z-30'} bg-white border border-slate-200 rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 lg:p-6 shadow-md space-y-3 sm:space-y-4`}>
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3 border-b border-slate-100 pb-2.5 sm:pb-3">
           <div>
             <h2 className="text-base sm:text-lg font-black text-slate-900 tracking-tight flex items-center gap-2">

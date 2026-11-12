@@ -291,7 +291,7 @@ export default function SalesProductsPage() {
       {/* SubTab 2: Price Simulator (Module 13 - Full Mansara B2B Simulator) */}
       {activeSubTab === 'simulator' && (
         <div className="w-full">
-          <PriceSimulatorPage />
+          <PriceSimulatorPage isSalesPerson={true} />
         </div>
       )}
 
