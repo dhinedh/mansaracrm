@@ -327,15 +327,15 @@ export default function SalespersonLayout() {
         </aside>
 
         {/* Page Content Viewport */}
-        <main className="flex-1 p-4 sm:p-6 pb-28 lg:pb-28 max-w-full overflow-x-hidden bg-slate-50">
+        <main className="flex-1 p-4 sm:p-6 pb-28 lg:pb-8 max-w-full overflow-x-hidden bg-slate-50">
           <Outlet />
         </main>
       </div>
 
-      {/* Bottom Navigation Bar - Modern styled downbar */}
+      {/* Bottom Navigation Bar - Mobile downbar only (hidden on desktop lg+) */}
       <nav 
         aria-label="Sales Navigation"
-        className="fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur-xl border-t border-slate-200 shadow-[0_-4px_20px_rgba(0,0,0,0.06)] px-2 py-1.5 flex items-center justify-around"
+        className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur-xl border-t border-slate-200 shadow-[0_-4px_20px_rgba(0,0,0,0.06)] px-2 py-1.5 flex items-center justify-around"
       >
         {/* 1. Home */}
         <Link
@@ -423,9 +423,9 @@ export default function SalespersonLayout() {
         </button>
       </nav>
 
-      {/* Slide-out Full 34-Module Hub Modal / Drawer */}
+      {/* Slide-out Full 34-Module Hub Modal / Drawer (Mobile only) */}
       {mobileMenuOpen && (
-        <div className="fixed inset-0 z-[60] bg-slate-900/40 backdrop-blur-xs flex justify-end animate-in fade-in duration-200">
+        <div className="lg:hidden fixed inset-0 z-[60] bg-slate-900/40 backdrop-blur-xs flex justify-end animate-in fade-in duration-200">
           <div className="w-full max-w-sm bg-white border-l border-slate-200 h-full flex flex-col p-5 overflow-y-auto shadow-2xl">
             {/* Drawer Header */}
             <div className="flex items-center justify-between pb-4 border-b border-slate-200">
