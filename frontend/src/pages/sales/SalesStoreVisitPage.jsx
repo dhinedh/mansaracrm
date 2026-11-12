@@ -834,49 +834,12 @@ export default function SalesStoreVisitPage() {
       {/* ========================================================================= */}
       {/* 1. TOP HEADER & STORE IDENTITY BAR                                        */}
       {/* ========================================================================= */}
-      <div className="bg-white border border-slate-200 rounded-3xl p-4 sm:p-5 shadow-xs space-y-3">
-        <div className="flex items-start justify-between gap-3 flex-wrap">
+      <div className="bg-white border border-slate-200 rounded-3xl p-4 sm:p-5 shadow-xs">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2 flex-wrap mb-1">
-              <span className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
-                {store.category || 'Retail Store'}
-              </span>
-
-              <span className="text-xs font-mono font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1">
-                <Clock className="w-3.5 h-3.5" />
-                Visit: {formatTimer(visitTimer)}
-              </span>
-            </div>
-
             <h1 className="text-lg sm:text-2xl font-black text-slate-900 truncate">
               {store.name}
             </h1>
-
-            <div className="flex items-center gap-2 sm:gap-3 text-xs text-slate-500 mt-1 flex-wrap">
-              {store.phone && (
-                <span className="flex items-center gap-1 whitespace-nowrap">
-                  <Phone className="w-3.5 h-3.5 text-slate-400" />
-                  <a href={`tel:${store.phone}`} className="text-amber-700 hover:underline font-bold">
-                    {store.phone}
-                  </a>
-                </span>
-              )}
-              {store.ownerName && (
-                <span className="flex items-center gap-1.5 whitespace-nowrap text-slate-600">
-                  <span className="text-slate-300">•</span>
-                  <span className="truncate max-w-[160px] sm:max-w-none">{store.ownerName}</span>
-                </span>
-              )}
-              <a
-                href={`https://www.google.com/maps/dir/?api=1&destination=${store.latitude || ''},${store.longitude || ''}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-amber-700 hover:underline flex items-center gap-1 font-semibold whitespace-nowrap"
-              >
-                <ExternalLink className="w-3 h-3" />
-                <span>Navigate</span>
-              </a>
-            </div>
           </div>
 
           {/* ONLY 2 OPTIONS: SWITCH ACTIVITY & CHECK-OUT */}
