@@ -8,7 +8,7 @@ import {
   ShoppingCart, RefreshCw, RotateCcw, DollarSign, Calendar,
   FileText, Camera, Upload, Sparkles, Check, X, Building,
   Smartphone, Banknote, Receipt, PauseCircle, Search, Plus, Minus,
-  Percent, Tag, Send, ChevronDown, ChevronRight
+  Percent, Tag, Send, ChevronDown, ChevronRight, Package
 } from 'lucide-react';
 
 export default function SalesStoreVisitPage() {
