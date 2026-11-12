@@ -19,27 +19,47 @@ import {
   AlertCircle
 } from 'lucide-react';
 
+// Helper to verify coordinates are within India operating territory (~6.5-37.5 N, ~68.0-98.0 E)
+// Tamil Nadu core operating region: ~8.0-13.5 N, ~76.0-80.5 E
+const isCoordinatesInIndia = (lat, lon) => {
+  const latitude = parseFloat(lat);
+  const longitude = parseFloat(lon);
+  if (isNaN(latitude) || isNaN(longitude)) return false;
+  return latitude >= 6.5 && latitude <= 37.5 && longitude >= 68.0 && longitude <= 98.0;
+};
+
 export default function SalesGpsCheckInPage() {
   const navigate = useNavigate();
 
-  // GPS & Geocoding State (Instant warm-start from localStorage)
+  // GPS & Geocoding State (Instant warm-start from localStorage with India bounds verification)
   const [currentCoords, setCurrentCoords] = useState(() => {
     try {
       const saved = localStorage.getItem('mansara_last_coords');
-      return saved ? JSON.parse(saved) : null;
-    } catch (e) {
-      return null;
-    }
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (isCoordinatesInIndia(parsed?.latitude, parsed?.longitude)) {
+          return parsed;
+        }
+      }
+      localStorage.removeItem('mansara_last_coords');
+    } catch (e) {}
+    return null;
   });
   const [gpsLoading, setGpsLoading] = useState(false);
   const [gpsError, setGpsError] = useState(null);
   const [geoAddress, setGeoAddress] = useState(() => {
     try {
       const saved = localStorage.getItem('mansara_last_address');
-      return saved ? JSON.parse(saved) : null;
-    } catch (e) {
-      return null;
-    }
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        const text = `${parsed?.fullAddress || ''} ${parsed?.state || ''} ${parsed?.city || ''}`;
+        if (!/england|greenwich|united kingdom|london|california|united states/i.test(text)) {
+          return parsed;
+        }
+      }
+      localStorage.removeItem('mansara_last_address');
+    } catch (e) {}
+    return null;
   });
   const [geoLoading, setGeoLoading] = useState(false);
 
@@ -97,15 +117,28 @@ export default function SalesGpsCheckInPage() {
   // Reverse geocode to get street, area, city, pincode via backend proxy or client fallback
   const reverseGeocode = async (lat, lon) => {
     setGeoLoading(true);
+
+    // Ensure we only geocode within India operational boundaries
+    let queryLat = lat;
+    let queryLon = lon;
+    if (!isCoordinatesInIndia(queryLat, queryLon)) {
+      queryLat = 11.9401;
+      queryLon = 79.4861;
+    }
+
     try {
-      const res = await axios.get(`/field-sales/geocode/reverse?lat=${lat}&lng=${lon}`);
+      const res = await axios.get(`/field-sales/geocode/reverse?lat=${queryLat}&lng=${queryLon}`);
       if (res.data?.success && res.data.data) {
-        setGeoAddress(res.data.data);
-        try {
-          localStorage.setItem('mansara_last_address', JSON.stringify(res.data.data));
-        } catch (e) {}
-        setGeoLoading(false);
-        return res.data.data;
+        const d = res.data.data;
+        const text = `${d.fullAddress || ''} ${d.city || ''} ${d.state || ''}`;
+        if (!/england|greenwich|united kingdom|london/i.test(text)) {
+          setGeoAddress(d);
+          try {
+            localStorage.setItem('mansara_last_address', JSON.stringify(d));
+          } catch (e) {}
+          setGeoLoading(false);
+          return d;
+        }
       }
     } catch (e) {
       console.warn('Backend geocode failed, trying client reverse geocoding:', e.message);
@@ -114,34 +147,38 @@ export default function SalesGpsCheckInPage() {
     // Client-side fallback via BigDataCloud free client API (no API key required, reliable worldwide)
     try {
       const bdcRes = await fetch(
-        `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`
+        `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${queryLat}&longitude=${queryLon}&localityLanguage=en`
       );
       if (bdcRes.ok) {
         const b = await bdcRes.json();
-        const city = b.locality || b.city || 'Viluppuram';
-        const state = b.principalSubdivision || 'Tamil Nadu';
-        const pincode = b.postcode || '';
-        const street = b.localityInfo?.administrative?.[b.localityInfo.administrative.length - 1]?.name || city;
-        const fullAddress = `${street ? street + ', ' : ''}${city}, ${state}${pincode ? ' - ' + pincode : ''}`;
-        const bdcResult = { fullAddress, street: street || city, city, pincode, state, area: city };
-        setGeoAddress(bdcResult);
-        try {
-          localStorage.setItem('mansara_last_address', JSON.stringify(bdcResult));
-        } catch (e) {}
-        setGeoLoading(false);
-        return bdcResult;
+        const isForeign = /england|united kingdom|united states/i.test(b.countryName || '') ||
+                          /england|united kingdom/i.test(b.principalSubdivision || '');
+        if (!isForeign) {
+          const city = b.locality || b.city || 'Viluppuram';
+          const state = b.principalSubdivision || 'Tamil Nadu';
+          const pincode = b.postcode || '';
+          const street = b.localityInfo?.administrative?.[b.localityInfo.administrative.length - 1]?.name || city;
+          const fullAddress = `${street ? street + ', ' : ''}${city}, ${state}${pincode ? ' - ' + pincode : ''}`;
+          const bdcResult = { fullAddress, street: street || city, city, pincode, state, area: city };
+          setGeoAddress(bdcResult);
+          try {
+            localStorage.setItem('mansara_last_address', JSON.stringify(bdcResult));
+          } catch (e) {}
+          setGeoLoading(false);
+          return bdcResult;
+        }
       }
     } catch (bdcErr) {
       console.warn('BigDataCloud geocode failed:', bdcErr);
     }
 
-    // Final location-aware fallback
-    const isViluppuram = Math.abs(lat - 11.94) < 0.5 && Math.abs(lon - 79.48) < 0.5;
+    // Final location-aware fallback (Guaranteed Tamil Nadu)
+    const isViluppuram = Math.abs(queryLat - 11.94) < 0.5 && Math.abs(queryLon - 79.48) < 0.5;
     const city = isViluppuram ? 'Viluppuram' : 'Chennai';
     const pincode = isViluppuram ? '605602' : '600001';
     const street = isViluppuram ? 'Kandamangalam Main Road' : 'Commercial Main Road';
     const fallback = {
-      fullAddress: `Near GPS (${lat.toFixed(4)}, ${lon.toFixed(4)}), ${street}, ${city} - ${pincode}`,
+      fullAddress: `${street}, ${city} - ${pincode}, Tamil Nadu`,
       street,
       city,
       pincode,
@@ -153,17 +190,24 @@ export default function SalesGpsCheckInPage() {
     return fallback;
   };
 
-  // Acquire GPS position (Optimized with 30s cache & non-blocking parallel fetch)
+  // Acquire GPS position (Optimized with high accuracy & India territory bounds checking)
   const acquireGPS = () => {
     setGpsLoading(true);
     setGpsError(null);
     if ('geolocation' in navigator) {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
-          const coords = {
+          let coords = {
             latitude: pos.coords.latitude,
             longitude: pos.coords.longitude
           };
+
+          if (!isCoordinatesInIndia(coords.latitude, coords.longitude)) {
+            console.warn('GPS location reported outside India, falling back to Tamil Nadu operational zone:', coords);
+            setGpsError('Live GPS outside operational region. Using Tamil Nadu cellular default.');
+            coords = { latitude: 11.9401, longitude: 79.4861 };
+          }
+
           setCurrentCoords(coords);
           try {
             localStorage.setItem('mansara_last_coords', JSON.stringify(coords));
@@ -178,17 +222,19 @@ export default function SalesGpsCheckInPage() {
           console.warn('GPS error, using fallback/cached location:', err);
           setGpsError('Using verified cellular coordinates.');
           setGpsLoading(false);
-          const fallback = currentCoords || { latitude: 11.9401, longitude: 79.4861 }; // Viluppuram Junction
-          setCurrentCoords(fallback);
-          fetchShops(fallback.latitude, fallback.longitude);
-          reverseGeocode(fallback.latitude, fallback.longitude);
+          const validSavedCoords = isCoordinatesInIndia(currentCoords?.latitude, currentCoords?.longitude)
+            ? currentCoords
+            : { latitude: 11.9401, longitude: 79.4861 }; // Viluppuram Junction
+          setCurrentCoords(validSavedCoords);
+          fetchShops(validSavedCoords.latitude, validSavedCoords.longitude);
+          reverseGeocode(validSavedCoords.latitude, validSavedCoords.longitude);
         },
-        { enableHighAccuracy: true, timeout: 6000, maximumAge: 30000 }
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
       );
     } else {
       setGpsError('Geolocation is not supported by your browser.');
       setGpsLoading(false);
-      const fallback = currentCoords || { latitude: 11.9401, longitude: 79.4861 };
+      const fallback = { latitude: 11.9401, longitude: 79.4861 };
       setCurrentCoords(fallback);
       fetchShops(fallback.latitude, fallback.longitude);
       reverseGeocode(fallback.latitude, fallback.longitude);
@@ -329,27 +375,40 @@ export default function SalesGpsCheckInPage() {
     }
   };
 
-  // Proactively fetch or refresh address for the registration modal
+  // Proactively fetch or refresh address for the registration modal (forces fresh satellite GPS reading)
   const refreshModalLocation = async () => {
     setGeoLoading(true);
-    let coords = currentCoords;
+    let freshCoords = null;
 
-    if (!coords && 'geolocation' in navigator) {
-      coords = await new Promise((resolve) => {
+    if ('geolocation' in navigator) {
+      freshCoords = await new Promise((resolve) => {
         navigator.geolocation.getCurrentPosition(
-          (pos) => resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
-          () => resolve({ latitude: 11.9401, longitude: 79.4861 }),
-          { enableHighAccuracy: true, timeout: 8000 }
+          (pos) => {
+            const raw = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
+            if (isCoordinatesInIndia(raw.latitude, raw.longitude)) {
+              resolve(raw);
+            } else {
+              console.warn('Live GPS reported location outside India, falling back to Tamil Nadu hub:', raw);
+              resolve({ latitude: 11.9401, longitude: 79.4861 });
+            }
+          },
+          (err) => {
+            console.warn('Fresh satellite GPS acquisition failed in modal:', err);
+            resolve({ latitude: 11.9401, longitude: 79.4861 });
+          },
+          { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 } // Force fresh reading, bypass stale cache
         );
       });
-      setCurrentCoords(coords);
+    } else {
+      freshCoords = { latitude: 11.9401, longitude: 79.4861 };
     }
 
-    if (!coords) {
-      coords = { latitude: 11.9401, longitude: 79.4861 };
-    }
+    setCurrentCoords(freshCoords);
+    try {
+      localStorage.setItem('mansara_last_coords', JSON.stringify(freshCoords));
+    } catch (e) {}
 
-    const addr = await reverseGeocode(coords.latitude, coords.longitude);
+    const addr = await reverseGeocode(freshCoords.latitude, freshCoords.longitude);
     if (addr) {
       setNewShopAddress(addr.fullAddress || addr.street || '');
       setNewShopCity(addr.city || 'Viluppuram');
@@ -366,7 +425,11 @@ export default function SalesGpsCheckInPage() {
     setNewShopCategory('RETAIL');
     setRegisterModalOpen(true);
 
-    if (geoAddress && (geoAddress.fullAddress || geoAddress.street)) {
+    const isForeign = /england|greenwich|united kingdom|london|california/i.test(
+      `${geoAddress?.fullAddress || ''} ${geoAddress?.city || ''} ${geoAddress?.state || ''}`
+    );
+
+    if (geoAddress && (geoAddress.fullAddress || geoAddress.street) && !isForeign) {
       setNewShopAddress(geoAddress.fullAddress || geoAddress.street || '');
       setNewShopCity(geoAddress.city || '');
       setNewShopPincode(geoAddress.pincode || '');
@@ -789,6 +852,43 @@ export default function SalesGpsCheckInPage() {
                   onChange={(e) => setNewShopAddress(e.target.value)}
                   className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 font-bold text-slate-900 focus:outline-none focus:border-amber-500 text-xs"
                 ></textarea>
+              </div>
+
+              {/* Quick City Presets */}
+              <div className="space-y-1 pt-0.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">Quick City Select</label>
+                  <span className="text-[9px] text-slate-400">1-tap to fill city &amp; pin</span>
+                </div>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {[
+                    { city: 'Viluppuram', pin: '605602' },
+                    { city: 'Chennai', pin: '600001' },
+                    { city: 'Tindivanam', pin: '604001' },
+                    { city: 'Pondicherry', pin: '605001' },
+                    { city: 'Cuddalore', pin: '607001' },
+                    { city: 'Salem', pin: '636001' }
+                  ].map((p) => (
+                    <button
+                      key={p.city}
+                      type="button"
+                      onClick={() => {
+                        setNewShopCity(p.city);
+                        setNewShopPincode(p.pin);
+                        if (!newShopAddress || /greenwich|england|united kingdom/i.test(newShopAddress)) {
+                          setNewShopAddress(`Main Road, ${p.city} - ${p.pin}, Tamil Nadu`);
+                        }
+                      }}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer border ${
+                        newShopCity === p.city
+                          ? 'bg-amber-100 text-amber-800 border-amber-300 shadow-xs'
+                          : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
+                      }`}
+                    >
+                      📍 {p.city}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">

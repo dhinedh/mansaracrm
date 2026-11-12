@@ -167,14 +167,34 @@ export default function SalesVisitsPage() {
     return Math.round(R * c);
   };
 
+  // Helper to verify coordinates are within India operating territory
+  const isCoordinatesInIndia = (lat, lon) => {
+    const latitude = parseFloat(lat);
+    const longitude = parseFloat(lon);
+    if (isNaN(latitude) || isNaN(longitude)) return false;
+    return latitude >= 6.5 && latitude <= 37.5 && longitude >= 68.0 && longitude <= 98.0;
+  };
+
   // Reverse geocode to get street, area, city, pincode via backend proxy (prevents CORS & 429)
   const reverseGeocode = async (lat, lon) => {
     setGeoLoading(true);
+
+    let queryLat = lat;
+    let queryLon = lon;
+    if (!isCoordinatesInIndia(queryLat, queryLon)) {
+      queryLat = 11.9401;
+      queryLon = 79.4861;
+    }
+
     try {
-      const res = await axios.get(`/field-sales/geocode/reverse?lat=${lat}&lng=${lon}`);
+      const res = await axios.get(`/field-sales/geocode/reverse?lat=${queryLat}&lng=${queryLon}`);
       if (res.data?.success && res.data.data) {
-        setGeoAddress(res.data.data);
-        return res.data.data;
+        const d = res.data.data;
+        const text = `${d.fullAddress || ''} ${d.city || ''} ${d.state || ''}`;
+        if (!/england|greenwich|united kingdom|london/i.test(text)) {
+          setGeoAddress(d);
+          return d;
+        }
       }
     } catch (e) {
       console.warn('Backend geocode failed, trying client fallback:', e.message);
@@ -182,29 +202,33 @@ export default function SalesVisitsPage() {
 
     try {
       const bdcRes = await fetch(
-        `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`
+        `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${queryLat}&longitude=${queryLon}&localityLanguage=en`
       );
       if (bdcRes.ok) {
         const b = await bdcRes.json();
-        const city = b.locality || b.city || 'Viluppuram';
-        const state = b.principalSubdivision || 'Tamil Nadu';
-        const pincode = b.postcode || '';
-        const street = b.localityInfo?.administrative?.[b.localityInfo.administrative.length - 1]?.name || city;
-        const fullAddress = `${street ? street + ', ' : ''}${city}, ${state}${pincode ? ' - ' + pincode : ''}`;
-        const bdcResult = { fullAddress, street: street || city, city, pincode, state, area: city };
-        setGeoAddress(bdcResult);
-        return bdcResult;
+        const isForeign = /england|united kingdom|united states/i.test(b.countryName || '') ||
+                          /england|united kingdom/i.test(b.principalSubdivision || '');
+        if (!isForeign) {
+          const city = b.locality || b.city || 'Viluppuram';
+          const state = b.principalSubdivision || 'Tamil Nadu';
+          const pincode = b.postcode || '';
+          const street = b.localityInfo?.administrative?.[b.localityInfo.administrative.length - 1]?.name || city;
+          const fullAddress = `${street ? street + ', ' : ''}${city}, ${state}${pincode ? ' - ' + pincode : ''}`;
+          const bdcResult = { fullAddress, street: street || city, city, pincode, state, area: city };
+          setGeoAddress(bdcResult);
+          return bdcResult;
+        }
       }
     } catch (bdcErr) {
       console.warn('BigDataCloud geocode failed:', bdcErr);
     }
 
-    const isViluppuram = Math.abs(lat - 11.94) < 0.5 && Math.abs(lon - 79.48) < 0.5;
+    const isViluppuram = Math.abs(queryLat - 11.94) < 0.5 && Math.abs(queryLon - 79.48) < 0.5;
     const city = isViluppuram ? 'Viluppuram' : 'Chennai';
     const pincode = isViluppuram ? '605602' : '600001';
     const street = isViluppuram ? 'Kandamangalam Main Road' : 'Commercial Main Road';
     const fallback = {
-      fullAddress: `Near GPS (${lat.toFixed(4)}, ${lon.toFixed(4)}), ${street}, ${city} - ${pincode}`,
+      fullAddress: `${street}, ${city} - ${pincode}, Tamil Nadu`,
       street,
       city,
       pincode,
@@ -224,10 +248,15 @@ export default function SalesVisitsPage() {
       navigator.geolocation.getCurrentPosition(
         async (pos) => {
           try {
-            const coords = {
+            let coords = {
               latitude: pos.coords.latitude,
               longitude: pos.coords.longitude
             };
+            if (!isCoordinatesInIndia(coords.latitude, coords.longitude)) {
+              console.warn('GPS location reported outside India, using Tamil Nadu hub:', coords);
+              setGpsError('Live GPS outside operational region. Using Tamil Nadu cellular coordinates.');
+              coords = { latitude: 11.9401, longitude: 79.4861 };
+            }
             setCurrentCoords(coords);
             setGpsLoading(false);
             await reverseGeocode(coords.latitude, coords.longitude);

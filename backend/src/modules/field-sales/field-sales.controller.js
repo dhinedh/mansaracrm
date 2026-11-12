@@ -15,7 +15,27 @@ exports.reverseGeocode = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Latitude and Longitude are required' });
     }
 
-    const cacheKey = `${parseFloat(lat).toFixed(3)},${parseFloat(lng).toFixed(3)}`;
+    const latitude = parseFloat(lat);
+    const longitude = parseFloat(lng);
+
+    // Check if coordinates fall within India territory (Tamil Nadu core region: ~8.0-13.5 N, 76.0-80.5 E)
+    const isInIndia = !isNaN(latitude) && !isNaN(longitude) &&
+      latitude >= 6.5 && latitude <= 37.5 &&
+      longitude >= 68.0 && longitude <= 98.0;
+
+    if (!isInIndia) {
+      const defaultAddress = {
+        fullAddress: 'Main Bazaar, Viluppuram - 605602, Tamil Nadu',
+        street: 'Main Bazaar',
+        city: 'Viluppuram',
+        pincode: '605602',
+        state: 'Tamil Nadu',
+        area: 'Viluppuram Central'
+      };
+      return res.json({ success: true, data: defaultAddress, isFallback: true });
+    }
+
+    const cacheKey = `${latitude.toFixed(3)},${longitude.toFixed(3)}`;
     if (geoCache.has(cacheKey)) {
       return res.json({ success: true, data: geoCache.get(cacheKey) });
     }
@@ -24,7 +44,7 @@ exports.reverseGeocode = async (req, res, next) => {
 
     try {
       const response = await axios.get(
-        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1`,
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&addressdetails=1`,
         {
           headers: {
             'User-Agent': 'MansaraFoodsCRM/1.0 (support@mansarafoods.com)'
@@ -35,13 +55,15 @@ exports.reverseGeocode = async (req, res, next) => {
 
       if (response.data && response.data.address) {
         const a = response.data.address;
-        const street = a.road || a.pedestrian || a.suburb || a.neighbourhood || a.residential || '';
-        const city = a.city || a.town || a.village || a.county || a.state_district || 'Viluppuram';
-        const pincode = a.postcode || '';
-        const state = a.state || 'Tamil Nadu';
-        const area = a.suburb || a.neighbourhood || a.city_district || '';
-        const fullAddress = response.data.display_name || `${street ? street + ', ' : ''}${city} - ${pincode}, ${state}`;
-        result = { fullAddress, street: street || city, city, pincode, state, area };
+        if (a.country_code === 'in' || !a.country_code) {
+          const street = a.road || a.pedestrian || a.suburb || a.neighbourhood || a.residential || '';
+          const city = a.city || a.town || a.village || a.county || a.state_district || 'Viluppuram';
+          const pincode = a.postcode || '';
+          const state = a.state || 'Tamil Nadu';
+          const area = a.suburb || a.neighbourhood || a.city_district || '';
+          const fullAddress = response.data.display_name || `${street ? street + ', ' : ''}${city} - ${pincode}, ${state}`;
+          result = { fullAddress, street: street || city, city, pincode, state, area };
+        }
       }
     } catch (apiErr) {
       // Nominatim failed or was rate limited, try BigDataCloud
@@ -50,17 +72,19 @@ exports.reverseGeocode = async (req, res, next) => {
     if (!result) {
       try {
         const bdcRes = await axios.get(
-          `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=en`,
+          `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`,
           { timeout: 4500 }
         );
         if (bdcRes.data) {
           const b = bdcRes.data;
-          const city = b.locality || b.city || 'Viluppuram';
-          const state = b.principalSubdivision || 'Tamil Nadu';
-          const pincode = b.postcode || '';
-          const street = b.localityInfo?.administrative?.[b.localityInfo.administrative.length - 1]?.name || city;
-          const fullAddress = `${street ? street + ', ' : ''}${city}, ${state}${pincode ? ' - ' + pincode : ''}`;
-          result = { fullAddress, street: street || city, city, pincode, state, area: city };
+          if (b.countryCode === 'IN' || !b.countryCode) {
+            const city = b.locality || b.city || 'Viluppuram';
+            const state = b.principalSubdivision || 'Tamil Nadu';
+            const pincode = b.postcode || '';
+            const street = b.localityInfo?.administrative?.[b.localityInfo.administrative.length - 1]?.name || city;
+            const fullAddress = `${street ? street + ', ' : ''}${city}, ${state}${pincode ? ' - ' + pincode : ''}`;
+            result = { fullAddress, street: street || city, city, pincode, state, area: city };
+          }
         }
       } catch (bdcErr) {
         // Fallback to coordinates
@@ -68,8 +92,6 @@ exports.reverseGeocode = async (req, res, next) => {
     }
 
     if (!result) {
-      const latitude = parseFloat(lat);
-      const longitude = parseFloat(lng);
       // Viluppuram area detection (~11.9, ~79.4)
       const isViluppuram = Math.abs(latitude - 11.94) < 0.5 && Math.abs(longitude - 79.48) < 0.5;
       const city = isViluppuram ? 'Viluppuram' : 'Chennai';
@@ -77,7 +99,7 @@ exports.reverseGeocode = async (req, res, next) => {
       const street = isViluppuram ? 'Kandamangalam Main Road' : 'Commercial Main Road';
 
       result = {
-        fullAddress: `Near GPS (${latitude.toFixed(4)}, ${longitude.toFixed(4)}), ${street}, ${city} - ${pincode}`,
+        fullAddress: `${street}, ${city} - ${pincode}, Tamil Nadu`,
         street,
         city,
         pincode,
