@@ -839,10 +839,6 @@ export default function SalesStoreVisitPage() {
                 <Clock className="w-3.5 h-3.5" />
                 Visit: {formatTimer(visitTimer)}
               </span>
-
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200 flex items-center gap-1">
-                Active: <strong className="text-amber-700 capitalize">{activeTab.replace('_', ' ')}</strong>
-              </span>
             </div>
 
             <h1 className="text-lg sm:text-2xl font-black text-slate-900 truncate">
@@ -851,7 +847,7 @@ export default function SalesStoreVisitPage() {
 
             <div className="flex items-center gap-2 sm:gap-3 text-xs text-slate-500 mt-1 flex-wrap">
               {store.phone && (
-                <span className="flex items-center gap-1">
+                <span className="flex items-center gap-1 whitespace-nowrap">
                   <Phone className="w-3.5 h-3.5 text-slate-400" />
                   <a href={`tel:${store.phone}`} className="text-amber-700 hover:underline font-bold">
                     {store.phone}
@@ -859,17 +855,16 @@ export default function SalesStoreVisitPage() {
                 </span>
               )}
               {store.ownerName && (
-                <>
-                  <span>•</span>
-                  <span className="truncate max-w-[140px] sm:max-w-none">{store.ownerName}</span>
-                </>
+                <span className="flex items-center gap-1.5 whitespace-nowrap text-slate-600">
+                  <span className="text-slate-300">•</span>
+                  <span className="truncate max-w-[160px] sm:max-w-none">{store.ownerName}</span>
+                </span>
               )}
-              <span>•</span>
               <a
                 href={`https://www.google.com/maps/dir/?api=1&destination=${store.latitude || ''},${store.longitude || ''}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-amber-700 hover:underline flex items-center gap-1 font-semibold"
+                className="text-amber-700 hover:underline flex items-center gap-1 font-semibold whitespace-nowrap"
               >
                 <ExternalLink className="w-3 h-3" />
                 <span>Navigate</span>
