@@ -44,17 +44,18 @@ router.get('/catalogue', fieldSalesController.getCatalogue);
 router.post('/simulate-price', fieldSalesController.simulatePrice);
 router.post('/margins/request', fieldSalesController.requestMarginApproval);
 router.get('/schemes', fieldSalesController.getActiveSchemes);
-
 // 18–23. Orders, Quick Reorder, Quotations, Amendments, Returns (Modules 18–23)
 router.post('/orders', fieldSalesController.createSalesOrder);
 router.post('/orders/issue-bill', fieldSalesController.issueFieldBill);
+router.post('/invoices/issue', fieldSalesController.issueFieldBill);
+router.post('/stock-audits', fieldSalesController.recordStockAudit);
+router.post('/stock-adjustments', fieldSalesController.recordStockAdjustment);
 router.get('/orders', fieldSalesController.getSalesOrders);
 router.post('/quotations', fieldSalesController.createQuotation);
 router.post('/quotations/pdf', fieldSalesController.exportQuotationPdf);
 router.get('/quotations', fieldSalesController.getQuotations);
 router.post('/amendments', fieldSalesController.requestAmendmentOrReturn);
 router.get('/amendments', fieldSalesController.getAmendmentRequests);
-
 // 24–29. Payments, Collections, Commitments, Follow-ups, DAR (Modules 24–29)
 router.post('/collections', fieldSalesController.recordPaymentCollection);
 router.post('/commitments', fieldSalesController.recordPaymentCommitment);
@@ -63,15 +64,12 @@ router.post('/follow-ups', fieldSalesController.createFollowUp);
 router.get('/follow-ups', fieldSalesController.getFollowUps);
 router.put('/follow-ups/:id/complete', fieldSalesController.completeFollowUp);
 router.get('/dar', fieldSalesController.getDailyActivityReport);
-
 // 30–34. Performance & Offline Sync (Modules 30–34)
 router.get('/performance', fieldSalesController.getPerformanceHistory);
 router.post('/sync', fieldSalesController.syncOfflineData);
-
 // Invoices fulfillment / adjustments
 router.post('/invoices/:id/fulfill', fieldSalesController.fulfillInvoiceItems);
 router.put('/invoices/:id/adjust', fieldSalesController.adjustInvoice);
-
 // ======================================================
 // ADMIN FIELD SALES ROUTES (Excluding Live GPS)
 // ======================================================
@@ -89,19 +87,14 @@ router.put('/admin/approvals/quotations/:id', fieldSalesController.reviewQuotati
 router.put('/admin/approvals/quotations/:id/edit', fieldSalesController.editQuotationApproval);
 router.delete('/admin/approvals/quotations/:id', fieldSalesController.deleteQuotationApproval);
 router.put('/admin/approvals/amendments/:id', fieldSalesController.reviewAmendmentApproval);
-
 router.get('/admin/competitors', fieldSalesController.getAdminCompetitorFeed);
 router.get('/admin/dar-audit', fieldSalesController.getAdminDarAudit);
-
 router.get('/admin/orders', fieldSalesController.getAdminSalesOrders);
 router.put('/admin/orders/:id/status', fieldSalesController.updateAdminOrderStatus);
 router.get('/admin/collections', fieldSalesController.getAdminCollections);
 router.get('/admin/performance', fieldSalesController.getAdminPerformance);
-
 // Admin Store Visits & Allocations
 router.get('/admin/visits/today', fieldSalesController.getAdminTodayVisits);
 router.post('/admin/visits/allocate', fieldSalesController.allocateStoreVisit);
 router.put('/admin/visits/:id/status', fieldSalesController.updateAdminVisitStatus);
-
-module.exports = router;
-
+module.exports = router;c

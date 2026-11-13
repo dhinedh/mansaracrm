@@ -740,7 +740,7 @@ InvoiceItemSchema.virtual('product', {
 // Notification
 const NotificationSchema = new Schema({
   userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
-  type: { type: String, enum: ['STOCK_TRANSFER', 'INVOICE_GENERATED', 'DELIVERY_UPDATE', 'ACCOUNT_UPDATE', 'SYSTEM'], required: true },
+  type: { type: String, enum: ['STOCK_TRANSFER', 'INVOICE_GENERATED', 'DELIVERY_UPDATE', 'ACCOUNT_UPDATE', 'SYSTEM', 'FIELD_SALES', 'ORDER_REQUEST'], required: true },
   title: { type: String, required: true },
   message: { type: String, required: true },
   isRead: { type: Boolean, default: false },
@@ -842,6 +842,39 @@ const VisitSchema = new Schema({
     quantity: { type: Number },
     reason: { type: String }
   }]
+}, {
+  timestamps: true,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
+});
+
+// StockAudit Schema
+const StockAuditSchema = new Schema({
+  storeId: { type: Schema.Types.ObjectId, ref: 'Store', required: true },
+  dealerId: { type: Schema.Types.ObjectId, ref: 'Dealer' },
+  salespersonId: { type: Schema.Types.ObjectId, ref: 'User' },
+  visitId: { type: Schema.Types.ObjectId, ref: 'Visit' },
+  condition: { type: String, default: 'Stock Sufficient & Good' },
+  shelfFacingUnits: { type: Number, default: 0 },
+  damagedUnits: { type: Number, default: 0 },
+  remarks: { type: String, default: '' }
+}, {
+  timestamps: true,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
+});
+
+// StockAdjustment Schema
+const StockAdjustmentSchema = new Schema({
+  storeId: { type: Schema.Types.ObjectId, ref: 'Store', required: true },
+  salespersonId: { type: Schema.Types.ObjectId, ref: 'User' },
+  actionType: { type: String, enum: ['RETURN', 'REPLACE', 'HOLD'], default: 'RETURN' },
+  productId: { type: Schema.Types.ObjectId, ref: 'Product' },
+  productName: { type: String },
+  quantity: { type: Number, default: 1 },
+  replacementProductId: { type: Schema.Types.ObjectId, ref: 'Product' },
+  reason: { type: String },
+  remarks: { type: String }
 }, {
   timestamps: true,
   toJSON: { virtuals: true },
@@ -1748,6 +1781,8 @@ const OrderAmendment = mongoose.model('OrderAmendment', OrderAmendmentSchema, 'o
 const FollowUp = mongoose.model('FollowUp', FollowUpSchema, 'follow_ups');
 const PaymentCommitment = mongoose.model('PaymentCommitment', PaymentCommitmentSchema, 'payment_commitments');
 const FieldSalesOrder = mongoose.model('FieldSalesOrder', FieldSalesOrderSchema, 'field_sales_orders');
+const StockAudit = mongoose.model('StockAudit', StockAuditSchema, 'stock_audits');
+const StockAdjustment = mongoose.model('StockAdjustment', StockAdjustmentSchema, 'stock_adjustments');
 const RawMaterialCategory = mongoose.model('RawMaterialCategory', RawMaterialCategorySchema, 'raw_material_categories');
 const RawMaterialItem = mongoose.model('RawMaterialItem', RawMaterialItemSchema, 'raw_material_items');
 
@@ -2596,6 +2631,8 @@ const prisma = {
   followUp: new PrismaCollectionWrapper('FollowUp'),
   paymentCommitment: new PrismaCollectionWrapper('PaymentCommitment'),
   fieldSalesOrder: new PrismaCollectionWrapper('FieldSalesOrder'),
+  stockAudit: new PrismaCollectionWrapper('StockAudit'),
+  stockAdjustment: new PrismaCollectionWrapper('StockAdjustment'),
   rawMaterialCategory: new PrismaCollectionWrapper('RawMaterialCategory'),
   rawMaterialItem: new PrismaCollectionWrapper('RawMaterialItem'),
 

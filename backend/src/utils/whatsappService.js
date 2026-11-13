@@ -649,6 +649,145 @@ const sendAdminB2BOrderAlert = async (details) => {
   }
 };
 
+/**
+ * Dispatches Admin WhatsApp Operations Alert for Field Sales Activities (Order requests, store visits, stock updates, etc.)
+ */
+const sendAdminFieldSalesAlert = async ({
+  actionType = 'FIELD_ACTION',
+  title = 'Field Sales Activity Alert',
+  salespersonName = 'Field Executive',
+  salespersonPhone = '',
+  storeName = 'Retail Outlet',
+  storePhone = '',
+  storeLocation = 'Field Route',
+  details = '',
+  targetUrl = 'https://crm.mansarafoods.com/admin/field-orders'
+}) => {
+  const rawPhones = process.env.ADMIN_PHONE || '919342400879,918838887064';
+  const adminPhones = rawPhones.split(',').map(p => normalizePhone(p.trim())).filter(Boolean);
+  const { metaToken, phoneId } = getMetaCredentials();
+  const botUrl = process.env.WHATSAPP_BOT_URL || 'https://whatapp-automation-kxml.onrender.com';
+
+  const fullMessage = 
+`🚨 *Mansara Foods - Field Sales Alert* 📢
+
+📌 *Event:* ${title}
+👤 *Sales Representative:* ${salespersonName || 'Field Executive'}${salespersonPhone ? ` (${salespersonPhone})` : ''}
+🏪 *Store / Counter:* ${storeName || 'N/A'}${storePhone ? ` (${storePhone})` : ''}
+📍 *Location / Beat:* ${storeLocation || 'On-Field'}
+📝 *Details:*
+${details}
+
+🌐 *View in Admin Portal:*
+${targetUrl}`;
+
+  console.log(`[WHATSAPP SERVICE] Dispatching Field Sales Alert "${title}" for store "${storeName}" to ${adminPhones.length} admin number(s)...`);
+
+  for (const targetPhone of adminPhones) {
+    let sent = false;
+
+    // 1. Meta Cloud API (Official)
+    if (metaToken && phoneId) {
+      // Attempt 1: admin_operations_alert_v1
+      try {
+        const eventSummary = `${details.slice(0, 110)} | ${targetUrl}`;
+        await axios({
+          method: 'POST',
+          url: `https://graph.facebook.com/v20.0/${phoneId}/messages`,
+          headers: { 'Authorization': `Bearer ${metaToken}`, 'Content-Type': 'application/json' },
+          data: {
+            messaging_product: 'whatsapp',
+            recipient_type: 'individual',
+            to: targetPhone,
+            type: 'template',
+            template: {
+              name: 'admin_operations_alert_v1',
+              language: { code: 'en_US' },
+              components: [{
+                type: 'body',
+                parameters: [
+                  { type: 'text', text: title.toUpperCase().slice(0, 50) },
+                  { type: 'text', text: `${storeName} (${salespersonName})`.slice(0, 50) },
+                  { type: 'text', text: 'HIGH' },
+                  { type: 'text', text: eventSummary.slice(0, 200) }
+                ]
+              }]
+            }
+          },
+          timeout: 5000
+        });
+        console.log(`[WHATSAPP SERVICE] ✓ Field Sales Alert delivered via Meta Cloud API to ${targetPhone}`);
+        sent = true;
+      } catch (metaErr) {
+        // Attempt 2: sales_team_alert template
+        try {
+          await axios({
+            method: 'POST',
+            url: `https://graph.facebook.com/v20.0/${phoneId}/messages`,
+            headers: { 'Authorization': `Bearer ${metaToken}`, 'Content-Type': 'application/json' },
+            data: {
+              messaging_product: 'whatsapp',
+              recipient_type: 'individual',
+              to: targetPhone,
+              type: 'template',
+              template: {
+                name: 'sales_team_alert',
+                language: { code: 'en_US' },
+                components: [{
+                  type: 'body',
+                  parameters: [
+                    { type: 'text', text: salespersonName || 'Sales Rep' },
+                    { type: 'text', text: storeName || 'Store Outlet' },
+                    { type: 'text', text: targetPhone },
+                    { type: 'text', text: `${title}: ${details.slice(0, 90)} | ${targetUrl}` }
+                  ]
+                }]
+              }
+            },
+            timeout: 5000
+          });
+          console.log(`[WHATSAPP SERVICE] ✓ Field Sales Alert delivered via sales_team_alert to ${targetPhone}`);
+          sent = true;
+        } catch (salesErr) {
+          // ignore
+        }
+      }
+    }
+
+    // 2. WhatsApp Bot Automation API (Delivers full formatted text message)
+    if (!sent && botUrl) {
+      try {
+        await axios.post(`${botUrl}/api/send-message`, {
+          phone: targetPhone,
+          message: fullMessage,
+          recipientName: 'Mansara Operations Admin',
+          companyName: 'Mansara Foods'
+        }, { timeout: 3000 });
+        console.log(`[WHATSAPP SERVICE] ✓ Field Sales Alert delivered via Bot API to ${targetPhone}`);
+        sent = true;
+      } catch (botErr) {
+        // ignore
+      }
+    }
+
+    // 3. Fallback: Log simulation to errors.log and console
+    if (!sent) {
+      console.log(`\n======================================================`);
+      console.log(`💬 [SIMULATED WHATSAPP ADMIN FIELD SALES ALERT] To: ${targetPhone}`);
+      console.log(fullMessage);
+      console.log(`======================================================\n`);
+      try {
+        const logPath = path.join(__dirname, '../../../errors.log');
+        fs.appendFileSync(logPath, `[Admin Field Alert] ${new Date().toISOString()} - ${title} sent to ${targetPhone}\n`);
+      } catch (e) {
+        // ignore
+      }
+    }
+  }
+
+  return { success: true };
+};
+
 module.exports = {
   normalizePhone,
   sendVendorWhatsAppRegistration,
@@ -656,6 +795,7 @@ module.exports = {
   sendAdminDealerRegistrationAlert,
   sendAdminStoreRegistrationAlert,
   sendAdminB2BOrderAlert,
+  sendAdminFieldSalesAlert,
   sendWhatsAppOTP,
   sendDealerTemplateMessage
 };

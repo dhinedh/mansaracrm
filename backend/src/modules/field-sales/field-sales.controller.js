@@ -4,6 +4,7 @@ const mongoose = require('mongoose');
 const axios = require('axios');
 const { generateInvoicePdf } = require('../../utils/pdfGenerator');
 const { getNextInvoiceNumber, getNextQuotationNumber, extractTrailingNumber } = require('../../utils/invoiceSequenceHelper');
+const { notifyAdminOfSalesAction } = require('../../utils/salesNotificationService');
 
 // In-memory geocode cache to avoid external API rate limits (429) and CORS
 const geoCache = new Map();
@@ -234,6 +235,36 @@ exports.checkInVisit = async (req, res, next) => {
       });
     }
 
+    // Notify Admin of Store Visit Check-in
+    try {
+      const StoreModel = mongoose.model('Store');
+      const storeDoc = storeId ? await StoreModel.findById(storeId) : null;
+      notifyAdminOfSalesAction({
+        actionType: 'STORE_VISIT',
+        title: `Store Visit: ${storeDoc?.name || visitorName || 'Retail Outlet'}`,
+        message: `${req.user.name || visitorName || 'Sales Officer'} checked in at ${storeDoc?.name || 'store'}. Purpose: ${purpose || 'Store Visit & Order Booking'}.`,
+        salesperson: { id: req.user.id, name: req.user.name, phone: req.user.phone },
+        store: { id: storeDoc?._id || storeId, name: storeDoc?.name, phone: storeDoc?.phone, address: storeDoc?.address, city: storeDoc?.city },
+        details:
+`• *Action:* GPS Store Check-In
+• *Store / Counter:* ${storeDoc?.name || 'Retail Outlet'} (${storeDoc?.phone || 'No phone'})
+• *Location:* ${storeDoc?.city || storeDoc?.address || 'Tamil Nadu'}
+• *Purpose:* ${purpose || 'Store Visit & Order Booking'}
+• *Coordinates:* ${latitude}, ${longitude} (GPS Verified)
+• *Check-In Time:* ${new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}`,
+        metadata: {
+          visitId: visit?.id,
+          storeId: storeDoc?._id || storeId,
+          storeName: storeDoc?.name,
+          latitude,
+          longitude
+        },
+        targetUrl: 'https://crm.mansarafoods.com/admin/store-visits'
+      }).catch(err => console.warn('Check-in notification failed:', err.message));
+    } catch (e) {
+      // ignore
+    }
+
     res.status(201).json({ success: true, message: 'Checked in successfully', data: visit });
   } catch (error) {
     next(error);
@@ -303,6 +334,32 @@ exports.recordBeatVisit = async (req, res, next) => {
           status: 'IN_PROGRESS'
         }
       });
+    }
+
+    // Notify Admin of Beat Visit Observations
+    try {
+      const StoreModel = mongoose.model('Store');
+      const beatStore = storeId ? await StoreModel.findById(storeId) : null;
+      notifyAdminOfSalesAction({
+        actionType: 'BEAT_VISIT',
+        title: `Beat Observation: ${beatStore?.name || 'Retail Store'}`,
+        message: `${req.user.name || 'Sales Officer'} logged beat observations for ${beatStore?.name || 'store'}. Visit Type: ${visitType || 'Standard'}.`,
+        salesperson: { id: req.user.id, name: req.user.name, phone: req.user.phone },
+        store: { id: beatStore?._id || storeId, name: beatStore?.name, phone: beatStore?.phone, address: beatStore?.address, city: beatStore?.city },
+        details:
+`• *Visit Type:* ${visitType || 'Standard Scheduled Route Visit'}
+• *Store:* ${beatStore?.name || 'Retail Store'}
+• *Feedback:* ${feedback || 'Routine visit'}
+${competitorNotes ? `• *Competitor Presence:* ${competitorNotes}\n` : ''}${nextBeatDate ? `• *Next Revisit:* ${new Date(nextBeatDate).toLocaleDateString('en-IN')}\n` : ''}`,
+        metadata: {
+          visitId: visit?.id || targetVisitId,
+          storeId: beatStore?._id || storeId,
+          storeName: beatStore?.name
+        },
+        targetUrl: 'https://crm.mansarafoods.com/admin/store-visits'
+      }).catch(err => console.warn('Beat visit notification failed:', err.message));
+    } catch (e) {
+      // ignore
     }
 
     res.json({
@@ -399,6 +456,37 @@ exports.checkOutVisit = async (req, res, next) => {
       }
     }
 
+    // Notify Admin of Visit Checkout
+    try {
+      const StoreModel = mongoose.model('Store');
+      const storeDoc = storeId ? await StoreModel.findById(storeId) : null;
+      notifyAdminOfSalesAction({
+        actionType: 'VISIT_CHECKOUT',
+        title: `Visit Completed: ${storeDoc?.name || visit.visitorName || 'Store'}`,
+        message: `${req.user.name || visit.visitorName || 'Sales Rep'} completed visit at ${storeDoc?.name || 'store'}. Outcome: ${outcome || 'Visit completed'}. Order: ₹${parseFloat(orderValue || 0).toFixed(2)}, Collected: ₹${parseFloat(paymentsCollected || 0).toFixed(2)}.`,
+        salesperson: { id: req.user.id, name: req.user.name, phone: req.user.phone },
+        store: { id: storeDoc?._id || storeId, name: storeDoc?.name, phone: storeDoc?.phone, address: storeDoc?.address, city: storeDoc?.city },
+        details:
+`• *Action:* Visit Completed & Checked Out
+• *Store:* ${storeDoc?.name || 'Retail Outlet'} (${storeDoc?.phone || 'N/A'})
+• *Outcome:* ${outcome || 'Visit completed'}
+• *Orders Booked:* ₹${parseFloat(orderValue || 0).toFixed(2)}
+• *Payment Collected:* ₹${parseFloat(paymentsCollected || 0).toFixed(2)} (${paymentMethod || 'NONE'})
+• *Remarks:* ${remarks || 'None'}
+• *Duration:* ${updated.durationMinutes || 0} mins`,
+        metadata: {
+          visitId: updated?.id || id,
+          storeId: storeDoc?._id || storeId,
+          storeName: storeDoc?.name,
+          orderValue: parseFloat(orderValue || 0),
+          paymentsCollected: parseFloat(paymentsCollected || 0)
+        },
+        targetUrl: 'https://crm.mansarafoods.com/admin/store-visits'
+      }).catch(err => console.warn('Checkout notification failed:', err.message));
+    } catch (e) {
+      // ignore
+    }
+
     res.json({ success: true, message: 'Checked out successfully and payments processed', data: updated });
   } catch (error) {
     next(error);
@@ -432,6 +520,32 @@ exports.checkOutActiveVisit = async (req, res, next) => {
         remarks: remarks || activeVisit.remarks || undefined
       }
     });
+
+    // Notify Admin of Active Checkout
+    try {
+      const StoreModel = mongoose.model('Store');
+      const storeDoc = activeVisit.storeId ? await StoreModel.findById(activeVisit.storeId) : null;
+      notifyAdminOfSalesAction({
+        actionType: 'VISIT_CHECKOUT',
+        title: `Visit Completed: ${storeDoc?.name || activeVisit.visitorName || 'Store'}`,
+        message: `${req.user.name || activeVisit.visitorName || 'Sales Rep'} completed visit at ${storeDoc?.name || 'store'}. Outcome: ${outcome}.`,
+        salesperson: { id: req.user.id, name: req.user.name, phone: req.user.phone },
+        store: { id: storeDoc?._id || activeVisit.storeId, name: storeDoc?.name, phone: storeDoc?.phone, address: storeDoc?.address, city: storeDoc?.city },
+        details:
+`• *Action:* Visit Completed & Checked Out
+• *Store:* ${storeDoc?.name || 'Retail Outlet'}
+• *Outcome:* ${outcome}
+• *Remarks:* ${remarks || 'None'}`,
+        metadata: {
+          visitId: updated?.id || activeVisit.id,
+          storeId: storeDoc?._id || activeVisit.storeId,
+          storeName: storeDoc?.name
+        },
+        targetUrl: 'https://crm.mansarafoods.com/admin/store-visits'
+      }).catch(err => console.warn('Active checkout notification failed:', err.message));
+    } catch (e) {
+      // ignore
+    }
 
     return res.json({ success: true, message: 'Active visit checked out successfully', data: updated });
   } catch (error) {
@@ -1102,6 +1216,30 @@ exports.registerShopLead = async (req, res, next) => {
     // Invalidate cached shops so newly registered shop shows up immediately
     shopsCache.clear();
 
+    // Notify Admin of New Store Registration
+    notifyAdminOfSalesAction({
+      actionType: 'NEW_STORE_LEAD',
+      title: `New Retail Store: ${name}`,
+      message: `${req.user.name || 'Sales Officer'} registered a new store "${name}" (${ownerName || name}, ${phone}) at ${city || address}.`,
+      salesperson: { id: req.user.id, name: req.user.name, phone: req.user.phone },
+      store: { id: newStore._id, name, phone, address, city },
+      details:
+`• *Store Name:* ${name}
+• *Contact / Owner:* ${ownerName || name} (${phone})
+• *Address:* ${address}${city ? `, ${city}` : ''}
+• *Category:* ${category || 'RETAIL'}
+${gstNumber ? `• *GSTIN:* ${gstNumber}\n` : ''}• *Registered By:* ${req.user.name || 'Sales Representative'}
+• *Status:* PENDING ONBOARDING VERIFICATION`,
+      metadata: {
+        storeId: newStore._id,
+        storeName: name,
+        ownerName,
+        phone,
+        city
+      },
+      targetUrl: 'https://crm.mansarafoods.com/admin/retail-stores'
+    }).catch(err => console.warn('New store notification failed:', err.message));
+
     res.status(201).json({ success: true, message: 'Shop registered successfully', data: newStore });
   } catch (error) {
     next(error);
@@ -1348,6 +1486,32 @@ exports.recordCompetitorIntel = async (req, res, next) => {
       }
     });
 
+    // Notify Admin of Competitor Observation
+    try {
+      notifyAdminOfSalesAction({
+        actionType: 'COMPETITOR_INTEL',
+        title: `Competitor Intel: ${competitorBrand} - ${productName}`,
+        message: `${req.user.name || 'Sales Officer'} logged competitor observations (${competitorBrand}) at ${storeName || 'store'}.`,
+        salesperson: { id: req.user.id, name: req.user.name, phone: req.user.phone },
+        store: { id: storeId, name: storeName },
+        details:
+`• *Competitor Brand:* ${competitorBrand}
+• *Product:* ${productName} (${packSize || 'Standard pack'})
+• *Competitor MRP:* ₹${mrp || 0} (Retailer Price: ₹${retailerPrice || 0})
+• *Store:* ${storeName || 'Field Store'}
+${schemes ? `• *Competitor Schemes:* ${schemes}\n` : ''}${customerFeedback ? `• *Feedback:* ${customerFeedback}\n` : ''}`,
+        metadata: {
+          intelId: intel?.id,
+          storeId,
+          storeName,
+          competitorBrand
+        },
+        targetUrl: 'https://crm.mansarafoods.com/admin/store-visits'
+      }).catch(err => console.warn('Competitor intel notification failed:', err.message));
+    } catch (e) {
+      // ignore
+    }
+
     res.status(201).json({ success: true, message: 'Competitor intel saved successfully', data: intel });
   } catch (error) {
     next(error);
@@ -1443,6 +1607,33 @@ exports.requestMarginApproval = async (req, res, next) => {
       isDefault: false,
       status: 'PROPOSED'
     });
+
+    // Notify Admin of Margin Approval Request
+    try {
+      const StoreModel = mongoose.model('Store');
+      const storeDoc = storeId ? await StoreModel.findById(storeId) : null;
+      notifyAdminOfSalesAction({
+        actionType: 'MARGIN_REQUEST',
+        title: `Margin Discount Request: ${proposedMarginPercent}%`,
+        message: `${req.user.name || 'Sales Officer'} requested ${proposedMarginPercent}% margin for ${storeDoc?.name || 'store'}. Reason: ${remarks || 'Special deal discount'}.`,
+        salesperson: { id: req.user.id, name: req.user.name, phone: req.user.phone },
+        store: { id: storeDoc?._id || storeId, name: storeDoc?.name, phone: storeDoc?.phone, address: storeDoc?.address, city: storeDoc?.city },
+        details:
+`• *Requested Margin:* ${proposedMarginPercent}%
+• *Store:* ${storeDoc?.name || 'Store'} (${storeDoc?.phone || 'N/A'})
+• *Remarks / Justification:* ${remarks || 'Competitive pricing / bulk deal'}
+• *Status:* PENDING ADMIN APPROVAL`,
+        metadata: {
+          marginRequestId: marginRecord._id,
+          storeId: storeDoc?._id || storeId,
+          storeName: storeDoc?.name,
+          proposedMarginPercent
+        },
+        targetUrl: 'https://crm.mansarafoods.com/admin/approvals'
+      }).catch(err => console.warn('Margin request notification failed:', err.message));
+    } catch (e) {
+      // ignore
+    }
 
     res.status(201).json({
       success: true,
@@ -1598,26 +1789,32 @@ exports.createSalesOrder = async (req, res, next) => {
       console.warn('Could not update visit orderValue:', e.message);
     }
 
-    // Notify Admin of new Order Request
-    try {
-      const NotificationModel = mongoose.model('Notification');
-      await NotificationModel.create({
-        type: 'ORDER_REQUEST',
-        title: `New Order Request: ${orderNo}`,
-        message: `${user?.name || 'Sales Officer'} requested an order for ${store?.name || 'Retail Store'} worth ₹${subtotal.toFixed(2)} (${orderItems.length} SKUs, ₹${totalMarginSavings.toFixed(2)} retailer margin).`,
-        metadata: {
-          orderId: order._id,
-          orderNumber: orderNo,
-          storeId: store?._id || storeId,
-          storeName: store?.name || '',
-          salespersonId: userId,
-          salespersonName: user?.name || '',
-          totalAmount: subtotal
-        }
-      });
-    } catch (e) {
-      console.warn('Could not create admin notification for order request:', e.message);
-    }
+    // Notify Admin (In-App Notification Center & WhatsApp)
+    const itemsPreview = orderItems.slice(0, 3).map(i => `• ${i.productName} (${i.quantity} units @ ₹${i.unitPrice})`).join('\n') + (orderItems.length > 3 ? `\n...and ${orderItems.length - 3} more SKU(s)` : '');
+    notifyAdminOfSalesAction({
+      actionType: 'ORDER_REQUEST',
+      title: `New Order Request: #${orderNo}`,
+      message: `${user?.name || 'Sales Officer'} requested an order for ${store?.name || 'Retail Store'} worth ₹${subtotal.toFixed(2)} (${orderItems.length} SKUs, ₹${totalMarginSavings.toFixed(2)} retailer margin).`,
+      salesperson: { id: userId, name: user?.name, phone: user?.phone },
+      store: { id: store?._id || storeId, name: store?.name, phone: store?.phone, address: store?.address, city: store?.city },
+      details: 
+`• *Order No:* #${orderNo}
+• *Store:* ${store?.name || 'Retail Store'} (${store?.phone || 'No phone'})
+• *Items:* ${orderItems.length} SKUs (${orderItems.reduce((acc, i) => acc + (i.quantity || 1), 0)} total units)
+${itemsPreview}
+• *Total Order Value:* ₹${subtotal.toFixed(2)}
+• *Retailer Margin Savings:* ₹${totalMarginSavings.toFixed(2)} (${averageMarginPct}% avg)
+• *Status:* PENDING ADMIN APPROVAL`,
+      metadata: {
+        fieldOrderId: order._id,
+        orderNumber: orderNo,
+        storeId: store?._id || storeId,
+        storeName: store?.name || '',
+        totalAmount: subtotal,
+        orderItemsCount: orderItems.length
+      },
+      targetUrl: 'https://crm.mansarafoods.com/admin/field-orders'
+    }).catch(err => console.warn('Order request notification failed:', err.message));
 
     res.status(201).json({
       success: true,
@@ -1753,6 +1950,29 @@ exports.issueFieldBill = async (req, res, next) => {
         { $set: { invoiceId: invoice._id, status: 'DELIVERED' } }
       );
     }
+
+    // Notify Admin of Field Bill Generation
+    notifyAdminOfSalesAction({
+      actionType: 'FIELD_INVOICE',
+      title: `Field Bill Issued: #${invoiceNo}`,
+      message: `${req.user.name || 'Sales Rep'} issued bill #${invoiceNo} for ${store.name} worth ₹${grandTotal.toFixed(2)} (${paymentMethod}).`,
+      salesperson: { id: userId, name: req.user.name, phone: req.user.phone },
+      store: { id: store._id, name: store.name, phone: store.phone, address: store.address, city: store.city },
+      details:
+`• *Invoice No:* #${invoiceNo}
+• *Store:* ${store.name} (${store.phone || 'N/A'})
+• *Total Bill Amount:* ₹${grandTotal.toFixed(2)} (Subtotal: ₹${subtotal.toFixed(2)} + GST: ₹${totalGst.toFixed(2)})
+• *Payment Mode:* ${paymentMethod} (${isCredit ? 'Pending Payment / Due 15 days' : 'Collected / Paid'})
+• *Reason:* ${billingReason}`,
+      metadata: {
+        invoiceId: invoice._id,
+        invoiceNumber: invoiceNo,
+        storeId: store._id,
+        storeName: store.name,
+        totalAmount: grandTotal
+      },
+      targetUrl: 'https://crm.mansarafoods.com/admin/invoice-ledger'
+    }).catch(err => console.warn('Field bill notification failed:', err.message));
 
     res.status(201).json({
       success: true,
@@ -2086,6 +2306,33 @@ exports.recordPaymentCollection = async (req, res, next) => {
         }
         await inv.save();
       }
+    }
+
+    // Notify Admin of Payment Collection
+    try {
+      const StoreModel = mongoose.model('Store');
+      const storeDoc = storeId ? await StoreModel.findById(storeId) : null;
+      notifyAdminOfSalesAction({
+        actionType: 'PAYMENT_COLLECTION',
+        title: `Payment Collected: ₹${colAmount.toFixed(2)}`,
+        message: `${req.user.name || 'Sales Officer'} collected ₹${colAmount.toFixed(2)} (${paymentMethod}) from ${storeDoc?.name || 'store'}.`,
+        salesperson: { id: req.user.id, name: req.user.name, phone: req.user.phone },
+        store: { id: storeDoc?._id || storeId, name: storeDoc?.name, phone: storeDoc?.phone, address: storeDoc?.address, city: storeDoc?.city },
+        details:
+`• *Amount Collected:* ₹${colAmount.toFixed(2)}
+• *Store:* ${storeDoc?.name || 'Store'} (${storeDoc?.phone || 'N/A'})
+• *Payment Mode:* ${paymentMethod}
+${paymentReference ? `• *Reference / Cheque No:* ${paymentReference}\n` : ''}${remarks ? `• *Remarks:* ${remarks}\n` : ''}`,
+        metadata: {
+          collectionId: visit?.id,
+          storeId: storeDoc?._id || storeId,
+          storeName: storeDoc?.name,
+          amount: colAmount
+        },
+        targetUrl: 'https://crm.mansarafoods.com/admin/collections'
+      }).catch(err => console.warn('Collection notification failed:', err.message));
+    } catch (e) {
+      // ignore
     }
 
     res.status(201).json({ success: true, message: 'Payment collection logged successfully', data: visit });
@@ -3923,6 +4170,106 @@ exports.updateAdminVisitStatus = async (req, res, next) => {
       .populate('dealerId', 'companyName phone city');
 
     res.json({ success: true, message: 'Visit record updated successfully', data: updated });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.recordStockAudit = async (req, res, next) => {
+  try {
+    const { storeId, dealerId, condition, shelfFacingUnits = 0, damagedUnits = 0, remarks = '', visitId } = req.body;
+    const userId = req.user.id;
+
+    const StockAuditModel = mongoose.model('StockAudit');
+    const StoreModel = mongoose.model('Store');
+    const store = storeId ? await StoreModel.findById(storeId) : null;
+
+    const audit = await StockAuditModel.create({
+      storeId,
+      dealerId,
+      salespersonId: userId,
+      visitId,
+      condition: condition || 'Stock Sufficient & Good',
+      shelfFacingUnits: parseInt(shelfFacingUnits, 10) || 0,
+      damagedUnits: parseInt(damagedUnits, 10) || 0,
+      remarks: remarks || ''
+    });
+
+    notifyAdminOfSalesAction({
+      actionType: 'STOCK_AUDIT',
+      title: `Shelf Stock Audit: ${store?.name || 'Retail Store'}`,
+      message: `${req.user.name || 'Sales Officer'} performed shelf stock audit at ${store?.name || 'store'}. Condition: ${condition || 'Stock Sufficient & Good'}.`,
+      salesperson: { id: userId, name: req.user.name, phone: req.user.phone },
+      store: { id: store?._id || storeId, name: store?.name, phone: store?.phone, address: store?.address, city: store?.city },
+      details:
+`• *Store:* ${store?.name || 'Retail Counter'} (${store?.phone || 'N/A'})
+• *Shelf Condition:* ${condition || 'Stock Sufficient & Good'}
+• *Shelf Facing Units:* ${shelfFacingUnits} units
+• *Damaged / Near Expiry Units:* ${damagedUnits} units
+• *Observations / Remarks:* ${remarks || 'None'}`,
+      metadata: {
+        auditId: audit._id,
+        storeId: store?._id || storeId,
+        storeName: store?.name,
+        condition,
+        shelfFacingUnits,
+        damagedUnits
+      },
+      targetUrl: 'https://crm.mansarafoods.com/admin/retail-stores'
+    }).catch(err => console.warn('Stock audit notification failed:', err.message));
+
+    res.status(201).json({ success: true, message: 'Stock audit recorded successfully', data: audit });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.recordStockAdjustment = async (req, res, next) => {
+  try {
+    const { storeId, actionType = 'RETURN', productId, productName, quantity = 1, replacementProductId, reason = '', remarks = '' } = req.body;
+    const userId = req.user.id;
+
+    const StockAdjustmentModel = mongoose.model('StockAdjustment');
+    const StoreModel = mongoose.model('Store');
+    const store = storeId ? await StoreModel.findById(storeId) : null;
+
+    const adjustment = await StockAdjustmentModel.create({
+      storeId,
+      salespersonId: userId,
+      actionType,
+      productId: (productId && mongoose.Types.ObjectId.isValid(productId)) ? productId : undefined,
+      productName: productName || 'Product',
+      quantity: parseInt(quantity, 10) || 1,
+      replacementProductId: (replacementProductId && mongoose.Types.ObjectId.isValid(replacementProductId)) ? replacementProductId : undefined,
+      reason,
+      remarks
+    });
+
+    notifyAdminOfSalesAction({
+      actionType: 'STOCK_ADJUSTMENT',
+      title: `Stock ${actionType}: ${productName || 'Product'} (${quantity} units)`,
+      message: `${req.user.name || 'Sales Officer'} processed stock ${actionType.toLowerCase()} (${quantity} units of ${productName || 'product'}) at ${store?.name || 'store'}.`,
+      salesperson: { id: userId, name: req.user.name, phone: req.user.phone },
+      store: { id: store?._id || storeId, name: store?.name, phone: store?.phone, address: store?.address, city: store?.city },
+      details:
+`• *Action Type:* Stock ${actionType}
+• *Store:* ${store?.name || 'Retail Counter'} (${store?.phone || 'N/A'})
+• *Product:* ${productName || 'Product'}
+• *Quantity:* ${quantity} unit(s)
+• *Reason:* ${reason || 'Damaged / Expiry replacement'}
+• *Remarks:* ${remarks || 'None'}`,
+      metadata: {
+        adjustmentId: adjustment._id,
+        storeId: store?._id || storeId,
+        storeName: store?.name,
+        actionType,
+        quantity,
+        productName
+      },
+      targetUrl: 'https://crm.mansarafoods.com/admin/retail-stores'
+    }).catch(err => console.warn('Stock adjustment notification failed:', err.message));
+
+    res.status(201).json({ success: true, message: `Stock ${actionType.toLowerCase()} recorded successfully`, data: adjustment });
   } catch (error) {
     next(error);
   }

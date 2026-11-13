@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import {
   Bell, CheckCheck, Trash2, Info, TrendingUp, Package,
-  ShieldAlert, Truck, AlertCircle, MailOpen, Mail
+  ShieldAlert, Truck, AlertCircle, MailOpen, Mail, MapPin, Store
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
@@ -27,6 +27,9 @@ const TYPE_META = {
   REQUEST:           { label: 'Purchase Request',  color: 'bg-indigo-100 text-indigo-700 border-indigo-200',   icon: Info,         dot: 'bg-indigo-500' },
   RETURN:            { label: 'Return',             color: 'bg-orange-100 text-orange-700 border-orange-200',   icon: AlertCircle,  dot: 'bg-orange-500' },
   TICKET:            { label: 'Service Ticket',    color: 'bg-teal-100 text-teal-700 border-teal-200',         icon: Info,         dot: 'bg-teal-500' },
+  // Field Sales types
+  ORDER_REQUEST:     { label: 'Order Request',     color: 'bg-amber-100 text-amber-900 border-amber-300',       icon: Package,      dot: 'bg-amber-500' },
+  FIELD_SALES:       { label: 'Field Sales',       color: 'bg-blue-100 text-blue-900 border-blue-300',          icon: MapPin,       dot: 'bg-blue-500' },
 };
 
 function groupByDate(list) {
@@ -45,10 +48,16 @@ function groupByDate(list) {
   return groups;
 }
 
-// Resolve effective sub-type for SYSTEM notifications
+// Resolve effective sub-type for SYSTEM & FIELD_SALES notifications
 function getEffectiveMeta(n) {
+  const m = n.metadata || {};
+  if (n.type === 'ORDER_REQUEST' || m.actionType === 'ORDER_REQUEST' || m.fieldOrderId) {
+    return TYPE_META.ORDER_REQUEST;
+  }
+  if (n.type === 'FIELD_SALES' || m.source === 'FIELD_SALES' || m.actionType) {
+    return TYPE_META.FIELD_SALES;
+  }
   if (n.type === 'SYSTEM') {
-    const m = n.metadata || {};
     if (m.requestId) return TYPE_META.REQUEST;
     if (m.returnId)  return TYPE_META.RETURN;
     if (m.ticketId)  return TYPE_META.TICKET;
@@ -107,12 +116,23 @@ export default function NotificationsPage() {
     }
 
     const role = user?.role;
-    const { transferId, invoiceId, dealerId, requestId, returnId, ticketId } = n.metadata || {};
+    const m = n.metadata || {};
+    const { transferId, invoiceId, dealerId, requestId, returnId, ticketId } = m;
 
     if (role === 'ADMIN') {
-      if (n.type === 'STOCK_TRANSFER' || n.type === 'DELIVERY_UPDATE') {
+      if (n.type === 'ORDER_REQUEST' || m.actionType === 'ORDER_REQUEST' || m.fieldOrderId) {
+        navigate('/admin/field-orders', { state: { orderId: m.fieldOrderId, orderNumber: m.orderNumber } });
+      } else if (m.actionType === 'STORE_VISIT' || m.actionType === 'VISIT_CHECKOUT' || m.actionType === 'BEAT_VISIT' || m.visitId) {
+        navigate('/admin/store-visits', { state: { visitId: m.visitId } });
+      } else if (m.actionType === 'NEW_STORE_LEAD' || m.actionType === 'STOCK_AUDIT' || m.actionType === 'STOCK_ADJUSTMENT' || m.storeId) {
+        navigate('/admin/retail-stores', { state: { storeId: m.storeId } });
+      } else if (m.actionType === 'MARGIN_REQUEST' || m.marginRequestId) {
+        navigate('/admin/approvals', { state: { marginRequestId: m.marginRequestId } });
+      } else if (m.actionType === 'PAYMENT_COLLECTION') {
+        navigate('/admin/collections');
+      } else if (n.type === 'STOCK_TRANSFER' || n.type === 'DELIVERY_UPDATE') {
         navigate('/admin/transfers', { state: { activeTab: 'history', transferId } });
-      } else if (n.type === 'INVOICE_GENERATED') {
+      } else if (n.type === 'INVOICE_GENERATED' || m.actionType === 'FIELD_INVOICE') {
         navigate('/admin/invoice-ledger', { state: { invoiceId } });
       } else if (n.type === 'ACCOUNT_UPDATE') {
         navigate('/admin/dealers', { state: { dealerId } });
@@ -148,24 +168,26 @@ export default function NotificationsPage() {
   const countFor = (tabId) => {
     return notifications.filter(n => {
       const unread = !n.isRead;
+      const m = n.metadata || {};
       if (tabId === 'ALL')      return unread;
-      if (tabId === 'BILLING')  return unread && n.type === 'INVOICE_GENERATED';
-      if (tabId === 'STOCK')    return unread && (n.type === 'STOCK_TRANSFER' || n.type === 'DELIVERY_UPDATE');
-      if (tabId === 'ACCOUNT')  return unread && n.type === 'ACCOUNT_UPDATE';
-      if (tabId === 'REQUESTS') return unread && n.type === 'SYSTEM' && !!(n.metadata?.requestId || n.metadata?.returnId || n.metadata?.ticketId);
-      if (tabId === 'SYSTEM')   return unread && n.type === 'SYSTEM' && !(n.metadata?.requestId || n.metadata?.returnId || n.metadata?.ticketId);
+      if (tabId === 'BILLING')  return unread && (n.type === 'INVOICE_GENERATED' || m.actionType === 'FIELD_INVOICE' || m.actionType === 'PAYMENT_COLLECTION');
+      if (tabId === 'STOCK')    return unread && (n.type === 'STOCK_TRANSFER' || n.type === 'DELIVERY_UPDATE' || m.actionType === 'STOCK_AUDIT' || m.actionType === 'STOCK_ADJUSTMENT');
+      if (tabId === 'ACCOUNT')  return unread && (n.type === 'ACCOUNT_UPDATE' || m.actionType === 'NEW_STORE_LEAD');
+      if (tabId === 'REQUESTS') return unread && (n.type === 'ORDER_REQUEST' || m.actionType === 'ORDER_REQUEST' || m.actionType === 'MARGIN_REQUEST' || (n.type === 'SYSTEM' && !!(m.requestId || m.returnId || m.ticketId)));
+      if (tabId === 'SYSTEM')   return unread && (n.type === 'SYSTEM' || n.type === 'FIELD_SALES') && !(m.requestId || m.returnId || m.ticketId || m.actionType === 'ORDER_REQUEST' || m.actionType === 'STOCK_AUDIT');
       return false;
     }).length;
   };
 
   const filtered = notifications.filter(n => {
+    const m = n.metadata || {};
     if (showUnreadOnly && n.isRead) return false;
     if (activeTab === 'ALL')      return true;
-    if (activeTab === 'BILLING')  return n.type === 'INVOICE_GENERATED';
-    if (activeTab === 'STOCK')    return n.type === 'STOCK_TRANSFER' || n.type === 'DELIVERY_UPDATE';
-    if (activeTab === 'ACCOUNT')  return n.type === 'ACCOUNT_UPDATE';
-    if (activeTab === 'REQUESTS') return n.type === 'SYSTEM' && !!(n.metadata?.requestId || n.metadata?.returnId || n.metadata?.ticketId);
-    if (activeTab === 'SYSTEM')   return n.type === 'SYSTEM' && !(n.metadata?.requestId || n.metadata?.returnId || n.metadata?.ticketId);
+    if (activeTab === 'BILLING')  return n.type === 'INVOICE_GENERATED' || m.actionType === 'FIELD_INVOICE' || m.actionType === 'PAYMENT_COLLECTION';
+    if (activeTab === 'STOCK')    return n.type === 'STOCK_TRANSFER' || n.type === 'DELIVERY_UPDATE' || m.actionType === 'STOCK_AUDIT' || m.actionType === 'STOCK_ADJUSTMENT';
+    if (activeTab === 'ACCOUNT')  return n.type === 'ACCOUNT_UPDATE' || m.actionType === 'NEW_STORE_LEAD';
+    if (activeTab === 'REQUESTS') return n.type === 'ORDER_REQUEST' || m.actionType === 'ORDER_REQUEST' || m.actionType === 'MARGIN_REQUEST' || (n.type === 'SYSTEM' && !!(m.requestId || m.returnId || m.ticketId));
+    if (activeTab === 'SYSTEM')   return (n.type === 'SYSTEM' || n.type === 'FIELD_SALES') && !(m.requestId || m.returnId || m.ticketId || m.actionType === 'ORDER_REQUEST' || m.actionType === 'STOCK_AUDIT');
     return true;
   });
 
@@ -301,12 +323,26 @@ export default function NotificationsPage() {
 
                   // Compute a human-readable destination label
                   const role = user?.role;
-                  const { requestId, returnId, ticketId, transferId, invoiceId } = n.metadata || {};
+                  const m = n.metadata || {};
+                  const { requestId, returnId, ticketId, transferId, invoiceId } = m;
                   let destLabel = null;
-                  if (n.type === 'STOCK_TRANSFER' || n.type === 'DELIVERY_UPDATE') destLabel = role === 'ADMIN' ? '→ Transfers' : '→ Ledger / Transfers';
-                  else if (n.type === 'INVOICE_GENERATED') destLabel = role === 'ADMIN' ? '→ Invoice Ledger' : '→ Ledger / Invoices';
-                  else if (n.type === 'ACCOUNT_UPDATE') destLabel = role === 'ADMIN' ? '→ Dealers' : '→ My Profile';
-                  else if (n.type === 'SYSTEM') {
+                  if (n.type === 'ORDER_REQUEST' || m.actionType === 'ORDER_REQUEST' || m.fieldOrderId) {
+                    destLabel = '→ Field Orders';
+                  } else if (m.actionType === 'STORE_VISIT' || m.actionType === 'VISIT_CHECKOUT' || m.actionType === 'BEAT_VISIT' || m.visitId) {
+                    destLabel = '→ Store Visits';
+                  } else if (m.actionType === 'NEW_STORE_LEAD' || m.actionType === 'STOCK_AUDIT' || m.actionType === 'STOCK_ADJUSTMENT') {
+                    destLabel = '→ Stores & Stock';
+                  } else if (m.actionType === 'MARGIN_REQUEST') {
+                    destLabel = '→ Approvals';
+                  } else if (m.actionType === 'PAYMENT_COLLECTION') {
+                    destLabel = '→ Collections';
+                  } else if (n.type === 'STOCK_TRANSFER' || n.type === 'DELIVERY_UPDATE') {
+                    destLabel = role === 'ADMIN' ? '→ Transfers' : '→ Ledger / Transfers';
+                  } else if (n.type === 'INVOICE_GENERATED' || m.actionType === 'FIELD_INVOICE') {
+                    destLabel = role === 'ADMIN' ? '→ Invoice Ledger' : '→ Ledger / Invoices';
+                  } else if (n.type === 'ACCOUNT_UPDATE') {
+                    destLabel = role === 'ADMIN' ? '→ Dealers' : '→ My Profile';
+                  } else if (n.type === 'SYSTEM') {
                     if (requestId) destLabel = role === 'ADMIN' ? '→ Purchase Orders' : '→ My Requests';
                     else if (returnId) destLabel = '→ Returns';
                     else if (ticketId) destLabel = '→ Service Tickets';
