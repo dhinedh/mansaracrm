@@ -335,19 +335,26 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
         const gst = (d.gstNumber || '').toLowerCase();
         return name.includes(q) || contact.includes(q) || phone.includes(q) || city.includes(q) || gst.includes(q);
       })
-      .map(d => ({
-        type: 'DEALER',
-        id: d.id || d._id,
-        name: d.name || d.companyName,
-        companyName: d.companyName || d.name,
-        phone: d.phone || '',
-        address: d.address || '',
-        city: d.city || '',
-        state: d.state || 'Tamil Nadu',
-        pincode: d.pincode || '',
-        gstNumber: d.gstNumber || '',
-        email: d.email || ''
-      }));
+      .map(d => {
+        const dMargin = d.defaultMargin !== undefined && d.defaultMargin !== null && d.defaultMargin !== ''
+          ? Number(d.defaultMargin)
+          : (d.margin !== undefined && d.margin !== null ? Number(d.margin) : 10);
+        return {
+          type: 'DEALER',
+          id: d.id || d._id,
+          name: d.name || d.companyName,
+          companyName: d.companyName || d.name,
+          phone: d.phone || '',
+          address: d.address || '',
+          city: d.city || '',
+          state: d.state || 'Tamil Nadu',
+          pincode: d.pincode || '',
+          gstNumber: d.gstNumber || '',
+          email: d.email || '',
+          defaultMargin: dMargin,
+          allocatedMargin: dMargin
+        };
+      });
 
     const matchedStores = stores
       .filter(s => {
@@ -359,20 +366,41 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
         const gst = (s.gstNumber || '').toLowerCase();
         return name.includes(q) || owner.includes(q) || phone.includes(q) || city.includes(q) || gst.includes(q);
       })
-      .map(s => ({
-        type: 'STORE',
-        id: s.id || s._id,
-        name: s.name,
-        companyName: s.name,
-        ownerName: s.ownerName || '',
-        phone: s.phone || s.ownerPhone || '',
-        address: s.address || '',
-        city: s.city || '',
-        state: s.state || 'Tamil Nadu',
-        pincode: s.pincode || '',
-        gstNumber: s.gstNumber || '',
-        dealerId: s.dealerId || null
-      }));
+      .map(s => {
+        let storeAllocatedMargin = null;
+        if (s.marginPercent !== undefined && s.marginPercent !== null && s.marginPercent !== '') {
+          storeAllocatedMargin = Number(s.marginPercent);
+        } else if (s.defaultMargin !== undefined && s.defaultMargin !== null && s.defaultMargin !== '') {
+          storeAllocatedMargin = Number(s.defaultMargin);
+        } else if (s.margin !== undefined && s.margin !== null && s.margin !== '') {
+          storeAllocatedMargin = Number(s.margin);
+        } else if (s.dealerId) {
+          const linkedId = s.dealerId?.id || s.dealerId?._id || s.dealerId;
+          const parentDealer = dealers.find(d => (d.id || d._id) === linkedId);
+          if (parentDealer && parentDealer.defaultMargin !== undefined) {
+            storeAllocatedMargin = Number(parentDealer.defaultMargin);
+          }
+        }
+        const finalMargin = storeAllocatedMargin !== null && !isNaN(storeAllocatedMargin) ? storeAllocatedMargin : 20;
+
+        return {
+          type: 'STORE',
+          id: s.id || s._id,
+          name: s.name,
+          companyName: s.name,
+          ownerName: s.ownerName || '',
+          phone: s.phone || s.ownerPhone || '',
+          address: s.address || '',
+          city: s.city || '',
+          state: s.state || 'Tamil Nadu',
+          pincode: s.pincode || '',
+          gstNumber: s.gstNumber || '',
+          dealerId: s.dealerId || null,
+          marginPercent: s.marginPercent,
+          defaultMargin: finalMargin,
+          allocatedMargin: finalMargin
+        };
+      });
 
     return {
       dealers: matchedDealers.slice(0, 10),
@@ -382,16 +410,73 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
   }, [dealers, stores, customerSearchQuery]);
 
   const handleSelectCustomer = (customer) => {
-    setSelectedCustomer(customer);
+    let allocatedMargin = null;
+
+    if (customer.allocatedMargin !== undefined && customer.allocatedMargin !== null && !isNaN(customer.allocatedMargin)) {
+      allocatedMargin = Number(customer.allocatedMargin);
+    } else if (customer.type === 'DEALER') {
+      if (customer.defaultMargin !== undefined && customer.defaultMargin !== null && !isNaN(customer.defaultMargin)) {
+        allocatedMargin = Number(customer.defaultMargin);
+      } else {
+        const foundDealer = dealers.find(d => (d.id || d._id) === customer.id);
+        if (foundDealer && (foundDealer.defaultMargin !== undefined || foundDealer.margin !== undefined)) {
+          allocatedMargin = Number(foundDealer.defaultMargin ?? foundDealer.margin);
+        } else {
+          allocatedMargin = 10;
+        }
+      }
+    } else if (customer.type === 'STORE') {
+      if (customer.marginPercent !== undefined && customer.marginPercent !== null && customer.marginPercent !== '') {
+        allocatedMargin = Number(customer.marginPercent);
+      } else if (customer.defaultMargin !== undefined && customer.defaultMargin !== null && customer.defaultMargin !== '') {
+        allocatedMargin = Number(customer.defaultMargin);
+      } else {
+        const foundStore = stores.find(s => (s.id || s._id) === customer.id);
+        const linkedDealerId = foundStore?.dealerId?.id || foundStore?.dealerId?._id || foundStore?.dealerId || customer.dealerId;
+        if (linkedDealerId) {
+          const parentDealer = dealers.find(d => (d.id || d._id) === linkedDealerId);
+          if (parentDealer && parentDealer.defaultMargin !== undefined) {
+            allocatedMargin = Number(parentDealer.defaultMargin);
+          }
+        }
+        if (allocatedMargin === null) {
+          allocatedMargin = 20;
+        }
+      }
+    }
+
+    const customerWithMargin = {
+      ...customer,
+      allocatedMargin: allocatedMargin !== null ? allocatedMargin : undefined
+    };
+
+    setSelectedCustomer(customerWithMargin);
     setCustomClientName(customer.companyName || customer.name);
     if (customer.type === 'DEALER') {
       setSelectedDealerId(customer.id);
     } else {
       setSelectedDealerId('');
     }
+
+    if (allocatedMargin !== null && !isNaN(allocatedMargin)) {
+      setMarginPctToAdd(allocatedMargin);
+
+      // Automatically sync any existing calculation items to this customer's allocated margin
+      setSimulationItems(prev => {
+        if (!prev || prev.length === 0) return prev;
+        return prev.map(item => ({
+          ...item,
+          marginPct: allocatedMargin
+        }));
+      });
+    }
+
     setIsCustomerDropdownOpen(false);
     setCustomerSearchQuery('');
-    setToastMessage({ text: `Selected: ${customer.companyName || customer.name} (${customer.type === 'DEALER' ? 'Dealer' : 'Store'})`, type: 'success' });
+    setToastMessage({
+      text: `Selected: ${customer.companyName || customer.name} (${customer.type === 'DEALER' ? 'Dealer' : 'Store'}) • Allocated Margin: ${allocatedMargin !== null ? allocatedMargin : 0}% applied automatically`,
+      type: 'success'
+    });
   };
 
   const handleSelectPerson = (personName) => {
@@ -408,11 +493,13 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
       state: 'Tamil Nadu',
       pincode: '',
       gstNumber: '',
-      email: ''
+      email: '',
+      allocatedMargin: 20
     };
     setSelectedCustomer(personCustomer);
     setCustomClientName(trimmed);
     setSelectedDealerId('');
+    setMarginPctToAdd(20);
     setIsCustomerDropdownOpen(false);
     setCustomerSearchQuery('');
     setToastMessage({ text: `Selected "${trimmed}" as Direct Client / Person`, type: 'success' });
@@ -423,6 +510,7 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
     setCustomClientName('');
     setSelectedDealerId('');
     setCustomerSearchQuery('');
+    setMarginPctToAdd(20);
   };
 
   // ─── QUICK REGISTRATION: STORE ──────────────────────────────────────────────
@@ -467,7 +555,8 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
         phone: newStore.phone || '',
         address: newStore.address || '',
         city: newStore.city || '',
-        gstNumber: newStore.gstNumber || ''
+        gstNumber: newStore.gstNumber || '',
+        dealerId: storeForm.dealerId || undefined
       });
 
       setShowRegisterStoreModal(false);
@@ -519,6 +608,7 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
         email: email
       };
 
+      const registeredMargin = parseFloat(dealerForm.defaultMargin) || 10;
       setDealers(prev => [newDealer, ...prev]);
       handleSelectCustomer({
         type: 'DEALER',
@@ -529,7 +619,9 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
         address: newDealer.address || '',
         city: newDealer.city || '',
         gstNumber: newDealer.gstNumber || '',
-        email: email
+        email: email,
+        defaultMargin: registeredMargin,
+        allocatedMargin: registeredMargin
       });
 
       setShowRegisterDealerModal(false);
@@ -1005,6 +1097,12 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
                     }`}>
                       {selectedCustomer.type === 'DEALER' ? 'Dealer' : selectedCustomer.type === 'STORE' ? 'Retail Store' : 'Walk-in'}
                     </span>
+                    {selectedCustomer.allocatedMargin !== undefined && (
+                      <span className="px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-black bg-amber-100 text-amber-800 border border-amber-300 flex items-center gap-1 shadow-2xs">
+                        <span>Allocated Margin:</span>
+                        <span className="text-rose-700">{selectedCustomer.allocatedMargin}%</span>
+                      </span>
+                    )}
                     {selectedCustomer.gstNumber && (
                       <span className="text-[9px] sm:text-[10px] font-mono font-bold bg-white text-slate-600 border border-slate-200 px-1.5 py-0.5 rounded-md">
                         GST: {selectedCustomer.gstNumber}
@@ -1122,9 +1220,16 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
                                 </p>
                               </div>
                             </div>
-                            <span className="px-2 py-0.5 rounded text-[9px] font-black uppercase bg-rose-50 text-rose-700 border border-rose-200">
-                              Dealer
-                            </span>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              {d.allocatedMargin !== undefined && (
+                                <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-amber-50 text-amber-800 border border-amber-200">
+                                  {d.allocatedMargin}% Margin
+                                </span>
+                              )}
+                              <span className="px-2 py-0.5 rounded text-[9px] font-black uppercase bg-rose-50 text-rose-700 border border-rose-200">
+                                Dealer
+                              </span>
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -1154,9 +1259,16 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
                                 </p>
                               </div>
                             </div>
-                            <span className="px-2 py-0.5 rounded text-[9px] font-black uppercase bg-emerald-50 text-emerald-700 border border-emerald-200">
-                              Store
-                            </span>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              {s.allocatedMargin !== undefined && (
+                                <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-amber-50 text-amber-800 border border-amber-200">
+                                  {s.allocatedMargin}% Margin
+                                </span>
+                              )}
+                              <span className="px-2 py-0.5 rounded text-[9px] font-black uppercase bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                Store
+                              </span>
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -1282,11 +1394,18 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
             {/* Input 3: Margin Percentage (%) */}
             <div className="md:col-span-3 space-y-1">
               <div className="flex items-center justify-between">
-                <label className="block text-[10px] uppercase font-black text-slate-500 tracking-wider">
-                  3. Margin % (Discount)
-                </label>
-                {/* Mobile Quick Chips */}
-                <div className="flex items-center gap-1 sm:hidden">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <label className="block text-[10px] uppercase font-black text-slate-500 tracking-wider">
+                    3. Margin % (Discount)
+                  </label>
+                  {selectedCustomer?.allocatedMargin !== undefined && (
+                    <span className="text-[9px] font-extrabold text-amber-800 bg-amber-100 border border-amber-300 px-1.5 py-0.5 rounded-md">
+                      Allocated: {selectedCustomer.allocatedMargin}%
+                    </span>
+                  )}
+                </div>
+                {/* Quick Chips */}
+                <div className="flex items-center gap-1">
                   {[10, 15, 20, 25].map(pct => (
                     <button
                       key={pct}
