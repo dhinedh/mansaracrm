@@ -1,9 +1,10 @@
 // src/pages/sales/SalesProfilePage.jsx
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { useAuthStore } from '../../store/authStore';
 import { 
   User, Lock, ShieldCheck, MapPin, Phone, 
-  Briefcase, CheckCircle2, AlertCircle, Save 
+  Briefcase, CheckCircle2, AlertCircle, Save, RefreshCw 
 } from 'lucide-react';
 
 export default function SalesProfilePage() {
@@ -15,12 +16,14 @@ export default function SalesProfilePage() {
   const [phone, setPhone] = useState('');
   const [emergencyContact, setEmergencyContact] = useState('');
   const [savingProfile, setSavingProfile] = useState(false);
+  const [profileStatus, setProfileStatus] = useState(null); // { type: 'success' | 'error', text: '' }
 
   // Password form (Module 1)
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [changingPass, setChangingPass] = useState(false);
+  const [passwordStatus, setPasswordStatus] = useState(null); // { type: 'success' | 'error', text: '' }
 
   const fetchProfile = async () => {
     setLoading(true);
@@ -46,6 +49,7 @@ export default function SalesProfilePage() {
   const handleUpdateProfile = async (e) => {
     e.preventDefault();
     setSavingProfile(true);
+    setProfileStatus(null);
     try {
       const res = await axios.put('/field-sales/profile', {
         name,
@@ -53,11 +57,24 @@ export default function SalesProfilePage() {
         emergencyContact
       });
       if (res.data?.success) {
-        alert('Profile details updated successfully!');
+        setProfileStatus({ 
+          type: 'success', 
+          text: res.data.message || 'Profile details updated successfully!' 
+        });
+        // Sync user state in authStore if name/phone changed
+        useAuthStore.getState().fetchCurrentUser?.();
         fetchProfile();
+      } else {
+        setProfileStatus({ 
+          type: 'error', 
+          text: res.data?.message || 'Failed to update profile' 
+        });
       }
     } catch (err) {
-      alert('Failed to update profile');
+      setProfileStatus({ 
+        type: 'error', 
+        text: err.response?.data?.message || 'Failed to update profile. Please try again.' 
+      });
     } finally {
       setSavingProfile(false);
     }
@@ -65,8 +82,20 @@ export default function SalesProfilePage() {
 
   const handleChangePassword = async (e) => {
     e.preventDefault();
+    setPasswordStatus(null);
+
+    if (!currentPassword) {
+      setPasswordStatus({ type: 'error', text: 'Please enter your current password' });
+      return;
+    }
+
+    if (!newPassword || newPassword.length < 6) {
+      setPasswordStatus({ type: 'error', text: 'New password must be at least 6 characters long' });
+      return;
+    }
+
     if (newPassword !== confirmPassword) {
-      alert('New password and confirm password do not match');
+      setPasswordStatus({ type: 'error', text: 'New password and confirm password do not match' });
       return;
     }
 
@@ -77,13 +106,24 @@ export default function SalesProfilePage() {
         newPassword
       });
       if (res.data?.success) {
-        alert('Password changed successfully!');
+        setPasswordStatus({ 
+          type: 'success', 
+          text: 'Password changed successfully! Use your new password on next login.' 
+        });
         setCurrentPassword('');
         setNewPassword('');
         setConfirmPassword('');
+      } else {
+        setPasswordStatus({ 
+          type: 'error', 
+          text: res.data?.message || 'Failed to change password' 
+        });
       }
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to change password');
+      setPasswordStatus({ 
+        type: 'error', 
+        text: err.response?.data?.message || 'Failed to change password. Please verify your current password.' 
+      });
     } finally {
       setChangingPass(false);
     }
@@ -110,9 +150,25 @@ export default function SalesProfilePage() {
             </div>
             <div>
               <h3 className="text-base font-black text-slate-900">Employee Information</h3>
-              <p className="text-xs text-slate-500">{profile?.employeeCode || 'SALES-001'} • {profile?.designation || 'Field Executive'}</p>
+              <p className="text-xs text-slate-500">{profile?.employeeCode || 'SALES-001'} • {profile?.designation || 'Senior Area Sales Executive'}</p>
             </div>
           </div>
+
+          {/* Inline Profile Alert Banner */}
+          {profileStatus && (
+            <div className={`p-3 rounded-2xl text-xs flex items-center gap-2.5 animate-in fade-in ${
+              profileStatus.type === 'success' 
+                ? 'bg-emerald-50 border border-emerald-200 text-emerald-800' 
+                : 'bg-rose-50 border border-rose-200 text-rose-800'
+            }`}>
+              {profileStatus.type === 'success' ? (
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              ) : (
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+              )}
+              <span className="font-semibold flex-1">{profileStatus.text}</span>
+            </div>
+          )}
 
           <form onSubmit={handleUpdateProfile} className="space-y-3 text-xs">
             <div>
@@ -121,7 +177,10 @@ export default function SalesProfilePage() {
                 type="text"
                 required
                 value={name}
-                onChange={(e) => setName(e.target.value)}
+                onChange={(e) => {
+                  setName(e.target.value);
+                  if (profileStatus) setProfileStatus(null);
+                }}
                 className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-amber-500 shadow-2xs"
               />
             </div>
@@ -141,7 +200,10 @@ export default function SalesProfilePage() {
               <input
                 type="tel"
                 value={phone}
-                onChange={(e) => setPhone(e.target.value)}
+                onChange={(e) => {
+                  setPhone(e.target.value);
+                  if (profileStatus) setProfileStatus(null);
+                }}
                 placeholder="+91 98765 12345"
                 className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-amber-500 shadow-2xs"
               />
@@ -152,7 +214,10 @@ export default function SalesProfilePage() {
               <input
                 type="text"
                 value={emergencyContact}
-                onChange={(e) => setEmergencyContact(e.target.value)}
+                onChange={(e) => {
+                  setEmergencyContact(e.target.value);
+                  if (profileStatus) setProfileStatus(null);
+                }}
                 placeholder="Name & Contact number"
                 className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-amber-500 shadow-2xs"
               />
@@ -161,16 +226,16 @@ export default function SalesProfilePage() {
             <div className="pt-2">
               <span className="text-[10px] font-bold text-slate-500 uppercase">Assigned Territory Beat:</span>
               <p className="text-xs font-semibold text-amber-700 mt-0.5">
-                {profile?.activeBeatRoute || 'Beat A - North Chennai Commercial Beat'}
+                {profile?.activeBeatRoute || 'Beat A - North Retail Hub'}
               </p>
             </div>
 
             <button
               type="submit"
               disabled={savingProfile}
-              className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 cursor-pointer transition-all shadow-md active:scale-95 mt-4"
+              className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 cursor-pointer transition-all shadow-md active:scale-95 mt-4 disabled:opacity-60"
             >
-              <Save className="w-4 h-4" />
+              {savingProfile ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
               <span>{savingProfile ? 'Saving Changes...' : 'Update Profile Details'}</span>
             </button>
           </form>
@@ -188,6 +253,22 @@ export default function SalesProfilePage() {
             </div>
           </div>
 
+          {/* Inline Password Alert Banner */}
+          {passwordStatus && (
+            <div className={`p-3 rounded-2xl text-xs flex items-center gap-2.5 animate-in fade-in ${
+              passwordStatus.type === 'success' 
+                ? 'bg-emerald-50 border border-emerald-200 text-emerald-800' 
+                : 'bg-rose-50 border border-rose-200 text-rose-800'
+            }`}>
+              {passwordStatus.type === 'success' ? (
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              ) : (
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+              )}
+              <span className="font-semibold flex-1">{passwordStatus.text}</span>
+            </div>
+          )}
+
           <form onSubmit={handleChangePassword} className="space-y-3 text-xs">
             <div>
               <label className="block font-bold text-slate-600 uppercase mb-1">Current Password *</label>
@@ -195,7 +276,10 @@ export default function SalesProfilePage() {
                 type="password"
                 required
                 value={currentPassword}
-                onChange={(e) => setCurrentPassword(e.target.value)}
+                onChange={(e) => {
+                  setCurrentPassword(e.target.value);
+                  if (passwordStatus) setPasswordStatus(null);
+                }}
                 placeholder="••••••••"
                 className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-rose-500 shadow-2xs"
               />
@@ -207,7 +291,10 @@ export default function SalesProfilePage() {
                 type="password"
                 required
                 value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
+                onChange={(e) => {
+                  setNewPassword(e.target.value);
+                  if (passwordStatus) setPasswordStatus(null);
+                }}
                 placeholder="••••••••"
                 className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-rose-500 shadow-2xs"
               />
@@ -219,7 +306,10 @@ export default function SalesProfilePage() {
                 type="password"
                 required
                 value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
+                onChange={(e) => {
+                  setConfirmPassword(e.target.value);
+                  if (passwordStatus) setPasswordStatus(null);
+                }}
                 placeholder="••••••••"
                 className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-rose-500 shadow-2xs"
               />
@@ -228,9 +318,9 @@ export default function SalesProfilePage() {
             <button
               type="submit"
               disabled={changingPass}
-              className="w-full bg-rose-600 hover:bg-rose-500 text-white font-black py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 cursor-pointer transition-all shadow-md active:scale-95 mt-6 text-white-forced"
+              className="w-full bg-rose-600 hover:bg-rose-500 text-white font-black py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 cursor-pointer transition-all shadow-md active:scale-95 mt-6 text-white-forced disabled:opacity-60"
             >
-              <ShieldCheck className="w-4 h-4" />
+              {changingPass ? <RefreshCw className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
               <span>{changingPass ? 'Updating Security...' : 'Change Password'}</span>
             </button>
           </form>

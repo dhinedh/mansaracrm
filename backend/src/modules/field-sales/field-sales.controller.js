@@ -788,28 +788,48 @@ exports.updateSalespersonProfile = async (req, res, next) => {
     const userId = req.user.id;
     const { name, phone, emergencyContact } = req.body;
 
+    let updatedUser = null;
     if (name || phone) {
-      await prisma.user.update({
+      updatedUser = await prisma.user.update({
         where: { id: userId },
         data: {
-          ...(name && { name }),
-          ...(phone && { phone })
-        }
+          ...(name && { name: String(name).trim() }),
+          ...(phone && { phone: String(phone).trim() })
+        },
+        select: { id: true, name: true, email: true, phone: true, role: true }
+      });
+    } else {
+      updatedUser = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, name: true, email: true, phone: true, role: true }
       });
     }
 
-    let profile = await prisma.salespersonProfile.findUnique({ where: { userId } });
-    if (profile) {
-      profile = await prisma.salespersonProfile.update({
-        where: { userId },
-        data: {
-          ...(phone && { phone }),
-          ...(emergencyContact && { emergencyContact })
-        }
-      });
-    }
+    let profile = await prisma.salespersonProfile.upsert({
+      where: { userId },
+      update: {
+        ...(phone && { phone: String(phone).trim() }),
+        ...(emergencyContact !== undefined && { emergencyContact: String(emergencyContact).trim() })
+      },
+      create: {
+        userId,
+        employeeCode: 'SALES-' + String(userId).slice(-4).toUpperCase(),
+        designation: 'Field Sales Executive',
+        assignedZones: ['Chennai North', 'Chennai South'],
+        monthlyTarget: 100000,
+        monthlyVisitsTarget: 120,
+        dailyVisitsTarget: 6,
+        activeBeatRoute: 'Main Market Beat',
+        ...(phone && { phone: String(phone).trim() }),
+        ...(emergencyContact && { emergencyContact: String(emergencyContact).trim() })
+      }
+    });
 
-    res.json({ success: true, message: 'Profile updated successfully', data: profile });
+    res.json({
+      success: true,
+      message: 'Profile updated successfully',
+      data: { ...profile, user: updatedUser }
+    });
   } catch (error) {
     next(error);
   }
@@ -822,6 +842,10 @@ exports.changePassword = async (req, res, next) => {
 
     if (!currentPassword || !newPassword) {
       return res.status(400).json({ success: false, message: 'Current and new password are required' });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ success: false, message: 'New password must be at least 6 characters long' });
     }
 
     const bcrypt = require('bcryptjs');
