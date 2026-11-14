@@ -53,7 +53,6 @@ const fieldModules = [
 ];
 
 const ecomModules = [
-  { name: 'E-Com Products', path: '/admin/ecom/products',  icon: Package,       color: '#2563eb', bg: '#eff6ff', desc: 'Website product listings' },
   { name: 'Website Orders', path: '/admin/ecom/orders',    icon: ShoppingCart,  color: '#059669', bg: '#ecfdf5', desc: 'Online customer orders' },
   { name: 'Customers',      path: '/admin/ecom/customers', icon: Users,         color: '#7c3aed', bg: '#faf5ff', desc: 'B2C customer database' },
   { name: 'Combos',         path: '/admin/ecom/combos',    icon: PackageSearch, color: '#dc2626', bg: '#fef2f2', desc: 'Product bundle deals' },
