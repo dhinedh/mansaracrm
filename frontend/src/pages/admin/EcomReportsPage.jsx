@@ -1,21 +1,12 @@
 // src/pages/admin/EcomReportsPage.jsx
-// E-Commerce Sales Reports — connects to mansara-nourish-hub backend
+// E-Commerce Sales Reports — connects to mansara-nourish-hub backend & CRM ecom module
 import React, { useEffect, useState } from 'react';
+import axios from 'axios';
 import {
   BarChart3, Download, RefreshCw, TrendingUp,
   ShoppingCart, Users, IndianRupee, Package,
   Calendar, Filter, AlertTriangle
 } from 'lucide-react';
-
-const getEcomApiUrl = () => {
-  const envUrl = import.meta.env.VITE_ECOM_API_URL || import.meta.env.VITE_API_URL;
-  if (envUrl) return envUrl;
-  const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-  return isLocal ? 'http://localhost:5000/api' : 'https://api.mansarafoods.com/api';
-};
-
-const ECOM_API = getEcomApiUrl();
-const getEcomToken = () => localStorage.getItem('mansara_token') || localStorage.getItem('mansara-token') || '';
 
 const downloadCsv = (headers, rows, fileName) => {
   let csv = 'data:text/csv;charset=utf-8,' + headers.join(',') + '\n';
@@ -43,21 +34,19 @@ export default function EcomReportsPage() {
   const fetchAll = async () => {
     setLoading(true);
     try {
-      const h = { Authorization: `Bearer ${getEcomToken()}` };
-
       const [statsRes, ordersRes, prodRes, custRes, salesRes] = await Promise.all([
-        fetch(`${ECOM_API}/stats`, { headers: h }),
-        fetch(`${ECOM_API}/orders?limit=200`, { headers: h }),
-        fetch(`${ECOM_API}/stats/products?limit=10`, { headers: h }),
-        fetch(`${ECOM_API}/stats/customers?limit=10`, { headers: h }),
-        fetch(`${ECOM_API}/stats/sales?period=${timeRange}days`, { headers: h }),
+        axios.get('/stats').catch(() => ({ data: {} })),
+        axios.get('/orders?limit=200').catch(() => axios.get('/ecom/orders').catch(() => ({ data: { orders: [] } }))),
+        axios.get('/stats/products?limit=10').catch(() => ({ data: [] })),
+        axios.get('/stats/customers?limit=10').catch(() => ({ data: [] })),
+        axios.get(`/stats/sales?period=${timeRange}days`).catch(() => ({ data: [] })),
       ]);
 
-      const statsData = await statsRes.json();
-      const ordersData = await ordersRes.json();
-      const prodData = await prodRes.json();
-      const custData = await custRes.json();
-      const salesD = await salesRes.json();
+      const statsData = statsRes.data || {};
+      const ordersData = ordersRes.data || {};
+      const prodData = prodRes.data || [];
+      const custData = custRes.data || [];
+      const salesD = salesRes.data || [];
 
       setStats({
         totalRevenue: statsData.totalRevenue || 0,
@@ -65,10 +54,10 @@ export default function EcomReportsPage() {
         avgOrderValue: statsData.totalOrders > 0 ? Math.round(statsData.totalRevenue / statsData.totalOrders) : 0,
         totalCustomers: statsData.totalCustomers || 0,
       });
-      setOrders(ordersData.orders || ordersData.data || []);
-      setTopProducts(prodData || []);
-      setTopCustomers(custData || []);
-      setSalesData(salesD || []);
+      setOrders(ordersData.orders || ordersData.data || (Array.isArray(ordersData) ? ordersData : []));
+      setTopProducts(Array.isArray(prodData) ? prodData : []);
+      setTopCustomers(Array.isArray(custData) ? custData : []);
+      setSalesData(Array.isArray(salesD) ? salesD : []);
     } catch (err) {
       console.error('EcomReports fetch error:', err);
     } finally {

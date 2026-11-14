@@ -1,6 +1,7 @@
 // src/pages/admin/EcomAnalyticsPage.jsx
-// E-Commerce Analytics Dashboard — connects to mansara-nourish-hub backend
+// E-Commerce Analytics Dashboard — connects to mansara-nourish-hub backend & CRM ecom module
 import React, { useEffect, useState } from 'react';
+import axios from 'axios';
 import {
   TrendingUp, Users, ShoppingCart, IndianRupee, Package,
   RefreshCw, Calendar, AlertTriangle, Star, Clock, Zap
@@ -101,21 +102,15 @@ export default function EcomAnalyticsPage() {
     setLoading(true);
     setError('');
     try {
-      const h = { Authorization: `Bearer ${getEcomToken()}` };
-      const safe = async (url) => {
-        try { const r = await fetch(url, { headers: h }); return r.ok ? await r.json() : null; }
-        catch { return null; }
-      };
-
       const [statsD, salesD, prodD, catD, payD, stockD, inactiveD, slowD] = await Promise.all([
-        safe(`${ECOM_API}/stats`),
-        safe(`${ECOM_API}/stats/sales?period=${timeRange}days`),
-        safe(`${ECOM_API}/stats/products?limit=5`),
-        safe(`${ECOM_API}/stats/categories`),
-        safe(`${ECOM_API}/stats/payment-methods`),
-        safe(`${ECOM_API}/stats/stock-health`),
-        safe(`${ECOM_API}/stats/insights/inactive-customers`),
-        safe(`${ECOM_API}/stats/insights/slow-moving`),
+        axios.get('/stats').then(r => r.data).catch(() => null),
+        axios.get(`/stats/sales?period=${timeRange}days`).then(r => r.data).catch(() => []),
+        axios.get('/stats/products?limit=5').then(r => r.data).catch(() => []),
+        axios.get('/stats/categories').then(r => r.data).catch(() => []),
+        axios.get('/stats/payment-methods').then(r => r.data).catch(() => []),
+        axios.get('/stats/stock-health').then(r => r.data).catch(() => ({ inStock: 0, lowStock: 0, outOfStock: 0 })),
+        axios.get('/stats/insights/inactive-customers').then(r => r.data).catch(() => []),
+        axios.get('/stats/insights/slow-moving').then(r => r.data).catch(() => []),
       ]);
 
       if (statsD) setStats({
@@ -124,15 +119,16 @@ export default function EcomAnalyticsPage() {
         avgOrderValue: statsD.totalOrders > 0 ? Math.round(statsD.totalRevenue / statsD.totalOrders) : 0,
         totalCustomers: statsD.totalCustomers || 0,
       });
-      setSalesData(salesD || []);
-      setTopProducts(prodD || []);
-      setCategoryData(catD || []);
-      setPaymentData(payD || []);
+      setSalesData(Array.isArray(salesD) ? salesD : []);
+      setTopProducts(Array.isArray(prodD) ? prodD : []);
+      setCategoryData(Array.isArray(catD) ? catD : []);
+      setPaymentData(Array.isArray(payD) ? payD : []);
       setStockData(stockD || { inStock: 0, lowStock: 0, outOfStock: 0 });
-      setInactiveCustomers(inactiveD || []);
-      setSlowMoving(slowD || []);
+      setInactiveCustomers(Array.isArray(inactiveD) ? inactiveD : []);
+      setSlowMoving(Array.isArray(slowD) ? slowD : []);
     } catch (err) {
-      setError('Could not connect to e-commerce backend.');
+      console.error('Failed to load e-commerce analytics:', err);
+      setError('Could not connect to e-commerce statistics service.');
     } finally {
       setLoading(false);
     }
