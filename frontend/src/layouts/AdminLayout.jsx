@@ -62,7 +62,6 @@ const getOverviewMenuItems = (unreadNotifications) => [
 
 const getEcomMenuItems = () => [
   { name: 'Website Orders',     path: '/admin/ecom/orders',     icon: ShoppingCart,  isEcom: true, allowedStaffRoles: ['ADMIN', 'ECOM_MANAGER'] },
-  { name: 'E-Com Products',    path: '/admin/ecom/products',   icon: ShoppingBag,   isEcom: true, allowedStaffRoles: ['ADMIN', 'ECOM_MANAGER'] },
   { name: 'Online Customers',  path: '/admin/ecom/customers',  icon: Users,         isEcom: true, allowedStaffRoles: ['ADMIN', 'ECOM_MANAGER'] },
   { name: 'Combos & Offers',   path: '/admin/ecom/combos',     icon: Boxes,         isEcom: true, allowedStaffRoles: ['ADMIN', 'ECOM_MANAGER'] },
   { name: 'Hero Banners',      path: '/admin/ecom/banners',    icon: Image,         isEcom: true, allowedStaffRoles: ['ADMIN', 'ECOM_MANAGER'] },
