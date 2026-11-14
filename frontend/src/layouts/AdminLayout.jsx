@@ -60,6 +60,19 @@ const getOverviewMenuItems = (unreadNotifications) => [
   },
 ];
 
+const getEcomMenuItems = () => [
+  { name: 'Website Orders',     path: '/admin/ecom/orders',     icon: ShoppingCart,  isEcom: true, allowedStaffRoles: ['ADMIN', 'ECOM_MANAGER'] },
+  { name: 'E-Com Products',    path: '/admin/ecom/products',   icon: ShoppingBag,   isEcom: true, allowedStaffRoles: ['ADMIN', 'ECOM_MANAGER'] },
+  { name: 'Online Customers',  path: '/admin/ecom/customers',  icon: Users,         isEcom: true, allowedStaffRoles: ['ADMIN', 'ECOM_MANAGER'] },
+  { name: 'Combos & Offers',   path: '/admin/ecom/combos',     icon: Boxes,         isEcom: true, allowedStaffRoles: ['ADMIN', 'ECOM_MANAGER'] },
+  { name: 'Hero Banners',      path: '/admin/ecom/banners',    icon: Image,         isEcom: true, allowedStaffRoles: ['ADMIN', 'ECOM_MANAGER'] },
+  { name: 'Customer Reviews',  path: '/admin/ecom/reviews',    icon: MessageSquare, isEcom: true, allowedStaffRoles: ['ADMIN', 'ECOM_MANAGER'] },
+  { name: 'Web Content',       path: '/admin/ecom/content',    icon: FileText,      isEcom: true, allowedStaffRoles: ['ADMIN', 'ECOM_MANAGER'] },
+  { name: 'Ecom Reports',      path: '/admin/ecom/reports',    icon: BarChart3,     isEcom: true, allowedStaffRoles: ['ADMIN', 'ECOM_MANAGER'] },
+  { name: 'Ecom Analytics',    path: '/admin/ecom/analytics',  icon: TrendingUp,    isEcom: true, allowedStaffRoles: ['ADMIN', 'ECOM_MANAGER'] },
+  { name: 'Store Settings',    path: '/admin/ecom/settings',   icon: Settings,      isEcom: true, allowedStaffRoles: ['ADMIN', 'ECOM_MANAGER'] },
+];
+
 const getRndMenuItems = () => [
   { name: 'R&D',                   path: '/admin/rnd',                 icon: Microscope, allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'] },
   { name: 'Raw Material Category', path: '/admin/raw-material-categories', icon: Layers, allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'] },
@@ -168,6 +181,7 @@ const getSystemMenuItems = () => [
 
 const getAllMenuItems = (unreadNotifications, licensing = { enableB2cStall: true, enableFieldSales: true }) => [
   ...getOverviewMenuItems(unreadNotifications),
+  ...getEcomMenuItems(),
   ...getRndMenuItems(),
   ...getInventoryMenuItems(),
   ...getVendorMenuItems(),
@@ -230,6 +244,11 @@ function NavLinkEcom({ item, onLinkClick }) {
         <Icon className={`w-4 h-4 flex-shrink-0 ${isActive ? 'text-blue-600' : 'text-slate-400'}`} />
         <span>{item.name}</span>
       </div>
+      {item.badge > 0 && (
+        <span className="bg-blue-600 text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold">
+          {item.badge}
+        </span>
+      )}
     </Link>
   );
 }
@@ -303,6 +322,7 @@ function SidebarNav({ submenusOpen, toggleSubmenu, onLinkClick, unreadNotificati
   const [navSearch, setNavSearch] = useState('');
 
   const overviewItems = getOverviewMenuItems(unreadNotifications);
+  const ecomItems = getEcomMenuItems();
   const rndItems = getRndMenuItems();
   const inventoryItems = getInventoryMenuItems();
   const stockItems = getStockMenuItems();
@@ -316,6 +336,7 @@ function SidebarNav({ submenusOpen, toggleSubmenu, onLinkClick, unreadNotificati
 
   const sections = [
     { label: 'Overview', items: overviewItems, color: 'slate' },
+    { label: 'E-Commerce (Online Store)', items: ecomItems, color: 'blue' },
     { label: 'R&D Department', items: rndItems, color: 'rose' },
     { label: 'Inventory', items: inventoryItems, color: 'slate' },
     { label: 'Vendor & Procurement', items: vendorItems, color: 'slate' },
@@ -360,6 +381,7 @@ function SidebarNav({ submenusOpen, toggleSubmenu, onLinkClick, unreadNotificati
 
   const renderNavSection = (label, items, color = 'slate') => {
     if (!items || items.length === 0) return null;
+    const isEcom = (color === 'blue' && label.toLowerCase().includes('e-commerce')) || false;
     return (
       <div key={label} className="space-y-0.5">
         <SectionLabel label={label} color={color} />
@@ -373,6 +395,8 @@ function SidebarNav({ submenusOpen, toggleSubmenu, onLinkClick, unreadNotificati
               onLinkClick={onLinkClick}
               forceOpen={Boolean(query)}
             />
+          ) : isEcom || item.isEcom ? (
+            <NavLinkEcom key={item.name} item={item} onLinkClick={onLinkClick} />
           ) : (
             <NavLink key={item.name} item={item} onLinkClick={onLinkClick} />
           )
