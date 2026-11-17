@@ -1880,16 +1880,53 @@ exports.issueFieldBill = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'No items or unbilled orders found to generate bill' });
     }
 
-    // Calculate subtotal, gst, grand total
-    let subtotal = 0;
+    // Calculate according to MRP-inclusive calculation logic:
+    // 1. MRP is always considered GST-inclusive
+    // 2. Margin amount = MRP * (marginPct / 100)
+    // 3. Final Selling Price = MRP - Margin Amount
+    // Rate Exclude Tax = Final Selling Price / (1 + GST% / 100)
+    // GST Amount = Final Selling Price - Rate Exclude Tax
+    let taxableSubtotal = 0;
+    let totalGst = 0;
+    let grandTotal = 0;
+    const processedBillingItems = [];
+
     for (const bit of billingItems) {
       const q = Number(bit.quantity) || 1;
-      const p = Number(bit.unitPrice || bit.price) || 0;
-      subtotal += (q * p);
+      const mrp = Number(bit.mrp || bit.unitPrice || bit.price) || 0;
+      const marginPct = Number(bit.marginPct) || 0;
+      const marginDiscount = mrp * (marginPct / 100);
+      const finalSellingPrice = (bit.unitPrice !== undefined && bit.mrp && bit.unitPrice !== bit.mrp)
+        ? Number(bit.unitPrice)
+        : Math.max(0, mrp - marginDiscount);
+      const gstPct = 5;
+      const rateExcludeTax = finalSellingPrice / (1 + gstPct / 100);
+      const unitGst = finalSellingPrice - rateExcludeTax;
+
+      const lineTotal = Math.round((finalSellingPrice * q) * 100) / 100;
+      const lineTaxable = Math.round((rateExcludeTax * q) * 100) / 100;
+      const lineGst = Math.round((lineTotal - lineTaxable) * 100) / 100;
+
+      taxableSubtotal += lineTaxable;
+      totalGst += lineGst;
+      grandTotal += lineTotal;
+
+      processedBillingItems.push({
+        ...bit,
+        quantity: q,
+        mrp,
+        marginPct,
+        finalSellingPrice,
+        rateExcludeTax: Math.round(rateExcludeTax * 100) / 100,
+        gstPercent: gstPct,
+        gstAmount: lineGst,
+        lineTotal
+      });
     }
 
-    const totalGst = Math.round(subtotal * 0.05 * 100) / 100;
-    const grandTotal = Math.round((subtotal + totalGst) * 100) / 100;
+    taxableSubtotal = Math.round(taxableSubtotal * 100) / 100;
+    totalGst = Math.round(totalGst * 100) / 100;
+    grandTotal = Math.round(grandTotal * 100) / 100;
 
     const invoiceNo = 'INV-FS-' + Date.now().toString().slice(-6);
     const isCredit = paymentMethod === 'CREDIT';
@@ -1914,7 +1951,7 @@ exports.issueFieldBill = async (req, res, next) => {
       customerName: store.name,
       customerPhone: store.phone,
       customerAddress: store.address,
-      subtotal,
+      subtotal: taxableSubtotal,
       totalGst,
       cgst: totalGst / 2,
       sgst: totalGst / 2,
@@ -1928,17 +1965,17 @@ exports.issueFieldBill = async (req, res, next) => {
     });
 
     // Create InvoiceItems
-    for (const bit of billingItems) {
+    for (const bit of processedBillingItems) {
       await InvoiceItemModel.create({
         invoiceId: invoice._id,
         productId: (bit.productId && mongoose.Types.ObjectId.isValid(bit.productId)) ? bit.productId : undefined,
-        quantity: Number(bit.quantity) || 1,
-        unitPrice: Number(bit.unitPrice || bit.price) || 0,
-        sellingPrice: Number(bit.unitPrice || bit.price) || 0,
-        marginPct: Number(bit.marginPct || 0),
-        gstPercent: 5,
-        gstAmount: Math.round(((Number(bit.quantity) || 1) * (Number(bit.unitPrice || bit.price) || 0) * 0.05) * 100) / 100,
-        lineTotal: Math.round(((Number(bit.quantity) || 1) * (Number(bit.unitPrice || bit.price) || 0) * 1.05) * 100) / 100
+        quantity: bit.quantity,
+        unitPrice: bit.mrp,
+        sellingPrice: bit.finalSellingPrice,
+        marginPct: bit.marginPct,
+        gstPercent: bit.gstPercent,
+        gstAmount: bit.gstAmount,
+        lineTotal: bit.lineTotal
       });
     }
 

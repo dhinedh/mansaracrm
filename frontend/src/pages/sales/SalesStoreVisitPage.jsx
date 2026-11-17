@@ -3177,18 +3177,41 @@ export default function SalesStoreVisitPage() {
 
             <div className="p-4 sm:p-5 overflow-y-auto space-y-4 text-xs">
               <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 space-y-2">
-                <span className="text-[10px] uppercase font-bold text-slate-500 block">Bill Item Summary</span>
-                {orderCart.map((i, idx) => (
-                  <div key={idx} className="flex items-center justify-between text-xs">
-                    <span className="text-slate-800 font-medium">
-                      {i.productName} <strong className="text-slate-900">× {i.quantity}</strong>
-                    </span>
-                    <span className="font-mono font-bold text-slate-900">₹{i.lineTotal.toFixed(2)}</span>
+                <span className="text-[10px] uppercase font-bold text-slate-500 block">Bill Item Summary (GST-Inclusive MRP)</span>
+                {orderCart.map((i, idx) => {
+                  const mrp = Number(i.mrp || i.price || 0);
+                  const marginPct = Number(i.marginPct || 0);
+                  const finalSellingPrice = Number(i.price || (mrp - (mrp * marginPct / 100)));
+                  const rateExcludeTax = finalSellingPrice / 1.05;
+                  const unitGst = finalSellingPrice - rateExcludeTax;
+                  return (
+                    <div key={idx} className="space-y-0.5 border-b border-slate-100 pb-1.5 last:border-b-0 last:pb-0">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-slate-800 font-medium">
+                          {i.productName} <strong className="text-slate-900">&times; {i.quantity}</strong>
+                        </span>
+                        <span className="font-mono font-bold text-slate-900">&#8377;{i.lineTotal.toFixed(2)}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-[10px] text-slate-500">
+                        <span>Rate: &#8377;{finalSellingPrice.toFixed(2)} (Excl. Tax: &#8377;{rateExcludeTax.toFixed(2)} + GST: &#8377;{unitGst.toFixed(2)})</span>
+                        {marginPct > 0 && <span className="text-amber-700 font-bold">{marginPct}% margin</span>}
+                      </div>
+                    </div>
+                  );
+                })}
+                <div className="pt-2 border-t border-slate-200 space-y-1">
+                  <div className="flex items-center justify-between text-[11px] text-slate-600">
+                    <span>Taxable Base (Rate Excl. Tax):</span>
+                    <span className="font-mono font-medium">&#8377;{(cartTotal / 1.05).toFixed(2)}</span>
                   </div>
-                ))}
-                <div className="pt-2 border-t border-slate-200 flex items-center justify-between font-black text-sm text-slate-900">
-                  <span>Grand Total</span>
-                  <span className="font-mono text-emerald-700">₹{cartTotal.toFixed(2)}</span>
+                  <div className="flex items-center justify-between text-[11px] text-slate-600">
+                    <span>GST (5% Included):</span>
+                    <span className="font-mono font-medium">&#8377;{(cartTotal - (cartTotal / 1.05)).toFixed(2)}</span>
+                  </div>
+                  <div className="flex items-center justify-between font-black text-sm text-slate-900 pt-1 border-t border-slate-200">
+                    <span>Grand Total (Payable):</span>
+                    <span className="font-mono text-emerald-700">&#8377;{cartTotal.toFixed(2)}</span>
+                  </div>
                 </div>
               </div>
 

@@ -74,6 +74,7 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
 
   // ─── TAXATION (WITH / WITHOUT GST) & FREIGHT ────────────────────────────────
   const [gstMode, setGstMode] = useState('WITH_GST'); // 'WITH_GST' | 'WITHOUT_GST'
+  const [rateMode, setRateMode] = useState('INCLUDE_TAX'); // 'INCLUDE_TAX' (Rate Include Tax) | 'EXCLUDE_TAX' (Rate Exclude Tax)
   const [gstRate, setGstRate] = useState(5); // Default 5% GST for food items
   const [shippingCharges, setShippingCharges] = useState(0);
 
@@ -636,13 +637,25 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
     }
   };
 
-  // ─── CALCULATION ENGINE: MRP - (MRP * MARGIN% / 100) ────────────────────────
+  // ─── CALCULATION ENGINE: MRP, MARGIN & GST CALCULATION LOGIC ────────────────
+  // 1. MRP is always considered GST-inclusive
+  // 2. Margin amount based on MRP: MRP * (marginPct / 100)
+  // 3. Final Selling Price = MRP - Margin Amount
+  // Rate Include Tax: Display final selling price directly (no GST deduction from displayed rate)
+  // Rate Exclude Tax = Final Selling Price / (1 + GST Percentage / 100)
+  // GST Amount = Final Selling Price - Rate Exclude Tax
+  // Important: Both rate modes represent the same final selling price!
   const calculationSummary = useMemo(() => {
     let totalPieces = 0;
     let totalCartons = 0;
     let totalMrpValue = 0;
-    let totalWholesaleRevenue = 0;
+    let totalFinalSellingRevenue = 0;
+    let totalTaxableRevenue = 0;
     let totalMarginDiscount = 0;
+    let totalGstAmount = 0;
+
+    const isWithGst = gstMode === 'WITH_GST';
+    const currentGstRate = isWithGst ? Math.max(0, parseFloat(gstRate) || 0) : 0;
 
     const items = simulationItems.map(item => {
       const pacSize = Math.max(1, parseInt(item.cartonSize, 10) || 24);
@@ -651,23 +664,47 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
       const pieces = isBulkCarton ? rawQty * pacSize : rawQty;
       const cartons = isBulkCarton ? rawQty : parseFloat((pieces / pacSize).toFixed(2));
 
+      // 1. MRP is always considered GST-inclusive
       const mrp = Math.max(0, parseFloat(item.mrp) || 0);
       const marginPct = Math.max(0, Math.min(99, parseFloat(item.marginPct) || 0));
+      const itemGstPct = isWithGst ? (parseFloat(item.gstPercent) || currentGstRate || 5) : 0;
 
-      // Actual user calculation: Reduce margin percentage from MRP
+      // 2. Calculate the margin amount based on the MRP
       const marginDiscountPerUnit = Math.round((mrp * (marginPct / 100)) * 100) / 100;
-      const wholesalePricePerUnit = Math.max(0, Math.round((mrp - marginDiscountPerUnit) * 100) / 100);
-      const cartonPrice = Math.round((wholesalePricePerUnit * pacSize) * 100) / 100;
 
+      // 3. Subtract the margin amount from MRP to get the final selling price
+      const finalSellingPrice = Math.max(0, Math.round((mrp - marginDiscountPerUnit) * 100) / 100);
+
+      // Rate Exclude Tax = Final Selling Price / (1 + GST Percentage / 100)
+      const rateExcludeTax = itemGstPct > 0
+        ? Math.round((finalSellingPrice / (1 + itemGstPct / 100)) * 10000) / 10000
+        : finalSellingPrice;
+
+      // GST Amount = Final Selling Price - Rate Exclude Tax
+      const unitGstAmount = Math.max(0, Math.round((finalSellingPrice - rateExcludeTax) * 10000) / 10000);
+
+      // Displayed rate according to selected Rate Mode:
+      // Rate Include Tax: Display final selling price directly. Do not deduct GST from displayed rate.
+      // Rate Exclude Tax: Display rateExcludeTax
+      const displayedRate = rateMode === 'EXCLUDE_TAX'
+        ? Math.round(rateExcludeTax * 100) / 100
+        : finalSellingPrice;
+      const cartonPrice = Math.round((displayedRate * pacSize) * 100) / 100;
+
+      // Line totals: Both rate modes represent the same final selling price!
       const lineMrpValue = Math.round((mrp * pieces) * 100) / 100;
-      const lineWholesaleTotal = Math.round((wholesalePricePerUnit * pieces) * 100) / 100;
       const lineMarginDiscountTotal = Math.round((marginDiscountPerUnit * pieces) * 100) / 100;
+      const lineFinalSellingTotal = Math.round((finalSellingPrice * pieces) * 100) / 100;
+      const lineTaxableSubtotal = Math.round((rateExcludeTax * pieces) * 100) / 100;
+      const lineGstTotal = Math.round((lineFinalSellingTotal - lineTaxableSubtotal) * 100) / 100;
 
       totalPieces += pieces;
       totalCartons += cartons;
       totalMrpValue += lineMrpValue;
-      totalWholesaleRevenue += lineWholesaleTotal;
       totalMarginDiscount += lineMarginDiscountTotal;
+      totalFinalSellingRevenue += lineFinalSellingTotal;
+      totalTaxableRevenue += lineTaxableSubtotal;
+      totalGstAmount += lineGstTotal;
 
       return {
         ...item,
@@ -677,31 +714,27 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
         mrp,
         marginPct,
         marginDiscountPerUnit,
-        wholesalePricePerUnit,
+        finalSellingPrice,
+        rateExcludeTax,
+        unitGstAmount,
+        displayedRate,
+        wholesalePricePerUnit: displayedRate,
         cartonPrice,
         lineMrpValue,
-        lineWholesaleTotal,
-        lineMarginDiscountTotal
+        lineWholesaleTotal: lineFinalSellingTotal,
+        lineFinalSellingTotal,
+        lineTaxableSubtotal,
+        lineGstTotal,
+        lineMarginDiscountTotal,
+        gstPercent: itemGstPct
       };
     });
 
     const averageMarginPct = totalMrpValue > 0 ? Math.round((totalMarginDiscount / totalMrpValue) * 1000) / 10 : 0;
-    
-    // 1. Total MRP: totalMrpValue
-    // 2. Margin: totalMarginDiscount
-    // 3. Sub(total) without GST: subtotalWithoutGst
-    const subtotalWithoutGst = Math.max(0, Math.round(totalWholesaleRevenue * 100) / 100);
-    
-    // 4. GST Percentage: gstRate & totalGstAmount
-    const isWithGst = gstMode === 'WITH_GST';
-    const currentGstRate = isWithGst ? Math.max(0, parseFloat(gstRate) || 0) : 0;
-    const totalGstAmount = isWithGst ? Math.round((subtotalWithoutGst * (currentGstRate / 100)) * 100) / 100 : 0;
-    
-    // 5. Shipping Charges: parsedShipping
+    const subtotalWithoutGst = Math.round(totalTaxableRevenue * 100) / 100; // Taxable Subtotal
     const parsedShipping = Math.max(0, parseFloat(shippingCharges) || 0);
-    
-    // 6. Grand Total: grandTotal
-    const grandTotal = Math.round((subtotalWithoutGst + totalGstAmount + parsedShipping) * 100) / 100;
+    // Grand Total: both modes represent the exact same final selling price
+    const grandTotal = Math.round((totalFinalSellingRevenue + parsedShipping) * 100) / 100;
 
     return {
       totalPieces,
@@ -710,16 +743,19 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
       totalMarginDiscount: Math.round(totalMarginDiscount * 100) / 100,
       averageMarginPct,
       subtotalWithoutGst,
+      subtotalTaxable: subtotalWithoutGst,
       isWithGst,
       gstMode,
+      rateMode,
       gstRate: currentGstRate,
-      totalGstAmount,
+      totalGstAmount: Math.round(totalGstAmount * 100) / 100,
       shippingCharges: parsedShipping,
       grandTotal,
-      totalWholesaleRevenue: Math.round(totalWholesaleRevenue * 100) / 100,
+      totalWholesaleRevenue: Math.round(totalFinalSellingRevenue * 100) / 100,
+      totalFinalSellingRevenue: Math.round(totalFinalSellingRevenue * 100) / 100,
       items
     };
-  }, [simulationItems, gstMode, gstRate, shippingCharges]);
+  }, [simulationItems, gstMode, gstRate, rateMode, shippingCharges]);
 
   // ─── STEP 8: EXCEL EXPORT ───────────────────────────────────────────────────
   const handleExportExcel = () => {
@@ -741,11 +777,15 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
       'Catalog MRP (₹)',
       'Margin Percentage (%)',
       'Margin Discount / Unit (₹)',
-      'Wholesale Price / Unit (₹)',
+      'Final Selling Price (₹)',
+      'Rate Excl. Tax (₹)',
+      `Displayed Rate [${rateMode === 'EXCLUDE_TAX' ? 'Excl. Tax' : 'Incl. Tax'}] (₹)`,
+      'GST %',
+      'GST Amount / Unit (₹)',
       'Wholesale Carton Price (₹)',
       'Total MRP Value (₹)',
       'Total Margin Discount (₹)',
-      'Total Wholesale Amount (₹)'
+      'Line Total Amount (₹)'
     ];
 
     const rows = items.map(item => [
@@ -759,11 +799,15 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
       item.mrp.toFixed(2),
       item.marginPct + '%',
       item.marginDiscountPerUnit.toFixed(2),
-      item.wholesalePricePerUnit.toFixed(2),
+      item.finalSellingPrice.toFixed(2),
+      item.rateExcludeTax.toFixed(2),
+      item.displayedRate.toFixed(2),
+      (item.gstPercent || 0) + '%',
+      item.unitGstAmount.toFixed(2),
       item.cartonPrice.toFixed(2),
       item.lineMrpValue.toFixed(2),
       item.lineMarginDiscountTotal.toFixed(2),
-      item.lineWholesaleTotal.toFixed(2)
+      item.lineFinalSellingTotal.toFixed(2)
     ]);
 
     const activeCustomerName = selectedCustomer?.companyName || selectedCustomer?.name || customClientName || 'Valued Trade Partner';
@@ -771,13 +815,14 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
 
     const summaryRows = [
       [],
-      ['--- CUSTOMER & CONSIGNMENT SUMMARY ---', '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
+      ['--- CUSTOMER & CONSIGNMENT SUMMARY ---', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
       ['Customer / Partner', `${activeCustomerName}${activeCustomerType}`],
+      ['Rate Mode', rateMode === 'EXCLUDE_TAX' ? 'Rate Exclude Tax' : 'Rate Include Tax'],
       ['Total Order Units', totalPieces],
       ['Total Cartons Count', totalCartons],
       ['1. Total MRP (₹)', totalMrpValue.toFixed(2)],
       ['2. Margin (₹)', `-${totalMarginDiscount.toFixed(2)} (${averageMarginPct}%)`],
-      ['3. Sub(total) without GST (₹)', subtotalWithoutGst.toFixed(2)],
+      ['3. Taxable Subtotal (Rate Excl. Tax) (₹)', subtotalWithoutGst.toFixed(2)],
       ['4. GST Status & Amount (₹)', isWithGst ? `${currentGstRate}% (+₹${totalGstAmount.toFixed(2)})` : 'Without GST (₹0.00)'],
       ['5. Shipping Charges (₹)', currentShipping.toFixed(2)],
       ['6. Grand Total (₹)', grandTotal.toFixed(2)]
@@ -844,17 +889,19 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
       `Customer / Client: ${activeCustomerName}${selectedCustomer?.type ? ` [${selectedCustomer.type}]` : ''}`,
       selectedCustomer?.phone ? `Contact: ${selectedCustomer.phone}` : '',
       selectedCustomer?.gstNumber ? `GSTIN: ${selectedCustomer.gstNumber}` : '',
+      `Rate Mode: ${rateMode === 'EXCLUDE_TAX' ? 'Rate Exclude Tax' : 'Rate Include Tax'}`,
       '----------------------------------------------------',
       ...calculationSummary.items.map(
-        i => `${i.name} (Qty: ${i.pieces.toLocaleString()} pcs / ${i.cartons} ctn) | MRP: ₹${i.mrp.toFixed(2)} | Margin: ${i.marginPct}% | Wholesale Rate: ₹${i.wholesalePricePerUnit.toFixed(2)}/pc = ₹${i.lineWholesaleTotal.toLocaleString('en-IN')}`
+        i => `${i.name} (Qty: ${i.pieces.toLocaleString()} pcs / ${i.cartons} ctn) | MRP: ₹${i.mrp.toFixed(2)} | Margin: ${i.marginPct}% | ${rateMode === 'EXCLUDE_TAX' ? 'Rate (Excl. Tax)' : 'Rate (Incl. Tax)'}: ₹${i.displayedRate.toFixed(2)}/pc = ₹${i.lineFinalSellingTotal.toLocaleString('en-IN')}`
       ),
       '----------------------------------------------------',
-      `1. Total MRP: ₹${calculationSummary.totalMrpValue.toLocaleString('en-IN')}`,
+      `1. Total MRP (GST-incl.): ₹${calculationSummary.totalMrpValue.toLocaleString('en-IN')}`,
       `2. Margin: -₹${calculationSummary.totalMarginDiscount.toLocaleString('en-IN')} (${calculationSummary.averageMarginPct}%)`,
-      `3. Sub(total) without GST: ₹${calculationSummary.subtotalWithoutGst.toLocaleString('en-IN')}`,
+      `Final Selling Price: ₹${calculationSummary.totalFinalSellingRevenue.toLocaleString('en-IN')}`,
+      `3. Taxable Subtotal (Rate Excl. Tax): ₹${calculationSummary.subtotalWithoutGst.toLocaleString('en-IN')}`,
       `4. GST: ${calculationSummary.isWithGst ? `${calculationSummary.gstRate}% (+₹${calculationSummary.totalGstAmount.toLocaleString('en-IN')})` : 'Without GST (0%)'}`,
       `5. Shipping Charges: ₹${calculationSummary.shippingCharges.toLocaleString('en-IN')}`,
-      `6. Grand Total: ₹${calculationSummary.grandTotal.toLocaleString('en-IN')}`,
+      `6. Grand Total (Payable): ₹${calculationSummary.grandTotal.toLocaleString('en-IN')}`,
       '===================================================='
     ].filter(Boolean).join('\n');
 
@@ -869,6 +916,7 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
     const resolvedRef = quotationRefNumber || formatInvoiceNumber(prefix, seqNum);
     return {
       calculationSummary,
+      rateMode,
       selectedCustomer,
       customClientName,
       companySettings,
@@ -903,6 +951,7 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
         customerPhone: selectedCustomer?.phone || '',
         customerAddress: selectedCustomer?.address || '',
         customerType: selectedCustomer?.type || 'PROSPECT',
+        rateMode: calculationSummary.rateMode,
         items: calculationSummary.items.map(it => ({
           productId: it.productId,
           productName: it.name,
@@ -910,10 +959,16 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
           pieces: it.pieces,
           cartons: it.cartons,
           mrp: it.mrp,
-          unitPrice: it.wholesalePricePerUnit,
+          marginPct: it.marginPct,
+          finalSellingPrice: it.finalSellingPrice,
+          rateExcludeTax: it.rateExcludeTax,
+          unitGstAmount: it.unitGstAmount,
+          displayedRate: it.displayedRate,
+          unitPrice: it.displayedRate,
           discountPercent: it.marginPct,
-          taxPercent: calculationSummary.gstRate,
-          totalPrice: it.lineWholesaleTotal
+          taxPercent: it.gstPercent || calculationSummary.gstRate,
+          taxAmount: it.lineGstTotal,
+          totalPrice: it.lineFinalSellingTotal
         })),
         rawItems: calculationSummary.items,
         subtotal: calculationSummary.subtotalWithoutGst,
@@ -1323,6 +1378,42 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
               <Calculator className="w-4 h-4 text-rose-600 shrink-0" />
               <span>Select Product &bull; Enter Qty &bull; Set Margin %</span>
             </h2>
+            <p className="text-[11px] text-slate-500 mt-0.5">
+              MRP is GST-inclusive. Margin is deducted from MRP to get Final Selling Price.
+            </p>
+          </div>
+
+          {/* Rate Mode Toggle Switcher */}
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[10px] font-black uppercase text-slate-500 tracking-wider">Rate Mode:</span>
+            <div className="inline-flex p-1 bg-slate-100 rounded-xl border border-slate-200 shadow-2xs">
+              <button
+                type="button"
+                onClick={() => setRateMode('INCLUDE_TAX')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer flex items-center gap-1.5 ${
+                  rateMode === 'INCLUDE_TAX'
+                    ? 'bg-rose-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+                title="Rate Include Tax: Display Final Selling Price directly. Do not deduct GST from displayed rate."
+              >
+                <span>Rate Include Tax</span>
+                {rateMode === 'INCLUDE_TAX' && <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />}
+              </button>
+              <button
+                type="button"
+                onClick={() => setRateMode('EXCLUDE_TAX')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer flex items-center gap-1.5 ${
+                  rateMode === 'EXCLUDE_TAX'
+                    ? 'bg-rose-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+                title="Rate Exclude Tax: Final Selling Price / (1 + GST% / 100)"
+              >
+                <span>Rate Exclude Tax</span>
+                {rateMode === 'EXCLUDE_TAX' && <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />}
+              </button>
+            </div>
           </div>
         </div>
 
@@ -1470,19 +1561,26 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
                 if (!prod) return null;
                 const mrp = parseFloat(prod.originalPrice || prod.mrp || prod.price || 0);
                 const discount = (mrp * (marginPctToAdd / 100));
-                const price = mrp - discount;
+                const finalSellingPrice = Math.max(0, mrp - discount);
+                const gstPct = parseFloat(prod.gstPercent || gstRate || 5);
+                const rateExcludeTax = gstPct > 0 ? (finalSellingPrice / (1 + gstPct / 100)) : finalSellingPrice;
+                const displayedRate = rateMode === 'EXCLUDE_TAX' ? rateExcludeTax : finalSellingPrice;
                 const pac = prod.cartonSize || 24;
 
                 return (
                   <>
-                    <span className="text-slate-600 flex items-center gap-1.5">
+                    <span className="text-slate-600 flex items-center gap-1.5 flex-wrap">
                       <Info className="w-3.5 h-3.5 text-blue-500 shrink-0" />
                       <span>
-                        Catalog MRP: <strong className="text-slate-900 font-extrabold">₹{mrp.toFixed(2)}</strong> &bull; Margin Discount: <strong className="text-rose-600 font-extrabold">{marginPctToAdd}% (-₹{discount.toFixed(2)})</strong>
+                        Catalog MRP (GST-incl.): <strong className="text-slate-900 font-extrabold">₹{mrp.toFixed(2)}</strong> &bull; Margin Discount: <strong className="text-rose-600 font-extrabold">{marginPctToAdd}% (-₹{discount.toFixed(2)})</strong>
                       </span>
                     </span>
                     <span className="text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-200 inline-block">
-                      Wholesale: <strong className="font-black text-xs sm:text-sm">₹{price.toFixed(2)} / pc</strong> <span className="text-[11px] font-medium text-emerald-600">(Carton: ₹{(price * pac).toFixed(2)})</span>
+                      {rateMode === 'EXCLUDE_TAX' ? 'Rate Excl. Tax: ' : 'Rate Incl. Tax (Selling): '}
+                      <strong className="font-black text-xs sm:text-sm">₹{displayedRate.toFixed(2)} / pc</strong>
+                      <span className="text-[11px] font-medium text-emerald-600 ml-1.5">
+                        ({rateMode === 'EXCLUDE_TAX' ? `Selling: ₹${finalSellingPrice.toFixed(2)} • ` : ''}Carton: ₹{(displayedRate * pac).toFixed(2)})
+                      </span>
                     </span>
                   </>
                 );
@@ -1504,7 +1602,9 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
               <tr>
                 <th className="py-2.5 px-2 sm:px-2.5">Description &bull; MRP &bull; Pack</th>
                 <th className="py-2.5 px-1 text-center bg-rose-50/50 text-rose-900">Quantity</th>
-                <th className="py-2.5 px-1 text-center bg-amber-50/50 text-amber-900">Margin / Price</th>
+                <th className="py-2.5 px-1 text-center bg-amber-50/50 text-amber-900">
+                  {rateMode === 'EXCLUDE_TAX' ? 'Margin / Rate (Excl)' : 'Margin / Rate (Incl)'}
+                </th>
                 <th className="py-2.5 px-2 text-right">Line Total</th>
               </tr>
             </thead>
@@ -1604,13 +1704,15 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
                           />
                           <span className="pr-1 text-[9px] font-black text-slate-400 shrink-0">%</span>
                         </div>
-                        {/* Calculated Wholesale Price */}
+                        {/* Calculated Rate */}
                         <span className="text-[11px] sm:text-xs font-black text-emerald-700 leading-tight">
-                          ₹{item.wholesalePricePerUnit.toFixed(2)}
-                          <span className="block text-[8px] text-slate-400 font-normal">/ pc</span>
+                          ₹{item.displayedRate.toFixed(2)}
+                          <span className="block text-[8px] text-slate-400 font-normal">
+                            {rateMode === 'EXCLUDE_TAX' ? 'excl. tax' : 'incl. tax'}
+                          </span>
                         </span>
                         <span className="text-[8px] text-rose-500 font-bold">
-                          -₹{item.marginDiscountPerUnit.toFixed(2)}
+                          -₹{item.marginDiscountPerUnit.toFixed(2)} ({item.marginPct}%)
                         </span>
                       </div>
                     </td>
@@ -1669,7 +1771,7 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
                 <th className="py-3 px-4 text-center bg-amber-50/50 text-amber-900">Margin %</th>
                 <th className="py-3 px-3 text-right">Margin Discount</th>
                 <th className="py-3 px-4 text-right bg-emerald-100/70 text-emerald-950 font-black">
-                  Final Wholesale Price
+                  {rateMode === 'EXCLUDE_TAX' ? 'Rate (Excl. Tax)' : 'Rate (Incl. Tax)'}
                 </th>
                 <th className="py-3 px-3 text-right">Carton Rate</th>
                 <th className="py-3 px-4 text-right">Line Total Amount</th>
@@ -1783,17 +1885,27 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
                       -₹{item.marginDiscountPerUnit.toFixed(2)}
                     </td>
 
-                    {/* Calculated Final Wholesale Price (MRP - Margin%) */}
+                    {/* Calculated Rate (Rate Include Tax or Rate Exclude Tax) */}
                     <td className="py-3.5 px-4 text-right bg-emerald-50/50">
                       <span className="text-sm font-black text-emerald-700">
-                        ₹{item.wholesalePricePerUnit.toFixed(2)}
+                        ₹{item.displayedRate.toFixed(2)}
                       </span>
-                      <span className="block text-[9px] text-slate-400">/ unit</span>
+                      <span className="block text-[9px] text-slate-500 font-semibold">
+                        {rateMode === 'EXCLUDE_TAX' ? 'excl. tax / unit' : 'incl. tax / unit'}
+                      </span>
+                      {rateMode === 'EXCLUDE_TAX' && (
+                        <span className="block text-[8px] text-slate-400 font-mono">
+                          (GST: ₹{item.unitGstAmount.toFixed(2)})
+                        </span>
+                      )}
                     </td>
 
                     {/* Carton Rate */}
                     <td className="py-3.5 px-3 text-right font-bold text-slate-800">
                       ₹{item.cartonPrice.toFixed(2)}
+                      <span className="block text-[8px] text-slate-400 font-normal">
+                        {rateMode === 'EXCLUDE_TAX' ? 'excl. tax' : 'incl. tax'}
+                      </span>
                     </td>
 
                     {/* Total Line Amount */}
@@ -1838,6 +1950,38 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
         <div className="bg-slate-50 border border-slate-200 rounded-xl sm:rounded-2xl p-3.5 sm:p-4 space-y-3">
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 sm:gap-4">
             <div className="flex flex-wrap items-center gap-3 sm:gap-4 w-full md:w-auto">
+              {/* Rate Mode Switcher */}
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <span className="text-[11px] sm:text-xs font-bold text-slate-700">Rate Mode:</span>
+                <div className="inline-flex p-0.5 bg-white rounded-lg border border-slate-300 shadow-2xs">
+                  <button
+                    type="button"
+                    onClick={() => setRateMode('INCLUDE_TAX')}
+                    className={`px-2.5 py-1 rounded-md text-[11px] font-black transition cursor-pointer ${
+                      rateMode === 'INCLUDE_TAX'
+                        ? 'bg-rose-600 text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                    title="Display Final Selling Price directly (no GST deduction from displayed rate)"
+                  >
+                    Rate Incl. Tax
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRateMode('EXCLUDE_TAX')}
+                    className={`px-2.5 py-1 rounded-md text-[11px] font-black transition cursor-pointer ${
+                      rateMode === 'EXCLUDE_TAX'
+                        ? 'bg-rose-600 text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                    title="Rate Excl. Tax = Final Selling Price / (1 + GST% / 100)"
+                  >
+                    Rate Excl. Tax
+                  </button>
+                </div>
+              </div>
+
+              {/* GST Rate */}
               <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 w-full sm:w-auto">
                 <span className="text-[11px] sm:text-xs font-bold text-slate-700">GST Rate:</span>
                 <div className="flex items-center gap-1">
@@ -2158,6 +2302,36 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
                   </div>
                 </div>
 
+                {/* Item Pricing Table Header with Rate Mode Switcher */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2 border-b border-slate-200">
+                  <span className="text-xs font-black uppercase text-slate-800 tracking-wider">
+                    Consignment Products ({calculationSummary.items.length} items &bull; {calculationSummary.totalPieces.toLocaleString()} pcs)
+                  </span>
+                  <div className="flex items-center gap-1.5 self-start sm:self-auto">
+                    <span className="text-[10px] font-black uppercase text-slate-400">Rate Mode:</span>
+                    <div className="inline-flex p-0.5 bg-slate-100 rounded-lg border border-slate-200 text-xs">
+                      <button
+                        type="button"
+                        onClick={() => setRateMode('INCLUDE_TAX')}
+                        className={`px-2 py-0.5 rounded text-[10px] font-black transition cursor-pointer ${
+                          rateMode === 'INCLUDE_TAX' ? 'bg-rose-600 text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        Rate Incl. Tax
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setRateMode('EXCLUDE_TAX')}
+                        className={`px-2 py-0.5 rounded text-[10px] font-black transition cursor-pointer ${
+                          rateMode === 'EXCLUDE_TAX' ? 'bg-rose-600 text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        Rate Excl. Tax
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
                 {/* Item Pricing Table: Responsive 4-col for Mobile (<1024px) & 6-col for Desktop (>=1024px) */}
                 <div>
                   {/* Mobile 4-Column Table (<1024px) */}
@@ -2172,7 +2346,9 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
                       <tr>
                         <th className="py-2.5 px-2 sm:px-2.5">Description &bull; MRP &bull; Pack</th>
                         <th className="py-2.5 px-1 sm:px-1.5 text-center">Order Qty</th>
-                        <th className="py-2.5 px-1 sm:px-1.5 text-center">Margin / Rate</th>
+                        <th className="py-2.5 px-1 sm:px-1.5 text-center">
+                          {rateMode === 'EXCLUDE_TAX' ? 'Rate (Excl. Tax)' : 'Rate (Incl. Tax)'}
+                        </th>
                         <th className="py-2.5 px-2 sm:px-2.5 text-right">Line Total</th>
                       </tr>
                     </thead>
@@ -2199,24 +2375,24 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
                             <span className="block text-[8px] sm:text-[9px] text-slate-400 font-medium mt-0.5">({item.cartons} ctn)</span>
                           </td>
 
-                          {/* Column 3: Margin % & Wholesale Price Rate */}
+                          {/* Column 3: Displayed Rate */}
                           <td className="py-2.5 px-1 sm:px-1.5 text-center">
                             <span className="font-black text-emerald-700 text-[11px] sm:text-xs leading-tight block">
-                              ₹{item.wholesalePricePerUnit.toFixed(2)}
+                              ₹{item.displayedRate.toFixed(2)}
                               <span className="text-[8px] text-slate-400 font-normal"> / pc</span>
                             </span>
-                            <span className="text-[9px] text-rose-600 font-extrabold block mt-0.5">
-                              {item.marginPct}% Margin
+                            <span className="text-[8px] text-slate-500 font-medium block">
+                              {rateMode === 'EXCLUDE_TAX' ? 'excl. tax' : 'incl. tax'}
                             </span>
-                            <span className="text-[8px] text-slate-400 block font-mono">
-                              (-₹{item.marginDiscountPerUnit.toFixed(2)})
+                            <span className="text-[8px] text-rose-600 font-extrabold block mt-0.5">
+                              {item.marginPct}% Margin (-₹{item.marginDiscountPerUnit.toFixed(2)})
                             </span>
                           </td>
 
                           {/* Column 4: Line Total */}
                           <td className="py-2.5 px-2 sm:px-2.5 text-right">
                             <span className="font-black text-slate-900 text-xs sm:text-sm block leading-tight">
-                              ₹{item.lineWholesaleTotal.toLocaleString('en-IN')}
+                              ₹{item.lineFinalSellingTotal.toLocaleString('en-IN')}
                             </span>
                             <span className="block text-[8px] sm:text-[9px] text-slate-400 font-medium mt-0.5">
                               ₹{item.cartonPrice.toFixed(2)}/ctn
@@ -2236,7 +2412,9 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
                           <th className="py-2.5 px-3 text-center">Order Qty</th>
                           <th className="py-2.5 px-3 text-right">MRP</th>
                           <th className="py-2.5 px-3 text-center">Margin %</th>
-                          <th className="py-2.5 px-3 text-right">Wholesale Rate</th>
+                          <th className="py-2.5 px-3 text-right">
+                            {rateMode === 'EXCLUDE_TAX' ? 'Rate (Excl. Tax)' : 'Rate (Incl. Tax)'}
+                          </th>
                           <th className="py-2.5 px-3 text-right">Line Total</th>
                         </tr>
                       </thead>
@@ -2253,9 +2431,14 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
                             </td>
                             <td className="py-2.5 px-3 text-right font-medium text-slate-600">₹{item.mrp.toFixed(2)}</td>
                             <td className="py-2.5 px-3 text-center font-bold text-rose-600">{item.marginPct}%</td>
-                            <td className="py-2.5 px-3 text-right font-black text-emerald-700">₹{item.wholesalePricePerUnit.toFixed(2)}</td>
+                            <td className="py-2.5 px-3 text-right font-black text-emerald-700">
+                              ₹{item.displayedRate.toFixed(2)}
+                              <span className="block text-[8px] text-slate-400 font-normal">
+                                {rateMode === 'EXCLUDE_TAX' ? 'excl. tax' : 'incl. tax'}
+                              </span>
+                            </td>
                             <td className="py-2.5 px-3 text-right font-black text-slate-900">
-                              ₹{item.lineWholesaleTotal.toLocaleString('en-IN')}
+                              ₹{item.lineFinalSellingTotal.toLocaleString('en-IN')}
                             </td>
                           </tr>
                         ))}
@@ -2266,46 +2449,60 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
 
                 {/* Financial Totals Table */}
                 <div className="flex justify-end">
-                  <div className="w-full sm:w-80 space-y-2 p-3.5 sm:p-4 bg-slate-50 rounded-xl sm:rounded-2xl border border-slate-200 text-xs shadow-xs">
+                  <div className="w-full sm:w-84 space-y-2 p-3.5 sm:p-4 bg-slate-50 rounded-xl sm:rounded-2xl border border-slate-200 text-xs shadow-xs">
                     {/* 1. Total MRP */}
                     <div className="flex justify-between text-slate-600">
-                      <span className="font-medium">Total MRP:</span>
+                      <span className="font-medium">1. Total MRP (GST-inclusive):</span>
                       <strong className="text-slate-900 font-bold">₹{calculationSummary.totalMrpValue.toLocaleString('en-IN')}</strong>
                     </div>
 
                     {/* 2. Margin */}
                     <div className="flex justify-between text-amber-700">
-                      <span className="font-medium">Margin ({calculationSummary.averageMarginPct}%):</span>
+                      <span className="font-medium">2. Margin ({calculationSummary.averageMarginPct}%):</span>
                       <strong className="font-bold">-₹{calculationSummary.totalMarginDiscount.toLocaleString('en-IN')}</strong>
                     </div>
 
-                    {/* 3. Sub(total) without GST */}
-                    <div className="flex justify-between text-slate-700 pt-1.5 border-t border-slate-200">
-                      <span className="font-medium">Sub(total) without GST:</span>
+                    {/* Final Selling Price */}
+                    <div className="flex justify-between text-slate-800 pt-1.5 border-t border-slate-200">
+                      <span className="font-semibold">Final Selling Price:</span>
+                      <strong className="text-slate-900 font-black">₹{calculationSummary.totalFinalSellingRevenue.toLocaleString('en-IN')}</strong>
+                    </div>
+
+                    {/* Rate Mode Indicator */}
+                    <div className="flex justify-between text-slate-500 text-[10px]">
+                      <span>Rate Mode:</span>
+                      <span className="font-bold text-slate-700">
+                        {rateMode === 'EXCLUDE_TAX' ? 'Rate Exclude Tax' : 'Rate Include Tax'}
+                      </span>
+                    </div>
+
+                    {/* 3. Taxable Subtotal */}
+                    <div className="flex justify-between text-slate-600">
+                      <span className="font-medium">3. Taxable Base (Rate Excl. Tax):</span>
                       <strong className="text-slate-900 font-bold">₹{calculationSummary.subtotalWithoutGst.toLocaleString('en-IN')}</strong>
                     </div>
 
-                    {/* 4. GST Percentage or Without GST */}
+                    {/* 4. GST Amount */}
                     <div className="flex justify-between text-slate-600">
                       <span className="font-medium">
-                        {calculationSummary.isWithGst ? `GST Percentage (${calculationSummary.gstRate}%):` : 'Tax Status:'}
+                        {calculationSummary.isWithGst ? `4. GST Amount (${calculationSummary.gstRate}%):` : '4. Tax Status:'}
                       </span>
                       <strong className="text-slate-900 font-bold">
                         {calculationSummary.isWithGst
-                          ? `+₹${calculationSummary.totalGstAmount.toLocaleString('en-IN')}`
+                          ? `+₹{calculationSummary.totalGstAmount.toLocaleString('en-IN')}`
                           : 'Without GST (0%)'}
                       </strong>
                     </div>
 
                     {/* 5. Shipping Charges */}
                     <div className="flex justify-between text-slate-600">
-                      <span className="font-medium">Shipping Charges:</span>
+                      <span className="font-medium">5. Shipping Charges:</span>
                       <strong className="text-slate-900 font-bold">{calculationSummary.shippingCharges > 0 ? `+₹${calculationSummary.shippingCharges.toLocaleString('en-IN')}` : '₹0'}</strong>
                     </div>
 
                     {/* 6. Grand Total */}
                     <div className="flex justify-between text-slate-900 font-black text-sm pt-2.5 border-t border-slate-200">
-                      <span>Grand Total:</span>
+                      <span>6. Grand Total (Payable):</span>
                       <span className="text-emerald-700 font-black text-base">₹{calculationSummary.grandTotal.toLocaleString('en-IN')}</span>
                     </div>
                   </div>

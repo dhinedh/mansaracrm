@@ -375,29 +375,38 @@ exports.createInvoice = async (req, res, next) => {
       const cartonSize = product.cartonSize || 24;
       const qtyInPieces = unit === 'CTN' ? (item.quantity * cartonSize) : item.quantity;
 
-      // Calculations:
-      // sellingPrice = MRP * (1 - marginPct/100)
+      // Calculations conforming to MRP-inclusive calculation logic:
+      // 1. MRP is always considered GST-inclusive
+      // 2. Margin amount based on MRP: mrp * (marginPct / 100)
+      // 3. Final Selling Price = MRP - Margin Amount
       const mrp = parseFloat(product.mrp || product.price || 0);
-      const sellingPrice = mrp * (1 - marginPct / 100);
-      const gstPct = parseFloat(product.gstPercent);
+      const marginDiscount = mrp * (marginPct / 100);
+      const finalSellingPrice = Math.max(0, mrp - marginDiscount);
+      const gstPct = isGstEnabled ? parseFloat(product.gstPercent || 5) : 0;
       
-      const lineSubtotal = sellingPrice * qtyInPieces;
-      const lineGst = isGstEnabled ? (lineSubtotal * (gstPct / 100)) : 0;
-      const lineTotal = lineSubtotal + lineGst;
+      // Rate Exclude Tax = Final Selling Price / (1 + GST Percentage / 100)
+      const rateExcludeTax = gstPct > 0 ? (finalSellingPrice / (1 + gstPct / 100)) : finalSellingPrice;
+      // GST Amount = Final Selling Price - Rate Exclude Tax
+      const unitGst = finalSellingPrice - rateExcludeTax;
 
-      calculatedSubtotal += lineSubtotal;
+      const lineTotal = finalSellingPrice * qtyInPieces; // Same in both rate modes
+      const lineTaxableSubtotal = rateExcludeTax * qtyInPieces;
+      const lineGst = unitGst * qtyInPieces;
+
+      calculatedSubtotal += lineTaxableSubtotal;
       calculatedGstTotal += lineGst;
 
       invoiceItemsDetails.push({
         productId: item.productId,
         quantity: qtyInPieces,
         unit: unit,
-        unitPrice: mrp, // store MRP as reference price
+        unitPrice: mrp, // store MRP as GST-inclusive reference price
         marginPct,
-        sellingPrice,
-        gstPercent: isGstEnabled ? gstPct : 0,
-        gstAmount: isGstEnabled ? lineGst : 0,
-        lineTotal
+        sellingPrice: finalSellingPrice,
+        rateExcludeTax: Math.round(rateExcludeTax * 100) / 100,
+        gstPercent: gstPct,
+        gstAmount: Math.round(lineGst * 100) / 100,
+        lineTotal: Math.round(lineTotal * 100) / 100
       });
     }
 
@@ -1233,18 +1242,27 @@ exports.updateInvoice = async (req, res, next) => {
       let subtotal = 0;
       let totalGst = 0;
 
+      const activeGstEnabled = updateData.isGstEnabled !== undefined ? updateData.isGstEnabled : existing.isGstEnabled;
+
       const formattedItems = [];
       for (const item of items) {
         const product = await prisma.product.findUnique({ where: { id: item.productId } });
         const qty = parseInt(item.quantity) || 1;
         const mrp = parseFloat(item.unitPrice || product?.mrp || product?.price || 0);
         const marginPct = parseFloat(item.marginPct !== undefined ? item.marginPct : 10);
-        const sellingPrice = parseFloat(item.sellingPrice || (mrp * (1 - marginPct / 100)));
-        const gstPercent = parseFloat(product?.gstPercent || 5);
-        const lineTotal = sellingPrice * qty;
-        const lineGst = (updateData.isGstEnabled !== false && existing.isGstEnabled !== false) ? (lineTotal * gstPercent / 100) : 0;
+        const marginDiscount = mrp * (marginPct / 100);
+        const finalSellingPrice = parseFloat(item.sellingPrice !== undefined ? item.sellingPrice : (mrp - marginDiscount));
+        const gstPercent = (activeGstEnabled !== false) ? parseFloat(product?.gstPercent || 5) : 0;
+        
+        // Rate Exclude Tax = Final Selling Price / (1 + GST Percentage / 100)
+        const rateExcludeTax = gstPercent > 0 ? (finalSellingPrice / (1 + gstPercent / 100)) : finalSellingPrice;
+        const unitGst = finalSellingPrice - rateExcludeTax;
+        
+        const lineTotal = finalSellingPrice * qty; // Same in both modes
+        const lineTaxableSubtotal = rateExcludeTax * qty;
+        const lineGst = unitGst * qty;
 
-        subtotal += lineTotal;
+        subtotal += lineTaxableSubtotal;
         totalGst += lineGst;
 
         formattedItems.push({
@@ -1252,15 +1270,15 @@ exports.updateInvoice = async (req, res, next) => {
           quantity: qty,
           unitPrice: mrp,
           marginPct,
-          sellingPrice,
+          sellingPrice: finalSellingPrice,
+          rateExcludeTax: Math.round(rateExcludeTax * 100) / 100,
           gstPercent,
-          gstAmount: lineGst,
-          lineTotal
+          gstAmount: Math.round(lineGst * 100) / 100,
+          lineTotal: Math.round(lineTotal * 100) / 100
         });
       }
 
-      const activeGstEnabled = updateData.isGstEnabled !== undefined ? updateData.isGstEnabled : existing.isGstEnabled;
-      const finalGst = activeGstEnabled ? totalGst : 0;
+      const finalGst = activeGstEnabled !== false ? totalGst : 0;
 
       updateData.subtotal = subtotal;
       updateData.totalGst = finalGst;

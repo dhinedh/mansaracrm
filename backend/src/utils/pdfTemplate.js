@@ -119,16 +119,25 @@ const buildInvoiceHtml = (company, invoice) => {
     };
     
     const netWtG      = parseWeightG(item.product?.netWeightG || item.product?.weight);
-    const mrp         = parseFloat(item.product?.mrp || item.product?.price || 0);
+    const mrp         = parseFloat(item.product?.mrp || item.unitPrice || item.product?.price || 0);
     const marginPct   = parseFloat(item.marginPct) || 0;
-    // MRP-based: sellingPrice = MRP × (1 - margin/100)
-    const rate        = parseFloat(item.sellingPrice) || (mrp * (1 - marginPct / 100));
+    // 1. MRP is always considered GST-inclusive
+    // 2. Margin amount = MRP * (marginPct / 100)
+    // 3. Final Selling Price = MRP - Margin Amount
+    const marginAmount = mrp * (marginPct / 100);
+    const finalSellingPrice = parseFloat(item.sellingPrice) || Math.max(0, mrp - marginAmount);
+    const gstPct      = parseFloat(item.gstPercent || item.product?.gstPercent || 5);
+    // Rate Exclude Tax = Final Selling Price / (1 + GST% / 100)
+    const rateExcludeTax = gstPct > 0 ? (finalSellingPrice / (1 + gstPct / 100)) : finalSellingPrice;
+    const isRateExclude = invoice.rateMode === 'EXCLUDE_TAX';
+    const rate        = isRateExclude ? rateExcludeTax : finalSellingPrice;
     const pac         = item.pac || item.product?.cartonSize || 24;       // pieces per carton
     const wtPerCtn    = item.product?.wtPerCartonKg || ((netWtG * pac) / 1000).toFixed(2);
     const totQty      = parseInt(item.quantity) || 0;
     const ctns        = parseFloat((totQty / pac).toFixed(2));
     const totalNtWtKg = (totQty * netWtG / 1000).toFixed(2);
-    const lineTotal   = parseFloat(item.lineTotal) || (rate * totQty);
+    // Both rate modes represent the same final selling price
+    const lineTotal   = parseFloat(item.lineTotal) || (finalSellingPrice * totQty);
 
     return `
       <tr>
@@ -456,11 +465,16 @@ const buildSimpleRetailInvoiceHtml = (company, invoice) => {
     const productName = item.product?.name || 'Product';
     const sku         = item.product?.sku   || '';
     const netWtG      = parseWeightG(item.product?.netWeightG || item.product?.weight) || '';
-    const mrp         = parseFloat(item.product?.mrp || item.product?.price || 0);
+    const mrp         = parseFloat(item.product?.mrp || item.unitPrice || item.product?.price || 0);
     const marginPct   = parseFloat(item.marginPct) || 0;
-    const rate        = parseFloat(item.sellingPrice) || (mrp * (1 - marginPct / 100));
+    const marginAmount = mrp * (marginPct / 100);
+    const finalSellingPrice = parseFloat(item.sellingPrice) || Math.max(0, mrp - marginAmount);
+    const gstPct      = parseFloat(item.gstPercent || item.product?.gstPercent || 5);
+    const rateExcludeTax = gstPct > 0 ? (finalSellingPrice / (1 + gstPct / 100)) : finalSellingPrice;
+    const isRateExclude = invoice.rateMode === 'EXCLUDE_TAX';
+    const rate        = isRateExclude ? rateExcludeTax : finalSellingPrice;
     const totQty      = parseInt(item.quantity) || 0;
-    const lineTotal   = parseFloat(item.lineTotal) || (rate * totQty);
+    const lineTotal   = parseFloat(item.lineTotal) || (finalSellingPrice * totQty);
     const totalWtKg   = netWtG ? (totQty * netWtG / 1000).toFixed(2) : '';
 
     return `

@@ -221,15 +221,17 @@ export const normalizeQuotationData = (raw = {}) => {
   let shipping = 0;
   let isWithGst = true;
   let gstRate = 5;
+  const rateMode = raw.rateMode || raw.calculationSummary?.rateMode || 'INCLUDE_TAX';
 
   if (isSimulator) {
-    const calc = raw.calculationSummary;
-    subtotal = calc.subtotalWithoutGst || 0;
-    isWithGst = calc.isWithGst;
+    const calc = raw.calculationSummary || {};
+    isWithGst = calc.isWithGst !== false;
     gstRate = calc.gstRate || 0;
-    totalGst = calc.totalGstAmount || 0;
-    shipping = calc.shippingCharges || 0;
-    grandTotal = calc.grandTotal || (subtotal + totalGst + shipping);
+    shipping = Number(calc.shippingCharges || 0);
+
+    let calcTaxableSubtotal = 0;
+    let calcTotalGst = 0;
+    let calcGrandSelling = 0;
 
     normalizedItems = (calc.items || []).map((item, idx) => {
       const netWt = parseWeightGrams(item.netWeightG);
@@ -237,10 +239,31 @@ export const normalizeQuotationData = (raw = {}) => {
       const wtPerCtn = item.wtPerCartonKg || ((netWt * pac) / 1000).toFixed(2);
       const ctns = item.cartons || (item.pieces ? parseFloat((item.pieces / pac).toFixed(2)) : 1);
       const qty = item.pieces || item.quantity || 1;
-      const rate = item.wholesalePricePerUnit || item.unitPrice || 0;
-      const lineSubtotal = item.lineWholesaleTotal || (rate * qty);
-      const lineGst = isWithGst ? (lineSubtotal * ((item.gstPercent || gstRate) / 100)) : 0;
-      const lineTotal = lineSubtotal + lineGst;
+
+      // 1. MRP is always considered GST-inclusive
+      const mrp = Number(item.mrp || 0);
+      const marginPct = Number(item.marginPct || 0);
+      const marginAmount = mrp * (marginPct / 100);
+      // 2. Final Selling Price = MRP - Margin Amount
+      const finalSellingPrice = Number(item.finalSellingPrice) || Math.max(0, mrp - marginAmount);
+      const itemGstPct = isWithGst ? Number(item.gstPercent || gstRate || 5) : 0;
+
+      // Rate Exclude Tax = Final Selling Price / (1 + GST Percentage / 100)
+      const rateExcludeTax = itemGstPct > 0 ? (finalSellingPrice / (1 + itemGstPct / 100)) : finalSellingPrice;
+      // GST Amount = Final Selling Price - Rate Exclude Tax
+      const unitGst = finalSellingPrice - rateExcludeTax;
+
+      // Displayed rate according to selected Rate Mode
+      const displayedRate = rateMode === 'EXCLUDE_TAX' ? rateExcludeTax : finalSellingPrice;
+
+      // Both rate modes must represent the same final selling price!
+      const lineTotal = finalSellingPrice * qty;
+      const lineTaxable = rateExcludeTax * qty;
+      const lineGst = unitGst * qty;
+
+      calcTaxableSubtotal += lineTaxable;
+      calcTotalGst += lineGst;
+      calcGrandSelling += lineTotal;
 
       return {
         sno: idx + 1,
@@ -248,31 +271,57 @@ export const normalizeQuotationData = (raw = {}) => {
         name: item.name || item.productName || 'Product',
         sku: item.sku || '',
         netWtG: netWt,
-        rate,
+        rate: displayedRate,
+        finalSellingPrice,
+        rateExcludeTax,
+        unitGst,
         pacSize: pac,
         wtPerCtn,
         cartons: ctns,
         quantity: qty,
         totalNetWtKg: ((qty * netWt) / 1000).toFixed(2),
         lineTotal,
-        mrp: item.mrp || 0,
-        marginPct: item.marginPct || 0
+        lineTaxable,
+        lineGst,
+        mrp,
+        marginPct,
+        gstPercent: itemGstPct
       };
     });
+
+    subtotal = Math.round(calcTaxableSubtotal * 100) / 100;
+    totalGst = Math.round(calcTotalGst * 100) / 100;
+    grandTotal = Math.round((calcGrandSelling + shipping) * 100) / 100;
   } else {
     // Field sales quotation format
     const rawItems = raw.items || [];
-    subtotal = raw.subtotal || 0;
-    totalGst = raw.taxTotal || (subtotal * 0.05);
-    grandTotal = raw.grandTotal || (subtotal + totalGst);
-    isWithGst = totalGst > 0;
-    gstRate = subtotal > 0 ? Math.round((totalGst / subtotal) * 100) : 5;
+    isWithGst = raw.isWithGst !== false && raw.taxTotal !== 0;
+    shipping = Number(raw.shippingCharges || 0);
+
+    let calcTaxableSubtotal = 0;
+    let calcTotalGst = 0;
+    let calcGrandSelling = 0;
 
     normalizedItems = rawItems.map((item, idx) => {
       const qty = item.quantity || 1;
-      const rate = item.unitPrice || item.price || 0;
-      const mrp = item.mrp || rate;
-      const lineTotal = item.totalPrice || (qty * rate);
+      const mrp = Number(item.mrp || item.unitPrice || item.price || 0);
+      const marginPct = Number(item.discountPercent || item.marginPct || 0);
+      const marginAmount = mrp * (marginPct / 100);
+      const finalSellingPrice = Number(item.unitPrice && item.mrp && item.unitPrice !== item.mrp ? item.unitPrice : Math.max(0, mrp - marginAmount));
+      const itemGstPct = isWithGst ? Number(item.taxPercent || item.gstPercent || 5) : 0;
+
+      const rateExcludeTax = itemGstPct > 0 ? (finalSellingPrice / (1 + itemGstPct / 100)) : finalSellingPrice;
+      const unitGst = finalSellingPrice - rateExcludeTax;
+
+      const displayedRate = rateMode === 'EXCLUDE_TAX' ? rateExcludeTax : finalSellingPrice;
+      const lineTotal = Number(item.totalPrice) || (finalSellingPrice * qty);
+      const lineTaxable = rateExcludeTax * qty;
+      const lineGst = unitGst * qty;
+
+      calcTaxableSubtotal += lineTaxable;
+      calcTotalGst += lineGst;
+      calcGrandSelling += lineTotal;
+
       const netWt = parseWeightGrams(item.netWeight || 250);
       const pac = item.pacSize || 24;
 
@@ -282,17 +331,28 @@ export const normalizeQuotationData = (raw = {}) => {
         name: item.productName || item.name || 'Product',
         sku: item.sku || '',
         netWtG: netWt,
-        rate,
+        rate: displayedRate,
+        finalSellingPrice,
+        rateExcludeTax,
+        unitGst,
         pacSize: pac,
         wtPerCtn: ((netWt * pac) / 1000).toFixed(2),
         cartons: parseFloat((qty / pac).toFixed(2)),
         quantity: qty,
         totalNetWtKg: ((qty * netWt) / 1000).toFixed(2),
         lineTotal,
+        lineTaxable,
+        lineGst,
         mrp,
-        marginPct: item.discountPercent || (mrp > rate ? Math.round(((mrp - rate) / mrp) * 100) : 0)
+        marginPct: item.discountPercent || (mrp > finalSellingPrice ? Math.round(((mrp - finalSellingPrice) / mrp) * 100) : 0),
+        gstPercent: itemGstPct
       };
     });
+
+    subtotal = Math.round(calcTaxableSubtotal * 100) / 100;
+    totalGst = Math.round(calcTotalGst * 100) / 100;
+    grandTotal = Math.round((calcGrandSelling + shipping) * 100) / 100;
+    gstRate = subtotal > 0 ? Math.round((totalGst / subtotal) * 100) : 5;
   }
 
   return {
@@ -302,6 +362,7 @@ export const normalizeQuotationData = (raw = {}) => {
     dateStr,
     dueDateStr,
     items: normalizedItems,
+    rateMode,
     subtotal,
     isWithGst,
     gstRate,
@@ -320,7 +381,7 @@ export const normalizeQuotationData = (raw = {}) => {
  */
 export const buildQuotationHtml = (rawData) => {
   const data = normalizeQuotationData(rawData);
-  const { company, customer, refNo, dateStr, dueDateStr, items, subtotal, isWithGst, gstRate, totalGst, cgst, sgst, shipping, grandTotal, specialTerms, isApprovedInvoice } = data;
+  const { company, customer, refNo, dateStr, dueDateStr, items, rateMode, subtotal, isWithGst, gstRate, totalGst, cgst, sgst, shipping, grandTotal, specialTerms, isApprovedInvoice } = data;
   const docTitle = isApprovedInvoice ? 'TAX INVOICE' : 'PRICE QUOTATION';
   const docNoLabel = isApprovedInvoice ? 'Invoice #' : 'Quotation #';
   const docDateLabel = isApprovedInvoice ? 'Invoice Date :' : 'Quotation Date :';
@@ -582,7 +643,7 @@ export const buildQuotationHtml = (rawData) => {
         <th style="width:6%;">HSN</th>
         <th style="width:28%;text-align:left;padding-left:6px;">ITEM</th>
         <th style="width:7%;">NET WT<br>(G)</th>
-        <th style="width:8%;text-align:right;padding-right:6px;">RATE<br>(RS.)</th>
+        <th style="width:8%;text-align:right;padding-right:6px;">RATE<br><span style="font-size:7px;opacity:0.9;">(${rateMode === 'EXCLUDE_TAX' ? 'EXCL. TAX' : 'INCL. TAX'})</span></th>
         <th style="width:5%;">PAC</th>
         <th style="width:8%;">WT/ CTN<br>(KG)</th>
         <th style="width:6%;">CTNS</th>
@@ -754,14 +815,14 @@ export const downloadQuotationHtml = (htmlContent, fileName = 'Quotation.html') 
  */
 export const formatQuotationWhatsAppText = (rawData) => {
   const data = normalizeQuotationData(rawData);
-  const { company, customer, refNo, dateStr, dueDateStr, items, subtotal, isWithGst, gstRate, totalGst, shipping, grandTotal, isApprovedInvoice } = data;
+  const { company, customer, refNo, dateStr, dueDateStr, items, rateMode, subtotal, isWithGst, gstRate, totalGst, shipping, grandTotal, isApprovedInvoice } = data;
   const bd = company.bankDetails || {};
 
   const itemsList = items.map((it, idx) => {
     return `${idx + 1}. *${it.name}*
    • Order Qty: *${it.quantity} pcs* (${it.cartons} ctn)
-   • MRP: ₹${Number(it.mrp || 0).toFixed(2)} | Margin: ${it.marginPct || 0}%
-   • Wholesale Rate: *₹${Number(it.rate).toFixed(2)}/pc*
+   • MRP (Incl. Tax): ₹${Number(it.mrp || 0).toFixed(2)} | Margin: ${it.marginPct || 0}%
+   • ${rateMode === 'EXCLUDE_TAX' ? 'Rate (Excl. Tax)' : 'Rate (Incl. Tax)'}: *₹${Number(it.rate).toFixed(2)}/pc*
    • Line Total: *₹${Number(it.lineTotal).toLocaleString('en-IN')}*`;
   }).join('\n\n');
 
