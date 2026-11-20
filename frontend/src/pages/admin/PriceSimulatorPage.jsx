@@ -38,7 +38,9 @@ import {
   CreditCard,
   Download,
   Share2,
-  Loader2
+  Loader2,
+  Receipt,
+  FileCheck
 } from 'lucide-react';
 import WhatsAppShareModal from '../../components/WhatsAppShareModal';
 import {
