@@ -78,6 +78,7 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
 
   // ─── TAXATION (WITH / WITHOUT GST) & FREIGHT ────────────────────────────────
   const [gstMode, setGstMode] = useState('WITH_GST'); // 'WITH_GST' | 'WITHOUT_GST'
+  const isWithGst = gstMode === 'WITH_GST';
   const [rateMode, setRateMode] = useState('INCLUDE_TAX'); // 'INCLUDE_TAX' (Rate Include Tax) | 'EXCLUDE_TAX' (Rate Exclude Tax) | 'GST_ON_MARGIN_REDUCED_MRP' (Invoice with GST on Margin Reduced MRP)
   const [gstRate, setGstRate] = useState(5); // Default 5% GST for food items
   const [shippingCharges, setShippingCharges] = useState(0);
@@ -1660,7 +1661,8 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
                 const marginPct = marginPctToAdd;
                 const marginDiscount = (mrp * (marginPct / 100));
                 const priceAfterMargin = Math.max(0, mrp - marginDiscount);
-                const gstPct = Math.max(0, parseFloat(gstRate !== undefined ? gstRate : (prod.gstPercent || 5)));
+                const isWithGstCurrent = gstMode === 'WITH_GST';
+                const gstPct = isWithGstCurrent ? Math.max(0, parseFloat(gstRate !== undefined ? gstRate : (prod.gstPercent || 5))) : 0;
 
                 if (rateMode === 'GST_ON_MARGIN_REDUCED_MRP') {
                   const gstAmount = priceAfterMargin * (gstPct / 100);
@@ -1683,7 +1685,7 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
                   );
                 }
 
-                const unitGst = isWithGst && gstPct > 0 ? (priceAfterMargin * (gstPct / 100)) : 0;
+                const unitGst = isWithGstCurrent && gstPct > 0 ? (priceAfterMargin * (gstPct / 100)) : 0;
                 const finalSellingPrice = priceAfterMargin + unitGst;
                 const displayedRate = rateMode === 'EXCLUDE_TAX' ? priceAfterMargin : finalSellingPrice;
 
