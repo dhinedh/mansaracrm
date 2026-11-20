@@ -121,23 +121,33 @@ const buildInvoiceHtml = (company, invoice) => {
     const netWtG      = parseWeightG(item.product?.netWeightG || item.product?.weight);
     const mrp         = parseFloat(item.product?.mrp || item.unitPrice || item.product?.price || 0);
     const marginPct   = parseFloat(item.marginPct) || 0;
-    // 1. MRP is always considered GST-inclusive
-    // 2. Margin amount = MRP * (marginPct / 100)
-    // 3. Final Selling Price = MRP - Margin Amount
-    const marginAmount = mrp * (marginPct / 100);
-    const finalSellingPrice = parseFloat(item.sellingPrice) || Math.max(0, mrp - marginAmount);
     const gstPct      = parseFloat(item.gstPercent || item.product?.gstPercent || 5);
-    // Rate Exclude Tax = Final Selling Price / (1 + GST% / 100)
-    const rateExcludeTax = gstPct > 0 ? (finalSellingPrice / (1 + gstPct / 100)) : finalSellingPrice;
-    const isRateExclude = invoice.rateMode === 'EXCLUDE_TAX';
-    const rate        = isRateExclude ? rateExcludeTax : finalSellingPrice;
+
+    let marginAmount, finalSellingPrice, rate, lineTotal;
+    if (invoice.rateMode === 'GST_ON_MARGIN_REDUCED_MRP') {
+      // Logic: 1. MRP is base for margin reduction. 2. Deduct margin. 3. Apply GST% to margin-reduced price. 4. Add GST for final customer price.
+      marginAmount = mrp * (marginPct / 100);
+      const priceBeforeGst = Math.max(0, mrp - marginAmount);
+      const unitGst = priceBeforeGst * (gstPct / 100);
+      finalSellingPrice = priceBeforeGst + unitGst;
+      rate = priceBeforeGst;
+      const totQty = parseInt(item.quantity) || 0;
+      lineTotal = parseFloat(item.lineTotal) || (finalSellingPrice * totQty);
+    } else {
+      // Existing modes: MRP is GST-inclusive
+      marginAmount = mrp * (marginPct / 100);
+      finalSellingPrice = parseFloat(item.sellingPrice) || Math.max(0, mrp - marginAmount);
+      const rateExcludeTax = gstPct > 0 ? (finalSellingPrice / (1 + gstPct / 100)) : finalSellingPrice;
+      const isRateExclude = invoice.rateMode === 'EXCLUDE_TAX';
+      rate = isRateExclude ? rateExcludeTax : finalSellingPrice;
+      const totQty = parseInt(item.quantity) || 0;
+      lineTotal = parseFloat(item.lineTotal) || (finalSellingPrice * totQty);
+    }
     const pac         = item.pac || item.product?.cartonSize || 24;       // pieces per carton
     const wtPerCtn    = item.product?.wtPerCartonKg || ((netWtG * pac) / 1000).toFixed(2);
     const totQty      = parseInt(item.quantity) || 0;
     const ctns        = parseFloat((totQty / pac).toFixed(2));
     const totalNtWtKg = (totQty * netWtG / 1000).toFixed(2);
-    // Both rate modes represent the same final selling price
-    const lineTotal   = parseFloat(item.lineTotal) || (finalSellingPrice * totQty);
 
     return `
       <tr>
@@ -467,14 +477,25 @@ const buildSimpleRetailInvoiceHtml = (company, invoice) => {
     const netWtG      = parseWeightG(item.product?.netWeightG || item.product?.weight) || '';
     const mrp         = parseFloat(item.product?.mrp || item.unitPrice || item.product?.price || 0);
     const marginPct   = parseFloat(item.marginPct) || 0;
-    const marginAmount = mrp * (marginPct / 100);
-    const finalSellingPrice = parseFloat(item.sellingPrice) || Math.max(0, mrp - marginAmount);
     const gstPct      = parseFloat(item.gstPercent || item.product?.gstPercent || 5);
-    const rateExcludeTax = gstPct > 0 ? (finalSellingPrice / (1 + gstPct / 100)) : finalSellingPrice;
-    const isRateExclude = invoice.rateMode === 'EXCLUDE_TAX';
-    const rate        = isRateExclude ? rateExcludeTax : finalSellingPrice;
     const totQty      = parseInt(item.quantity) || 0;
-    const lineTotal   = parseFloat(item.lineTotal) || (finalSellingPrice * totQty);
+
+    let marginAmount, finalSellingPrice, rate, lineTotal;
+    if (invoice.rateMode === 'GST_ON_MARGIN_REDUCED_MRP') {
+      marginAmount = mrp * (marginPct / 100);
+      const priceBeforeGst = Math.max(0, mrp - marginAmount);
+      const unitGst = priceBeforeGst * (gstPct / 100);
+      finalSellingPrice = priceBeforeGst + unitGst;
+      rate = priceBeforeGst;
+      lineTotal = parseFloat(item.lineTotal) || (finalSellingPrice * totQty);
+    } else {
+      marginAmount = mrp * (marginPct / 100);
+      finalSellingPrice = parseFloat(item.sellingPrice) || Math.max(0, mrp - marginAmount);
+      const rateExcludeTax = gstPct > 0 ? (finalSellingPrice / (1 + gstPct / 100)) : finalSellingPrice;
+      const isRateExclude = invoice.rateMode === 'EXCLUDE_TAX';
+      rate = isRateExclude ? rateExcludeTax : finalSellingPrice;
+      lineTotal = parseFloat(item.lineTotal) || (finalSellingPrice * totQty);
+    }
     const totalWtKg   = netWtG ? (totQty * netWtG / 1000).toFixed(2) : '';
 
     return `
