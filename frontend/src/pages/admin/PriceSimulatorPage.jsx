@@ -49,6 +49,7 @@ import {
   downloadQuotationHtml,
   downloadQuotationPdf,
   formatQuotationWhatsAppText,
+  ensure4DigitQuotationNo,
   ensure5DigitQuotationNo
 } from '../../utils/quotationHelper';
 
@@ -158,7 +159,7 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
   // Helper to format invoice number according to template prefix & sequence
   const formatInvoiceNumber = (prefix = 'MF/INV/25-26', seqNumber = 10) => {
     const p = (prefix || 'MF/INV/25-26').trim();
-    const numStr = String(seqNumber || 1).padStart(5, '0');
+    const numStr = String(seqNumber || 1).padStart(4, '0');
     if (p.endsWith('/') || p.endsWith('-')) {
       return `${p}${numStr}`;
     }
@@ -893,8 +894,10 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
 
     const rawPrefix = currentSettings.invoicePrefix || 'MF/INV/25-26';
     const seqNum = currentSettings.nextSequenceNumber !== undefined ? currentSettings.nextSequenceNumber : 10;
-    if (!quotationRefNumber) {
-      setQuotationRefNumber(formatInvoiceNumber(rawPrefix, seqNum));
+    if (quotationRefNumber) {
+      setQuotationRefNumber(ensure4DigitQuotationNo(quotationRefNumber, rawPrefix, seqNum));
+    } else {
+      setQuotationRefNumber(ensure4DigitQuotationNo(formatInvoiceNumber(rawPrefix, seqNum), rawPrefix, seqNum));
     }
     setShowQuotationModal(true);
   };
@@ -915,7 +918,7 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
 
       if (res.data?.success) {
         const nextSeq = res.data.nextSequenceNumber;
-        const nextFormatted = res.data.formattedNumber || formatInvoiceNumber(currentPrefix, nextSeq);
+        const nextFormatted = ensure4DigitQuotationNo(res.data.formattedNumber || formatInvoiceNumber(currentPrefix, nextSeq), currentPrefix, nextSeq);
         setCompanySettings(prev => ({
           ...prev,
           nextSequenceNumber: nextSeq
@@ -928,7 +931,7 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
       const currentPrefix = (companySettings.invoicePrefix || 'MF/INV/25-26').trim();
       const match = quotationRefNumber?.match(/(\d+)(?!.*\d)/);
       const nextSeq = (match ? parseInt(match[1], 10) : (parseInt(companySettings.nextSequenceNumber, 10) || 10)) + 1;
-      const nextFormatted = formatInvoiceNumber(currentPrefix, nextSeq);
+      const nextFormatted = ensure4DigitQuotationNo(formatInvoiceNumber(currentPrefix, nextSeq), currentPrefix, nextSeq);
       setCompanySettings(prev => ({
         ...prev,
         nextSequenceNumber: nextSeq
@@ -992,7 +995,7 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
   const getQuotationPayload = () => {
     const prefix = companySettings.invoicePrefix || 'MF/INV/25-26';
     const seqNum = companySettings.nextSequenceNumber !== undefined ? companySettings.nextSequenceNumber : 10;
-    const resolvedRef = ensure5DigitQuotationNo(quotationRefNumber || formatInvoiceNumber(prefix, seqNum), prefix, seqNum);
+    const resolvedRef = ensure4DigitQuotationNo(quotationRefNumber || formatInvoiceNumber(prefix, seqNum), prefix, seqNum);
     return {
       calculationSummary,
       rateMode,
@@ -1020,7 +1023,7 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
         quoteNo = formatInvoiceNumber(rawPrefix, seqNum);
         setQuotationRefNumber(quoteNo);
       } else {
-        quoteNo = ensure5DigitQuotationNo(quoteNo, rawPrefix, seqNum);
+        quoteNo = ensure4DigitQuotationNo(quoteNo, rawPrefix, seqNum);
       }
 
       const payload = {
@@ -2363,7 +2366,7 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
             <div>
               <span className="text-[10px] font-extrabold uppercase tracking-wider text-rose-800 block">Current Quotation Ref</span>
               <span className="font-mono font-black text-rose-900 text-sm tracking-tight">
-                {quotationRefNumber || formatInvoiceNumber(companySettings.invoicePrefix, companySettings.nextSequenceNumber)}
+                {ensure4DigitQuotationNo(quotationRefNumber || formatInvoiceNumber(companySettings.invoicePrefix, companySettings.nextSequenceNumber))}
               </span>
             </div>
           </div>
@@ -2571,7 +2574,7 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
                       value={quotationRefNumber}
                       onChange={(e) => setQuotationRefNumber(e.target.value)}
                       onBlur={(e) => {
-                        const formatted = ensure5DigitQuotationNo(
+                        const formatted = ensure4DigitQuotationNo(
                           e.target.value,
                           companySettings.invoicePrefix || 'MF/INV/25-26',
                           companySettings.nextSequenceNumber || 10
@@ -2579,7 +2582,7 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
                         setQuotationRefNumber(formatted);
                       }}
                       className="font-mono font-black text-rose-700 text-xs sm:text-sm text-left sm:text-right bg-slate-50 border border-slate-200 rounded-lg px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-rose-500 w-full sm:w-auto"
-                      placeholder="e.g. MF/INV/25-26/00010"
+                      placeholder="e.g. MF/INV/25-26/0010"
                     />
                     <p className="text-[10px] text-slate-400 mt-1">Date: {new Date().toLocaleDateString('en-IN')}</p>
                   </div>

@@ -23,7 +23,7 @@ import { Link } from 'react-router-dom';
 
 export const formatInvoiceNumber = (prefix = 'MF/INV/25-26', seqNumber = 10) => {
   const p = (prefix || 'MF/INV/25-26').trim();
-  const numStr = String(seqNumber || 1).padStart(5, '0');
+  const numStr = String(seqNumber || 1).padStart(4, '0');
   if (p.endsWith('/') || p.endsWith('-')) {
     return `${p}${numStr}`;
   }

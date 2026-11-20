@@ -45,36 +45,41 @@ export const cleanPhoneNumber = (phone) => {
 };
 
 /**
- * Ensures quotation number sequence is ALWAYS 5 digits (xxxxx).
- * e.g. "MF/INV/25-26/13" -> "MF/INV/25-26/00013"
- * e.g. "13" -> "MF/INV/25-26/00013"
+ * Ensures quotation number sequence is ALWAYS 4 digits (xxxx).
+ * e.g. "MF/INV/25-26/00013" -> "MF/INV/25-26/0013"
+ * e.g. "MF/INV/25-26/13" -> "MF/INV/25-26/0013"
+ * e.g. "13" -> "MF/INV/25-26/0013"
  */
-export const ensure5DigitQuotationNo = (val, defaultPrefix = 'MF/INV/25-26', defaultSeq = 10) => {
+export const ensure4DigitQuotationNo = (val, defaultPrefix = 'MF/INV/25-26', defaultSeq = 10) => {
   if (!val || typeof val !== 'string') {
     const p = (defaultPrefix || 'MF/INV/25-26').trim();
-    const numStr = String(defaultSeq || 1).padStart(5, '0');
+    const numStr = String(defaultSeq || 1).padStart(4, '0');
     return (p.endsWith('/') || p.endsWith('-')) ? `${p}${numStr}` : `${p}/${numStr}`;
   }
   const clean = val.trim();
   if (!clean) {
     const p = (defaultPrefix || 'MF/INV/25-26').trim();
-    const numStr = String(defaultSeq || 1).padStart(5, '0');
+    const numStr = String(defaultSeq || 1).padStart(4, '0');
     return (p.endsWith('/') || p.endsWith('-')) ? `${p}${numStr}` : `${p}/${numStr}`;
   }
   if (/^\d+$/.test(clean)) {
     const p = (defaultPrefix || 'MF/INV/25-26').trim();
-    const numStr = clean.padStart(5, '0');
+    const num = parseInt(clean, 10);
+    const numStr = String(num).padStart(4, '0');
     return (p.endsWith('/') || p.endsWith('-')) ? `${p}${numStr}` : `${p}/${numStr}`;
   }
   const match = clean.match(/^(.*?)([\/-]?)(\d+)$/);
   if (match) {
     const p = match[1];
     const sep = match[2] || (p.endsWith('/') || p.endsWith('-') ? '' : '/');
-    const numStr = match[3].padStart(5, '0');
+    const num = parseInt(match[3], 10);
+    const numStr = String(num).padStart(4, '0');
     return `${p}${sep}${numStr}`;
   }
   return clean;
 };
+
+export const ensure5DigitQuotationNo = ensure4DigitQuotationNo;
 
 /**
  * Standard Company Settings Defaults
@@ -167,8 +172,8 @@ export const normalizeQuotationData = (raw = {}) => {
 
   const rawRefCandidate = isApprovedInvoice 
     ? (raw.invoiceNo || raw.invoiceNumber || getDerivedInvoiceNo(raw.quotationRefNumber || raw.quotationNo)) 
-    : (raw.quotationRefNumber || raw.quotationNo || `${company.invoicePrefix || 'MF/INV/25-26'}/${String(company.nextSequenceNumber || 10).padStart(5, '0')}`);
-  const refNo = ensure5DigitQuotationNo(rawRefCandidate, company.invoicePrefix || 'MF/INV/25-26', company.nextSequenceNumber || 10);
+    : (raw.quotationRefNumber || raw.quotationNo || `${company.invoicePrefix || 'MF/INV/25-26'}/${String(company.nextSequenceNumber || 10).padStart(4, '0')}`);
+  const refNo = ensure4DigitQuotationNo(rawRefCandidate, company.invoicePrefix || 'MF/INV/25-26', company.nextSequenceNumber || 10);
   const dateStr = raw.date || new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
   const dueDateStr = raw.dueDate || new Date(Date.now() + 15 * 86400000).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 

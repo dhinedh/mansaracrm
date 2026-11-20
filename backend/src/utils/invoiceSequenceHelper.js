@@ -50,9 +50,9 @@ async function getNextInvoiceNumber({ commit = true, customPrefix = null } = {})
   // Next number must be greater than highest existing invoice and sequence pointer, starting at min 10
   let nextNumber = Math.max(seqLastNumber + 1, highestExistingNumber + 1, configuredNext, 10);
 
-  // 3. Format invoice number (e.g. MF/INV/25-26/00010)
+  // 3. Format invoice number (e.g. MF/INV/25-26/0010)
   const formatInvNo = (num) => {
-    const numStr = String(num).padStart(5, '0');
+    const numStr = String(num).padStart(4, '0');
     return (defaultPrefix.endsWith('/') || defaultPrefix.endsWith('-'))
       ? `${defaultPrefix}${numStr}`
       : `${defaultPrefix}/${numStr}`;
@@ -126,7 +126,7 @@ async function getNextQuotationNumber({ commit = true, customPrefix = null } = {
   let nextNumber = Math.max(seqLastNumber + 1, highestExistingQuote + 1, configuredNext, 10);
 
   const formatQuoteNo = (num) => {
-    const numStr = String(num).padStart(5, '0');
+    const numStr = String(num).padStart(4, '0');
     return (quotePrefix.endsWith('/') || quotePrefix.endsWith('-'))
       ? `${quotePrefix}${numStr}`
       : `${quotePrefix}/${numStr}`;
@@ -189,7 +189,7 @@ async function advanceSequenceNumber({ minTarget = null, prefix = null } = {}) {
   }
 
   const nextNumber = current + 1;
-  const numStr = String(nextNumber).padStart(5, '0');
+  const numStr = String(nextNumber).padStart(4, '0');
   const formattedNumber = (defaultPrefix.endsWith('/') || defaultPrefix.endsWith('-'))
     ? `${defaultPrefix}${numStr}`
     : `${defaultPrefix}/${numStr}`;

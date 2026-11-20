@@ -477,7 +477,7 @@ exports.createInvoice = async (req, res, next) => {
       }
 
       const p = (seq.prefix || 'MF/INV/25-26').trim();
-      const numStr = String(seq.lastNumber || 10).padStart(5, '0');
+      const numStr = String(seq.lastNumber || 10).padStart(4, '0');
       const invoiceNo = (p.endsWith('/') || p.endsWith('-'))
         ? `${p}${numStr}`
         : `${p}${p.includes('/') ? '/' : '-'}${numStr}`;
