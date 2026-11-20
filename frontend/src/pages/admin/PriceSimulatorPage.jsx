@@ -49,6 +49,8 @@ import {
   downloadQuotationHtml,
   downloadQuotationPdf,
   formatQuotationWhatsAppText,
+  getStandardQuotationRef,
+  ensureQuotationRef,
   ensure4DigitQuotationNo,
   ensure5DigitQuotationNo
 } from '../../utils/quotationHelper';
@@ -245,10 +247,9 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
         setCompanySettings(prev => ({ ...prev, ...s }));
 
         const prefix = s.invoicePrefix || 'MF/INV/25-26';
-        const seqNum = s.nextSequenceNumber !== undefined ? parseInt(s.nextSequenceNumber, 10) : 10;
-        setQuotationRefNumber(formatInvoiceNumber(prefix, seqNum));
+        setQuotationRefNumber(getStandardQuotationRef(prefix));
       } else {
-        setQuotationRefNumber(formatInvoiceNumber('MF/INV/25-26', 10));
+        setQuotationRefNumber(getStandardQuotationRef('MF/INV/25-26'));
       }
       setSimulationItems([]); // Clean slate: Zero mock data
     } catch (err) {
@@ -894,12 +895,7 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
     }
 
     const rawPrefix = currentSettings.invoicePrefix || 'MF/INV/25-26';
-    const seqNum = currentSettings.nextSequenceNumber !== undefined ? currentSettings.nextSequenceNumber : 10;
-    if (quotationRefNumber) {
-      setQuotationRefNumber(ensure4DigitQuotationNo(quotationRefNumber, rawPrefix, seqNum));
-    } else {
-      setQuotationRefNumber(ensure4DigitQuotationNo(formatInvoiceNumber(rawPrefix, seqNum), rawPrefix, seqNum));
-    }
+    setQuotationRefNumber(ensureQuotationRef(quotationRefNumber || getStandardQuotationRef(rawPrefix), rawPrefix));
     setShowQuotationModal(true);
   };
 
@@ -919,38 +915,32 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
 
       if (res.data?.success) {
         const nextSeq = res.data.nextSequenceNumber;
-        const nextFormatted = ensure4DigitQuotationNo(res.data.formattedNumber || formatInvoiceNumber(currentPrefix, nextSeq), currentPrefix, nextSeq);
         setCompanySettings(prev => ({
           ...prev,
           nextSequenceNumber: nextSeq
         }));
-        setQuotationRefNumber(nextFormatted);
-        return nextFormatted;
+        const quoteRef = ensureQuotationRef(quotationRefNumber || getStandardQuotationRef(currentPrefix), currentPrefix);
+        setQuotationRefNumber(quoteRef);
+        return quoteRef;
       }
     } catch (e) {
       console.warn('Failed to advance sequence on backend, advancing locally:', e);
       const currentPrefix = (companySettings.invoicePrefix || 'MF/INV/25-26').trim();
-      const match = quotationRefNumber?.match(/(\d+)(?!.*\d)/);
-      const nextSeq = (match ? parseInt(match[1], 10) : (parseInt(companySettings.nextSequenceNumber, 10) || 10)) + 1;
-      const nextFormatted = ensure4DigitQuotationNo(formatInvoiceNumber(currentPrefix, nextSeq), currentPrefix, nextSeq);
-      setCompanySettings(prev => ({
-        ...prev,
-        nextSequenceNumber: nextSeq
-      }));
-      setQuotationRefNumber(nextFormatted);
-      return nextFormatted;
+      const quoteRef = ensureQuotationRef(quotationRefNumber || getStandardQuotationRef(currentPrefix), currentPrefix);
+      setQuotationRefNumber(quoteRef);
+      return quoteRef;
     }
   };
 
   const handleGenerateQuotation = async () => {
     // Dismiss quotation modal so parent UI remains unlocked and fully interactive
     setShowQuotationModal(false);
-    const currentQuoteRef = quotationRefNumber || formatInvoiceNumber(companySettings.invoicePrefix, companySettings.nextSequenceNumber);
+    const currentQuoteRef = ensureQuotationRef(quotationRefNumber || getStandardQuotationRef(companySettings.invoicePrefix), companySettings.invoicePrefix);
     const payload = getQuotationPayload();
     const htmlContent = buildQuotationHtml(payload);
     triggerPrintQuotation(htmlContent);
     const nextNum = await advanceSequence();
-    setToastMessage({ text: `Tax Invoice quotation ${currentQuoteRef} sent to print! Next Quotation # is ${nextNum || 'updated'}.`, type: 'success' });
+    setToastMessage({ text: `Price quotation ${currentQuoteRef} sent to print!`, type: 'success' });
   };
 
   const handleCopyQuotationText = () => {
@@ -959,7 +949,7 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
       ? 'Invoice with GST on Margin Reduced MRP'
       : (rateMode === 'EXCLUDE_TAX' ? 'Rate Exclude Tax' : 'Rate Include Tax');
 
-    const currentQuoteRef = quotationRefNumber || formatInvoiceNumber(companySettings.invoicePrefix, companySettings.nextSequenceNumber);
+    const currentQuoteRef = ensureQuotationRef(quotationRefNumber || getStandardQuotationRef(companySettings.invoicePrefix), companySettings.invoicePrefix);
 
     const textLines = [
       '====================================================',
@@ -989,14 +979,13 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
 
     navigator.clipboard.writeText(textLines).then(async () => {
       const nextNum = await advanceSequence();
-      setToastMessage({ text: `Quotation text copied to clipboard! Next Quotation # is ${nextNum || 'updated'}.`, type: 'success' });
+      setToastMessage({ text: `Quotation text copied to clipboard!`, type: 'success' });
     });
   };
 
   const getQuotationPayload = () => {
     const prefix = companySettings.invoicePrefix || 'MF/INV/25-26';
-    const seqNum = companySettings.nextSequenceNumber !== undefined ? companySettings.nextSequenceNumber : 10;
-    const resolvedRef = ensure4DigitQuotationNo(quotationRefNumber || formatInvoiceNumber(prefix, seqNum), prefix, seqNum);
+    const resolvedRef = ensureQuotationRef(quotationRefNumber || getStandardQuotationRef(prefix), prefix);
     return {
       calculationSummary,
       rateMode,
@@ -1017,15 +1006,9 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
     setSavingDraft(true);
     try {
       const activeCustomerName = selectedCustomer?.companyName || selectedCustomer?.name || customClientName || 'Valued Trade Partner';
-      let quoteNo = quotationRefNumber;
       const rawPrefix = companySettings.invoicePrefix || 'MF/INV/25-26';
-      const seqNum = companySettings.nextSequenceNumber !== undefined ? companySettings.nextSequenceNumber : 10;
-      if (!quoteNo) {
-        quoteNo = formatInvoiceNumber(rawPrefix, seqNum);
-        setQuotationRefNumber(quoteNo);
-      } else {
-        quoteNo = ensure4DigitQuotationNo(quoteNo, rawPrefix, seqNum);
-      }
+      const quoteNo = ensureQuotationRef(quotationRefNumber || getStandardQuotationRef(rawPrefix), rawPrefix);
+      setQuotationRefNumber(quoteNo);
 
       const payload = {
         quotationNo: quoteNo,
@@ -1090,20 +1073,20 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
       setToastMessage({ text: 'Please add at least one product before downloading quotation', type: 'error' });
       return;
     }
-    const currentQuoteRef = quotationRefNumber || formatInvoiceNumber(companySettings.invoicePrefix, companySettings.nextSequenceNumber);
+    const currentQuoteRef = ensureQuotationRef(quotationRefNumber || getStandardQuotationRef(companySettings.invoicePrefix), companySettings.invoicePrefix);
     const payload = getQuotationPayload();
     setDownloadingPdf(true);
     setToastMessage({ text: `Generating & downloading PDF for Quotation ${currentQuoteRef}...`, type: 'info' });
     try {
       await downloadQuotationPdf(payload);
       const nextNum = await advanceSequence();
-      setToastMessage({ text: `Official Quotation ${currentQuoteRef} downloaded successfully! Next Quotation # is ${nextNum || 'updated'}.`, type: 'success' });
+      setToastMessage({ text: `Official Quotation ${currentQuoteRef} downloaded successfully!`, type: 'success' });
     } catch (err) {
       console.error('Error downloading quotation PDF, falling back to print dialog:', err);
       const htmlContent = buildQuotationHtml(payload);
       triggerPrintQuotation(htmlContent);
       const nextNum = await advanceSequence();
-      setToastMessage({ text: `Quotation sent to print! Next Quotation # is ${nextNum || 'updated'}.`, type: 'info' });
+      setToastMessage({ text: `Quotation sent to print!`, type: 'info' });
     } finally {
       setDownloadingPdf(false);
     }
@@ -2368,7 +2351,7 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
             <div>
               <span className="text-[10px] font-extrabold uppercase tracking-wider text-rose-800 block">Current Quotation Ref</span>
               <span className="font-mono font-black text-rose-900 text-sm tracking-tight">
-                {ensure4DigitQuotationNo(quotationRefNumber || formatInvoiceNumber(companySettings.invoicePrefix, companySettings.nextSequenceNumber))}
+                {ensureQuotationRef(quotationRefNumber || getStandardQuotationRef(companySettings.invoicePrefix), companySettings.invoicePrefix)}
               </span>
             </div>
           </div>
@@ -2576,15 +2559,14 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
                       value={quotationRefNumber}
                       onChange={(e) => setQuotationRefNumber(e.target.value)}
                       onBlur={(e) => {
-                        const formatted = ensure4DigitQuotationNo(
+                        const formatted = ensureQuotationRef(
                           e.target.value,
-                          companySettings.invoicePrefix || 'MF/INV/25-26',
-                          companySettings.nextSequenceNumber || 10
+                          companySettings.invoicePrefix || 'MF/INV/25-26'
                         );
                         setQuotationRefNumber(formatted);
                       }}
                       className="font-mono font-black text-rose-700 text-xs sm:text-sm text-left sm:text-right bg-slate-50 border border-slate-200 rounded-lg px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-rose-500 w-full sm:w-auto"
-                      placeholder="e.g. MF/INV/25-26/0010"
+                      placeholder="e.g. MF/QN/25-26/xxxx"
                     />
                     <p className="text-[10px] text-slate-400 mt-1">Date: {new Date().toLocaleDateString('en-IN')}</p>
                   </div>

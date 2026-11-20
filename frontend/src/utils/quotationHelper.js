@@ -45,12 +45,43 @@ export const cleanPhoneNumber = (phone) => {
 };
 
 /**
- * Ensures quotation number sequence is ALWAYS 4 digits (xxxx).
- * e.g. "MF/INV/25-26/00013" -> "MF/INV/25-26/0013"
- * e.g. "MF/INV/25-26/13" -> "MF/INV/25-26/0013"
- * e.g. "13" -> "MF/INV/25-26/0013"
+ * Generates the standard quotation reference using prefix 'QN' and sequence 'xxxx'.
+ * e.g. "MF/INV/25-26" -> "MF/QN/25-26/xxxx"
  */
-export const ensure4DigitQuotationNo = (val, defaultPrefix = 'MF/INV/25-26', defaultSeq = 10) => {
+export const getStandardQuotationRef = (invoicePrefix = 'MF/INV/25-26') => {
+  const p = (invoicePrefix || 'MF/INV/25-26').trim().replace(/INV/gi, 'QN');
+  if (p.endsWith('/') || p.endsWith('-')) return `${p}xxxx`;
+  const sep = p.includes('/') ? '/' : '-';
+  return `${p}${sep}xxxx`;
+};
+
+/**
+ * Ensures a quotation reference always uses 'QN' prefix and 'xxxx' sequence format.
+ * Replaces 'INV' with 'QN' and any trailing number/sequence with 'xxxx'.
+ * e.g. "MF/INV/25-26/0014" -> "MF/QN/25-26/xxxx"
+ * e.g. "MF/INV/25-26/00013" -> "MF/QN/25-26/xxxx"
+ */
+export const ensureQuotationRef = (val, defaultPrefix = 'MF/INV/25-26') => {
+  const std = getStandardQuotationRef(defaultPrefix);
+  if (!val || typeof val !== 'string') return std;
+  let clean = val.trim();
+  if (!clean) return std;
+  clean = clean.replace(/INV/gi, 'QN');
+  if (/^(\d+|xxxx)$/i.test(clean)) return std;
+  if (clean.toLowerCase().includes('xxxx')) return std;
+  const match = clean.match(/^(.*?)([\/-]?)(\d+|xxxx)$/i);
+  if (match) {
+    const p = (match[1] || defaultPrefix).replace(/INV/gi, 'QN').replace(/[\/-]$/, '');
+    const sep = match[2] || '/';
+    return `${p}${sep}xxxx`;
+  }
+  return clean;
+};
+
+/**
+ * Formats official invoice numbers with 4-digit sequence (e.g. MF/INV/25-26/0014)
+ */
+export const ensure4DigitInvoiceNo = (val, defaultPrefix = 'MF/INV/25-26', defaultSeq = 10) => {
   if (!val || typeof val !== 'string') {
     const p = (defaultPrefix || 'MF/INV/25-26').trim();
     const numStr = String(defaultSeq || 1).padStart(4, '0');
@@ -77,6 +108,10 @@ export const ensure4DigitQuotationNo = (val, defaultPrefix = 'MF/INV/25-26', def
     return `${p}${sep}${numStr}`;
   }
   return clean;
+};
+
+export const ensure4DigitQuotationNo = (val, defaultPrefix = 'MF/INV/25-26', defaultSeq = 10) => {
+  return ensureQuotationRef(val, defaultPrefix);
 };
 
 export const ensure5DigitQuotationNo = ensure4DigitQuotationNo;
@@ -172,8 +207,10 @@ export const normalizeQuotationData = (raw = {}) => {
 
   const rawRefCandidate = isApprovedInvoice 
     ? (raw.invoiceNo || raw.invoiceNumber || getDerivedInvoiceNo(raw.quotationRefNumber || raw.quotationNo)) 
-    : (raw.quotationRefNumber || raw.quotationNo || `${company.invoicePrefix || 'MF/INV/25-26'}/${String(company.nextSequenceNumber || 10).padStart(4, '0')}`);
-  const refNo = ensure4DigitQuotationNo(rawRefCandidate, company.invoicePrefix || 'MF/INV/25-26', company.nextSequenceNumber || 10);
+    : (raw.quotationRefNumber || raw.quotationNo || getStandardQuotationRef(company.invoicePrefix || 'MF/INV/25-26'));
+  const refNo = isApprovedInvoice
+    ? ensure4DigitInvoiceNo(rawRefCandidate, company.invoicePrefix || 'MF/INV/25-26', company.nextSequenceNumber || 10)
+    : ensureQuotationRef(rawRefCandidate, company.invoicePrefix || 'MF/INV/25-26');
   const dateStr = raw.date || new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
   const dueDateStr = raw.dueDate || new Date(Date.now() + 15 * 86400000).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 
