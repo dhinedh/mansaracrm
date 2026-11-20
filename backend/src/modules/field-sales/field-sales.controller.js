@@ -3,7 +3,7 @@ const prisma = require('../../config/database');
 const mongoose = require('mongoose');
 const axios = require('axios');
 const { generateInvoicePdf } = require('../../utils/pdfGenerator');
-const { getNextInvoiceNumber, getNextQuotationNumber, extractTrailingNumber } = require('../../utils/invoiceSequenceHelper');
+const { getNextInvoiceNumber, getNextQuotationNumber, extractTrailingNumber, advanceSequenceNumber } = require('../../utils/invoiceSequenceHelper');
 const { notifyAdminOfSalesAction } = require('../../utils/salesNotificationService');
 
 // In-memory geocode cache to avoid external API rate limits (429) and CORS
@@ -2141,6 +2141,11 @@ exports.createQuotation = async (req, res, next) => {
           existingQuote.status = status;
           await existingQuote.save();
 
+          const assignedNum = extractTrailingNumber(finalQuotationNo);
+          if (assignedNum > 0) {
+            await advanceSequenceNumber({ minTarget: assignedNum }).catch(() => null);
+          }
+
           return res.json({ 
             success: true, 
             message: 'Quotation draft updated successfully', 
@@ -2158,20 +2163,10 @@ exports.createQuotation = async (req, res, next) => {
       finalQuotationNo = nextQ.quotationNo;
     }
 
-    // Ensure sequence pointer is always kept in sync with the assigned number
+    // Ensure sequence pointer is always kept in sync with the assigned number and advanced
     const assignedNum = extractTrailingNumber(finalQuotationNo);
     if (assignedNum > 0) {
-      const InvoiceSequenceModel = mongoose.model('InvoiceSequence');
-      const SettingModel = mongoose.model('Setting');
-      await InvoiceSequenceModel.findOneAndUpdate(
-        { _id: 'singleton' },
-        { $max: { lastNumber: assignedNum } },
-        { upsert: true }
-      ).catch(() => null);
-      await SettingModel.updateMany(
-        { key: 'invoice_settings' },
-        { $max: { nextSequenceNumber: assignedNum + 1 } }
-      ).catch(() => null);
+      await advanceSequenceNumber({ minTarget: assignedNum }).catch(() => null);
     }
 
     // Guard against any race condition duplicate

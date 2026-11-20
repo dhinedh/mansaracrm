@@ -19,7 +19,8 @@ export default function WhatsAppShareModal({
   onClose, 
   quotationData, 
   defaultPhone = '', 
-  defaultMessage = '' 
+  defaultMessage = '',
+  onActionCompleted
 }) {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [customNote, setCustomNote] = useState('');
@@ -59,6 +60,9 @@ export default function WhatsAppShareModal({
       const result = await shareQuotationPdf(quotationData, phoneNumber, customNote);
 
       if (result?.success) {
+        if (onActionCompleted) {
+          onActionCompleted('SHARE');
+        }
         if (result.method === 'web-share') {
           // Native mobile/supported desktop share opened with PDF file attached
           setTimeout(() => {
@@ -76,6 +80,9 @@ export default function WhatsAppShareModal({
     } catch (err) {
       console.error('Error sharing PDF on WhatsApp, falling back to direct message:', err);
       openWhatsAppQuotation(quotationData, phoneNumber);
+      if (onActionCompleted) {
+        onActionCompleted('SHARE');
+      }
       setShareSuccessNotice({
         type: 'desktop-guide',
         fileName: `${filePrefix}_${refNo}.pdf`
@@ -90,6 +97,9 @@ export default function WhatsAppShareModal({
     setLoading(true);
     try {
       await downloadQuotationPdf(quotationData);
+      if (onActionCompleted) {
+        onActionCompleted('DOWNLOAD');
+      }
     } catch (err) {
       console.error('Download PDF error, opening print fallback:', err);
       handlePrint();
@@ -102,6 +112,9 @@ export default function WhatsAppShareModal({
     if (!quotationData) return;
     const html = buildQuotationHtml(quotationData);
     triggerPrintQuotation(html);
+    if (onActionCompleted) {
+      onActionCompleted('PRINT');
+    }
   };
 
   return (

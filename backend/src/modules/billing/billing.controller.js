@@ -5,7 +5,7 @@ const { buildInvoiceHtml, buildSimpleRetailInvoiceHtml, buildAgreementHtml, buil
 const { getOrAssignDealerAgreementNumber, getOrAssignDealerClosureAgreementNumber } = require('../../utils/agreementSequence');
 const { mergeAppointmentTemplate, mergeClosureTemplate } = require('../../utils/defaultAgreementTemplates');
 const centralNotificationService = require('../../utils/centralNotificationService');
-const { getNextInvoiceNumber, getNextQuotationNumber } = require('../../utils/invoiceSequenceHelper');
+const { getNextInvoiceNumber, getNextQuotationNumber, advanceSequenceNumber } = require('../../utils/invoiceSequenceHelper');
 
 
 // Helper to fetch company settings dynamically
@@ -224,6 +224,29 @@ exports.updateInvoiceSettings = async (req, res, next) => {
       success: true,
       message: 'Invoice configuration updated successfully',
       data: settings
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Atomically advances invoice/quotation sequence pointer by 1.
+ * Called on any quotation action (Download, Share, Save) to ensure continuous sequential numbering.
+ */
+exports.advanceInvoiceSequence = async (req, res, next) => {
+  try {
+    const { currentSequenceNumber, prefix } = req.body;
+    const result = await advanceSequenceNumber({ 
+      minTarget: currentSequenceNumber !== undefined ? parseInt(currentSequenceNumber, 10) : null,
+      prefix 
+    });
+    return res.json({
+      success: true,
+      message: 'Sequence advanced successfully',
+      data: result,
+      nextSequenceNumber: result.nextSequenceNumber,
+      formattedNumber: result.formattedNumber
     });
   } catch (error) {
     next(error);

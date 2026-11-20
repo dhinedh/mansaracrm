@@ -161,9 +161,61 @@ async function getNextQuotationNumber({ commit = true, customPrefix = null } = {
   };
 }
 
+/**
+ * Explicitly advances the sequence number pointer by 1 (or to at least minTarget + 1)
+ * and guarantees persistence across both InvoiceSequence and Setting models.
+ * Sequence number format is always 5-digit padded (xxxxx).
+ */
+async function advanceSequenceNumber({ minTarget = null, prefix = null } = {}) {
+  const SettingModel = mongoose.model('Setting');
+  const InvoiceSequenceModel = mongoose.model('InvoiceSequence');
+
+  const [settings, seq] = await Promise.all([
+    SettingModel.findOne({ key: 'invoice_settings' }),
+    InvoiceSequenceModel.findById('singleton')
+  ]);
+
+  const defaultPrefix = (prefix || seq?.prefix || settings?.invoicePrefix || 'MF/INV/25-26').trim();
+  const configuredNext = settings?.nextSequenceNumber !== undefined 
+    ? parseInt(settings.nextSequenceNumber, 10) 
+    : 10;
+  const seqLastNumber = seq?.lastNumber !== undefined 
+    ? parseInt(seq.lastNumber, 10) 
+    : (configuredNext - 1);
+
+  let current = Math.max(configuredNext, seqLastNumber + 1);
+  if (minTarget !== null && !isNaN(minTarget)) {
+    current = Math.max(current, parseInt(minTarget, 10));
+  }
+
+  const nextNumber = current + 1;
+  const numStr = String(nextNumber).padStart(5, '0');
+  const formattedNumber = (defaultPrefix.endsWith('/') || defaultPrefix.endsWith('-'))
+    ? `${defaultPrefix}${numStr}`
+    : `${defaultPrefix}/${numStr}`;
+
+  await InvoiceSequenceModel.findOneAndUpdate(
+    { _id: 'singleton' },
+    { $set: { lastNumber: nextNumber - 1, prefix: defaultPrefix } },
+    { upsert: true, new: true }
+  );
+
+  await SettingModel.updateMany(
+    { key: 'invoice_settings' },
+    { $set: { nextSequenceNumber: nextNumber } }
+  );
+
+  return {
+    nextSequenceNumber: nextNumber,
+    formattedNumber,
+    prefix: defaultPrefix
+  };
+}
+
 module.exports = {
   getNextInvoiceNumber,
   getNextQuotationNumber,
-  extractTrailingNumber
+  extractTrailingNumber,
+  advanceSequenceNumber
 };
 

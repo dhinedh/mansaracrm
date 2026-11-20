@@ -45,6 +45,38 @@ export const cleanPhoneNumber = (phone) => {
 };
 
 /**
+ * Ensures quotation number sequence is ALWAYS 5 digits (xxxxx).
+ * e.g. "MF/INV/25-26/13" -> "MF/INV/25-26/00013"
+ * e.g. "13" -> "MF/INV/25-26/00013"
+ */
+export const ensure5DigitQuotationNo = (val, defaultPrefix = 'MF/INV/25-26', defaultSeq = 10) => {
+  if (!val || typeof val !== 'string') {
+    const p = (defaultPrefix || 'MF/INV/25-26').trim();
+    const numStr = String(defaultSeq || 1).padStart(5, '0');
+    return (p.endsWith('/') || p.endsWith('-')) ? `${p}${numStr}` : `${p}/${numStr}`;
+  }
+  const clean = val.trim();
+  if (!clean) {
+    const p = (defaultPrefix || 'MF/INV/25-26').trim();
+    const numStr = String(defaultSeq || 1).padStart(5, '0');
+    return (p.endsWith('/') || p.endsWith('-')) ? `${p}${numStr}` : `${p}/${numStr}`;
+  }
+  if (/^\d+$/.test(clean)) {
+    const p = (defaultPrefix || 'MF/INV/25-26').trim();
+    const numStr = clean.padStart(5, '0');
+    return (p.endsWith('/') || p.endsWith('-')) ? `${p}${numStr}` : `${p}/${numStr}`;
+  }
+  const match = clean.match(/^(.*?)([\/-]?)(\d+)$/);
+  if (match) {
+    const p = match[1];
+    const sep = match[2] || (p.endsWith('/') || p.endsWith('-') ? '' : '/');
+    const numStr = match[3].padStart(5, '0');
+    return `${p}${sep}${numStr}`;
+  }
+  return clean;
+};
+
+/**
  * Standard Company Settings Defaults
  */
 export const DEFAULT_COMPANY_SETTINGS = {
@@ -133,9 +165,10 @@ export const normalizeQuotationData = (raw = {}) => {
     return `INV-${quotationNo}`;
   };
 
-  const refNo = isApprovedInvoice 
+  const rawRefCandidate = isApprovedInvoice 
     ? (raw.invoiceNo || raw.invoiceNumber || getDerivedInvoiceNo(raw.quotationRefNumber || raw.quotationNo)) 
-    : (raw.quotationRefNumber || raw.quotationNo || `MF/QN/${new Date().getFullYear()}-${String(new Date().getFullYear() + 1).slice(-2)}/${Date.now().toString().slice(-5)}`);
+    : (raw.quotationRefNumber || raw.quotationNo || `${company.invoicePrefix || 'MF/INV/25-26'}/${String(company.nextSequenceNumber || 10).padStart(5, '0')}`);
+  const refNo = ensure5DigitQuotationNo(rawRefCandidate, company.invoicePrefix || 'MF/INV/25-26', company.nextSequenceNumber || 10);
   const dateStr = raw.date || new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
   const dueDateStr = raw.dueDate || new Date(Date.now() + 15 * 86400000).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 
