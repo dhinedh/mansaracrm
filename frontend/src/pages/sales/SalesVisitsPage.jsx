@@ -1768,14 +1768,27 @@ export default function SalesVisitsPage() {
                         </button>
                       </>
                     ) : (
-                      <button
-                        type="button"
-                        onClick={() => handleCheckInToShop(shop, visitInfo.purpose)}
-                        className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-2.5 px-3 rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-all shadow-md shadow-amber-500/20"
-                      >
-                        <Navigation className="w-3.5 h-3.5" />
-                        <span>GPS Check-In to Start Visit</span>
-                      </button>
+                      <div className="flex items-center gap-2 w-full">
+                        <button
+                          type="button"
+                          onClick={() => navigate(`/sales/store-visit/${shop._id || shop.id}`, {
+                            state: { store: shop, viewOnly: true }
+                          })}
+                          className="px-3 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 hover:border-slate-500 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-all"
+                          title="View Orders and Stock Tracking without check-in"
+                        >
+                          <Eye className="w-3.5 h-3.5 text-amber-400" />
+                          <span>Orders & Stock</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleCheckInToShop(shop, visitInfo.purpose)}
+                          className="flex-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-2.5 px-3 rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-all shadow-md shadow-amber-500/20"
+                        >
+                          <Navigation className="w-3.5 h-3.5" />
+                          <span>GPS Check-In</span>
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>

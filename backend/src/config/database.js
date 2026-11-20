@@ -489,6 +489,11 @@ const StoreSchema = new Schema({
   hangerStands: { type: Number, default: 0 },
   kitNotes: { type: String, default: '' },
   initialKitAllocated: { type: Boolean, default: false },
+  // Address Entry & Location Verification Workflow
+  isLocationVerified: { type: Boolean, default: false },
+  locationStatus: { type: String, enum: ['PENDING_COORDINATES', 'COORDINATES_CAPTURED', 'VERIFIED'], default: 'PENDING_COORDINATES' },
+  manualAddress: { type: String },
+  addressVerificationNotes: { type: String },
   // B2C Stock Configuration (freeze workflow)
   stockStatus: { type: String, enum: ['DRAFT', 'FROZEN'], default: 'DRAFT' },
   stockConfig: [{
@@ -764,6 +769,8 @@ const AuditLogSchema = new Schema({
   action: { type: String, required: true },
   entity: { type: String, required: true },
   entityId: { type: String },
+  recordTitle: { type: String },
+  details: { type: String },
   oldValues: { type: Schema.Types.Mixed },
   newValues: { type: Schema.Types.Mixed },
   ipAddress: { type: String }
@@ -776,6 +783,123 @@ const AuditLogSchema = new Schema({
 AuditLogSchema.virtual('user', {
   ref: 'User',
   localField: 'userId',
+  foreignField: '_id',
+  justOne: true
+});
+
+// MarketingEvent (Calendar-based event & activity management)
+const MarketingEventSchema = new Schema({
+  title: { type: String, required: true },
+  eventType: { type: String, enum: ['Stall', 'Exhibition', 'Promotion', 'Marketing Campaign', 'Other'], default: 'Promotion' },
+  startDate: { type: Date, required: true },
+  endDate: { type: Date },
+  location: { type: String, required: true },
+  assignedUserIds: [{ type: Schema.Types.ObjectId, ref: 'User' }],
+  assignedTeam: { type: String },
+  description: { type: String },
+  status: { type: String, enum: ['UPCOMING', 'ONGOING', 'COMPLETED', 'CANCELLED'], default: 'UPCOMING' },
+  photos: [{ type: String }],
+  completionNotes: { type: String },
+  completedAt: { type: Date },
+  completedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+  createdBy: { type: Schema.Types.ObjectId, ref: 'User' },
+  activityHistory: [{
+    action: { type: String },
+    performedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+    notes: { type: String },
+    timestamp: { type: Date, default: Date.now }
+  }]
+}, {
+  timestamps: true,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
+});
+
+MarketingEventSchema.virtual('assignedUsers', {
+  ref: 'User',
+  localField: 'assignedUserIds',
+  foreignField: '_id'
+});
+
+MarketingEventSchema.virtual('creator', {
+  ref: 'User',
+  localField: 'createdBy',
+  foreignField: '_id',
+  justOne: true
+});
+
+MarketingEventSchema.virtual('completer', {
+  ref: 'User',
+  localField: 'completedBy',
+  foreignField: '_id',
+  justOne: true
+});
+
+// BulkUploadHistory
+const BulkUploadHistorySchema = new Schema({
+  module: { type: String, required: true }, // 'STORES', 'PRODUCTS', 'ORDERS', 'CUSTOMERS'
+  filename: { type: String, required: true },
+  fileType: { type: String, default: 'XLSX' },
+  totalRows: { type: Number, default: 0 },
+  successCount: { type: Number, default: 0 },
+  failedCount: { type: Number, default: 0 },
+  errors: [{
+    row: Number,
+    field: String,
+    message: String,
+    data: Schema.Types.Mixed
+  }],
+  uploadedBy: { type: Schema.Types.ObjectId, ref: 'User' }
+}, {
+  timestamps: true,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
+});
+
+BulkUploadHistorySchema.virtual('uploader', {
+  ref: 'User',
+  localField: 'uploadedBy',
+  foreignField: '_id',
+  justOne: true
+});
+
+// StoreStock (Product-wise stock at shop/store)
+const StoreStockSchema = new Schema({
+  storeId: { type: Schema.Types.ObjectId, ref: 'Store', required: true, index: true },
+  productId: { type: Schema.Types.ObjectId, ref: 'Product', required: true, index: true },
+  currentStock: { type: Number, default: 0 },
+  minThreshold: { type: Number, default: 10 },
+  reorderQuantity: { type: Number, default: 24 },
+  lastRestockedAt: { type: Date },
+  lastAuditAt: { type: Date },
+  updatedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+  history: [{
+    action: { type: String, enum: ['INITIAL', 'AUDIT_ADJUSTMENT', 'ORDER_DELIVERY', 'MANUAL_UPDATE', 'SALE'], default: 'MANUAL_UPDATE' },
+    quantityChanged: { type: Number, default: 0 },
+    previousStock: { type: Number, default: 0 },
+    newStock: { type: Number, default: 0 },
+    notes: { type: String },
+    updatedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+    date: { type: Date, default: Date.now }
+  }]
+}, {
+  timestamps: true,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
+});
+
+StoreStockSchema.index({ storeId: 1, productId: 1 }, { unique: true });
+
+StoreStockSchema.virtual('store', {
+  ref: 'Store',
+  localField: 'storeId',
+  foreignField: '_id',
+  justOne: true
+});
+
+StoreStockSchema.virtual('product', {
+  ref: 'Product',
+  localField: 'productId',
   foreignField: '_id',
   justOne: true
 });
@@ -1785,6 +1909,9 @@ const StockAudit = mongoose.model('StockAudit', StockAuditSchema, 'stock_audits'
 const StockAdjustment = mongoose.model('StockAdjustment', StockAdjustmentSchema, 'stock_adjustments');
 const RawMaterialCategory = mongoose.model('RawMaterialCategory', RawMaterialCategorySchema, 'raw_material_categories');
 const RawMaterialItem = mongoose.model('RawMaterialItem', RawMaterialItemSchema, 'raw_material_items');
+const MarketingEvent = mongoose.model('MarketingEvent', MarketingEventSchema, 'marketing_events');
+const BulkUploadHistory = mongoose.model('BulkUploadHistory', BulkUploadHistorySchema, 'bulk_upload_history');
+const StoreStock = mongoose.model('StoreStock', StoreStockSchema, 'store_stocks');
 
 // ─────────────────────────────────────────────
 // AUTOMATIC DATABASE SCHEMA MIGRATION RUNNER
@@ -2635,6 +2762,9 @@ const prisma = {
   stockAdjustment: new PrismaCollectionWrapper('StockAdjustment'),
   rawMaterialCategory: new PrismaCollectionWrapper('RawMaterialCategory'),
   rawMaterialItem: new PrismaCollectionWrapper('RawMaterialItem'),
+  marketingEvent: new PrismaCollectionWrapper('MarketingEvent'),
+  bulkUploadHistory: new PrismaCollectionWrapper('BulkUploadHistory'),
+  storeStock: new PrismaCollectionWrapper('StoreStock'),
 
   $transaction: async (fn) => {
     // Run transactions sequentially on standalone local MongoDB instances

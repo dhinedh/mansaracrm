@@ -1,37 +1,39 @@
-// src/pages/admin/RetailStoresPage.jsx
+ // src/pages/admin/RetailStoresPage.jsx
 import React, { useEffect, useState, useMemo } from 'react';
 import axios from 'axios';
 import {
   Store,
+  MapPin,
+  Phone,
+  ShieldCheck,
+  Calendar,
+  IndianRupee,
+  Clock,
   Search,
   Filter,
-  Phone,
-  MapPin,
-  ShieldCheck,
-  Layers,
-  Calendar,
-  Clock,
-  User,
-  ChevronDown,
   X,
-  BarChart3,
-  FileText,
+  User,
+  ShoppingBag,
+  Package,
+  Layers,
+  History,
+  CheckCircle2,
+  AlertTriangle,
+  Edit3,
+  Plus,
+  Navigation,
+  ExternalLink,
   RefreshCw,
-  Building2,
-  Tag,
-  TrendingUp,
-  IndianRupee,
-  Package
+  TrendingDown
 } from 'lucide-react';
-
-// ─── helpers ─────────────────────────────────────────────────────────────────
+import { useAuthStore } from '../../store/authStore';
 
 function StatCard({ label, value, sub, icon: Icon, color = 'rose' }) {
   const colors = {
     rose:    { bg: 'bg-rose-50',    icon: 'text-rose-600',    val: 'text-rose-700' },
     emerald: { bg: 'bg-emerald-50', icon: 'text-emerald-600', val: 'text-emerald-700' },
-    blue:    { bg: 'bg-blue-50',    icon: 'text-blue-600',    val: 'text-blue-700' },
     amber:   { bg: 'bg-amber-50',   icon: 'text-amber-600',   val: 'text-amber-700' },
+    blue:    { bg: 'bg-blue-50',    icon: 'text-blue-600',    val: 'text-blue-700' },
   };
   const c = colors[color] || colors.rose;
   return (
@@ -63,11 +65,37 @@ function ClassificationBadge({ type }) {
   );
 }
 
-// ─── Main Component ───────────────────────────────────────────────────────────
+function LocationStatusBadge({ status, isVerified }) {
+  if (isVerified || status === 'VERIFIED') {
+    return (
+      <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1 w-fit">
+        <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600" />
+        Verified GPS
+      </span>
+    );
+  }
+  if (status === 'COORDINATES_CAPTURED') {
+    return (
+      <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 flex items-center gap-1 w-fit">
+        <Navigation className="w-2.5 h-2.5 text-blue-600" />
+        GPS Captured
+      </span>
+    );
+  }
+  return (
+    <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1 w-fit">
+      <AlertTriangle className="w-2.5 h-2.5 text-amber-600" />
+      Pending GPS
+    </span>
+  );
+}
 
 export default function RetailStoresPage() {
+  const { user } = useAuthStore();
+  const isAdmin = ['ADMIN', 'B2B_MANAGER'].includes(user?.role);
+
   const [dealers, setDealers] = useState([]);
-  const [allStores, setAllStores] = useState([]);   // all stores from selected/all dealers
+  const [allStores, setAllStores] = useState([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ text: '', type: '' });
 
@@ -75,15 +103,50 @@ export default function RetailStoresPage() {
   const [filterDealer, setFilterDealer] = useState('');
   const [filterClassification, setFilterClassification] = useState('');
   const [filterZone, setFilterZone] = useState('');
+  const [filterLocationStatus, setFilterLocationStatus] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // History modal
-  const [historyStore, setHistoryStore] = useState(null);
-  const [historyVisits, setHistoryVisits] = useState([]);
-  const [historyInvoices, setHistoryInvoices] = useState([]);
-  const [historyTab, setHistoryTab] = useState('visits');
-  const [historyLoading, setHistoryLoading] = useState(false);
+  // 360 Store Modal States
   const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [historyStore, setHistoryStore] = useState(null);
+  const [historyTab, setHistoryTab] = useState('orders'); // 'orders' | 'stock' | 'location' | 'visits' | 'audit'
+  const [historyLoading, setHistoryLoading] = useState(false);
+
+  // Store Orders State
+  const [storeOrdersData, setStoreOrdersData] = useState({ orders: [], totalOrders: 0, totalOrderValue: 0 });
+  // Store Stock State
+  const [storeStockData, setStoreStockData] = useState({ items: [], lowStockCount: 0, outOfStockCount: 0 });
+  // Store Visits & Invoices
+  const [historyVisits, setHistoryVisits] = useState([]);
+  // Store Audit Trail State
+  const [storeAuditLogs, setStoreAuditLogs] = useState([]);
+
+  // Stock Adjustment Modal
+  const [showStockModal, setShowStockModal] = useState(false);
+  const [selectedProductStock, setSelectedProductStock] = useState(null);
+  const [adjustStockQty, setAdjustStockQty] = useState('');
+  const [adjustStockMin, setAdjustStockMin] = useState('10');
+  const [adjustStockNotes, setAdjustStockNotes] = useState('');
+  const [stockUpdating, setStockUpdating] = useState(false);
+
+  // Edit Store Modal
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editFormData, setEditFormData] = useState({});
+  const [editSaving, setEditSaving] = useState(false);
+
+  // Add Store Modal
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [addFormData, setAddFormData] = useState({
+    name: '', ownerName: '', phone: '', address: '', city: '', state: 'Tamil Nadu',
+    pincode: '', zone: '', category: 'RETAIL', gstNumber: '', dealerId: '',
+    latitude: '', longitude: '', marginPercent: '10'
+  });
+  const [addSaving, setAddSaving] = useState(false);
+
+  // Location Matching State
+  const [matchingGps, setMatchingGps] = useState(false);
+  const [manualLat, setManualLat] = useState('');
+  const [manualLng, setManualLng] = useState('');
 
   useEffect(() => {
     fetchDealers();
@@ -91,7 +154,6 @@ export default function RetailStoresPage() {
 
   useEffect(() => {
     fetchStores();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filterDealer]);
 
   const fetchDealers = async () => {
@@ -103,28 +165,17 @@ export default function RetailStoresPage() {
     }
   };
 
+  /**
+   * Fetch stores from backend.
+   * FIX: Backend now accurately enriches each store with its actual assigned dealer.
+   * No arbitrary fallback to 'Dealer Tamil Enterprises' or looping that causes mapping bugs.
+   */
   const fetchStores = async () => {
     setLoading(true);
     try {
-      if (filterDealer) {
-        // Fetch stores for specific dealer
-        const res = await axios.get(`/stores?dealerId=${filterDealer}`);
-        setAllStores(res.data.data || []);
-      } else {
-        // Fetch stores for ALL dealers
-        const res = await axios.get('/dealers');
-        const dealerList = res.data.data || [];
-        const storeFetches = await Promise.all(
-          dealerList.map(d =>
-            axios.get(`/stores?dealerId=${d.id}`).then(r => (r.data.data || []).map(s => ({
-              ...s,
-              dealerName: d.name || d.firmName || 'Unknown Dealer',
-              dealerCity: d.city || ''
-            }))).catch(() => [])
-          )
-        );
-        setAllStores(storeFetches.flat());
-      }
+      const url = filterDealer ? `/stores?dealerId=${filterDealer}` : '/stores';
+      const res = await axios.get(url);
+      setAllStores(res.data.data || []);
     } catch (err) {
       console.error('Failed to load stores', err);
       setMessage({ text: 'Failed to load store data.', type: 'error' });
@@ -133,21 +184,33 @@ export default function RetailStoresPage() {
     }
   };
 
-  const openHistoryModal = async (store) => {
+  /**
+   * Open 360 Store Modal: loads orders, stock, audit trail, and visits for this store
+   */
+  const openHistoryModal = async (store, initialTab = 'orders') => {
     setHistoryStore(store);
     setShowHistoryModal(true);
     setHistoryLoading(true);
-    setHistoryTab('visits');
+    setHistoryTab(initialTab);
+
+    setManualLat(store.latitude ? String(store.latitude) : '');
+    setManualLng(store.longitude ? String(store.longitude) : '');
+
     try {
-      const [visitsRes, invoicesRes] = await Promise.all([
-        axios.get('/field-sales/visits'),
-        axios.get('/billing')
+      const [ordersRes, stockRes, auditRes, visitsRes] = await Promise.all([
+        axios.get(`/stores/${store.id}/orders`).catch(() => ({ data: { data: { orders: [] } } })),
+        axios.get(`/stores/${store.id}/stock`).catch(() => ({ data: { data: { items: [] } } })),
+        axios.get(`/audit/logs/Store/${store.id}`).catch(() => ({ data: { data: [] } })),
+        axios.get('/field-sales/visits').catch(() => ({ data: { data: [] } }))
       ]);
+
+      setStoreOrdersData(ordersRes.data?.data || { orders: [] });
+      setStoreStockData(stockRes.data?.data || { items: [] });
+      setStoreAuditLogs(auditRes.data?.data || []);
       const storeIdStr = store.id?.toString();
-      setHistoryVisits((visitsRes.data.data || []).filter(v => v.storeId?.toString() === storeIdStr));
-      setHistoryInvoices((invoicesRes.data.data || []).filter(i => i.storeId?.toString() === storeIdStr));
+      setHistoryVisits((visitsRes.data?.data || []).filter(v => v.storeId?.toString() === storeIdStr));
     } catch (err) {
-      console.error('Failed to load store history', err);
+      console.error('Failed to load full store 360 data', err);
     } finally {
       setHistoryLoading(false);
     }
@@ -156,8 +219,180 @@ export default function RetailStoresPage() {
   const closeHistoryModal = () => {
     setShowHistoryModal(false);
     setHistoryStore(null);
-    setHistoryVisits([]);
-    setHistoryInvoices([]);
+  };
+
+  /**
+   * Handle Location Matching (Requirement 7)
+   */
+  const handleMatchGpsCoordinates = async () => {
+    if (!historyStore) return;
+    setMatchingGps(true);
+    try {
+      let lat = parseFloat(manualLat);
+      let lng = parseFloat(manualLng);
+
+      // If user clicked auto-fetch current device coordinates
+      if (isNaN(lat) || isNaN(lng)) {
+        if (!navigator.geolocation) {
+          alert('Geolocation is not supported by your browser');
+          setMatchingGps(false);
+          return;
+        }
+        await new Promise((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(
+            pos => {
+              lat = pos.coords.latitude;
+              lng = pos.coords.longitude;
+              setManualLat(String(lat));
+              setManualLng(String(lng));
+              resolve();
+            },
+            err => reject(err),
+            { enableHighAccuracy: true, timeout: 10000 }
+          );
+        });
+      }
+
+      const res = await axios.put(`/stores/${historyStore.id}/match-location`, {
+        latitude: lat,
+        longitude: lng
+      });
+
+      if (res.data?.success) {
+        setMessage({ text: 'GPS coordinates matched successfully!', type: 'success' });
+        setHistoryStore(res.data.data);
+        fetchStores();
+      }
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to match GPS coordinates');
+    } finally {
+      setMatchingGps(false);
+    }
+  };
+
+  /**
+   * Admin Location Verification (Requirement 7)
+   */
+  const handleVerifyLocation = async () => {
+    if (!historyStore) return;
+    try {
+      const res = await axios.put(`/stores/${historyStore.id}/verify-location`);
+      if (res.data?.success) {
+        setMessage({ text: 'Shop location marked as VERIFIED!', type: 'success' });
+        setHistoryStore(res.data.data);
+        fetchStores();
+      }
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to verify location');
+    }
+  };
+
+  /**
+   * Admin Stock Adjustment (Requirement 6)
+   */
+  const handleOpenStockModal = (productItem) => {
+    setSelectedProductStock(productItem);
+    setAdjustStockQty(String(productItem.currentStock || 0));
+    setAdjustStockMin(String(productItem.minThreshold || 10));
+    setAdjustStockNotes('');
+    setShowStockModal(true);
+  };
+
+  const handleSaveStockAdjustment = async (e) => {
+    e.preventDefault();
+    if (!historyStore || !selectedProductStock) return;
+    setStockUpdating(true);
+    try {
+      const res = await axios.put(`/stores/${historyStore.id}/stock`, {
+        productId: selectedProductStock.productId,
+        currentStock: parseInt(adjustStockQty, 10) || 0,
+        minThreshold: parseInt(adjustStockMin, 10) || 10,
+        notes: adjustStockNotes
+      });
+
+      if (res.data?.success) {
+        setMessage({ text: 'Stock quantity updated successfully!', type: 'success' });
+        setShowStockModal(false);
+        // Refresh stock tab data
+        const stockRes = await axios.get(`/stores/${historyStore.id}/stock`);
+        setStoreStockData(stockRes.data?.data || { items: [] });
+      }
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to update stock');
+    } finally {
+      setStockUpdating(false);
+    }
+  };
+
+  /**
+   * Admin Edit Store (Requirement 8)
+   */
+  const handleOpenEditModal = (store) => {
+    setEditFormData({
+      id: store.id,
+      name: store.name || '',
+      ownerName: store.ownerName || '',
+      phone: store.phone || '',
+      address: store.address || '',
+      manualAddress: store.manualAddress || store.address || '',
+      city: store.city || '',
+      state: store.state || 'Tamil Nadu',
+      pincode: store.pincode || '',
+      zone: store.zone || '',
+      category: store.category || store.classification || 'RETAIL',
+      gstNumber: store.gstNumber || '',
+      dealerId: store.dealerId || store.dealer?.id || '',
+      marginPercent: store.marginPercent !== null && store.marginPercent !== undefined ? String(store.marginPercent) : '10',
+      latitude: store.latitude ? String(store.latitude) : '',
+      longitude: store.longitude ? String(store.longitude) : '',
+      isLocationVerified: !!store.isLocationVerified
+    });
+    setShowEditModal(true);
+  };
+
+  const handleSaveEditStore = async (e) => {
+    e.preventDefault();
+    setEditSaving(true);
+    try {
+      const res = await axios.put(`/stores/${editFormData.id}`, editFormData);
+      if (res.data?.success) {
+        setMessage({ text: 'Store details updated successfully!', type: 'success' });
+        setShowEditModal(false);
+        fetchStores();
+        if (historyStore && historyStore.id === editFormData.id) {
+          setHistoryStore(res.data.data);
+        }
+      }
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to update store details');
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
+  /**
+   * Add New Store
+   */
+  const handleSaveAddStore = async (e) => {
+    e.preventDefault();
+    setAddSaving(true);
+    try {
+      const res = await axios.post('/stores', addFormData);
+      if (res.data?.success) {
+        setMessage({ text: 'New retail shop registered successfully!', type: 'success' });
+        setShowAddModal(false);
+        fetchStores();
+        setAddFormData({
+          name: '', ownerName: '', phone: '', address: '', city: '', state: 'Tamil Nadu',
+          pincode: '', zone: '', category: 'RETAIL', gstNumber: '', dealerId: '',
+          latitude: '', longitude: '', marginPercent: '10'
+        });
+      }
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to add store');
+    } finally {
+      setAddSaving(false);
+    }
   };
 
   // ─── Derived data ───────────────────────────────────────────────────────────
@@ -171,6 +406,15 @@ export default function RetailStoresPage() {
     let result = allStores;
     if (filterClassification) result = result.filter(s => s.classification === filterClassification);
     if (filterZone) result = result.filter(s => s.zone === filterZone);
+    if (filterLocationStatus) {
+      if (filterLocationStatus === 'VERIFIED') {
+        result = result.filter(s => s.isLocationVerified || s.locationStatus === 'VERIFIED');
+      } else if (filterLocationStatus === 'CAPTURED') {
+        result = result.filter(s => s.locationStatus === 'COORDINATES_CAPTURED' && !s.isLocationVerified);
+      } else if (filterLocationStatus === 'PENDING') {
+        result = result.filter(s => s.locationStatus === 'PENDING_COORDINATES' || (!s.latitude && !s.longitude));
+      }
+    }
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       result = result.filter(s =>
@@ -182,510 +426,1115 @@ export default function RetailStoresPage() {
       );
     }
     return result;
-  }, [allStores, filterClassification, filterZone, searchQuery]);
+  }, [allStores, filterClassification, filterZone, filterLocationStatus, searchQuery]);
 
   const stats = useMemo(() => ({
     total: allStores.length,
     retail: allStores.filter(s => s.classification !== 'KIRANA').length,
     kirana: allStores.filter(s => s.classification === 'KIRANA').length,
-    withRevisit: allStores.filter(s => s.revisitDate).length,
+    verifiedGps: allStores.filter(s => s.isLocationVerified || s.locationStatus === 'VERIFIED').length,
+    pendingGps: allStores.filter(s => s.locationStatus === 'PENDING_COORDINATES' || (!s.latitude && !s.longitude)).length
   }), [allStores]);
 
   const selectedDealerName = useMemo(() => {
-    if (!filterDealer) return 'All Dealers';
-    const d = dealers.find(d => d.id === filterDealer);
-    return d ? (d.name || d.firmName || 'Selected Dealer') : 'Selected Dealer';
+    if (!filterDealer) return 'All Distributors';
+    const d = dealers.find(item => item.id === filterDealer || item._id === filterDealer);
+    return d ? (d.companyName || d.name || 'Selected Distributor') : 'Selected Distributor';
   }, [filterDealer, dealers]);
 
-  // ─── Render ─────────────────────────────────────────────────────────────────
-
   return (
-    <div className="space-y-6">
-
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+    <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto">
+      {/* Page Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-black text-slate-800 tracking-tight">Retail Store Directory</h2>
-          <p className="text-slate-500 text-xs mt-0.5">
-            All dealer-registered B2C outlet stores — Retail &amp; Kirana
+          <span className="text-xs font-black uppercase tracking-widest text-rose-500 block">
+            B2B Retail &amp; Outlets Network
+          </span>
+          <h1 className="text-2xl sm:text-3xl font-black text-slate-800 tracking-tight">
+            Retail Stores &amp; Outlets
+          </h1>
+          <p className="text-slate-500 text-xs mt-1">
+            Track shop-wise orders, current stocks, verified GPS addresses, and audit history.
           </p>
         </div>
-        <button
-          onClick={fetchStores}
-          className="inline-flex items-center gap-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-md shadow-rose-100 transition-all cursor-pointer"
-        >
-          <RefreshCw className="w-3.5 h-3.5" />
-          Refresh
-        </button>
+
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="inline-flex items-center gap-2 bg-rose-600 hover:bg-rose-700 text-white font-bold px-4 py-2.5 rounded-xl text-xs shadow-sm transition-all cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            Add New Shop
+          </button>
+        </div>
       </div>
 
-      {/* Alert */}
+      {/* Global Alert Notification */}
       {message.text && (
-        <div className={`px-4 py-3 rounded-xl text-xs font-semibold ${message.type === 'success' ? 'bg-emerald-50 text-emerald-800 border border-emerald-100' : 'bg-rose-50 text-rose-800 border border-rose-100'}`}>
-          {message.text}
+        <div
+          className={`p-4 rounded-xl border text-xs font-semibold flex items-center justify-between ${
+            message.type === 'error'
+              ? 'bg-red-50 border-red-200 text-red-700'
+              : 'bg-emerald-50 border-emerald-200 text-emerald-700'
+          }`}
+        >
+          <span>{message.text}</span>
+          <button onClick={() => setMessage({ text: '', type: '' })} className="cursor-pointer">
+            <X className="w-4 h-4" />
+          </button>
         </div>
       )}
 
-      {/* Stats Row */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="Total Outlets" value={stats.total} icon={Store} color="rose" />
-        <StatCard label="Retail" value={stats.retail} sub="Standard retail shops" icon={Building2} color="emerald" />
-        <StatCard label="Kirana" value={stats.kirana} sub="Grocery / Kirana stores" icon={Package} color="amber" />
-        <StatCard label="With Revisit" value={stats.withRevisit} sub="Scheduled revisit dates" icon={Calendar} color="blue" />
+      {/* KPI Stats Overview */}
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3.5 sm:gap-4">
+        <StatCard
+          label="Total Shops"
+          value={stats.total}
+          icon={Store}
+          color="rose"
+          sub="Across all territories"
+        />
+        <StatCard
+          label="Supermarket / Retail"
+          value={stats.retail}
+          icon={Store}
+          color="emerald"
+          sub="Modern trade"
+        />
+        <StatCard
+          label="Kirana Stores"
+          value={stats.kirana}
+          icon={Store}
+          color="amber"
+          sub="Traditional trade"
+        />
+        <StatCard
+          label="Verified GPS"
+          value={stats.verifiedGps}
+          icon={CheckCircle2}
+          color="blue"
+          sub="Pinpoint locations"
+        />
+        <StatCard
+          label="Pending GPS"
+          value={stats.pendingGps}
+          icon={AlertTriangle}
+          color="amber"
+          sub="Needs visit match"
+        />
       </div>
 
-      {/* Filter Bar */}
-      <div className="bg-white border border-slate-150 rounded-2xl p-4 shadow-sm">
-        <div className="flex flex-col sm:flex-row gap-3">
-          {/* Search */}
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Search by store name, city, phone, GST…"
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl text-xs focus:outline-none"
-            />
-            {searchQuery && (
-              <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700">
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
-
-          {/* Dealer Filter */}
-          <div className="relative min-w-[200px]">
-            <User className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+      {/* Filter and Search Bar */}
+      <div className="bg-white border border-slate-150 rounded-2xl p-4 shadow-sm space-y-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          {/* Dealer Selector */}
+          <div className="relative">
+            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide block mb-1">
+              Filter by Distributor / Dealer
+            </label>
             <select
               value={filterDealer}
-              onChange={e => setFilterDealer(e.target.value)}
-              className="w-full pl-9 pr-8 py-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 rounded-xl text-xs focus:outline-none appearance-none font-semibold text-slate-700"
+              onChange={(e) => setFilterDealer(e.target.value)}
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-rose-500/20"
             >
-              <option value="">All Dealers</option>
-              {dealers.map(d => (
-                <option key={d.id} value={d.id}>{d.name || d.firmName}</option>
+              <option value="">All Distributors &amp; Direct Stores</option>
+              {dealers.map((d) => (
+                <option key={d.id || d._id} value={d.id || d._id}>
+                  {d.companyName || d.name} {d.city ? `(${d.city})` : ''}
+                </option>
               ))}
             </select>
-            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
           </div>
 
           {/* Classification Filter */}
-          <div className="relative min-w-[160px]">
-            <Tag className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+          <div>
+            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide block mb-1">
+              Store Category
+            </label>
             <select
               value={filterClassification}
-              onChange={e => setFilterClassification(e.target.value)}
-              className="w-full pl-9 pr-8 py-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 rounded-xl text-xs focus:outline-none appearance-none font-semibold text-slate-700"
+              onChange={(e) => setFilterClassification(e.target.value)}
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-rose-500/20"
             >
-              <option value="">All Types</option>
-              <option value="RETAIL">Retail</option>
-              <option value="KIRANA">Kirana</option>
+              <option value="">All Categories</option>
+              <option value="RETAIL">Retail / Supermarket</option>
+              <option value="KIRANA">Kirana Store</option>
             </select>
-            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
           </div>
 
-          {/* Zone Filter */}
-          {zones.length > 0 && (
-            <div className="relative min-w-[160px]">
-              <Layers className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
-              <select
-                value={filterZone}
-                onChange={e => setFilterZone(e.target.value)}
-                className="w-full pl-9 pr-8 py-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 rounded-xl text-xs focus:outline-none appearance-none font-semibold text-slate-700"
-              >
-                <option value="">All Zones</option>
-                {zones.map(z => (
-                  <option key={z} value={z}>{z}</option>
-                ))}
-              </select>
-              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+          {/* Location Status Filter */}
+          <div>
+            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide block mb-1">
+              GPS Location Status
+            </label>
+            <select
+              value={filterLocationStatus}
+              onChange={(e) => setFilterLocationStatus(e.target.value)}
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-rose-500/20"
+            >
+              <option value="">All Location Statuses</option>
+              <option value="VERIFIED">Verified GPS (Approved)</option>
+              <option value="CAPTURED">GPS Captured (Unverified)</option>
+              <option value="PENDING">Pending GPS Coordinates</option>
+            </select>
+          </div>
+
+          {/* Search Query */}
+          <div>
+            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide block mb-1">
+              Search Shops
+            </label>
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Name, city, phone, GST, distributor..."
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-8 pr-3 py-2 text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-rose-500/20"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
-          )}
+          </div>
         </div>
 
-        {/* Active filter indicators */}
-        {(filterDealer || filterClassification || filterZone || searchQuery) && (
-          <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-slate-100">
-            <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Active filters:</span>
+        {/* Active Filter Chips */}
+        {(filterDealer || filterClassification || filterZone || filterLocationStatus || searchQuery) && (
+          <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100 text-[11px]">
+            <span className="text-slate-400 font-bold uppercase text-[9px]">Active Filters:</span>
             {filterDealer && (
-              <span className="inline-flex items-center gap-1 bg-rose-50 text-rose-700 text-[10px] font-bold px-2 py-0.5 rounded-full border border-rose-100">
-                Dealer: {selectedDealerName}
+              <span className="bg-rose-50 text-rose-700 font-semibold px-2.5 py-0.5 rounded-full border border-rose-100 flex items-center gap-1">
+                Distributor: {selectedDealerName}
                 <button onClick={() => setFilterDealer('')}><X className="w-2.5 h-2.5" /></button>
               </span>
             )}
             {filterClassification && (
-              <span className="inline-flex items-center gap-1 bg-rose-50 text-rose-700 text-[10px] font-bold px-2 py-0.5 rounded-full border border-rose-100">
-                Type: {filterClassification}
+              <span className="bg-slate-100 text-slate-700 font-semibold px-2.5 py-0.5 rounded-full border border-slate-200 flex items-center gap-1">
+                {filterClassification}
                 <button onClick={() => setFilterClassification('')}><X className="w-2.5 h-2.5" /></button>
               </span>
             )}
-            {filterZone && (
-              <span className="inline-flex items-center gap-1 bg-rose-50 text-rose-700 text-[10px] font-bold px-2 py-0.5 rounded-full border border-rose-100">
-                Zone: {filterZone}
-                <button onClick={() => setFilterZone('')}><X className="w-2.5 h-2.5" /></button>
+            {filterLocationStatus && (
+              <span className="bg-blue-50 text-blue-700 font-semibold px-2.5 py-0.5 rounded-full border border-blue-200 flex items-center gap-1">
+                GPS: {filterLocationStatus}
+                <button onClick={() => setFilterLocationStatus('')}><X className="w-2.5 h-2.5" /></button>
               </span>
             )}
-            {searchQuery && (
-              <span className="inline-flex items-center gap-1 bg-rose-50 text-rose-700 text-[10px] font-bold px-2 py-0.5 rounded-full border border-rose-100">
-                "{searchQuery}"
-                <button onClick={() => setSearchQuery('')}><X className="w-2.5 h-2.5" /></button>
-              </span>
-            )}
+            <button
+              onClick={() => {
+                setFilterDealer('');
+                setFilterClassification('');
+                setFilterZone('');
+                setFilterLocationStatus('');
+                setSearchQuery('');
+              }}
+              className="text-rose-600 hover:underline font-bold text-[10px] ml-auto cursor-pointer"
+            >
+              Reset Filters
+            </button>
           </div>
         )}
       </div>
 
-      {/* Results Summary */}
-      <div className="flex items-center justify-between">
-        <p className="text-xs text-slate-500 font-semibold">
-          Showing <span className="text-slate-800 font-black">{filteredStores.length}</span> of <span className="text-slate-800 font-black">{allStores.length}</span> stores
-          {filterDealer ? ` · ${selectedDealerName}` : ' · All Dealers'}
-        </p>
+      {/* Store Count Summary */}
+      <div className="flex items-center justify-between text-xs text-slate-500">
+        <span>
+          Showing <strong className="text-slate-800 font-bold">{filteredStores.length}</strong> of{' '}
+          <strong className="text-slate-800 font-bold">{allStores.length}</strong> outlets
+          {filterDealer ? ` · ${selectedDealerName}` : ' · All Outlets'}
+        </span>
       </div>
 
       {/* Stores Grid */}
       {loading ? (
-        <div className="flex items-center justify-center h-48">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-rose-600"></div>
+        <div className="py-20 text-center">
+          <div className="inline-block animate-spin w-8 h-8 border-4 border-rose-600 border-t-transparent rounded-full mb-3" />
+          <p className="text-xs text-slate-500 font-medium">Loading retail store records...</p>
         </div>
       ) : filteredStores.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 text-center">
-          <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center mb-4">
-            <Store className="w-8 h-8 text-slate-400" />
-          </div>
-          <p className="text-slate-600 font-bold text-sm">No stores found</p>
-          <p className="text-slate-400 text-xs mt-1">
-            {allStores.length === 0
-              ? 'No retail stores have been registered yet. Dealers can add their stores from the "My Shop" section.'
-              : 'No stores match your current filters. Try adjusting the search or filters.'}
+        <div className="bg-white border border-dashed border-slate-200 rounded-2xl p-16 text-center space-y-3">
+          <Store className="w-12 h-12 text-slate-300 mx-auto" />
+          <h3 className="font-bold text-slate-700 text-sm">No retail stores found</h3>
+          <p className="text-xs text-slate-400 max-w-sm mx-auto">
+            Try adjusting your search query, distributor filter, or store classification.
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredStores.map((store) => (
             <div
               key={store.id}
-              className="bg-white border border-slate-150 rounded-2xl shadow-sm p-5 space-y-4 hover:shadow-md transition-shadow relative overflow-hidden group"
+              className="bg-white border border-slate-150 rounded-2xl shadow-xs p-5 space-y-4 hover:shadow-md transition-shadow relative overflow-hidden flex flex-col justify-between"
             >
-              {/* Card Header */}
-              <div className="flex items-start justify-between">
-                <div className="flex items-center space-x-3">
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${store.classification === 'KIRANA' ? 'bg-amber-50 text-amber-600' : 'bg-rose-50 text-rose-600'}`}>
-                    <Store className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-slate-800 text-xs leading-tight">{store.name}</h3>
-                    <div className="flex items-center gap-1.5 mt-0.5">
-                      <ClassificationBadge type={store.classification} />
-                      {store.zone && (
-                        <span className="text-[9px] font-bold text-slate-400 uppercase">{store.zone}</span>
-                      )}
+              <div className="space-y-3">
+                {/* Header */}
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center space-x-3">
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${store.classification === 'KIRANA' ? 'bg-amber-50 text-amber-600' : 'bg-rose-50 text-rose-600'}`}>
+                      <Store className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-slate-800 text-sm leading-tight">{store.name}</h3>
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <ClassificationBadge type={store.classification} />
+                        <LocationStatusBadge status={store.locationStatus} isVerified={store.isLocationVerified} />
+                      </div>
                     </div>
                   </div>
-                </div>
-              </div>
 
-              {/* Dealer Badge */}
-              {store.dealerName && (
-                <div className="bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 flex items-center gap-2">
-                  <User className="w-3 h-3 text-slate-400 shrink-0" />
-                  <span className="text-[10px] text-slate-600 font-semibold">
-                    Dealer: <strong className="text-slate-800">{store.dealerName}</strong>
-                    {store.dealerCity ? ` · ${store.dealerCity}` : ''}
-                  </span>
+                  {isAdmin && (
+                    <button
+                      onClick={() => handleOpenEditModal(store)}
+                      title="Edit shop details"
+                      className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                    >
+                      <Edit3 className="w-4 h-4" />
+                    </button>
+                  )}
                 </div>
-              )}
 
-              {/* Store Details */}
-              <div className="space-y-2 text-xs text-slate-600 border-t border-slate-100 pt-3">
-                {store.gstNumber && (
-                  <p className="flex items-center space-x-2">
-                    <ShieldCheck className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                    <span>GSTIN: <strong className="text-slate-800">{store.gstNumber}</strong></span>
+                {/* Distributor / Dealer Name (Accurately mapped from DB) */}
+                <div className="bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-2">
+                    <User className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                    <span className="text-[10px] text-slate-600">
+                      Distributor: <strong className="text-slate-800 font-bold">{store.dealerName || 'Direct / Head Office'}</strong>
+                    </span>
+                  </div>
+                  {store.dealerCity && (
+                    <span className="text-[9px] font-semibold text-slate-400">{store.dealerCity}</span>
+                  )}
+                </div>
+
+                {/* Store Info */}
+                <div className="space-y-1.5 text-xs text-slate-600 border-t border-slate-100 pt-2.5">
+                  {store.phone && (
+                    <p className="flex items-center space-x-2">
+                      <Phone className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                      <span className="font-semibold text-slate-700">{store.phone}</span>
+                    </p>
+                  )}
+                  <p className="flex items-start space-x-2">
+                    <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
+                    <span className="text-[11px] line-clamp-2">
+                      {store.address}{store.city ? `, ${store.city}` : ''}
+                      {store.pincode ? ` - ${store.pincode}` : ''}
+                    </span>
                   </p>
-                )}
-                {store.phone && (
-                  <p className="flex items-center space-x-2">
-                    <Phone className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                    <span>{store.phone}</span>
-                  </p>
-                )}
-                <p className="flex items-start space-x-2">
-                  <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
-                  <span>
-                    {store.address}{store.city ? `, ${store.city}` : ''}
-                    {store.state ? `, ${store.state}` : ''}
-                    {store.pincode ? ` - ${store.pincode}` : ''}
-                  </span>
-                </p>
-                {store.revisitDate && (
-                  <p className="flex items-center space-x-2 text-rose-700 font-bold bg-rose-50 px-2 py-0.5 rounded-lg border border-rose-100 w-fit text-[10px]">
-                    <Calendar className="w-3 h-3 text-rose-500 shrink-0" />
-                    <span>Revisit: {new Date(store.revisitDate).toLocaleDateString('en-IN')}</span>
-                  </p>
-                )}
-                <p className="flex items-center space-x-2 border-t border-slate-100 pt-2">
-                  <IndianRupee className="w-3 h-3 text-slate-400 shrink-0" />
-                  <span>
-                    Margin: <strong className="text-rose-700">
+                  {store.latitude && store.longitude && (
+                    <p className="text-[10px] text-slate-400 font-mono pl-5.5">
+                      GPS: {store.latitude.toFixed(4)}, {store.longitude.toFixed(4)}
+                    </p>
+                  )}
+                  <div className="flex items-center justify-between border-t border-slate-100 pt-2 text-[11px]">
+                    <span className="text-slate-500 font-medium">Margin Discount:</span>
+                    <strong className="text-rose-600 font-bold">
                       {store.marginPercent !== null && store.marginPercent !== undefined ? `${store.marginPercent}%` : 'Default (10%)'}
                     </strong>
-                  </span>
-                </p>
+                  </div>
+                </div>
               </div>
 
-              {/* Action Button */}
-              <button
-                onClick={() => openHistoryModal(store)}
-                className="w-full inline-flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2 rounded-xl text-[11px] transition-colors cursor-pointer"
-              >
-                <Clock className="w-3.5 h-3.5" />
-                View Store History
-              </button>
+              {/* Action Buttons: 360 View, Orders & Stocks */}
+              <div className="grid grid-cols-2 gap-2 pt-3 border-t border-slate-100">
+                <button
+                  onClick={() => openHistoryModal(store, 'orders')}
+                  className="flex items-center justify-center gap-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold py-2 rounded-xl text-xs transition-colors cursor-pointer"
+                >
+                  <ShoppingBag className="w-3.5 h-3.5" />
+                  <span>Orders</span>
+                </button>
+                <button
+                  onClick={() => openHistoryModal(store, 'stock')}
+                  className="flex items-center justify-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2 rounded-xl text-xs transition-colors cursor-pointer"
+                >
+                  <Package className="w-3.5 h-3.5" />
+                  <span>Stock</span>
+                </button>
+              </div>
             </div>
           ))}
         </div>
       )}
 
-      {/* Store History Modal */}
+      {/* ─── 360 Store Details Modal (Orders, Stock, Location, Visits, Audit) ─── */}
       {showHistoryModal && historyStore && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 overflow-y-auto">
-          <div className="bg-white max-w-3xl w-full rounded-2xl shadow-2xl overflow-hidden animate-zoom-in my-8 max-h-[88vh] flex flex-col">
-            
+          <div className="bg-white max-w-4xl w-full rounded-2xl shadow-2xl overflow-hidden my-8 max-h-[90vh] flex flex-col">
             {/* Modal Header */}
-            <div className="p-6 border-b border-slate-100 flex justify-between items-start bg-rose-50 shrink-0">
+            <div className="p-6 border-b border-slate-100 flex justify-between items-start bg-slate-50 shrink-0">
               <div>
-                <span className="text-[10px] font-black text-rose-500 uppercase tracking-widest block mb-0.5">
-                  Store Profile &amp; Visit Logs
-                </span>
-                <h3 className="font-black text-slate-800 text-base">
-                  🏪 {historyStore.name}
-                </h3>
-                <div className="flex items-center gap-2 mt-1">
+                <div className="flex items-center gap-2">
+                  <h3 className="font-black text-slate-900 text-lg">
+                    🏪 {historyStore.name}
+                  </h3>
                   <ClassificationBadge type={historyStore.classification} />
-                  {historyStore.zone && (
-                    <span className="text-[9px] text-slate-500 font-semibold">{historyStore.zone}</span>
-                  )}
-                  {historyStore.dealerName && (
-                    <span className="text-[9px] text-slate-500 font-semibold">· {historyStore.dealerName}</span>
-                  )}
+                  <LocationStatusBadge status={historyStore.locationStatus} isVerified={historyStore.isLocationVerified} />
                 </div>
+                <p className="text-xs text-slate-500 mt-1">
+                  {historyStore.address}{historyStore.city ? `, ${historyStore.city}` : ''} · Distributor:{' '}
+                  <strong className="text-slate-800">{historyStore.dealerName || 'Direct / Head Office'}</strong>
+                </p>
               </div>
               <button
                 onClick={closeHistoryModal}
-                className="text-slate-400 hover:text-slate-700 p-1.5 hover:bg-slate-100 rounded-lg cursor-pointer"
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-200 cursor-pointer"
               >
-                <X className="w-4 h-4" />
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Tabs */}
-            <div className="flex border-b border-slate-200 px-6 bg-slate-50/50 shrink-0">
+            {/* Modal Tab Navigation */}
+            <div className="flex border-b border-slate-200 bg-white px-6 shrink-0 gap-6 text-xs font-bold overflow-x-auto">
+              <button
+                onClick={() => setHistoryTab('orders')}
+                className={`py-3.5 border-b-2 flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                  historyTab === 'orders'
+                    ? 'border-rose-600 text-rose-600 font-black'
+                    : 'border-transparent text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                <ShoppingBag className="w-4 h-4" />
+                Order Tracking ({storeOrdersData.orders?.length || 0})
+              </button>
+              <button
+                onClick={() => setHistoryTab('stock')}
+                className={`py-3.5 border-b-2 flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                  historyTab === 'stock'
+                    ? 'border-rose-600 text-rose-600 font-black'
+                    : 'border-transparent text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                <Package className="w-4 h-4" />
+                Stock Tracking ({storeStockData.items?.length || 0})
+                {storeStockData.lowStockCount > 0 && (
+                  <span className="bg-rose-500 text-white text-[9px] px-1.5 py-0.2 rounded-full font-black">
+                    {storeStockData.lowStockCount} low
+                  </span>
+                )}
+              </button>
+              <button
+                onClick={() => setHistoryTab('location')}
+                className={`py-3.5 border-b-2 flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                  historyTab === 'location'
+                    ? 'border-rose-600 text-rose-600 font-black'
+                    : 'border-transparent text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                <MapPin className="w-4 h-4" />
+                Address &amp; GPS Match
+              </button>
               <button
                 onClick={() => setHistoryTab('visits')}
-                className={`py-3 px-4 text-xs font-black tracking-wider uppercase border-b-2 transition-all cursor-pointer ${
-                  historyTab === 'visits' ? 'border-rose-600 text-rose-700' : 'border-transparent text-slate-500 hover:text-slate-700'
+                className={`py-3.5 border-b-2 flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                  historyTab === 'visits'
+                    ? 'border-rose-600 text-rose-600 font-black'
+                    : 'border-transparent text-slate-500 hover:text-slate-800'
                 }`}
               >
-                Visits ({historyVisits.length})
+                <Clock className="w-4 h-4" />
+                Visit History ({historyVisits.length})
               </button>
               <button
-                onClick={() => setHistoryTab('invoices')}
-                className={`py-3 px-4 text-xs font-black tracking-wider uppercase border-b-2 transition-all cursor-pointer ${
-                  historyTab === 'invoices' ? 'border-rose-600 text-rose-700' : 'border-transparent text-slate-500 hover:text-slate-700'
+                onClick={() => setHistoryTab('audit')}
+                className={`py-3.5 border-b-2 flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                  historyTab === 'audit'
+                    ? 'border-rose-600 text-rose-600 font-black'
+                    : 'border-transparent text-slate-500 hover:text-slate-800'
                 }`}
               >
-                Invoices ({historyInvoices.length})
-              </button>
-              <button
-                onClick={() => setHistoryTab('info')}
-                className={`py-3 px-4 text-xs font-black tracking-wider uppercase border-b-2 transition-all cursor-pointer ${
-                  historyTab === 'info' ? 'border-rose-600 text-rose-700' : 'border-transparent text-slate-500 hover:text-slate-700'
-                }`}
-              >
-                Store Info
+                <History className="w-4 h-4" />
+                Audit Trail ({storeAuditLogs.length})
               </button>
             </div>
 
             {/* Modal Body */}
-            <div className="p-6 overflow-y-auto flex-1 text-xs">
+            <div className="p-6 overflow-y-auto flex-1">
               {historyLoading ? (
-                <div className="flex justify-center items-center py-16">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-rose-600"></div>
+                <div className="py-16 text-center">
+                  <div className="inline-block animate-spin w-8 h-8 border-4 border-rose-600 border-t-transparent rounded-full mb-3" />
+                  <p className="text-xs text-slate-500">Loading shop intelligence...</p>
                 </div>
-              ) : historyTab === 'visits' ? (
-                historyVisits.length === 0 ? (
-                  <div className="text-center py-12 text-slate-400 font-medium">
-                    No visit logs recorded for this store yet.
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {historyVisits.map((v, i) => (
-                      <div key={v.id || i} className="border border-slate-100 rounded-xl p-4 bg-slate-50/40 space-y-2">
-                        <div className="flex justify-between items-center text-[10px] text-slate-400">
-                          <span className="font-bold flex items-center gap-1">
-                            <User className="w-3.5 h-3.5" />
-                            Visitor: {v.visitorName}
-                          </span>
-                          <span className="font-mono">{new Date(v.checkInTime || v.date).toLocaleString('en-IN')}</span>
+              ) : (
+                <>
+                  {/* TAB 1: SHOP-WISE ORDER TRACKING (Requirement 5) */}
+                  {historyTab === 'orders' && (
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between bg-slate-50 p-3 rounded-xl border border-slate-200">
+                        <span className="text-xs text-slate-600">
+                          Total Orders: <strong className="text-slate-900 font-bold">{storeOrdersData.totalOrders || storeOrdersData.orders?.length || 0}</strong>
+                        </span>
+                        <span className="text-xs text-slate-600">
+                          Total Value:{' '}
+                          <strong className="text-rose-600 font-black">
+                            ₹{(storeOrdersData.totalOrderValue || 0).toLocaleString('en-IN')}
+                          </strong>
+                        </span>
+                      </div>
+
+                      {storeOrdersData.orders?.length === 0 ? (
+                        <div className="py-12 text-center text-slate-400 text-xs">
+                          <ShoppingBag className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                          No orders recorded for this outlet yet.
                         </div>
-                        <p className="text-slate-700 font-medium">
-                          <strong className="text-slate-800">Purpose:</strong> {v.purpose}
+                      ) : (
+                        <div className="space-y-3">
+                          {storeOrdersData.orders.map((ord) => (
+                            <div key={ord.id} className="border border-slate-200 rounded-xl p-4 bg-white shadow-2xs space-y-2">
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <span className="text-xs font-black text-slate-900">{ord.orderNumber}</span>
+                                  <span className="text-[10px] text-slate-400 block">
+                                    {new Date(ord.orderDate).toLocaleDateString('en-IN', {
+                                      day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
+                                    })} · Handled by {ord.salespersonName}
+                                  </span>
+                                </div>
+                                <div className="text-right">
+                                  <span className="text-sm font-black text-emerald-700 block">
+                                    ₹{Number(ord.totalAmount).toLocaleString('en-IN')}
+                                  </span>
+                                  <span className="text-[9px] font-bold uppercase px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
+                                    {ord.status}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* Products List */}
+                              {ord.items && ord.items.length > 0 && (
+                                <div className="bg-slate-50 rounded-lg p-2 text-xs space-y-1">
+                                  {ord.items.map((item, idx) => (
+                                    <div key={idx} className="flex justify-between text-[11px] text-slate-600">
+                                      <span>{item.productName} × {item.quantity}</span>
+                                      <span className="font-semibold">₹{Number(item.lineTotal || (item.unitPrice * item.quantity)).toLocaleString('en-IN')}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* TAB 2: SHOP-WISE STOCK TRACKING (Requirement 6) */}
+                  {historyTab === 'stock' && (
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between bg-slate-50 p-3 rounded-xl border border-slate-200">
+                        <span className="text-xs text-slate-600 font-medium">
+                          Product-wise stock catalog for this store.
+                        </span>
+                        {storeStockData.lowStockCount > 0 && (
+                          <span className="text-xs font-bold text-rose-600 flex items-center gap-1">
+                            <AlertTriangle className="w-3.5 h-3.5" />
+                            {storeStockData.lowStockCount} Products Need Replenishment
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="overflow-x-auto border border-slate-200 rounded-xl">
+                        <table className="w-full text-left text-xs">
+                          <thead className="bg-slate-100 text-slate-600 text-[10px] font-black uppercase">
+                            <tr>
+                              <th className="py-2.5 px-3">Product Name &amp; SKU</th>
+                              <th className="py-2.5 px-3">Category</th>
+                              <th className="py-2.5 px-3 text-center">Current Stock</th>
+                              <th className="py-2.5 px-3 text-center">Min Threshold</th>
+                              <th className="py-2.5 px-3 text-center">Health</th>
+                              {isAdmin && <th className="py-2.5 px-3 text-right">Action</th>}
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {storeStockData.items?.map((item) => (
+                              <tr key={item.productId} className="hover:bg-slate-50/50">
+                                <td className="py-2.5 px-3">
+                                  <p className="font-bold text-slate-900">{item.name}</p>
+                                  <p className="text-[10px] font-mono text-slate-400">{item.sku}</p>
+                                </td>
+                                <td className="py-2.5 px-3 text-slate-600">{item.category}</td>
+                                <td className="py-2.5 px-3 text-center">
+                                  <span className={`font-black text-xs ${item.currentStock === 0 ? 'text-red-600' : item.isLowStock ? 'text-amber-600' : 'text-emerald-700'}`}>
+                                    {item.currentStock} units
+                                  </span>
+                                </td>
+                                <td className="py-2.5 px-3 text-center text-slate-500 font-mono">
+                                  {item.minThreshold}
+                                </td>
+                                <td className="py-2.5 px-3 text-center">
+                                  {item.currentStock === 0 ? (
+                                    <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-red-100 text-red-700">
+                                      Out of Stock
+                                    </span>
+                                  ) : item.isLowStock ? (
+                                    <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-amber-100 text-amber-700">
+                                      Low Stock
+                                    </span>
+                                  ) : (
+                                    <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-emerald-100 text-emerald-700">
+                                      Optimal
+                                    </span>
+                                  )}
+                                </td>
+                                {isAdmin && (
+                                  <td className="py-2.5 px-3 text-right">
+                                    <button
+                                      onClick={() => handleOpenStockModal(item)}
+                                      className="text-rose-600 hover:text-rose-800 font-bold text-xs cursor-pointer"
+                                    >
+                                      Adjust Stock
+                                    </button>
+                                  </td>
+                                )}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* TAB 3: LOCATION & GPS MATCHING (Requirement 7) */}
+                  {historyTab === 'location' && (
+                    <div className="space-y-4">
+                      <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
+                        <h4 className="font-bold text-slate-800 text-sm">Shop Address &amp; Location Matching</h4>
+                        <p className="text-xs text-slate-500">
+                          Initial entry accepts manual address. Later, when GPS coordinates are available from a sales visit or device capture, match and save them below without creating duplicate records.
                         </p>
-                        <p className="text-slate-700">
-                          <strong className="text-slate-800">Outcome:</strong> {v.outcome || 'No outcome logged'}
-                        </p>
-                        {(v.paymentsCollected > 0 || v.revisitDate || v.newInvoiceId) && (
-                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-2 pt-2 border-t border-slate-100 text-[10px]">
-                            {v.paymentsCollected > 0 && (
-                              <div className="bg-emerald-50 border border-emerald-100 text-emerald-800 p-1.5 rounded-lg font-bold">
-                                💰 Collected: ₹{Number(v.paymentsCollected).toLocaleString('en-IN')} ({v.paymentMethod})
-                              </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                          <div>
+                            <span className="text-slate-400 font-medium block">Registered Address:</span>
+                            <p className="font-bold text-slate-800 mt-0.5">{historyStore.address}</p>
+                          </div>
+                          <div>
+                            <span className="text-slate-400 font-medium block">City &amp; Pincode:</span>
+                            <p className="font-bold text-slate-800 mt-0.5">{historyStore.city || 'N/A'} - {historyStore.pincode || 'N/A'}</p>
+                          </div>
+                        </div>
+
+                        <div className="pt-3 border-t border-slate-200">
+                          <label className="text-[10px] font-black uppercase text-slate-500 block mb-1">
+                            Current GPS Coordinates
+                          </label>
+                          <div className="flex flex-wrap items-center gap-3">
+                            <input
+                              type="number"
+                              step="any"
+                              value={manualLat}
+                              onChange={(e) => setManualLat(e.target.value)}
+                              placeholder="Latitude (e.g. 13.0418)"
+                              className="bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-mono w-44 focus:outline-none focus:ring-2 focus:ring-rose-500/20"
+                            />
+                            <input
+                              type="number"
+                              step="any"
+                              value={manualLng}
+                              onChange={(e) => setManualLng(e.target.value)}
+                              placeholder="Longitude (e.g. 80.2341)"
+                              className="bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-mono w-44 focus:outline-none focus:ring-2 focus:ring-rose-500/20"
+                            />
+                            <button
+                              type="button"
+                              onClick={handleMatchGpsCoordinates}
+                              disabled={matchingGps}
+                              className="inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs cursor-pointer shadow-xs disabled:opacity-50"
+                            >
+                              <Navigation className="w-3.5 h-3.5" />
+                              {matchingGps ? 'Matching GPS...' : 'Capture / Save GPS'}
+                            </button>
+                            {isAdmin && !historyStore.isLocationVerified && historyStore.latitude && (
+                              <button
+                                type="button"
+                                onClick={handleVerifyLocation}
+                                className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs cursor-pointer shadow-xs"
+                              >
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                Approve Location
+                              </button>
                             )}
-                            {v.newInvoiceId && (
-                              <div className="bg-blue-50 border border-blue-100 text-blue-800 p-1.5 rounded-lg font-bold">
-                                📄 New Invoice Linked
-                              </div>
-                            )}
-                            {v.revisitDate && (
-                              <div className="bg-rose-50 border border-rose-100 text-rose-800 p-1.5 rounded-lg font-bold">
-                                📅 Revisit: {new Date(v.revisitDate).toLocaleDateString('en-IN')}
-                              </div>
-                            )}
+                          </div>
+                        </div>
+
+                        {historyStore.latitude && historyStore.longitude && (
+                          <div className="pt-2">
+                            <a
+                              href={`https://www.google.com/maps/search/?api=1&query=${historyStore.latitude},${historyStore.longitude}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1.5 text-xs font-bold text-rose-600 hover:underline"
+                            >
+                              <ExternalLink className="w-3.5 h-3.5" />
+                              View Pinpoint on Google Maps ({historyStore.latitude.toFixed(4)}, {historyStore.longitude.toFixed(4)})
+                            </a>
                           </div>
                         )}
                       </div>
-                    ))}
-                  </div>
-                )
-              ) : historyTab === 'invoices' ? (
-                historyInvoices.length === 0 ? (
-                  <div className="text-center py-12 text-slate-400 font-medium">
-                    No invoices created for this store yet.
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {/* Totals Summary */}
-                    <div className="grid grid-cols-3 gap-3 mb-4">
-                      <div className="bg-rose-50 border border-rose-100 rounded-xl p-3 text-center">
-                        <p className="text-[10px] text-rose-600 font-bold uppercase">Total Billed</p>
-                        <p className="text-lg font-black text-rose-700">
-                          ₹{historyInvoices.reduce((s, i) => s + (parseFloat(i.totalAmount) || 0), 0).toLocaleString('en-IN', { minimumFractionDigits: 0 })}
-                        </p>
-                      </div>
-                      <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 text-center">
-                        <p className="text-[10px] text-amber-600 font-bold uppercase">Discounts</p>
-                        <p className="text-lg font-black text-amber-700">
-                          ₹{historyInvoices.reduce((s, i) => s + (parseFloat(i.totalDiscount) || 0), 0).toLocaleString('en-IN', { minimumFractionDigits: 0 })}
-                        </p>
-                      </div>
-                      <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3 text-center">
-                        <p className="text-[10px] text-emerald-600 font-bold uppercase">Invoices</p>
-                        <p className="text-lg font-black text-emerald-700">{historyInvoices.length}</p>
-                      </div>
                     </div>
+                  )}
 
-                    {historyInvoices.map((inv, i) => (
-                      <div key={inv.id || i} className="flex justify-between items-center border border-slate-100 rounded-xl p-3 bg-white hover:bg-slate-50 transition">
-                        <div>
-                          <strong className="text-slate-800 block text-xs">{inv.invoiceNo}</strong>
-                          <span className="text-[10px] text-slate-400">{new Date(inv.createdAt).toLocaleDateString('en-IN')}</span>
+                  {/* TAB 4: VISIT LOGS */}
+                  {historyTab === 'visits' && (
+                    <div className="space-y-3">
+                      {historyVisits.length === 0 ? (
+                        <div className="py-12 text-center text-slate-400 text-xs">
+                          No visits logged for this outlet yet.
                         </div>
-                        <div className="flex items-center space-x-3">
-                          <span className={`px-2 py-0.5 rounded-full font-bold text-[9px] uppercase ${
-                            inv.status === 'CLOSED' || inv.status === 'PAID' ? 'bg-emerald-50 text-emerald-800' : 'bg-blue-50 text-blue-800'
-                          }`}>
-                            {inv.status}
-                          </span>
-                          {inv.totalDiscount > 0 && (
-                            <span className="text-[10px] text-rose-600 font-bold">-₹{inv.totalDiscount}</span>
-                          )}
-                          <strong className="text-rose-700 text-xs font-black">₹{parseFloat(inv.totalAmount || 0).toFixed(2)}</strong>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )
-              ) : (
-                /* Store Info Tab */
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-slate-50 rounded-xl p-4 space-y-1">
-                      <p className="text-[10px] text-slate-400 font-black uppercase tracking-wider">Store Name</p>
-                      <p className="font-bold text-slate-800">{historyStore.name}</p>
-                    </div>
-                    <div className="bg-slate-50 rounded-xl p-4 space-y-1">
-                      <p className="text-[10px] text-slate-400 font-black uppercase tracking-wider">Classification</p>
-                      <ClassificationBadge type={historyStore.classification} />
-                    </div>
-                    {historyStore.gstNumber && (
-                      <div className="bg-slate-50 rounded-xl p-4 space-y-1">
-                        <p className="text-[10px] text-slate-400 font-black uppercase tracking-wider">GST Number</p>
-                        <p className="font-bold text-slate-800 font-mono">{historyStore.gstNumber}</p>
-                      </div>
-                    )}
-                    {historyStore.phone && (
-                      <div className="bg-slate-50 rounded-xl p-4 space-y-1">
-                        <p className="text-[10px] text-slate-400 font-black uppercase tracking-wider">Phone</p>
-                        <p className="font-bold text-slate-800">{historyStore.phone}</p>
-                      </div>
-                    )}
-                    {historyStore.zone && (
-                      <div className="bg-slate-50 rounded-xl p-4 space-y-1">
-                        <p className="text-[10px] text-slate-400 font-black uppercase tracking-wider">Zone</p>
-                        <p className="font-bold text-slate-800">{historyStore.zone}</p>
-                      </div>
-                    )}
-                    <div className="bg-slate-50 rounded-xl p-4 space-y-1">
-                      <p className="text-[10px] text-slate-400 font-black uppercase tracking-wider">Store Margin</p>
-                      <p className="font-bold text-rose-700">
-                        {historyStore.marginPercent !== null && historyStore.marginPercent !== undefined
-                          ? `${historyStore.marginPercent}%`
-                          : 'Default (10%)'}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="bg-slate-50 rounded-xl p-4 space-y-1">
-                    <p className="text-[10px] text-slate-400 font-black uppercase tracking-wider">Full Address</p>
-                    <p className="font-semibold text-slate-800">
-                      {historyStore.address}
-                      {historyStore.city ? `, ${historyStore.city}` : ''}
-                      {historyStore.state ? `, ${historyStore.state}` : ''}
-                      {historyStore.pincode ? ` - ${historyStore.pincode}` : ''}
-                    </p>
-                  </div>
-                  {historyStore.revisitDate && (
-                    <div className="bg-rose-50 border border-rose-100 rounded-xl p-4 flex items-center gap-3">
-                      <Calendar className="w-5 h-5 text-rose-500 shrink-0" />
-                      <div>
-                        <p className="text-[10px] text-rose-500 font-black uppercase tracking-wider">Next Scheduled Revisit</p>
-                        <p className="font-bold text-rose-800">{new Date(historyStore.revisitDate).toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
-                      </div>
+                      ) : (
+                        historyVisits.map((v, i) => (
+                          <div key={i} className="border border-slate-200 rounded-xl p-3 text-xs bg-slate-50 space-y-1">
+                            <div className="flex justify-between items-center font-bold text-slate-800">
+                              <span>Visit on {new Date(v.createdAt).toLocaleDateString('en-IN')}</span>
+                              <span className="text-[10px] text-slate-500 font-normal">{v.purpose || 'Store Visit'}</span>
+                            </div>
+                            <p className="text-slate-600 text-[11px]">{v.notes || 'No remarks added'}</p>
+                          </div>
+                        ))
+                      )}
                     </div>
                   )}
-                  {historyStore.dealerName && (
-                    <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 flex items-center gap-3">
-                      <User className="w-5 h-5 text-blue-500 shrink-0" />
-                      <div>
-                        <p className="text-[10px] text-blue-500 font-black uppercase tracking-wider">Registered By Dealer</p>
-                        <p className="font-bold text-blue-800">{historyStore.dealerName}{historyStore.dealerCity ? ` · ${historyStore.dealerCity}` : ''}</p>
-                      </div>
+
+                  {/* TAB 5: AUDIT TRAIL (Requirement 2) */}
+                  {historyTab === 'audit' && (
+                    <div className="space-y-3">
+                      {storeAuditLogs.length === 0 ? (
+                        <div className="py-12 text-center text-slate-400 text-xs">
+                          No data modification history logged for this store yet.
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          {storeAuditLogs.map((log) => (
+                            <div key={log.id} className="border border-slate-200 rounded-xl p-3 bg-white text-xs space-y-1">
+                              <div className="flex items-center justify-between">
+                                <span className="font-bold text-slate-800">
+                                  {log.action} by <span className="text-rose-600">{log.userName}</span> ({log.userRole})
+                                </span>
+                                <span className="text-[10px] text-slate-400">
+                                  {new Date(log.createdAt).toLocaleDateString('en-IN', {
+                                    day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
+                                  })}
+                                </span>
+                              </div>
+                              <p className="text-slate-600 text-[11px]">{log.details || 'Store record updated'}</p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
-                </div>
+                </>
               )}
             </div>
+          </div>
+        </div>
+      )}
 
-            {/* Footer */}
-            <div className="p-4 border-t border-slate-100 flex justify-end bg-slate-50/50 shrink-0">
-              <button
-                onClick={closeHistoryModal}
-                className="bg-slate-900 hover:bg-slate-800 text-white font-bold py-2 px-6 rounded-xl text-xs transition cursor-pointer"
-              >
-                Close
+      {/* ─── Adjust Stock Modal (Requirement 6) ─── */}
+      {showStockModal && selectedProductStock && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+          <div className="bg-white max-w-md w-full rounded-2xl shadow-xl overflow-hidden p-6 space-y-4">
+            <div className="flex justify-between items-start">
+              <div>
+                <h3 className="font-bold text-slate-900 text-base">Adjust Shop Stock</h3>
+                <p className="text-xs text-slate-500 mt-0.5">{selectedProductStock.name} ({selectedProductStock.sku})</p>
+              </div>
+              <button onClick={() => setShowStockModal(false)} className="text-slate-400 hover:text-slate-600">
+                <X className="w-4 h-4" />
               </button>
             </div>
+
+            <form onSubmit={handleSaveStockAdjustment} className="space-y-3 text-xs">
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">Current Stock Quantity (units)*</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={adjustStockQty}
+                  onChange={(e) => setAdjustStockQty(e.target.value)}
+                  required
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-500/20"
+                />
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">Minimum Alert Threshold</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={adjustStockMin}
+                  onChange={(e) => setAdjustStockMin(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-500/20"
+                />
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">Audit Notes / Reason</label>
+                <textarea
+                  rows="2"
+                  value={adjustStockNotes}
+                  onChange={(e) => setAdjustStockNotes(e.target.value)}
+                  placeholder="e.g. Physical stock count adjustment by sales manager"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-500/20"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowStockModal(false)}
+                  className="px-4 py-2 border border-slate-200 rounded-xl text-slate-600 font-bold hover:bg-slate-50 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={stockUpdating}
+                  className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold cursor-pointer disabled:opacity-50"
+                >
+                  {stockUpdating ? 'Saving...' : 'Save Stock Update'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Edit Store Modal (Requirement 8) ─── */}
+      {showEditModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="bg-white max-w-xl w-full rounded-2xl shadow-xl overflow-hidden p-6 space-y-4 my-8">
+            <div className="flex justify-between items-start">
+              <div>
+                <h3 className="font-bold text-slate-900 text-base">Edit Shop Details</h3>
+                <p className="text-xs text-slate-500">Update outlet profile, distributor mapping, and GPS coordinates.</p>
+              </div>
+              <button onClick={() => setShowEditModal(false)} className="text-slate-400 hover:text-slate-600">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditStore} className="space-y-3 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Shop Name*</label>
+                  <input
+                    type="text"
+                    value={editFormData.name || ''}
+                    onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
+                    required
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-bold text-slate-800"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Owner Name</label>
+                  <input
+                    type="text"
+                    value={editFormData.ownerName || ''}
+                    onChange={(e) => setEditFormData({ ...editFormData, ownerName: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-800"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Contact Phone*</label>
+                  <input
+                    type="text"
+                    value={editFormData.phone || ''}
+                    onChange={(e) => setEditFormData({ ...editFormData, phone: e.target.value })}
+                    required
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-800 font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Assigned Distributor / Dealer</label>
+                  <select
+                    value={editFormData.dealerId || ''}
+                    onChange={(e) => setEditFormData({ ...editFormData, dealerId: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-800"
+                  >
+                    <option value="">Direct / Head Office (No Dealer)</option>
+                    {dealers.map(d => (
+                      <option key={d.id || d._id} value={d.id || d._id}>
+                        {d.companyName || d.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">Street Address*</label>
+                <textarea
+                  rows="2"
+                  value={editFormData.address || ''}
+                  onChange={(e) => setEditFormData({ ...editFormData, address: e.target.value })}
+                  required
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-800"
+                />
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">City*</label>
+                  <input
+                    type="text"
+                    value={editFormData.city || ''}
+                    onChange={(e) => setEditFormData({ ...editFormData, city: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-800"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Pincode</label>
+                  <input
+                    type="text"
+                    value={editFormData.pincode || ''}
+                    onChange={(e) => setEditFormData({ ...editFormData, pincode: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-800 font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Zone</label>
+                  <input
+                    type="text"
+                    value={editFormData.zone || ''}
+                    onChange={(e) => setEditFormData({ ...editFormData, zone: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-800"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Category</label>
+                  <select
+                    value={editFormData.category || 'RETAIL'}
+                    onChange={(e) => setEditFormData({ ...editFormData, category: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-800"
+                  >
+                    <option value="RETAIL">Retail / Supermarket</option>
+                    <option value="KIRANA">Kirana Store</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Margin Percentage (%)</label>
+                  <input
+                    type="number"
+                    step="0.5"
+                    value={editFormData.marginPercent || '10'}
+                    onChange={(e) => setEditFormData({ ...editFormData, marginPercent: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-800 font-bold"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-100">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Latitude</label>
+                  <input
+                    type="text"
+                    value={editFormData.latitude || ''}
+                    onChange={(e) => setEditFormData({ ...editFormData, latitude: e.target.value })}
+                    placeholder="13.0418"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Longitude</label>
+                  <input
+                    type="text"
+                    value={editFormData.longitude || ''}
+                    onChange={(e) => setEditFormData({ ...editFormData, longitude: e.target.value })}
+                    placeholder="80.2341"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setShowEditModal(false)}
+                  className="px-4 py-2 border border-slate-200 rounded-xl font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={editSaving}
+                  className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold cursor-pointer disabled:opacity-50"
+                >
+                  {editSaving ? 'Saving Changes...' : 'Save Changes'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Add New Store Modal ─── */}
+      {showAddModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="bg-white max-w-xl w-full rounded-2xl shadow-xl overflow-hidden p-6 space-y-4 my-8">
+            <div className="flex justify-between items-start">
+              <div>
+                <h3 className="font-bold text-slate-900 text-base">Register New Retail Shop</h3>
+                <p className="text-xs text-slate-500">Manual address entry supported. GPS location can be captured later.</p>
+              </div>
+              <button onClick={() => setShowAddModal(false)} className="text-slate-400 hover:text-slate-600">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveAddStore} className="space-y-3 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Shop Name*</label>
+                  <input
+                    type="text"
+                    value={addFormData.name}
+                    onChange={(e) => setAddFormData({ ...addFormData, name: e.target.value })}
+                    required
+                    placeholder="e.g. Annai Maligai Store"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-bold text-slate-800"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Owner Name</label>
+                  <input
+                    type="text"
+                    value={addFormData.ownerName}
+                    onChange={(e) => setAddFormData({ ...addFormData, ownerName: e.target.value })}
+                    placeholder="e.g. R. Murugan"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-800"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Phone Number*</label>
+                  <input
+                    type="text"
+                    value={addFormData.phone}
+                    onChange={(e) => setAddFormData({ ...addFormData, phone: e.target.value })}
+                    required
+                    placeholder="10 digit mobile"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-800 font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Distributor / Dealer</label>
+                  <select
+                    value={addFormData.dealerId}
+                    onChange={(e) => setAddFormData({ ...addFormData, dealerId: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-800"
+                  >
+                    <option value="">Direct Store (No Distributor)</option>
+                    {dealers.map(d => (
+                      <option key={d.id || d._id} value={d.id || d._id}>
+                        {d.companyName || d.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">Shop Address*</label>
+                <textarea
+                  rows="2"
+                  value={addFormData.address}
+                  onChange={(e) => setAddFormData({ ...addFormData, address: e.target.value })}
+                  required
+                  placeholder="Street name, door no, landmark"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-800"
+                />
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">City*</label>
+                  <input
+                    type="text"
+                    value={addFormData.city}
+                    onChange={(e) => setAddFormData({ ...addFormData, city: e.target.value })}
+                    required
+                    placeholder="Chennai"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-800"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Pincode</label>
+                  <input
+                    type="text"
+                    value={addFormData.pincode}
+                    onChange={(e) => setAddFormData({ ...addFormData, pincode: e.target.value })}
+                    placeholder="600017"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-800 font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Zone</label>
+                  <input
+                    type="text"
+                    value={addFormData.zone}
+                    onChange={(e) => setAddFormData({ ...addFormData, zone: e.target.value })}
+                    placeholder="Central Zone"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-800"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-100">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Optional Latitude</label>
+                  <input
+                    type="text"
+                    value={addFormData.latitude}
+                    onChange={(e) => setAddFormData({ ...addFormData, latitude: e.target.value })}
+                    placeholder="Optional (match later)"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Optional Longitude</label>
+                  <input
+                    type="text"
+                    value={addFormData.longitude}
+                    onChange={(e) => setAddFormData({ ...addFormData, longitude: e.target.value })}
+                    placeholder="Optional (match later)"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setShowAddModal(false)}
+                  className="px-4 py-2 border border-slate-200 rounded-xl font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={addSaving}
+                  className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold cursor-pointer disabled:opacity-50"
+                >
+                  {addSaving ? 'Registering...' : 'Register Shop'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

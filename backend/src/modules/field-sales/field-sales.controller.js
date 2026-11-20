@@ -1189,12 +1189,8 @@ exports.registerShopLead = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Shop name, phone, and address are required' });
     }
 
-    // Default dealer if none provided
-    let targetDealerId = dealerId;
-    if (!targetDealerId) {
-      const defaultDealer = await prisma.dealer.findFirst();
-      targetDealerId = defaultDealer?.id;
-    }
+    // Only assign dealer if explicitly selected and valid; otherwise store remains Direct / Unassigned
+    let targetDealerId = (dealerId && mongoose.Types.ObjectId.isValid(dealerId)) ? dealerId : undefined;
 
     const StoreModel = mongoose.model('Store');
     const newStore = await StoreModel.create({
@@ -1704,13 +1700,11 @@ exports.createSalesOrder = async (req, res, next) => {
 
     const DealerModel = mongoose.model('Dealer');
     let dealer = null;
-    if (targetDealerId) {
+    if (targetDealerId && mongoose.Types.ObjectId.isValid(targetDealerId)) {
       dealer = await DealerModel.findById(targetDealerId);
     }
-    if (!dealer) {
-      dealer = await DealerModel.findOne({ status: 'ACTIVE' });
-      targetDealerId = dealer?._id || null;
-    }
+    // Note: Do not fallback to arbitrary dealer. If null, this is a Direct / Head Office order.
+    targetDealerId = dealer?._id || undefined;
 
     let subtotal = 0;
     let totalMarginSavings = 0;

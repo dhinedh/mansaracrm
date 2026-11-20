@@ -56,6 +56,9 @@ const AdminCompetitorsPage = lazy(() => import('./pages/admin/AdminCompetitorsPa
 const AdminFieldOrdersPage = lazy(() => import('./pages/admin/AdminFieldOrdersPage'));
 const AdminCollectionsPage = lazy(() => import('./pages/admin/AdminCollectionsPage'));
 const AdminSalesPerformancePage = lazy(() => import('./pages/admin/AdminSalesPerformancePage'));
+const MarketingCalendarPage = lazy(() => import('./pages/marketing/MarketingCalendarPage'));
+const BulkUploadPage = lazy(() => import('./pages/admin/BulkUploadPage'));
+const AuditHistoryPage = lazy(() => import('./pages/admin/AuditHistoryPage'));
 
 // E-Commerce Pages
 const EcomOrdersPage = lazy(() => import('./pages/admin/EcomOrdersPage'));
@@ -441,6 +444,21 @@ export default function App() {
               <B2CStorePage />
             </ProtectedRoute>
           } />
+          <Route path="marketing-calendar" element={
+            <ProtectedRoute allowedStaffRoles={['ADMIN', 'B2B_MANAGER']}>
+              <MarketingCalendarPage />
+            </ProtectedRoute>
+          } />
+          <Route path="bulk-upload" element={
+            <ProtectedRoute allowedStaffRoles={['ADMIN', 'B2B_MANAGER']}>
+              <BulkUploadPage />
+            </ProtectedRoute>
+          } />
+          <Route path="audit-history" element={
+            <ProtectedRoute allowedStaffRoles={['ADMIN']}>
+              <AuditHistoryPage />
+            </ProtectedRoute>
+          } />
           
           {/* E-Commerce Routes */}
           <Route path="ecom/orders" element={
@@ -556,6 +574,7 @@ export default function App() {
           <Route path="collections" element={<SalesCollectionsPage />} />
           <Route path="follow-ups" element={<SalesFollowUpsPage />} />
           <Route path="dar" element={<SalesDarPage />} />
+          <Route path="marketing-calendar" element={<MarketingCalendarPage />} />
           <Route path="performance" element={<SalesPerformancePage />} />
           <Route path="sync" element={<SalesSyncPage />} />
           <Route path="profile" element={<SalesProfilePage />} />

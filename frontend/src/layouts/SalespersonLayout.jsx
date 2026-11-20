@@ -6,7 +6,7 @@ import {
   Home, MapPin, ShoppingBag, Package, DollarSign, Clock, 
   Menu, X, LogOut, User, CheckCircle2, AlertCircle, Wifi, 
   WifiOff, RefreshCw, ChevronRight, FileText, BarChart3, HelpCircle,
-  TrendingUp, Award, Tag, Smartphone, Receipt, ShieldAlert
+  TrendingUp, Award, Tag, Smartphone, Receipt, ShieldAlert, Calendar
 } from 'lucide-react';
 
 export default function SalespersonLayout() {
@@ -212,6 +212,7 @@ export default function SalespersonLayout() {
       items: [
         { name: 'Dashboard', path: '/sales/dashboard', icon: Home, badge: 'Today' },
         { name: 'Beat & Shop Visits', path: '/sales/visits', icon: MapPin, badge: 'GPS' },
+        { name: 'Marketing Calendar', path: '/sales/marketing-calendar', icon: Calendar, badge: 'Events' },
       ]
     },
     {

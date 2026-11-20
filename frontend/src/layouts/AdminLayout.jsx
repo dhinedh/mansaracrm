@@ -39,12 +39,15 @@ import {
   MapPin,
   ShieldCheck,
   Calendar,
+  CalendarDays,
   Search,
   SlidersHorizontal,
   FileSignature,
   Home,
   ArrowRightLeft,
-  Layers
+  Layers,
+  UploadCloud,
+  History
 } from 'lucide-react';
 import axios from 'axios';
 
@@ -105,6 +108,8 @@ const getVendorMenuItems = () => [
 
 const getSalesMarketingMenuItems = (licensing) => {
   const fieldSubItems = [
+    { name: 'Marketing Calendar', path: '/admin/marketing-calendar', icon: CalendarDays, allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'] },
+    { name: 'Retail Stores & Outlets', path: '/admin/retail-stores', icon: Store, allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'] },
     { name: 'Sales Executives', path: '/admin/sales-team', icon: Users, allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'] },
     { name: 'Beats & Routes', path: '/admin/beats', icon: MapPin, allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'] },
     { name: 'Field Orders', path: '/admin/field-orders', icon: ShoppingCart, allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'] },
@@ -118,7 +123,7 @@ const getSalesMarketingMenuItems = (licensing) => {
     { name: 'B2C Stores', path: '/admin/b2c-stores', icon: ShoppingBag, allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'] },
   ].filter(item => {
     if (item.path === '/admin/stalls' && !licensing.enableB2cStall) return false;
-    if ((item.path === '/admin/store-visits' || item.path === '/admin/sales-team' || item.path === '/admin/beats' || item.path === '/admin/field-orders' || item.path === '/admin/sales-collections' || item.path === '/admin/sales-approvals' || item.path === '/admin/sales-dar' || item.path === '/admin/sales-performance' || item.path === '/admin/competitor-intel') && !licensing.enableFieldSales) return false;
+    if ((item.path === '/admin/store-visits' || item.path === '/admin/sales-team' || item.path === '/admin/beats' || item.path === '/admin/field-orders' || item.path === '/admin/sales-collections' || item.path === '/admin/sales-approvals' || item.path === '/admin/sales-dar' || item.path === '/admin/sales-performance' || item.path === '/admin/competitor-intel' || item.path === '/admin/marketing-calendar' || item.path === '/admin/retail-stores') && !licensing.enableFieldSales) return false;
     return true;
   });
 
@@ -174,6 +179,8 @@ const getIntegrationMenuItems = () => [
 ];
 
 const getSystemMenuItems = () => [
+  { name: 'Bulk Data Upload',       path: '/admin/bulk-upload',         icon: UploadCloud, allowedStaffRoles: ['ADMIN', 'B2B_MANAGER'] },
+  { name: 'Audit Trail & History', path: '/admin/audit-history',       icon: History, allowedStaffRoles: ['ADMIN'] },
   { name: 'Privilege Management',  path: '/admin/users',               icon: Settings, allowedStaffRoles: ['ADMIN'] },
   { name: 'Store Settings',        path: '/admin/ecom/settings',       icon: Settings, allowedStaffRoles: ['ADMIN', 'ECOM_MANAGER'] },
 ];

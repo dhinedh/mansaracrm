@@ -212,7 +212,7 @@ export default function AdminFieldOrdersPage() {
                 {orders.map((o) => {
                   const rep = o.salespersonId?.name || 'Sales Rep';
                   const storeName = o.storeName || o.storeId?.name || 'Retail Outlet';
-                  const dealerName = o.dealerId?.companyName || 'Assigned Dealer';
+                  const dealerName = o.dealerName || o.dealerId?.companyName || 'Company Direct';
 
                   return (
                     <tr key={o._id} className="hover:bg-slate-50 transition-colors">
@@ -350,7 +350,7 @@ export default function AdminFieldOrdersPage() {
               <div>
                 <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">Assigned Distributor Dealer</span>
                 <p className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 font-semibold text-slate-800">
-                  {selectedOrder.dealerName || selectedOrder.dealerId?.companyName || 'Main Distributor'}
+                  {selectedOrder.dealerName || selectedOrder.dealerId?.companyName || 'Company Direct'}
                 </p>
               </div>
 

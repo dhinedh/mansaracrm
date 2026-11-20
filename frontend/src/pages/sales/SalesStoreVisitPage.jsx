@@ -8,7 +8,7 @@ import {
   ShoppingCart, RefreshCw, RotateCcw, DollarSign, Calendar,
   FileText, Camera, Upload, Sparkles, Check, X, Building,
   Smartphone, Banknote, Receipt, PauseCircle, Search, Plus, Minus,
-  Percent, Tag, Send, ChevronDown, ChevronRight, Package
+  Percent, Tag, Send, ChevronDown, ChevronRight, Package, Eye
 } from 'lucide-react';
 
 export default function SalesStoreVisitPage() {
@@ -19,6 +19,7 @@ export default function SalesStoreVisitPage() {
   // Active Store & Visit State
   const [store, setStore] = useState(location.state?.store || null);
   const [visitRecord, setVisitRecord] = useState(location.state?.visit || null);
+  const [viewOnlyMode, setViewOnlyMode] = useState(location.state?.viewOnly || false);
   const [selectedPurpose, setSelectedPurpose] = useState(location.state?.purpose || 'Order Booking');
   const [activeTab, setActiveTab] = useState(() => {
     const p = location.state?.purpose || 'Order Booking';
@@ -743,7 +744,7 @@ export default function SalesStoreVisitPage() {
   }
 
   // Verify that an active, live check-in exists for this store before opening the visit workspace
-  const isStoreCheckedIn = Boolean(
+  const isStoreCheckedIn = viewOnlyMode || Boolean(
     visitRecord &&
     visitRecord.checkInTime &&
     visitRecord.status !== 'COMPLETED' &&
@@ -766,13 +767,13 @@ export default function SalesStoreVisitPage() {
 
         <div className="space-y-2">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-100 text-red-700 text-xs font-black uppercase tracking-wider">
-            <AlertCircle className="w-3.5 h-3.5" /> Live Check-In Required
+            <AlertCircle className="w-3.5 h-3.5" /> Live Check-In Required for Transactions
           </div>
           <h2 className="text-xl font-black text-slate-900">
-            {store?.name ? `Check In to Visit "${store.name}"` : 'Store Visit Locked'}
+            {store?.name ? `Visit Workspace for "${store.name}"` : 'Store Visit Locked'}
           </h2>
           <p className="text-xs text-slate-500 max-w-sm mx-auto leading-relaxed">
-            Company field policy strictly requires a verified live GPS check-in before opening order booking, product catalogue, payments, or audit tools.
+            Company field policy requires a verified live GPS check-in to place new orders, collect cash, or record audits. However, you can freely view order history and store stock tracking without check-in.
           </p>
         </div>
 
@@ -814,10 +815,19 @@ export default function SalesStoreVisitPage() {
 
           <button
             type="button"
+            onClick={() => setViewOnlyMode(true)}
+            className="w-full sm:w-auto bg-slate-900 hover:bg-slate-800 text-amber-400 font-bold px-5 py-3 rounded-xl text-xs flex items-center justify-center gap-2 active:scale-95 transition-all shadow-sm"
+          >
+            <Eye className="w-4 h-4 text-amber-400" />
+            <span>View Orders & Stock Tracking</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => navigate('/sales/visits')}
             className="w-full sm:w-auto bg-white hover:bg-slate-50 text-slate-700 font-bold px-5 py-3 rounded-xl text-xs border border-slate-200 active:scale-95 transition-all shadow-xs"
           >
-            Back to Beat Route
+            Back to Route
           </button>
         </div>
       </div>
@@ -831,6 +841,31 @@ export default function SalesStoreVisitPage() {
 
   return (
     <div className="max-w-4xl mx-auto px-2 sm:px-4 py-3 sm:py-5 pb-24 space-y-4">
+      {/* View-Only Read-Only Tracking Mode Notice Banner */}
+      {viewOnlyMode && !visitRecord?.checkInTime && (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 sm:p-4 flex items-center justify-between gap-3 flex-wrap shadow-xs">
+          <div className="flex items-center gap-2.5">
+            <Eye className="w-5 h-5 text-amber-600 flex-shrink-0" />
+            <div>
+              <p className="text-xs font-bold text-amber-900">Read-Only Tracking Mode (No Live Check-In)</p>
+              <p className="text-[11px] text-amber-700">You are reviewing store orders and current stock levels without an active check-in.</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              try {
+                sessionStorage.setItem('mansara_pending_checkin_store', JSON.stringify(store));
+              } catch (e) {}
+              navigate('/sales/checkin/purpose', { state: { shop: store } });
+            }}
+            className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-3 py-1.5 rounded-lg text-xs flex items-center gap-1.5 shadow-sm active:scale-95 transition-all"
+          >
+            <MapPin className="w-3.5 h-3.5" />
+            <span>Check-In Now</span>
+          </button>
+        </div>
+      )}
       {/* ========================================================================= */}
       {/* 1. TOP HEADER & STORE IDENTITY BAR                                        */}
       {/* ========================================================================= */}

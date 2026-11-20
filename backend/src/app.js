@@ -36,6 +36,9 @@ const procurementRoutes = require('./modules/procurement/procurement.routes');
 const priceSimulatorRoutes = require('./modules/price-simulator/price-simulator.routes');
 const rawMaterialsRoutes = require('./modules/raw-materials/raw-materials.routes');
 const statsRoutes = require('./modules/stats/stats.routes');
+const auditRoutes = require('./modules/audit/audit.routes');
+const marketingRoutes = require('./modules/marketing/marketing.routes');
+const bulkUploadRoutes = require('./modules/bulk-upload/bulk-upload.routes');
 const ecomController = require('./modules/ecom/ecom.controller');
 const { checkFeature } = require('./middleware/featureToggle');
 
@@ -159,6 +162,9 @@ app.use('/api/price-simulator', priceSimulatorRoutes);
 app.use('/api/raw-materials', rawMaterialsRoutes);
 app.use('/api/stats', statsRoutes);
 app.use('/api/ecom/stats', statsRoutes);
+app.use('/api/audit', auditRoutes);
+app.use('/api/marketing', marketingRoutes);
+app.use('/api/bulk-upload', bulkUploadRoutes);
 app.get('/api/orders', (req, res, next) => ecomController.getOrders(req, res, next));
 
 // Base Health Check
