@@ -132,7 +132,8 @@ const buildInvoiceHtml = (company, invoice) => {
       finalSellingPrice = priceBeforeGst + unitGst;
       rate = priceBeforeGst;
       const totQty = parseInt(item.quantity) || 0;
-      lineTotal = parseFloat(item.lineTotal) || (finalSellingPrice * totQty);
+      rate = priceBeforeGst;
+      lineTotal = (rate * totQty);
     } else {
       // Existing modes: MRP is GST-inclusive
       marginAmount = mrp * (marginPct / 100);
@@ -141,7 +142,7 @@ const buildInvoiceHtml = (company, invoice) => {
       const isRateExclude = invoice.rateMode === 'EXCLUDE_TAX';
       rate = isRateExclude ? rateExcludeTax : finalSellingPrice;
       const totQty = parseInt(item.quantity) || 0;
-      lineTotal = parseFloat(item.lineTotal) || (finalSellingPrice * totQty);
+      lineTotal = isRateExclude ? (rateExcludeTax * totQty) : (finalSellingPrice * totQty);
     }
     const pac         = item.pac || item.product?.cartonSize || 24;       // pieces per carton
     const wtPerCtn    = item.product?.wtPerCartonKg || ((netWtG * pac) / 1000).toFixed(2);
@@ -155,7 +156,7 @@ const buildInvoiceHtml = (company, invoice) => {
         <td style="text-align:center;">${hsn}</td>
         <td style="text-align:left;padding-left:6px;">${productName}</td>
         <td style="text-align:center;">${netWtG}</td>
-        <td style="text-align:right;">${rate.toFixed(1)}</td>
+        <td style="text-align:right;">${rate.toFixed(2)}</td>
         <td style="text-align:center;">${pac}</td>
         <td style="text-align:center;">${wtPerCtn}</td>
         <td style="text-align:center;">${ctns}</td>
@@ -175,6 +176,7 @@ const buildInvoiceHtml = (company, invoice) => {
   const shipping    = parseFloat(invoice.shippingCharges) || 0;
   const discount    = parseFloat(invoice.totalDiscount) || 0;
   const originalTotal = subtotal + cgst + sgst + shipping;
+  const effectiveGstPct = invoice.gstRate !== undefined ? Number(invoice.gstRate) : (subtotal > 0 && (cgst + sgst) > 0 ? Math.round(((cgst + sgst) / subtotal) * 100) : 5);
   const grandTotal  = invoice.totalAmount !== undefined && invoice.totalAmount !== null ? parseFloat(invoice.totalAmount) : (originalTotal - discount);
   const grandRounded = Math.round(grandTotal);
 
@@ -371,8 +373,8 @@ const buildInvoiceHtml = (company, invoice) => {
       <table class="totals-table">
         <tr><td class="t-label">Sub Total<br><span style="font-size:8px;color:#777;">(Without Tax)</span></td><td class="t-value">${subtotal.toFixed(2)}</td></tr>
         ${invoice.isGstEnabled !== false ? `
-        <tr><td class="t-label">CGST (2.5%)</td><td class="t-value">${cgst.toFixed(2)}</td></tr>
-        <tr><td class="t-label">SGST (2.5%)</td><td class="t-value">${sgst.toFixed(2)}</td></tr>
+        <tr><td class="t-label">CGST (${(effectiveGstPct / 2).toFixed(1).replace(/\.0$/, '')}%)</td><td class="t-value">${cgst.toFixed(2)}</td></tr>
+        <tr><td class="t-label">SGST (${(effectiveGstPct / 2).toFixed(1).replace(/\.0$/, '')}%)</td><td class="t-value">${sgst.toFixed(2)}</td></tr>
         ` : `<tr><td class="t-label">GST</td><td class="t-value">0.00</td></tr>`}
         ${shipping > 0 ? `<tr><td class="t-label">Shipping</td><td class="t-value">${shipping.toFixed(2)}</td></tr>` : ''}
         <tr><td class="t-label">Original Amount</td><td class="t-value">${originalTotal.toFixed(2)}</td></tr>
@@ -487,14 +489,14 @@ const buildSimpleRetailInvoiceHtml = (company, invoice) => {
       const unitGst = priceBeforeGst * (gstPct / 100);
       finalSellingPrice = priceBeforeGst + unitGst;
       rate = priceBeforeGst;
-      lineTotal = parseFloat(item.lineTotal) || (finalSellingPrice * totQty);
+      lineTotal = (priceBeforeGst * totQty);
     } else {
       marginAmount = mrp * (marginPct / 100);
       finalSellingPrice = parseFloat(item.sellingPrice) || Math.max(0, mrp - marginAmount);
       const rateExcludeTax = gstPct > 0 ? (finalSellingPrice / (1 + gstPct / 100)) : finalSellingPrice;
       const isRateExclude = invoice.rateMode === 'EXCLUDE_TAX';
       rate = isRateExclude ? rateExcludeTax : finalSellingPrice;
-      lineTotal = parseFloat(item.lineTotal) || (finalSellingPrice * totQty);
+      lineTotal = isRateExclude ? (rateExcludeTax * totQty) : (finalSellingPrice * totQty);
     }
     const totalWtKg   = netWtG ? (totQty * netWtG / 1000).toFixed(2) : '';
 
@@ -522,6 +524,7 @@ const buildSimpleRetailInvoiceHtml = (company, invoice) => {
   const shipping   = parseFloat(invoice.shippingCharges) || 0;
   const discount   = parseFloat(invoice.totalDiscount) || 0;
   const originalTotal = subtotal + cgst + sgst + shipping;
+  const effectiveGstPct = invoice.gstRate !== undefined ? Number(invoice.gstRate) : (subtotal > 0 && (cgst + sgst) > 0 ? Math.round(((cgst + sgst) / subtotal) * 100) : 5);
   const grandTotal = invoice.totalAmount !== undefined && invoice.totalAmount !== null ? parseFloat(invoice.totalAmount) : (originalTotal - discount);
   const grandRounded = Math.round(grandTotal);
 
@@ -667,8 +670,8 @@ const buildSimpleRetailInvoiceHtml = (company, invoice) => {
       <table class="totals-table">
         <tr><td class="t-label">Sub Total<br><span style="font-size:8px;color:#777;">(Without Tax)</span></td><td class="t-value">${subtotal.toFixed(2)}</td></tr>
         ${invoice.isGstEnabled !== false ? `
-        <tr><td class="t-label">CGST (2.5%)</td><td class="t-value">${cgst.toFixed(2)}</td></tr>
-        <tr><td class="t-label">SGST (2.5%)</td><td class="t-value">${sgst.toFixed(2)}</td></tr>
+        <tr><td class="t-label">CGST (${(effectiveGstPct / 2).toFixed(1).replace(/\.0$/, '')}%)</td><td class="t-value">${cgst.toFixed(2)}</td></tr>
+        <tr><td class="t-label">SGST (${(effectiveGstPct / 2).toFixed(1).replace(/\.0$/, '')}%)</td><td class="t-value">${sgst.toFixed(2)}</td></tr>
         ` : `<tr><td class="t-label">GST</td><td class="t-value">0.00</td></tr>`}
         ${shipping > 0 ? `<tr><td class="t-label">Shipping</td><td class="t-value">${shipping.toFixed(0)}</td></tr>` : ''}
         <tr><td class="t-label">Original Amount</td><td class="t-value">${originalTotal.toFixed(2)}</td></tr>

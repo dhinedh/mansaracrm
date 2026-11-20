@@ -242,7 +242,8 @@ export const normalizeQuotationData = (raw = {}) => {
 
       const mrp = Number(item.mrp || 0);
       const marginPct = Number(item.marginPct || 0);
-      const itemGstPct = isWithGst ? Number(item.gstPercent || gstRate || 5) : 0;
+      // Prioritize active simulator GST rate so changing rate (e.g. 18%) calculates taxes accurately
+      const itemGstPct = isWithGst ? (calc.gstRate !== undefined ? Number(calc.gstRate) : Number(item.gstPercent || 5)) : 0;
 
       let marginAmount = 0;
       let sellingPriceBeforeGst = 0;
@@ -273,13 +274,15 @@ export const normalizeQuotationData = (raw = {}) => {
         displayedRate = rateMode === 'EXCLUDE_TAX' ? rateExcludeTax : finalSellingPrice;
       }
 
-      const lineTotal = finalSellingPrice * qty;
       const lineTaxable = rateExcludeTax * qty;
       const lineGst = unitGst * qty;
+      const lineTotal = (rateMode === 'EXCLUDE_TAX' || rateMode === 'GST_ON_MARGIN_REDUCED_MRP')
+        ? lineTaxable
+        : (finalSellingPrice * qty);
 
       calcTaxableSubtotal += lineTaxable;
       calcTotalGst += lineGst;
-      calcGrandSelling += lineTotal;
+      calcGrandSelling += (finalSellingPrice * qty);
 
       return {
         sno: idx + 1,
@@ -349,13 +352,15 @@ export const normalizeQuotationData = (raw = {}) => {
         displayedRate = rateMode === 'EXCLUDE_TAX' ? rateExcludeTax : finalSellingPrice;
       }
 
-      const lineTotal = Number(item.totalPrice) || (finalSellingPrice * qty);
       const lineTaxable = rateExcludeTax * qty;
       const lineGst = unitGst * qty;
+      const lineTotal = (rateMode === 'EXCLUDE_TAX' || rateMode === 'GST_ON_MARGIN_REDUCED_MRP')
+        ? lineTaxable
+        : (Number(item.totalPrice) || (finalSellingPrice * qty));
 
       calcTaxableSubtotal += lineTaxable;
       calcTotalGst += lineGst;
-      calcGrandSelling += lineTotal;
+      calcGrandSelling += (finalSellingPrice * qty);
 
       const netWt = parseWeightGrams(item.netWeight || 250);
       const pac = item.pacSize || 24;
@@ -515,7 +520,7 @@ export const buildQuotationHtml = (rawData) => {
           ${breakdownHtml}
         </td>
         <td style="text-align:center;">${netWtG}</td>
-        <td style="text-align:right;padding-right:6px;">${rate.toFixed(1)}</td>
+        <td style="text-align:right;padding-right:6px;">${rate.toFixed(2)}</td>
         <td style="text-align:center;">${pac}</td>
         <td style="text-align:center;">${wtPerCtn}</td>
         <td style="text-align:center;">${ctns}</td>
