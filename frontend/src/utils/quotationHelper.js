@@ -285,27 +285,20 @@ export const normalizeQuotationData = (raw = {}) => {
       let unitGst = 0;
       let displayedRate = 0;
 
-      if (rateMode === 'GST_ON_MARGIN_REDUCED_MRP') {
-        // Mode 3: "Invoice with GST on Margin Reduced MRP"
-        // 1. Margin Amount = MRP * Margin %
-        marginAmount = Math.round((mrp * (marginPct / 100)) * 100) / 100;
-        // 2. Selling Price Before GST = MRP - Margin Amount
-        sellingPriceBeforeGst = Math.max(0, Math.round((mrp - marginAmount) * 100) / 100);
-        // 3. GST Amount = Selling Price Before GST * GST %
-        unitGst = Math.round((sellingPriceBeforeGst * (itemGstPct / 100)) * 100) / 100;
-        // 4. Final Selling Price = Selling Price Before GST + GST Amount
-        finalSellingPrice = Math.round((sellingPriceBeforeGst + unitGst) * 100) / 100;
-        rateExcludeTax = sellingPriceBeforeGst;
-        displayedRate = sellingPriceBeforeGst;
-      } else {
-        // Existing Modes: MRP is considered GST-inclusive
-        marginAmount = Math.round((mrp * (marginPct / 100)) * 100) / 100;
-        finalSellingPrice = Number(item.finalSellingPrice) || Math.max(0, Math.round((mrp - marginAmount) * 100) / 100);
-        rateExcludeTax = itemGstPct > 0 ? (finalSellingPrice / (1 + itemGstPct / 100)) : finalSellingPrice;
-        unitGst = finalSellingPrice - rateExcludeTax;
-        sellingPriceBeforeGst = rateExcludeTax;
-        displayedRate = rateMode === 'EXCLUDE_TAX' ? rateExcludeTax : finalSellingPrice;
-      }
+      // 1. Margin Amount = MRP * Margin %
+      marginAmount = Math.round((mrp * (marginPct / 100)) * 100) / 100;
+      // 2. Selling Price Before GST = MRP - Margin Amount
+      sellingPriceBeforeGst = Math.max(0, Math.round((mrp - marginAmount) * 100) / 100);
+      // 3. GST Amount = Selling Price Before GST * GST %
+      unitGst = isWithGst && itemGstPct > 0
+        ? Math.round((sellingPriceBeforeGst * (itemGstPct / 100)) * 100) / 100
+        : 0;
+      // 4. Final Selling Price = Selling Price Before GST + GST Amount
+      finalSellingPrice = Math.round((sellingPriceBeforeGst + unitGst) * 100) / 100;
+      rateExcludeTax = sellingPriceBeforeGst;
+      displayedRate = (rateMode === 'EXCLUDE_TAX' || rateMode === 'GST_ON_MARGIN_REDUCED_MRP')
+        ? sellingPriceBeforeGst
+        : finalSellingPrice;
 
       const lineTaxable = rateExcludeTax * qty;
       const lineGst = unitGst * qty;
@@ -369,21 +362,16 @@ export const normalizeQuotationData = (raw = {}) => {
       let unitGst = 0;
       let displayedRate = 0;
 
-      if (rateMode === 'GST_ON_MARGIN_REDUCED_MRP') {
-        marginAmount = Math.round((mrp * (marginPct / 100)) * 100) / 100;
-        sellingPriceBeforeGst = Math.max(0, Math.round((mrp - marginAmount) * 100) / 100);
-        unitGst = Math.round((sellingPriceBeforeGst * (itemGstPct / 100)) * 100) / 100;
-        finalSellingPrice = Math.round((sellingPriceBeforeGst + unitGst) * 100) / 100;
-        rateExcludeTax = sellingPriceBeforeGst;
-        displayedRate = sellingPriceBeforeGst;
-      } else {
-        marginAmount = Math.round((mrp * (marginPct / 100)) * 100) / 100;
-        finalSellingPrice = Number(item.unitPrice && item.mrp && item.unitPrice !== item.mrp ? item.unitPrice : Math.max(0, Math.round((mrp - marginAmount) * 100) / 100));
-        rateExcludeTax = itemGstPct > 0 ? (finalSellingPrice / (1 + itemGstPct / 100)) : finalSellingPrice;
-        unitGst = finalSellingPrice - rateExcludeTax;
-        sellingPriceBeforeGst = rateExcludeTax;
-        displayedRate = rateMode === 'EXCLUDE_TAX' ? rateExcludeTax : finalSellingPrice;
-      }
+      marginAmount = Math.round((mrp * (marginPct / 100)) * 100) / 100;
+      sellingPriceBeforeGst = Math.max(0, Math.round((mrp - marginAmount) * 100) / 100);
+      unitGst = isWithGst && itemGstPct > 0
+        ? Math.round((sellingPriceBeforeGst * (itemGstPct / 100)) * 100) / 100
+        : 0;
+      finalSellingPrice = Math.round((sellingPriceBeforeGst + unitGst) * 100) / 100;
+      rateExcludeTax = sellingPriceBeforeGst;
+      displayedRate = (rateMode === 'EXCLUDE_TAX' || rateMode === 'GST_ON_MARGIN_REDUCED_MRP')
+        ? sellingPriceBeforeGst
+        : finalSellingPrice;
 
       const lineTaxable = rateExcludeTax * qty;
       const lineGst = unitGst * qty;
