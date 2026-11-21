@@ -760,7 +760,7 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
         cartonPrice,
         finalCartonPrice,
         lineMrpValue,
-        lineWholesaleTotal: (rateMode === 'EXCLUDE_TAX') ? lineTaxableSubtotal : lineFinalSellingTotal,
+        lineWholesaleTotal: lineTaxableSubtotal,
         lineFinalSellingTotal,
         lineSellingBeforeGstTotal,
         lineTaxableSubtotal,
@@ -1813,24 +1813,17 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
                     <td className="py-2.5 px-2 text-right">
                       <div className="flex flex-col items-end justify-between h-full gap-2">
                         <div className="text-right">
-                          {rateMode === 'EXCLUDE_TAX' ? (
-                            <>
-                              <span className="block text-[11px] sm:text-xs font-black text-slate-900 leading-tight">
-                                ₹{item.lineTaxableSubtotal.toFixed(2)}
-                              </span>
-                              <span className="block text-[8px] text-slate-400 font-medium mt-0.5">
-                                (₹{Math.round(item.lineFinalSellingTotal).toLocaleString('en-IN')} incl. tax)
-                              </span>
-                            </>
+                          <span className="block text-[11px] sm:text-xs font-black text-slate-900 leading-tight">
+                            ₹{item.lineTaxableSubtotal.toFixed(2)}
+                          </span>
+                          {isWithGst && item.gstPercent > 0 ? (
+                            <span className="block text-[8px] text-slate-400 font-medium mt-0.5">
+                              (₹{item.lineFinalSellingTotal % 1 === 0 ? Math.round(item.lineFinalSellingTotal).toLocaleString('en-IN') : item.lineFinalSellingTotal.toFixed(2)} incl. tax)
+                            </span>
                           ) : (
-                            <>
-                              <span className="block text-[11px] sm:text-xs font-black text-slate-900 leading-tight">
-                                ₹{Math.round(item.lineFinalSellingTotal).toLocaleString('en-IN')}
-                              </span>
-                              <span className="block text-[8px] text-slate-400 font-medium mt-0.5">
-                                incl. tax
-                              </span>
-                            </>
+                            <span className="block text-[8px] text-slate-400 font-medium mt-0.5">
+                              no tax
+                            </span>
                           )}
                           <span className="block text-[8px] sm:text-[9px] text-slate-400 font-medium mt-0.5 whitespace-nowrap">
                             ₹{item.cartonPrice.toFixed(2)}/ctn
@@ -2022,24 +2015,17 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
 
                     {/* Total Line Amount */}
                     <td className="py-3.5 px-4 text-right">
-                      {rateMode === 'EXCLUDE_TAX' ? (
-                        <>
-                          <span className="text-xs font-black text-slate-900 block leading-tight">
-                            ₹{item.lineTaxableSubtotal.toFixed(2)}
-                          </span>
-                          <span className="block text-[9px] text-slate-500 font-medium">
-                            (₹{Math.round(item.lineFinalSellingTotal).toLocaleString('en-IN')} incl. tax)
-                          </span>
-                        </>
+                      <span className="text-xs font-black text-slate-900 block leading-tight">
+                        ₹{item.lineTaxableSubtotal.toFixed(2)}
+                      </span>
+                      {isWithGst && item.gstPercent > 0 ? (
+                        <span className="block text-[9px] text-slate-500 font-medium">
+                          (₹{item.lineFinalSellingTotal % 1 === 0 ? Math.round(item.lineFinalSellingTotal).toLocaleString('en-IN') : item.lineFinalSellingTotal.toFixed(2)} incl. tax)
+                        </span>
                       ) : (
-                        <>
-                          <span className="text-xs font-black text-slate-900 block leading-tight">
-                            ₹{Math.round(item.lineFinalSellingTotal).toLocaleString('en-IN')}
-                          </span>
-                          <span className="block text-[9px] text-slate-500 font-medium">
-                            incl. tax
-                          </span>
-                        </>
+                        <span className="block text-[9px] text-slate-400 font-medium">
+                          no tax
+                        </span>
                       )}
                     </td>
 
@@ -2614,24 +2600,17 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
 
                           {/* Column 4: Line Total */}
                           <td className="py-2.5 px-2 sm:px-2.5 text-right">
-                            {rateMode === 'EXCLUDE_TAX' ? (
-                              <>
-                                <span className="font-black text-slate-900 text-xs sm:text-sm block leading-tight">
-                                  ₹{item.lineTaxableSubtotal.toFixed(2)}
-                                </span>
-                                <span className="block text-[8px] sm:text-[9px] text-slate-400 font-medium mt-0.5">
-                                  (₹{Math.round(item.lineFinalSellingTotal).toLocaleString('en-IN')} incl. tax)
-                                </span>
-                              </>
+                            <span className="font-black text-slate-900 text-xs sm:text-sm block leading-tight">
+                              ₹{item.lineTaxableSubtotal.toFixed(2)}
+                            </span>
+                            {isWithGst && item.gstPercent > 0 ? (
+                              <span className="block text-[8px] sm:text-[9px] text-slate-400 font-medium mt-0.5">
+                                (₹{item.lineFinalSellingTotal % 1 === 0 ? Math.round(item.lineFinalSellingTotal).toLocaleString('en-IN') : item.lineFinalSellingTotal.toFixed(2)} incl. tax)
+                              </span>
                             ) : (
-                              <>
-                                <span className="font-black text-slate-900 text-xs sm:text-sm block leading-tight">
-                                  ₹{Math.round(item.lineFinalSellingTotal).toLocaleString('en-IN')}
-                                </span>
-                                <span className="block text-[8px] sm:text-[9px] text-slate-400 font-medium mt-0.5">
-                                  incl. tax
-                                </span>
-                              </>
+                              <span className="block text-[8px] sm:text-[9px] text-slate-400 font-medium mt-0.5">
+                                no tax
+                              </span>
                             )}
                             <span className="block text-[8px] sm:text-[9px] text-slate-400 font-medium mt-0.5">
                               ₹{item.cartonPrice.toFixed(2)}/ctn
@@ -2677,24 +2656,17 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
                               </span>
                             </td>
                             <td className="py-2.5 px-3 text-right">
-                              {rateMode === 'EXCLUDE_TAX' ? (
-                                <>
-                                  <span className="font-black text-slate-900 block leading-tight">
-                                    ₹{item.lineTaxableSubtotal.toFixed(2)}
-                                  </span>
-                                  <span className="block text-[8px] text-slate-400 font-medium">
-                                    (₹{Math.round(item.lineFinalSellingTotal).toLocaleString('en-IN')} incl. tax)
-                                  </span>
-                                </>
+                              <span className="font-black text-slate-900 block leading-tight">
+                                ₹{item.lineTaxableSubtotal.toFixed(2)}
+                              </span>
+                              {isWithGst && item.gstPercent > 0 ? (
+                                <span className="block text-[8px] text-slate-400 font-medium">
+                                  (₹{item.lineFinalSellingTotal % 1 === 0 ? Math.round(item.lineFinalSellingTotal).toLocaleString('en-IN') : item.lineFinalSellingTotal.toFixed(2)} incl. tax)
+                                </span>
                               ) : (
-                                <>
-                                  <span className="font-black text-slate-900 block leading-tight">
-                                    ₹{Math.round(item.lineFinalSellingTotal).toLocaleString('en-IN')}
-                                  </span>
-                                  <span className="block text-[8px] text-slate-400 font-medium">
-                                    incl. tax
-                                  </span>
-                                </>
+                                <span className="block text-[8px] text-slate-400 font-medium">
+                                  no tax
+                                </span>
                               )}
                             </td>
                           </tr>

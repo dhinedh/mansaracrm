@@ -348,7 +348,7 @@ export const normalizeQuotationData = (raw = {}) => {
           ? Math.round((finalSellingPrice / (1 + itemGstPct / 100)) * 10000) / 10000
           : finalSellingPrice;
         unitGst = Math.max(0, Math.round((finalSellingPrice - rateExcludeTax) * 10000) / 10000);
-        displayedRate = finalSellingPrice;
+        displayedRate = rateExcludeTax;
       }
       sellingPriceBeforeGst = rateExcludeTax;
 
@@ -363,7 +363,7 @@ export const normalizeQuotationData = (raw = {}) => {
         lineFinal = Math.round((finalSellingPrice * qty) * 100) / 100;
         lineGst = Math.round((lineFinal - lineTaxable) * 100) / 100;
       }
-      const lineTotal = rateMode === 'EXCLUDE_TAX' ? lineTaxable : lineFinal;
+      const lineTotal = lineTaxable;
 
       calcTaxableSubtotal += lineTaxable;
       calcTotalGst += lineGst;
@@ -437,7 +437,7 @@ export const normalizeQuotationData = (raw = {}) => {
           ? Math.round((finalSellingPrice / (1 + itemGstPct / 100)) * 10000) / 10000
           : finalSellingPrice;
         unitGst = Math.max(0, Math.round((finalSellingPrice - rateExcludeTax) * 10000) / 10000);
-        displayedRate = finalSellingPrice;
+        displayedRate = rateExcludeTax;
       }
       sellingPriceBeforeGst = rateExcludeTax;
 
@@ -452,7 +452,7 @@ export const normalizeQuotationData = (raw = {}) => {
         lineFinal = Number(item.totalPrice) || Math.round((finalSellingPrice * qty) * 100) / 100;
         lineGst = Math.round((lineFinal - lineTaxable) * 100) / 100;
       }
-      const lineTotal = rateMode === 'EXCLUDE_TAX' ? lineTaxable : lineFinal;
+      const lineTotal = lineTaxable;
 
       calcTaxableSubtotal += lineTaxable;
       calcTotalGst += lineGst;
@@ -598,10 +598,12 @@ export const buildQuotationHtml = (rawData) => {
     const ctns = item.cartons !== undefined ? item.cartons : (item.quantity ? parseFloat((item.quantity / pac).toFixed(2)) : 0);
     const totQty = item.quantity || 0;
     const totalNtWtKg = item.totalNetWtKg || ((totQty * netWtG) / 1000).toFixed(2);
-    const rate = Number(item.rate || 0);
-    const lineTotal = Number(item.lineTotal || (rate * totQty));
+    const rate = Number(item.rateExcludeTax !== undefined ? item.rateExcludeTax : (item.rate || 0));
+    const lineTotal = Number(item.lineTaxable !== undefined ? item.lineTaxable : (item.lineTotal || (rate * totQty)));
 
-    const breakdownHtml = '';
+    const breakdownHtml = (isWithGst && item.unitGst > 0 && item.finalSellingPrice)
+      ? `<br><span style="font-size:7.5px;color:#666;">(₹${Number(item.finalSellingPrice).toFixed(2)} incl. tax)</span>`
+      : '';
 
     return `
       <tr>

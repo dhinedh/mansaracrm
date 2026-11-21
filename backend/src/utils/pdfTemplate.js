@@ -139,8 +139,8 @@ const buildInvoiceHtml = (company, invoice) => {
       finalSellingPrice = priceAfterMargin;
       rateExcludeTax = isWithGst && gstPct > 0 ? (finalSellingPrice / (1 + gstPct / 100)) : finalSellingPrice;
       unitGst = Math.max(0, finalSellingPrice - rateExcludeTax);
-      rate = finalSellingPrice;
-      lineTotal = finalSellingPrice * totQty;
+      rate = rateExcludeTax;
+      lineTotal = rateExcludeTax * totQty;
     }
     const pac         = item.pac || item.product?.cartonSize || 24;       // pieces per carton
     const wtPerCtn    = item.product?.wtPerCartonKg || ((netWtG * pac) / 1000).toFixed(2);
@@ -151,7 +151,10 @@ const buildInvoiceHtml = (company, invoice) => {
       <tr>
         <td style="text-align:center;">${idx + 1}</td>
         <td style="text-align:center;">${hsn}</td>
-        <td style="text-align:left;padding-left:6px;">${productName}</td>
+        <td style="text-align:left;padding-left:6px;">
+          ${productName}
+          ${isWithGst && unitGst > 0 ? `<br><span style="font-size:7.5px;color:#666;">(₹${finalSellingPrice.toFixed(2)} incl. tax)</span>` : ''}
+        </td>
         <td style="text-align:center;">${netWtG}</td>
         <td style="text-align:right;">${rate.toFixed(2)}</td>
         <td style="text-align:center;">${pac}</td>
@@ -494,8 +497,8 @@ const buildSimpleRetailInvoiceHtml = (company, invoice) => {
       finalSellingPrice = priceAfterMargin;
       rateExcludeTax = isWithGst && gstPct > 0 ? (finalSellingPrice / (1 + gstPct / 100)) : finalSellingPrice;
       unitGst = Math.max(0, finalSellingPrice - rateExcludeTax);
-      rate = finalSellingPrice;
-      lineTotal = finalSellingPrice * totQty;
+      rate = rateExcludeTax;
+      lineTotal = rateExcludeTax * totQty;
     }
     const totalWtKg   = netWtG ? (totQty * netWtG / 1000).toFixed(2) : '';
 
@@ -504,6 +507,7 @@ const buildSimpleRetailInvoiceHtml = (company, invoice) => {
         <td style="text-align:center;">${idx + 1}</td>
         <td style="text-align:left;padding-left:6px;">
           <div style="font-weight:700;">${productName}</div>
+          ${isWithGst && unitGst > 0 ? `<div style="font-size:8.5px;color:#666;">(₹${finalSellingPrice.toFixed(2)} incl. tax)</div>` : ''}
           ${sku ? `<div style="font-size:8.5px;color:#888;">SKU: ${sku}</div>` : ''}
         </td>
         <td style="text-align:center;">${netWtG || '—'}</td>
