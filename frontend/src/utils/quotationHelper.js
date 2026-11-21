@@ -329,28 +329,27 @@ export const normalizeQuotationData = (raw = {}) => {
 
       // 1. Margin Amount = MRP * Margin %
       marginAmount = Math.round((mrp * (marginPct / 100)) * 100) / 100;
-      // 2. Selling Price Before GST = MRP - Margin Amount
-      sellingPriceBeforeGst = Math.max(0, Math.round((mrp - marginAmount) * 100) / 100);
-      // 3. GST Amount = Selling Price Before GST * GST %
-      unitGst = isWithGst && itemGstPct > 0
-        ? Math.round((sellingPriceBeforeGst * (itemGstPct / 100)) * 100) / 100
-        : 0;
-      // 4. Final Selling Price = Selling Price Before GST + GST Amount
-      finalSellingPrice = Math.round((sellingPriceBeforeGst + unitGst) * 100) / 100;
-      rateExcludeTax = sellingPriceBeforeGst;
-      displayedRate = (rateMode === 'EXCLUDE_TAX' || rateMode === 'GST_ON_MARGIN_REDUCED_MRP')
-        ? sellingPriceBeforeGst
+      // 2. Final Selling Price = MRP - Margin Amount (MRP is GST-inclusive!)
+      finalSellingPrice = Math.max(0, Math.round((mrp - marginAmount) * 100) / 100);
+      // 3. Taxable Base (Rate Exclude Tax) = Final Selling Price / (1 + GST% / 100)
+      rateExcludeTax = isWithGst && itemGstPct > 0
+        ? Math.round((finalSellingPrice / (1 + itemGstPct / 100)) * 10000) / 10000
+        : finalSellingPrice;
+      // 4. GST Amount per unit = Final Selling Price - Rate Exclude Tax
+      unitGst = Math.max(0, Math.round((finalSellingPrice - rateExcludeTax) * 10000) / 10000);
+      sellingPriceBeforeGst = rateExcludeTax;
+      displayedRate = rateMode === 'EXCLUDE_TAX'
+        ? Math.round(rateExcludeTax * 100) / 100
         : finalSellingPrice;
 
+      const lineFinal = finalSellingPrice * qty;
       const lineTaxable = rateExcludeTax * qty;
-      const lineGst = unitGst * qty;
-      const lineTotal = (rateMode === 'EXCLUDE_TAX' || rateMode === 'GST_ON_MARGIN_REDUCED_MRP')
-        ? lineTaxable
-        : (finalSellingPrice * qty);
+      const lineGst = lineFinal - lineTaxable;
+      const lineTotal = rateMode === 'EXCLUDE_TAX' ? lineTaxable : lineFinal;
 
       calcTaxableSubtotal += lineTaxable;
       calcTotalGst += lineGst;
-      calcGrandSelling += (finalSellingPrice * qty);
+      calcGrandSelling += lineFinal;
 
       return {
         sno: idx + 1,
@@ -405,25 +404,24 @@ export const normalizeQuotationData = (raw = {}) => {
       let displayedRate = 0;
 
       marginAmount = Math.round((mrp * (marginPct / 100)) * 100) / 100;
-      sellingPriceBeforeGst = Math.max(0, Math.round((mrp - marginAmount) * 100) / 100);
-      unitGst = isWithGst && itemGstPct > 0
-        ? Math.round((sellingPriceBeforeGst * (itemGstPct / 100)) * 100) / 100
-        : 0;
-      finalSellingPrice = Math.round((sellingPriceBeforeGst + unitGst) * 100) / 100;
-      rateExcludeTax = sellingPriceBeforeGst;
-      displayedRate = (rateMode === 'EXCLUDE_TAX' || rateMode === 'GST_ON_MARGIN_REDUCED_MRP')
-        ? sellingPriceBeforeGst
+      finalSellingPrice = Math.max(0, Math.round((mrp - marginAmount) * 100) / 100);
+      rateExcludeTax = isWithGst && itemGstPct > 0
+        ? Math.round((finalSellingPrice / (1 + itemGstPct / 100)) * 10000) / 10000
+        : finalSellingPrice;
+      unitGst = Math.max(0, Math.round((finalSellingPrice - rateExcludeTax) * 10000) / 10000);
+      sellingPriceBeforeGst = rateExcludeTax;
+      displayedRate = rateMode === 'EXCLUDE_TAX'
+        ? Math.round(rateExcludeTax * 100) / 100
         : finalSellingPrice;
 
+      const lineFinal = Number(item.totalPrice) || (finalSellingPrice * qty);
       const lineTaxable = rateExcludeTax * qty;
-      const lineGst = unitGst * qty;
-      const lineTotal = (rateMode === 'EXCLUDE_TAX' || rateMode === 'GST_ON_MARGIN_REDUCED_MRP')
-        ? lineTaxable
-        : (Number(item.totalPrice) || (finalSellingPrice * qty));
+      const lineGst = lineFinal - lineTaxable;
+      const lineTotal = rateMode === 'EXCLUDE_TAX' ? lineTaxable : lineFinal;
 
       calcTaxableSubtotal += lineTaxable;
       calcTotalGst += lineGst;
-      calcGrandSelling += (finalSellingPrice * qty);
+      calcGrandSelling += lineFinal;
 
       const netWt = parseWeightGrams(item.netWeight || 250);
       const pac = item.pacSize || 24;
@@ -568,11 +566,7 @@ export const buildQuotationHtml = (rawData) => {
     const rate = Number(item.rate || 0);
     const lineTotal = Number(item.lineTotal || (rate * totQty));
 
-    const breakdownHtml = rateMode === 'GST_ON_MARGIN_REDUCED_MRP'
-      ? `<div style="font-size:7.5px;color:#555;margin-top:2px;line-height:1.3;">
-           MRP: ₹${Number(item.mrp || 0).toFixed(2)} | Margin: ${item.marginPct}% (-₹${Number(item.marginAmount || 0).toFixed(2)}) | After Margin: ₹${Number(item.priceAfterMargin || item.rateExcludeTax).toFixed(2)} | GST (${item.gstPercent}%): +₹${Number(item.unitGst).toFixed(2)} | Final: ₹${Number(item.finalSellingPrice).toFixed(2)}
-         </div>`
-      : '';
+    const breakdownHtml = '';
 
     return `
       <tr>
@@ -757,7 +751,7 @@ export const buildQuotationHtml = (rawData) => {
         <th style="width:6%;">HSN</th>
         <th style="width:28%;text-align:left;padding-left:6px;">ITEM</th>
         <th style="width:7%;">NET WT<br>(G)</th>
-        <th style="width:8%;text-align:right;padding-right:6px;">RATE<br><span style="font-size:7px;opacity:0.9;">(${rateMode === 'GST_ON_MARGIN_REDUCED_MRP' ? 'BASE RATE' : (rateMode === 'EXCLUDE_TAX' ? 'EXCL. TAX' : 'INCL. TAX')})</span></th>
+        <th style="width:8%;text-align:right;padding-right:6px;">RATE<br><span style="font-size:7px;opacity:0.9;">(${rateMode === 'EXCLUDE_TAX' ? 'EXCL. TAX' : 'INCL. TAX'})</span></th>
         <th style="width:5%;">PAC</th>
         <th style="width:8%;">WT/ CTN<br>(KG)</th>
         <th style="width:6%;">CTNS</th>
@@ -791,13 +785,7 @@ export const buildQuotationHtml = (rawData) => {
 
     <div class="bottom-right">
       <table class="totals-table">
-        ${rateMode === 'GST_ON_MARGIN_REDUCED_MRP' ? `
-        <tr><td class="t-label">Total MRP Value</td><td class="t-value">${items.reduce((acc, it) => acc + (Number(it.mrp || 0) * (it.quantity || 0)), 0).toFixed(2)}</td></tr>
-        <tr><td class="t-label" style="color:#d97706;">Margin Deduction</td><td class="t-value" style="color:#d97706;">- ${items.reduce((acc, it) => acc + (Number(it.marginAmount || 0) * (it.quantity || 0)), 0).toFixed(2)}</td></tr>
-        <tr><td class="t-label">Price After Margin<br><span style="font-size:8px;color:#777;">(Taxable Subtotal)</span></td><td class="t-value">${subtotal.toFixed(2)}</td></tr>
-        ` : `
         <tr><td class="t-label">Sub Total<br><span style="font-size:8px;color:#777;">(Without Tax)</span></td><td class="t-value">${subtotal.toFixed(2)}</td></tr>
-        `}
         ${isWithGst ? `
         <tr><td class="t-label">CGST (${(gstRate / 2).toFixed(1).replace(/\.0$/, '')}%)</td><td class="t-value">${cgst.toFixed(2)}</td></tr>
         <tr><td class="t-label">SGST (${(gstRate / 2).toFixed(1).replace(/\.0$/, '')}%)</td><td class="t-value">${sgst.toFixed(2)}</td></tr>
@@ -939,19 +927,9 @@ export const formatQuotationWhatsAppText = (rawData) => {
   const bd = company.bankDetails || {};
 
   const itemsList = items.map((it, idx) => {
-    if (rateMode === 'GST_ON_MARGIN_REDUCED_MRP') {
-      return `${idx + 1}. *${it.name}*
-   • Order Qty: *${it.quantity} pcs* (${it.cartons} ctn)
-   • Original MRP: ₹${Number(it.mrp || 0).toFixed(2)}
-   • Margin: ${it.marginPct || 0}% (-₹${Number(it.marginAmount || 0).toFixed(2)})
-   • Price after Margin: ₹${Number(it.priceAfterMargin || it.rateExcludeTax).toFixed(2)}
-   • GST (${it.gstPercent}%): +₹${Number(it.unitGst).toFixed(2)}
-   • Final Customer Price: *₹${Number(it.finalSellingPrice).toFixed(2)}/pc*
-   • Line Total: *₹${Number(it.lineTotal).toLocaleString('en-IN')}*`;
-    }
     return `${idx + 1}. *${it.name}*
    • Order Qty: *${it.quantity} pcs* (${it.cartons} ctn)
-   • MRP (Incl. Tax): ₹${Number(it.mrp || 0).toFixed(2)} | Margin: ${it.marginPct || 0}%
+   • MRP (Incl. Tax): ₹${Number(it.mrp || 0).toFixed(2)} | Margin: ${it.marginPct || 0}% (-₹${Number(it.marginAmount || 0).toFixed(2)})
    • ${rateMode === 'EXCLUDE_TAX' ? 'Rate (Excl. Tax)' : 'Rate (Incl. Tax)'}: *₹${Number(it.rate).toFixed(2)}/pc*
    • Line Total: *₹${Number(it.lineTotal).toLocaleString('en-IN')}*`;
   }).join('\n\n');

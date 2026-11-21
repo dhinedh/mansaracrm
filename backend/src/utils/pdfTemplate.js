@@ -125,14 +125,13 @@ const buildInvoiceHtml = (company, invoice) => {
 
     let marginAmount, finalSellingPrice, rate, lineTotal;
     marginAmount = mrp * (marginPct / 100);
-    const priceBeforeGst = Math.max(0, mrp - marginAmount);
+    finalSellingPrice = Math.max(0, mrp - marginAmount);
     const isWithGst = invoice.isGstEnabled !== false;
-    const unitGst = isWithGst && gstPct > 0 ? (priceBeforeGst * (gstPct / 100)) : 0;
-    finalSellingPrice = priceBeforeGst + unitGst;
-    const isRateExclude = invoice.rateMode === 'EXCLUDE_TAX' || invoice.rateMode === 'GST_ON_MARGIN_REDUCED_MRP';
-    rate = isRateExclude ? priceBeforeGst : finalSellingPrice;
+    const rateExcludeTax = isWithGst && gstPct > 0 ? (finalSellingPrice / (1 + gstPct / 100)) : finalSellingPrice;
+    const isRateExclude = invoice.rateMode === 'EXCLUDE_TAX';
+    rate = isRateExclude ? rateExcludeTax : finalSellingPrice;
     const totQty = parseInt(item.quantity) || 0;
-    lineTotal = isRateExclude ? (priceBeforeGst * totQty) : (finalSellingPrice * totQty);
+    lineTotal = isRateExclude ? (rateExcludeTax * totQty) : (finalSellingPrice * totQty);
     const pac         = item.pac || item.product?.cartonSize || 24;       // pieces per carton
     const wtPerCtn    = item.product?.wtPerCartonKg || ((netWtG * pac) / 1000).toFixed(2);
     const ctns        = parseFloat((totQty / pac).toFixed(2));
@@ -323,7 +322,7 @@ const buildInvoiceHtml = (company, invoice) => {
         <th style="width:6%;">HSN</th>
         <th style="width:30%;text-align:left;padding-left:6px;">Item</th>
         <th style="width:7%;">NET WT (G)</th>
-        <th style="width:8%;">Rate (Rs.)<br><span style="font-size:7px;opacity:0.9;">(${invoice.rateMode === 'GST_ON_MARGIN_REDUCED_MRP' ? 'BASE RATE' : (invoice.rateMode === 'EXCLUDE_TAX' ? 'EXCL. TAX' : 'INCL. TAX')})</span></th>
+        <th style="width:8%;">Rate (Rs.)<br><span style="font-size:7px;opacity:0.9;">(${invoice.rateMode === 'EXCLUDE_TAX' ? 'EXCL. TAX' : 'INCL. TAX'})</span></th>
         <th style="width:5%;">PAC</th>
         <th style="width:8%;">WT/ CTN (Kg)</th>
         <th style="width:6%;">CTNS</th>
@@ -472,13 +471,12 @@ const buildSimpleRetailInvoiceHtml = (company, invoice) => {
 
     let marginAmount, finalSellingPrice, rate, lineTotal;
     marginAmount = mrp * (marginPct / 100);
-    const priceBeforeGst = Math.max(0, mrp - marginAmount);
+    finalSellingPrice = Math.max(0, mrp - marginAmount);
     const isWithGst = invoice.isGstEnabled !== false;
-    const unitGst = isWithGst && gstPct > 0 ? (priceBeforeGst * (gstPct / 100)) : 0;
-    finalSellingPrice = priceBeforeGst + unitGst;
-    const isRateExclude = invoice.rateMode === 'EXCLUDE_TAX' || invoice.rateMode === 'GST_ON_MARGIN_REDUCED_MRP';
-    rate = isRateExclude ? priceBeforeGst : finalSellingPrice;
-    lineTotal = isRateExclude ? (priceBeforeGst * totQty) : (finalSellingPrice * totQty);
+    const rateExcludeTax = isWithGst && gstPct > 0 ? (finalSellingPrice / (1 + gstPct / 100)) : finalSellingPrice;
+    const isRateExclude = invoice.rateMode === 'EXCLUDE_TAX';
+    rate = isRateExclude ? rateExcludeTax : finalSellingPrice;
+    lineTotal = isRateExclude ? (rateExcludeTax * totQty) : (finalSellingPrice * totQty);
     const totalWtKg   = netWtG ? (totQty * netWtG / 1000).toFixed(2) : '';
 
     return `
