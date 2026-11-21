@@ -39,8 +39,7 @@ import {
   Download,
   Share2,
   Loader2,
-  Receipt,
-  FileCheck
+  Receipt
 } from 'lucide-react';
 import WhatsAppShareModal from '../../components/WhatsAppShareModal';
 import {
@@ -81,7 +80,7 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
   // ─── TAXATION (WITH / WITHOUT GST) & FREIGHT ────────────────────────────────
   const [gstMode, setGstMode] = useState('WITH_GST'); // 'WITH_GST' | 'WITHOUT_GST'
   const isWithGst = gstMode === 'WITH_GST';
-  const [rateMode, setRateMode] = useState('INCLUDE_TAX'); // 'INCLUDE_TAX' (Rate Include Tax) | 'EXCLUDE_TAX' (Rate Exclude Tax) | 'GST_ON_MARGIN_REDUCED_MRP' (Invoice with GST on Margin Reduced MRP)
+  const [rateMode, setRateMode] = useState('INCLUDE_TAX'); // 'INCLUDE_TAX' (Rate Include Tax) | 'EXCLUDE_TAX' (Rate Exclude Tax)
   const [gstRate, setGstRate] = useState(5); // Default 5% GST for food items
   const [shippingCharges, setShippingCharges] = useState(0);
 
@@ -1480,19 +1479,6 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
                 <span>Rate Exclude Tax</span>
                 {rateMode === 'EXCLUDE_TAX' && <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />}
               </button>
-              <button
-                type="button"
-                onClick={() => setRateMode('GST_ON_MARGIN_REDUCED_MRP')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer flex items-center gap-1.5 ${
-                  rateMode === 'GST_ON_MARGIN_REDUCED_MRP'
-                    ? 'bg-rose-600 text-white shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-                title="Invoice with GST on Margin Reduced MRP: Selling Price = (MRP - Margin) + GST"
-              >
-                <span>GST on Margin-Reduced MRP</span>
-                {rateMode === 'GST_ON_MARGIN_REDUCED_MRP' && <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />}
-              </button>
             </div>
           </div>
         </div>
@@ -2189,18 +2175,6 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
                   >
                     Rate Excl. Tax
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setRateMode('GST_ON_MARGIN_REDUCED_MRP')}
-                    className={`px-2.5 py-1 rounded-md text-[11px] font-black transition cursor-pointer ${
-                      rateMode === 'GST_ON_MARGIN_REDUCED_MRP'
-                        ? 'bg-rose-600 text-white shadow-xs'
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                    title="Invoice with GST on Margin Reduced MRP: Selling Price Before GST = MRP - Margin, then apply GST% on top"
-                  >
-                    GST on Margin-Reduced MRP
-                  </button>
                 </div>
               </div>
 
@@ -2298,9 +2272,7 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
             <div>
               <span className="text-[11px] sm:text-xs font-black text-slate-800 uppercase tracking-wider block">Invoice Mode:</span>
               <span className="text-[10px] text-slate-500 font-medium">
-                {rateMode === 'GST_ON_MARGIN_REDUCED_MRP'
-                  ? 'Invoice with GST on Margin Reduced MRP (GST added on top of MRP − margin)'
-                  : (rateMode === 'EXCLUDE_TAX' ? 'Rate Exclude Tax (Taxable rate displayed without GST)' : 'Rate Include Tax (MRP is GST-inclusive)')}
+                {rateMode === 'EXCLUDE_TAX' ? 'Rate Exclude Tax (Taxable rate displayed without GST)' : 'Rate Include Tax (MRP is GST-inclusive)'}
               </span>
             </div>
           </div>
@@ -2326,18 +2298,6 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
               }`}
             >
               Rate Excl. Tax
-            </button>
-            <button
-              type="button"
-              onClick={() => setRateMode('GST_ON_MARGIN_REDUCED_MRP')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-1.5 ${
-                rateMode === 'GST_ON_MARGIN_REDUCED_MRP'
-                  ? 'bg-rose-600 text-white shadow-xs ring-2 ring-rose-300'
-                  : 'bg-white border-2 border-rose-300 text-rose-800 hover:bg-rose-50'
-              }`}
-            >
-              <FileCheck className="w-3.5 h-3.5" />
-              <span>Invoice with GST on Margin Reduced MRP</span>
             </button>
           </div>
         </div>
@@ -2626,15 +2586,6 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
                         }`}
                       >
                         Rate Excl. Tax
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setRateMode('GST_ON_MARGIN_REDUCED_MRP')}
-                        className={`px-2 py-0.5 rounded text-[10px] font-black transition cursor-pointer ${
-                          rateMode === 'GST_ON_MARGIN_REDUCED_MRP' ? 'bg-rose-600 text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900'
-                        }`}
-                      >
-                        GST on Margin-Reduced MRP
                       </button>
                     </div>
                   </div>
