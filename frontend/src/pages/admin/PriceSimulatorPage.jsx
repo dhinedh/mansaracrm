@@ -2150,9 +2150,18 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
             </div>
           </div>
 
-          {/* Grand Total Row directly under shipping */}
+          {/* Grand Total & Tax Breakdown Section */}
           {calculationSummary.items.length > 0 && (
-            <div className="pt-3 border-t border-slate-200/80 flex flex-wrap items-center justify-between gap-3">
+            <div className="pt-3 border-t border-slate-200/80 space-y-1.5">
+              {/* Taxable & GST Breakdown above Grand Total */}
+              <div className="text-xs text-slate-600 font-medium">
+                Taxable: ₹{calculationSummary.subtotalWithoutGst % 1 === 0 ? calculationSummary.subtotalWithoutGst.toLocaleString('en-IN') : calculationSummary.subtotalWithoutGst.toFixed(2)} | GST ({calculationSummary.gstRate}%): ₹{calculationSummary.totalGstAmount % 1 === 0 ? calculationSummary.totalGstAmount.toLocaleString('en-IN') : calculationSummary.totalGstAmount.toFixed(2)}
+                {calculationSummary.shippingCharges > 0 && (
+                  <> | Shipping: ₹{calculationSummary.shippingCharges.toFixed(2)}</>
+                )}
+              </div>
+
+              {/* Grand Total */}
               <div className="flex items-center gap-2">
                 <span className="text-xs sm:text-sm font-bold text-slate-700">Grand Total:</span>
                 <span className="text-lg sm:text-2xl font-black font-mono text-rose-600">
@@ -2161,9 +2170,6 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
                 <span className="text-[10px] font-semibold text-slate-500">
                   ({calculationSummary.isWithGst ? 'Incl. GST' : 'Excl. GST'}{calculationSummary.shippingCharges > 0 ? ' & Freight' : ''})
                 </span>
-              </div>
-              <div className="text-xs text-slate-500 font-medium">
-                Taxable: ₹{calculationSummary.subtotalWithoutGst % 1 === 0 ? calculationSummary.subtotalWithoutGst.toLocaleString('en-IN') : calculationSummary.subtotalWithoutGst.toFixed(2)} | GST ({calculationSummary.gstRate}%): ₹{calculationSummary.totalGstAmount % 1 === 0 ? calculationSummary.totalGstAmount.toLocaleString('en-IN') : calculationSummary.totalGstAmount.toFixed(2)}
               </div>
             </div>
           )}
