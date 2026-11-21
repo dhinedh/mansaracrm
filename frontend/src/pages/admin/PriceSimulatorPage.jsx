@@ -1846,12 +1846,12 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
             {calculationSummary.items.length > 0 && (
               <tfoot className="bg-slate-100 border-t-2 border-slate-300 text-xs">
                 <tr>
-                  <td colSpan="3" className="py-2.5 px-2.5 text-right font-black uppercase text-[10px] text-slate-600">
-                    Grand Total ({calculationSummary.isWithGst ? 'Incl. GST & Shipping' : 'Net'}):
+                  <td colSpan="3" className="py-2.5 px-2.5 text-right font-bold uppercase text-[10px] text-slate-700">
+                    Subtotal:
                   </td>
                   <td className="py-2.5 px-2 text-right">
-                    <span className="text-xs sm:text-sm font-black font-mono text-rose-600">
-                      ₹{Math.round(calculationSummary.grandTotal).toLocaleString('en-IN')}
+                    <span className="text-xs sm:text-sm font-mono font-bold text-slate-900">
+                      ₹{calculationSummary.subtotalWithoutGst.toFixed(2)}
                     </span>
                   </td>
                 </tr>
@@ -2047,44 +2047,11 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
             {calculationSummary.items.length > 0 && (
               <tfoot className="bg-slate-100 border-t-2 border-slate-300 text-xs">
                 <tr>
-                  <td colSpan="8" className="py-2 px-4 text-right font-bold text-slate-600 text-[11px]">
-                    Taxable Subtotal (Without Tax):
+                  <td colSpan="8" className="py-2.5 px-4 text-right font-bold text-slate-700 text-[11px]">
+                    Subtotal:
                   </td>
-                  <td className="py-2 px-4 text-right font-mono font-bold text-slate-800 text-[11px]">
+                  <td className="py-2.5 px-4 text-right font-mono font-bold text-slate-900 text-xs">
                     ₹{calculationSummary.subtotalWithoutGst.toFixed(2)}
-                  </td>
-                  <td></td>
-                </tr>
-                {calculationSummary.isWithGst && (
-                  <tr>
-                    <td colSpan="8" className="py-2 px-4 text-right font-bold text-slate-600 text-[11px]">
-                      GST ({calculationSummary.gstRate}%):
-                    </td>
-                    <td className="py-2 px-4 text-right font-mono font-bold text-emerald-700 text-[11px]">
-                      +₹{calculationSummary.totalGstAmount.toFixed(2)}
-                    </td>
-                    <td></td>
-                  </tr>
-                )}
-                {calculationSummary.shippingCharges > 0 && (
-                  <tr>
-                    <td colSpan="8" className="py-2 px-4 text-right font-bold text-slate-600 text-[11px]">
-                      Shipping:
-                    </td>
-                    <td className="py-2 px-4 text-right font-mono font-bold text-slate-800 text-[11px]">
-                      +₹{calculationSummary.shippingCharges.toFixed(2)}
-                    </td>
-                    <td></td>
-                  </tr>
-                )}
-                <tr className="bg-slate-200/80">
-                  <td colSpan="8" className="py-3 px-4 text-right font-black uppercase text-[11px] text-slate-800">
-                    Grand Total ({calculationSummary.isWithGst ? 'Incl. GST & Shipping' : 'Net Final'}):
-                  </td>
-                  <td className="py-3 px-4 text-right">
-                    <span className="text-base font-black font-mono text-rose-600">
-                      ₹{calculationSummary.grandTotal % 1 === 0 ? calculationSummary.grandTotal.toLocaleString('en-IN') : calculationSummary.grandTotal.toFixed(2)}
-                    </span>
                   </td>
                   <td></td>
                 </tr>
