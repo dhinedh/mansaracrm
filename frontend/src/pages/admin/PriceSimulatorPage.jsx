@@ -691,22 +691,28 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
 
       // 1. Margin Amount = MRP * Margin %
       marginDiscountPerUnit = Math.round((mrp * (marginPct / 100)) * 100) / 100;
-      // 2. Final Selling Price (MRP is GST-inclusive, so Final Selling Price = MRP - Margin Amount)
-      finalSellingPrice = Math.max(0, Math.round((mrp - marginDiscountPerUnit) * 100) / 100);
-      // 3. Rate Exclude Tax (Taxable Base) = Final Selling Price / (1 + GST% / 100)
-      rateExcludeTax = isWithGst && itemGstPct > 0
-        ? Math.round((finalSellingPrice / (1 + itemGstPct / 100)) * 10000) / 10000
-        : finalSellingPrice;
-      // 4. GST Amount per unit = Final Selling Price - Rate Exclude Tax
-      unitGstAmount = Math.max(0, Math.round((finalSellingPrice - rateExcludeTax) * 10000) / 10000);
-      sellingPriceBeforeGst = rateExcludeTax;
+      // 2. Price after margin deduction
+      const priceAfterMargin = Math.max(0, Math.round((mrp - marginDiscountPerUnit) * 100) / 100);
 
-      // Displayed rate according to selected Rate Mode:
-      // Rate Include Tax: Display final selling price directly.
-      // Rate Exclude Tax: Display rateExcludeTax (taxable rate without GST).
-      displayedRate = (rateMode === 'EXCLUDE_TAX')
-        ? Math.round(rateExcludeTax * 100) / 100
-        : finalSellingPrice;
+      // 3. Tax & Rate calculations based on Rate Mode:
+      // EXCLUDE_TAX: priceAfterMargin is the TAXABLE BASE RATE without GST. GST is added ON TOP.
+      // INCLUDE_TAX: priceAfterMargin is the ALL-INCLUSIVE SELLING PRICE. GST is back-calculated.
+      if (rateMode === 'EXCLUDE_TAX') {
+        rateExcludeTax = priceAfterMargin;
+        unitGstAmount = isWithGst && itemGstPct > 0
+          ? Math.round((rateExcludeTax * (itemGstPct / 100)) * 100) / 100
+          : 0;
+        finalSellingPrice = Math.round((rateExcludeTax + unitGstAmount) * 100) / 100;
+        displayedRate = rateExcludeTax;
+      } else {
+        finalSellingPrice = priceAfterMargin;
+        rateExcludeTax = isWithGst && itemGstPct > 0
+          ? Math.round((finalSellingPrice / (1 + itemGstPct / 100)) * 10000) / 10000
+          : finalSellingPrice;
+        unitGstAmount = Math.max(0, Math.round((finalSellingPrice - rateExcludeTax) * 10000) / 10000);
+        displayedRate = finalSellingPrice;
+      }
+      sellingPriceBeforeGst = rateExcludeTax;
 
       const cartonPrice = Math.round((displayedRate * pacSize) * 100) / 100;
       const finalCartonPrice = Math.round((finalSellingPrice * pacSize) * 100) / 100;
@@ -714,9 +720,18 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
       // Line totals:
       const lineMrpValue = Math.round((mrp * pieces) * 100) / 100;
       const lineMarginDiscountTotal = Math.round((marginDiscountPerUnit * pieces) * 100) / 100;
-      const lineFinalSellingTotal = Math.round((finalSellingPrice * pieces) * 100) / 100;
       const lineTaxableSubtotal = Math.round((rateExcludeTax * pieces) * 100) / 100;
-      const lineGstTotal = Math.round((lineFinalSellingTotal - lineTaxableSubtotal) * 100) / 100;
+
+      let lineFinalSellingTotal = 0;
+      let lineGstTotal = 0;
+
+      if (rateMode === 'EXCLUDE_TAX') {
+        lineGstTotal = isWithGst && itemGstPct > 0 ? Math.round((lineTaxableSubtotal * (itemGstPct / 100)) * 100) / 100 : 0;
+        lineFinalSellingTotal = Math.round((lineTaxableSubtotal + lineGstTotal) * 100) / 100;
+      } else {
+        lineFinalSellingTotal = Math.round((finalSellingPrice * pieces) * 100) / 100;
+        lineGstTotal = Math.round((lineFinalSellingTotal - lineTaxableSubtotal) * 100) / 100;
+      }
       const lineSellingBeforeGstTotal = lineTaxableSubtotal;
 
       totalPieces += pieces;
@@ -1627,17 +1642,29 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
                 const isWithGstCurrent = gstMode === 'WITH_GST';
                 const gstPct = isWithGstCurrent ? Math.max(0, parseFloat(gstRate !== undefined ? gstRate : (prod.gstPercent || 5))) : 0;
 
-                const finalSellingPrice = priceAfterMargin;
-                const taxableRate = isWithGstCurrent && gstPct > 0 ? (finalSellingPrice / (1 + gstPct / 100)) : finalSellingPrice;
-                const unitGst = Math.max(0, finalSellingPrice - taxableRate);
-                const displayedRate = rateMode === 'EXCLUDE_TAX' ? taxableRate : finalSellingPrice;
+                let rateExcludeTax = 0;
+                let unitGst = 0;
+                let finalSellingPrice = 0;
+                let displayedRate = 0;
+
+                if (rateMode === 'EXCLUDE_TAX') {
+                  rateExcludeTax = priceAfterMargin;
+                  unitGst = isWithGstCurrent && gstPct > 0 ? Math.round((rateExcludeTax * (gstPct / 100)) * 100) / 100 : 0;
+                  finalSellingPrice = Math.round((rateExcludeTax + unitGst) * 100) / 100;
+                  displayedRate = rateExcludeTax;
+                } else {
+                  finalSellingPrice = priceAfterMargin;
+                  rateExcludeTax = isWithGstCurrent && gstPct > 0 ? Math.round((finalSellingPrice / (1 + gstPct / 100)) * 10000) / 10000 : finalSellingPrice;
+                  unitGst = Math.max(0, Math.round((finalSellingPrice - rateExcludeTax) * 10000) / 10000);
+                  displayedRate = finalSellingPrice;
+                }
 
                 return (
                   <>
                     <span className="text-slate-600 flex items-center gap-1.5 flex-wrap">
                       <Info className="w-3.5 h-3.5 text-blue-500 shrink-0" />
                       <span>
-                        Catalog MRP: <strong className="text-slate-900 font-extrabold">₹{mrp.toFixed(2)}</strong> &bull; Margin ({marginPctToAdd}%): <strong className="text-rose-600 font-extrabold">-₹{marginDiscount.toFixed(2)}</strong> &bull; Taxable Base: <strong className="text-slate-900 font-extrabold">₹{taxableRate.toFixed(2)}</strong> &bull; GST ({gstPct}%): <strong className="text-emerald-700 font-extrabold">+₹{unitGst.toFixed(2)}</strong>
+                        Catalog MRP: <strong className="text-slate-900 font-extrabold">₹{mrp.toFixed(2)}</strong> &bull; Margin ({marginPctToAdd}%): <strong className="text-rose-600 font-extrabold">-₹{marginDiscount.toFixed(2)}</strong> &bull; Taxable Base: <strong className="text-slate-900 font-extrabold">₹{rateExcludeTax.toFixed(2)}</strong> &bull; GST ({gstPct}%): <strong className="text-emerald-700 font-extrabold">+₹{unitGst.toFixed(2)}</strong>
                       </span>
                     </span>
                     <span className="text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-200 inline-block">

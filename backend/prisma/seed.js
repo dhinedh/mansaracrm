@@ -46,11 +46,11 @@ async function main() {
 
   // Create products matching Mansara Foods e-commerce setup
   const productsList = [
-    { name: "Urad Health Mix – Classic", category: "Urad Porridge Mix", price: 55, mrp: 55, unit: "100g", sku: "MF-URAD-CLA-100", hsnCode: "1901", image: "/products/urad-classic-front.jpg" },
-    { name: "Urad Health Mix – Salt n Pepper", category: "Urad Porridge Mix", price: 55, mrp: 55, unit: "100g", sku: "MF-URAD-SNP-100", hsnCode: "1901", image: "/products/urad-salt-pepper-front.jpg" },
-    { name: "Urad Health Mix – Millet Magic", category: "Urad Porridge Mix", price: 60, mrp: 60, unit: "100g", sku: "MF-URAD-MIL-100", hsnCode: "1901", image: "/products/urad-millet-magic-front.jpg" },
-    { name: "Urad Health Mix – Premium", category: "Urad Porridge Mix", price: 65, mrp: 65, unit: "100g", sku: "MF-URAD-PRE-100", hsnCode: "1901", image: "/products/urad-premium-front.jpg" },
-    { name: "Health Mix – Black Rice Delight", category: "Black Rice mix", price: 70, mrp: 70, unit: "100g", sku: "MF-BLAC-DEL-100", hsnCode: "1901", image: "/products/black-rice-delight-front.jpg" },
+    { name: "Urad Health Mix – Classic 250g", category: "Urad Porridge Mix", price: 165, mrp: 165, unit: "250g", sku: "MF-URAD-CLA-250", hsnCode: "1901", image: "/products/urad-classic-250g-front.jpg" },
+    { name: "Urad Health Mix – Salt n Pepper 250g", category: "Urad Porridge Mix", price: 165, mrp: 165, unit: "250g", sku: "MF-URAD-SNP-250", hsnCode: "1901", image: "/products/urad-salt-pepper-250g-front.jpg" },
+    { name: "Urad Health Mix – Millet Magic 250g", category: "Urad Porridge Mix", price: 165, mrp: 165, unit: "250g", sku: "MF-URAD-MIL-250", hsnCode: "1901", image: "/products/urad-millet-magic-250g-front.jpg" },
+    { name: "Urad Health Mix – Premium 250g", category: "Urad Porridge Mix", price: 165, mrp: 165, unit: "250g", sku: "MF-URAD-PRE-250", hsnCode: "1901", image: "/products/urad-premium-250g-front.jpg" },
+    { name: "Health Mix – Black Rice Delight 250g", category: "Black Rice mix", price: 165, mrp: 165, unit: "250g", sku: "MF-BLAC-DEL-250", hsnCode: "1901", image: "/products/black-rice-delight-250g-front.jpg" },
     { name: "Ragi Choco Malt", category: "Health drink mix", price: 250, mrp: 250, unit: "250g", sku: "MF-RAGI-CHO-250", hsnCode: "1901", image: "/products/RagiChocoMalt.webp" },
     { name: "Nutriminix – Multi Grain Health Mix", category: "Health drink mix", price: 200, mrp: 200, unit: "250g", sku: "MF-NUTR-MGM-250", hsnCode: "1901", image: "/products/NutriMix.webp" },
     { name: "Idly Podi – Traditional", category: "Idly Podi", price: 75, mrp: 75, unit: "100g", sku: "MF-IDLY-TRA-100", hsnCode: "2103", image: "/products/TraditionalIdlyPodi.webp" },

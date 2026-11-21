@@ -261,7 +261,7 @@ export default function EcomSettingsPage() {
                     name="whatsapp_number"
                     value={settings.whatsapp_number || ''}
                     onChange={handleInputChange}
-                    placeholder="e.g. 919838887064"
+                    placeholder="e.g. 918838887064"
                     className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 focus:bg-white rounded-xl focus:outline-none text-emerald-600 font-bold"
                   />
                   <p className="text-[10px] text-slate-400 mt-1">Include country code without special characters (e.g. 91 for India).</p>

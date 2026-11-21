@@ -329,22 +329,40 @@ export const normalizeQuotationData = (raw = {}) => {
 
       // 1. Margin Amount = MRP * Margin %
       marginAmount = Math.round((mrp * (marginPct / 100)) * 100) / 100;
-      // 2. Final Selling Price = MRP - Margin Amount (MRP is GST-inclusive!)
-      finalSellingPrice = Math.max(0, Math.round((mrp - marginAmount) * 100) / 100);
-      // 3. Taxable Base (Rate Exclude Tax) = Final Selling Price / (1 + GST% / 100)
-      rateExcludeTax = isWithGst && itemGstPct > 0
-        ? Math.round((finalSellingPrice / (1 + itemGstPct / 100)) * 10000) / 10000
-        : finalSellingPrice;
-      // 4. GST Amount per unit = Final Selling Price - Rate Exclude Tax
-      unitGst = Math.max(0, Math.round((finalSellingPrice - rateExcludeTax) * 10000) / 10000);
-      sellingPriceBeforeGst = rateExcludeTax;
-      displayedRate = rateMode === 'EXCLUDE_TAX'
-        ? Math.round(rateExcludeTax * 100) / 100
-        : finalSellingPrice;
+      // 2. Price after margin deduction
+      const priceAfterMargin = Math.max(0, Math.round((mrp - marginAmount) * 100) / 100);
 
-      const lineFinal = finalSellingPrice * qty;
-      const lineTaxable = rateExcludeTax * qty;
-      const lineGst = lineFinal - lineTaxable;
+      // 3. Tax & Rate calculations based on Rate Mode:
+      // EXCLUDE_TAX: priceAfterMargin is the TAXABLE BASE RATE without GST. GST is added ON TOP.
+      // INCLUDE_TAX: priceAfterMargin is the ALL-INCLUSIVE SELLING PRICE. GST is back-calculated.
+      if (rateMode === 'EXCLUDE_TAX') {
+        rateExcludeTax = priceAfterMargin;
+        unitGst = isWithGst && itemGstPct > 0
+          ? Math.round((rateExcludeTax * (itemGstPct / 100)) * 100) / 100
+          : 0;
+        finalSellingPrice = Math.round((rateExcludeTax + unitGst) * 100) / 100;
+        displayedRate = rateExcludeTax;
+      } else {
+        finalSellingPrice = priceAfterMargin;
+        rateExcludeTax = isWithGst && itemGstPct > 0
+          ? Math.round((finalSellingPrice / (1 + itemGstPct / 100)) * 10000) / 10000
+          : finalSellingPrice;
+        unitGst = Math.max(0, Math.round((finalSellingPrice - rateExcludeTax) * 10000) / 10000);
+        displayedRate = finalSellingPrice;
+      }
+      sellingPriceBeforeGst = rateExcludeTax;
+
+      const lineTaxable = Math.round((rateExcludeTax * qty) * 100) / 100;
+      let lineFinal = 0;
+      let lineGst = 0;
+
+      if (rateMode === 'EXCLUDE_TAX') {
+        lineGst = isWithGst && itemGstPct > 0 ? Math.round((lineTaxable * (itemGstPct / 100)) * 100) / 100 : 0;
+        lineFinal = Math.round((lineTaxable + lineGst) * 100) / 100;
+      } else {
+        lineFinal = Math.round((finalSellingPrice * qty) * 100) / 100;
+        lineGst = Math.round((lineFinal - lineTaxable) * 100) / 100;
+      }
       const lineTotal = rateMode === 'EXCLUDE_TAX' ? lineTaxable : lineFinal;
 
       calcTaxableSubtotal += lineTaxable;
@@ -404,19 +422,36 @@ export const normalizeQuotationData = (raw = {}) => {
       let displayedRate = 0;
 
       marginAmount = Math.round((mrp * (marginPct / 100)) * 100) / 100;
-      finalSellingPrice = Math.max(0, Math.round((mrp - marginAmount) * 100) / 100);
-      rateExcludeTax = isWithGst && itemGstPct > 0
-        ? Math.round((finalSellingPrice / (1 + itemGstPct / 100)) * 10000) / 10000
-        : finalSellingPrice;
-      unitGst = Math.max(0, Math.round((finalSellingPrice - rateExcludeTax) * 10000) / 10000);
-      sellingPriceBeforeGst = rateExcludeTax;
-      displayedRate = rateMode === 'EXCLUDE_TAX'
-        ? Math.round(rateExcludeTax * 100) / 100
-        : finalSellingPrice;
+      const priceAfterMargin = Math.max(0, Math.round((mrp - marginAmount) * 100) / 100);
 
-      const lineFinal = Number(item.totalPrice) || (finalSellingPrice * qty);
-      const lineTaxable = rateExcludeTax * qty;
-      const lineGst = lineFinal - lineTaxable;
+      if (rateMode === 'EXCLUDE_TAX') {
+        rateExcludeTax = priceAfterMargin;
+        unitGst = isWithGst && itemGstPct > 0
+          ? Math.round((rateExcludeTax * (itemGstPct / 100)) * 100) / 100
+          : 0;
+        finalSellingPrice = Math.round((rateExcludeTax + unitGst) * 100) / 100;
+        displayedRate = rateExcludeTax;
+      } else {
+        finalSellingPrice = priceAfterMargin;
+        rateExcludeTax = isWithGst && itemGstPct > 0
+          ? Math.round((finalSellingPrice / (1 + itemGstPct / 100)) * 10000) / 10000
+          : finalSellingPrice;
+        unitGst = Math.max(0, Math.round((finalSellingPrice - rateExcludeTax) * 10000) / 10000);
+        displayedRate = finalSellingPrice;
+      }
+      sellingPriceBeforeGst = rateExcludeTax;
+
+      const lineTaxable = Math.round((rateExcludeTax * qty) * 100) / 100;
+      let lineFinal = 0;
+      let lineGst = 0;
+
+      if (rateMode === 'EXCLUDE_TAX') {
+        lineGst = isWithGst && itemGstPct > 0 ? Math.round((lineTaxable * (itemGstPct / 100)) * 100) / 100 : 0;
+        lineFinal = Math.round((lineTaxable + lineGst) * 100) / 100;
+      } else {
+        lineFinal = Number(item.totalPrice) || Math.round((finalSellingPrice * qty) * 100) / 100;
+        lineGst = Math.round((lineFinal - lineTaxable) * 100) / 100;
+      }
       const lineTotal = rateMode === 'EXCLUDE_TAX' ? lineTaxable : lineFinal;
 
       calcTaxableSubtotal += lineTaxable;

@@ -32,7 +32,7 @@ async function main() {
       unit: "PCS",
       pacQuantity: 24,
       minOrderQty: 5,
-      image: "/products/urad-classic-front.jpg",
+      image: "/products/urad-classic-250g-front.jpg",
       slug: "urad-porridge-mix-classic-250g",
       weight: "250g"
     },
@@ -47,7 +47,7 @@ async function main() {
       unit: "PCS",
       pacQuantity: 24,
       minOrderQty: 5,
-      image: "/products/urad-salt-pepper-front.jpg",
+      image: "/products/urad-salt-pepper-250g-front.jpg",
       slug: "urad-porridge-mix-salt-pepper-250g",
       weight: "250g"
     },
@@ -62,7 +62,7 @@ async function main() {
       unit: "PCS",
       pacQuantity: 24,
       minOrderQty: 5,
-      image: "/products/urad-millet-magic-front.jpg",
+      image: "/products/urad-millet-magic-250g-front.jpg",
       slug: "urad-porridge-mix-millet-magic-250g",
       weight: "250g"
     },
@@ -77,7 +77,7 @@ async function main() {
       unit: "PCS",
       pacQuantity: 24,
       minOrderQty: 5,
-      image: "/products/urad-premium-front.jpg",
+      image: "/products/urad-premium-250g-front.jpg",
       slug: "urad-porridge-mix-premium-250g",
       weight: "250g"
     },
@@ -92,7 +92,7 @@ async function main() {
       unit: "PCS",
       pacQuantity: 24,
       minOrderQty: 5,
-      image: "/products/black-rice-delight-front.jpg",
+      image: "/products/black-rice-delight-250g-front.jpg",
       slug: "black-rice-delight-porridge-mix-250g",
       weight: "250g"
     }

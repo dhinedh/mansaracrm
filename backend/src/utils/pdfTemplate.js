@@ -122,16 +122,26 @@ const buildInvoiceHtml = (company, invoice) => {
     const mrp         = parseFloat(item.product?.mrp || item.unitPrice || item.product?.price || 0);
     const marginPct   = parseFloat(item.marginPct) || 0;
     const gstPct      = parseFloat(item.gstPercent || item.product?.gstPercent || 5);
+    const totQty      = parseInt(item.quantity) || 0;
 
-    let marginAmount, finalSellingPrice, rate, lineTotal;
+    let marginAmount, finalSellingPrice, rate, lineTotal, rateExcludeTax, unitGst;
     marginAmount = mrp * (marginPct / 100);
-    finalSellingPrice = Math.max(0, mrp - marginAmount);
+    const priceAfterMargin = Math.max(0, mrp - marginAmount);
     const isWithGst = invoice.isGstEnabled !== false;
-    const rateExcludeTax = isWithGst && gstPct > 0 ? (finalSellingPrice / (1 + gstPct / 100)) : finalSellingPrice;
     const isRateExclude = invoice.rateMode === 'EXCLUDE_TAX';
-    rate = isRateExclude ? rateExcludeTax : finalSellingPrice;
-    const totQty = parseInt(item.quantity) || 0;
-    lineTotal = isRateExclude ? (rateExcludeTax * totQty) : (finalSellingPrice * totQty);
+    if (isRateExclude) {
+      rateExcludeTax = priceAfterMargin;
+      unitGst = isWithGst && gstPct > 0 ? (rateExcludeTax * (gstPct / 100)) : 0;
+      finalSellingPrice = rateExcludeTax + unitGst;
+      rate = rateExcludeTax;
+      lineTotal = rateExcludeTax * totQty;
+    } else {
+      finalSellingPrice = priceAfterMargin;
+      rateExcludeTax = isWithGst && gstPct > 0 ? (finalSellingPrice / (1 + gstPct / 100)) : finalSellingPrice;
+      unitGst = Math.max(0, finalSellingPrice - rateExcludeTax);
+      rate = finalSellingPrice;
+      lineTotal = finalSellingPrice * totQty;
+    }
     const pac         = item.pac || item.product?.cartonSize || 24;       // pieces per carton
     const wtPerCtn    = item.product?.wtPerCartonKg || ((netWtG * pac) / 1000).toFixed(2);
     const ctns        = parseFloat((totQty / pac).toFixed(2));
@@ -469,14 +479,24 @@ const buildSimpleRetailInvoiceHtml = (company, invoice) => {
     const gstPct      = parseFloat(item.gstPercent || item.product?.gstPercent || 5);
     const totQty      = parseInt(item.quantity) || 0;
 
-    let marginAmount, finalSellingPrice, rate, lineTotal;
+    let marginAmount, finalSellingPrice, rate, lineTotal, rateExcludeTax, unitGst;
     marginAmount = mrp * (marginPct / 100);
-    finalSellingPrice = Math.max(0, mrp - marginAmount);
+    const priceAfterMargin = Math.max(0, mrp - marginAmount);
     const isWithGst = invoice.isGstEnabled !== false;
-    const rateExcludeTax = isWithGst && gstPct > 0 ? (finalSellingPrice / (1 + gstPct / 100)) : finalSellingPrice;
     const isRateExclude = invoice.rateMode === 'EXCLUDE_TAX';
-    rate = isRateExclude ? rateExcludeTax : finalSellingPrice;
-    lineTotal = isRateExclude ? (rateExcludeTax * totQty) : (finalSellingPrice * totQty);
+    if (isRateExclude) {
+      rateExcludeTax = priceAfterMargin;
+      unitGst = isWithGst && gstPct > 0 ? (rateExcludeTax * (gstPct / 100)) : 0;
+      finalSellingPrice = rateExcludeTax + unitGst;
+      rate = rateExcludeTax;
+      lineTotal = rateExcludeTax * totQty;
+    } else {
+      finalSellingPrice = priceAfterMargin;
+      rateExcludeTax = isWithGst && gstPct > 0 ? (finalSellingPrice / (1 + gstPct / 100)) : finalSellingPrice;
+      unitGst = Math.max(0, finalSellingPrice - rateExcludeTax);
+      rate = finalSellingPrice;
+      lineTotal = finalSellingPrice * totQty;
+    }
     const totalWtKg   = netWtG ? (totQty * netWtG / 1000).toFixed(2) : '';
 
     return `

@@ -532,8 +532,8 @@ exports.getSettings = async (req, res, next) => {
         key: 'site_settings',
         website_name: 'MANSARA Foods',
         contact_email: 'contact@mansarafoods.com',
-        phone_number: '+91 9838887064',
-        address: 'No 45, traditional hub, Chennai',
+        phone_number: '+91 88388 87064',
+        address: 'Flat No. B4, No.13, Balaji Nagar 1st Street Extn, Numbal, Poonamallee, Thiruvallur – 600077, Tamil Nadu, India',
         freeShippingThreshold: 500,
         defaultShippingCharge: 50
       });
