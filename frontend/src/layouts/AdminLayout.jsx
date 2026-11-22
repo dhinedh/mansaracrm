@@ -187,13 +187,13 @@ const getSystemMenuItems = () => [
 
 const getAllMenuItems = (unreadNotifications, licensing = { enableB2cStall: true, enableFieldSales: true }) => [
   ...getOverviewMenuItems(unreadNotifications),
-  ...getEcomMenuItems(),
   ...getRndMenuItems(),
   ...getInventoryMenuItems(),
   ...getVendorMenuItems(),
   ...getStockMenuItems(),
   ...getSalesMarketingMenuItems(licensing),
   ...getFinanceMenuItems(),
+  ...getEcomMenuItems(),
   ...getSupportMenuItems(),
   ...getAnalyticsMenuItems(),
   ...getIntegrationMenuItems(),
@@ -342,13 +342,13 @@ function SidebarNav({ submenusOpen, toggleSubmenu, onLinkClick, unreadNotificati
 
   const sections = [
     { label: 'Overview', items: overviewItems, color: 'slate' },
-    { label: 'E-Commerce (Online Store)', items: ecomItems, color: 'blue' },
     { label: 'R&D Department', items: rndItems, color: 'rose' },
     { label: 'Inventory', items: inventoryItems, color: 'slate' },
     { label: 'Vendor & Procurement', items: vendorItems, color: 'slate' },
     { label: 'Stock Management', items: stockItems, color: 'slate' },
     { label: 'Sales & Marketing', items: salesMarketingItems, color: 'rose' },
     { label: 'Finance & Accounting', items: financeItems, color: 'slate' },
+    { label: 'E-Commerce (Online Store)', items: ecomItems, color: 'blue' },
     { label: 'Customer Support', items: supportItems, color: 'slate' },
     { label: 'Analytics & Reports', items: analyticsItems, color: 'blue' },
     { label: 'Integrations', items: integrationItems, color: 'slate' },
