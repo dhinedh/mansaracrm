@@ -1,4 +1,5 @@
 // src/modules/products/products.controller.js
+const mongoose = require('mongoose');
 const prisma = require('../../config/database');
 const fs = require('fs');
 const readline = require('readline');
@@ -207,9 +208,13 @@ exports.getProducts = async (req, res, next) => {
 
       const totalQty = matchingInventory.reduce((sum, inv) => sum + (Number(inv.quantity) || 0), 0);
 
-      const rawCatId = String(p.categoryId || p.category?.id || p.category?._id || p.category || '');
-      const matchedCat = catMap.get(rawCatId) || (p.category?.name ? p.category : null);
-      const catName = matchedCat?.name || (typeof p.category === 'string' && !mongoose.Types.ObjectId.isValid(p.category) ? p.category : 'General');
+      const rawCatId = String(p.categoryId || p.category?.id || p.category?._id || (typeof p.category === 'string' ? p.category : '') || '');
+      const matchedCat = (rawCatId && catMap.get(rawCatId)) || (p.category?.name ? p.category : null);
+      let isOid = false;
+      try {
+        isOid = typeof p.category === 'string' && mongoose.Types.ObjectId.isValid(p.category);
+      } catch (_) {}
+      const catName = matchedCat?.name || (typeof p.category === 'string' && !isOid ? p.category : 'General');
       const resolvedCatObj = matchedCat || { id: rawCatId, _id: rawCatId, name: catName };
 
       return {
