@@ -269,10 +269,10 @@ const CompanyInventorySchema = new Schema({
   batchId: { type: String, index: true },
   productId: { type: Schema.Types.ObjectId, ref: 'Product' },
   rawMaterialId: { type: Schema.Types.ObjectId, ref: 'RawMaterialItem' },
-  itemName: { type: String, required: true },
+  itemName: { type: String, default: 'Product Item' },
   category: { 
     type: String, 
-    default: 'Raw Material' 
+    default: 'Finished Goods' 
   },
   subCategory: { type: String, default: '' },
   quantity: { type: Number, default: 0 },

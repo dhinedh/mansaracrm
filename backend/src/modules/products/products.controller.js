@@ -294,6 +294,17 @@ exports.createProduct = async (req, res, next) => {
         firstCat = await prisma.category.create({ data: { name: 'General', isActive: true } });
       }
       resolvedCategoryId = firstCat.id || firstCat._id;
+    } else {
+      const mongoose = require('mongoose');
+      if (!mongoose.Types.ObjectId.isValid(resolvedCategoryId)) {
+        let catByName = await prisma.category.findFirst({
+          where: { name: { equals: resolvedCategoryId, mode: 'insensitive' } }
+        });
+        if (!catByName) {
+          catByName = await prisma.category.create({ data: { name: resolvedCategoryId, isActive: true } });
+        }
+        resolvedCategoryId = catByName.id || catByName._id;
+      }
     }
 
     // Set image path if uploaded
@@ -310,7 +321,7 @@ exports.createProduct = async (req, res, next) => {
           description,
           price: parseFloat(price),
           mrp: mrp ? parseFloat(mrp) : null,
-          gstPercent: parseFloat(gstPercent),
+          gstPercent: (gstPercent !== undefined && gstPercent !== null && !isNaN(parseFloat(gstPercent))) ? parseFloat(gstPercent) : 5,
           hsnCode,
           categoryId: resolvedCategoryId,
           imageUrl,
@@ -334,8 +345,12 @@ exports.createProduct = async (req, res, next) => {
       const stock = await tx.companyInventory.create({
         data: {
           productId: p.id,
+          itemName: name || p.name || 'Finished Goods',
           quantity: initialStock ? parseInt(initialStock) : 0,
-          minQuantity: 10
+          minQuantity: 10,
+          category: 'Finished Goods',
+          unit: unit || 'PCS',
+          status: 'Available'
         }
       });
 
@@ -351,15 +366,21 @@ exports.createProduct = async (req, res, next) => {
       }
 
       // Audit Log
-      await tx.auditLog.create({
-        data: {
-          userId: req.user.id,
-          action: 'CREATE_PRODUCT',
-          entity: 'Product',
-          entityId: p.id,
-          newValues: { name, sku, price, initialStock }
+      if (req.user?.id || req.user?._id) {
+        try {
+          await tx.auditLog.create({
+            data: {
+              userId: req.user.id || req.user._id,
+              action: 'CREATE_PRODUCT',
+              entity: 'Product',
+              entityId: p.id,
+              newValues: { name, sku, price, initialStock }
+            }
+          });
+        } catch (auditErr) {
+          console.warn('Audit log write skipped:', auditErr.message);
         }
-      });
+      }
 
       return { ...p, companyStock: stock };
     });
@@ -945,7 +966,15 @@ exports.bulkUploadProducts = async (req, res, next) => {
           });
 
           await tx.companyInventory.create({
-            data: { productId: p.id, quantity: initialStock, minQuantity: 10 }
+            data: {
+              productId: p.id,
+              itemName: nameStr || p.name || 'Finished Goods',
+              quantity: initialStock,
+              minQuantity: 10,
+              category: 'Finished Goods',
+              unit: (row.unit || 'PCS').trim().toUpperCase(),
+              status: 'Available'
+            }
           });
 
           if (initialStock > 0) {
