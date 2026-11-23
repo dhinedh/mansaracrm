@@ -147,23 +147,28 @@ exports.createStore = async (req, res, next) => {
     const lng = longitude ? parseFloat(longitude) : undefined;
     const hasGps = !isNaN(lat) && !isNaN(lng) && (lat !== 0 || lng !== 0);
 
+    const cleanGst = gstNumber && String(gstNumber).trim() ? String(gstNumber).trim().toUpperCase() : undefined;
+    const cleanStorePhone = cleanPhone || (phone && String(phone).trim() ? String(phone).trim() : undefined);
+    const cleanOwnerPhone = ownerPhone && String(ownerPhone).trim() ? String(ownerPhone).trim() : undefined;
+    const validDealerId = dealerId && mongoose.Types.ObjectId.isValid(dealerId) ? dealerId : undefined;
+
     const store = await StoreModel.create({
-      dealerId: dealerId || undefined,
+      dealerId: validDealerId,
       name: name.trim(),
-      gstNumber: gstNumber ? gstNumber.trim() : '',
+      gstNumber: cleanGst,
       address: address.trim(),
       manualAddress: manualAddress ? manualAddress.trim() : address.trim(),
       city: city ? city.trim() : '',
       state: state ? state.trim() : 'Tamil Nadu',
       pincode: pincode ? pincode.trim() : '',
       zone: zone ? zone.trim() : '',
-      phone: cleanPhone || phone || '',
+      phone: cleanStorePhone,
       ownerName: ownerName ? ownerName.trim() : '',
-      ownerPhone: ownerPhone ? ownerPhone.trim() : '',
+      ownerPhone: cleanOwnerPhone,
       initialInvestment: parseFloat(initialInvestment || 0),
       notes: notes || '',
       classification: classification || 'RETAIL',
-      revisitDate: revisitDate ? new Date(revisitDate) : null,
+      revisitDate: revisitDate && !isNaN(new Date(revisitDate).getTime()) ? new Date(revisitDate) : null,
       latitude: hasGps ? lat : undefined,
       longitude: hasGps ? lng : undefined,
       isLocationVerified: hasGps && req.user.role === 'ADMIN',
@@ -171,40 +176,48 @@ exports.createStore = async (req, res, next) => {
       isActive: true
     });
 
-    if (dealerId && marginPercent !== undefined && marginPercent !== null && marginPercent !== '') {
-      await prisma.margin.create({
-        data: {
-          dealerId,
-          storeId: store._id.toString(),
-          marginPercent: parseFloat(marginPercent)
-        }
-      });
+    if (validDealerId && marginPercent !== undefined && marginPercent !== null && marginPercent !== '' && !isNaN(parseFloat(marginPercent))) {
+      try {
+        await prisma.margin.create({
+          data: {
+            dealerId: validDealerId,
+            storeId: store._id.toString(),
+            marginPercent: parseFloat(marginPercent)
+          }
+        });
+      } catch (mErr) {
+        console.warn('[STORES CONTROLLER] Margin save skipped:', mErr.message);
+      }
     }
 
     // Resolve servicing dealer name for notification
     let dealerName = 'Direct / Head Office';
-    if (dealerId) {
+    if (validDealerId) {
       try {
-        const d = await prisma.dealer.findUnique({ where: { id: dealerId }, select: { companyName: true, name: true } });
+        const d = await prisma.dealer.findUnique({ where: { id: validDealerId }, select: { companyName: true, name: true } });
         if (d) dealerName = d.companyName || d.name || 'Assigned Distributor';
       } catch (_) {}
     }
 
     // Audit Log
-    await logAudit({
-      userId: req.user.id,
-      action: 'CREATE',
-      entity: 'Store',
-      entityId: store._id.toString(),
-      recordTitle: store.name,
-      details: `Created new shop "${store.name}" in ${store.city || 'unspecified'}. Location Status: ${store.locationStatus}`,
-      newValues: store.toObject(),
-      req
-    });
+    try {
+      await logAudit({
+        userId: req.user.id || req.user._id,
+        action: 'CREATE',
+        entity: 'Store',
+        entityId: store._id.toString(),
+        recordTitle: store.name,
+        details: `Created new shop "${store.name}" in ${store.city || 'unspecified'}. Location Status: ${store.locationStatus}`,
+        newValues: store.toObject(),
+        req
+      });
+    } catch (auditErr) {
+      console.warn('[STORES CONTROLLER] Audit log skipped:', auditErr.message);
+    }
 
     // Dispatch WhatsApp registration notification
     let whatsappResult = { success: false };
-    const storeContactPhone = cleanPhone || ownerPhone;
+    const storeContactPhone = cleanStorePhone || cleanOwnerPhone;
     if (storeContactPhone) {
       try {
         whatsappResult = await sendStoreWhatsAppRegistration({
@@ -233,6 +246,14 @@ exports.createStore = async (req, res, next) => {
       }
     });
   } catch (error) {
+    if (error.code === 11000) {
+      const field = Object.keys(error.keyPattern || error.keyValue || {})[0] || 'field';
+      const val = error.keyValue ? error.keyValue[field] : '';
+      return res.status(400).json({
+        success: false,
+        message: `A store with this ${field}${val ? ` ("${val}")` : ''} already exists.`
+      });
+    }
     next(error);
   }
 };

@@ -2201,8 +2201,16 @@ function translateWhere(where) {
           if (val.mode === 'insensitive') {
             subQuery['$options'] = 'i';
           }
+        } else if (op === 'equals') {
+          if (val.mode === 'insensitive') {
+            const escaped = String(opVal).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            subQuery['$regex'] = `^${escaped}$`;
+            subQuery['$options'] = 'i';
+          } else {
+            subQuery['$eq'] = opVal;
+          }
         } else if (op === 'mode') {
-          // handled in contains / startsWith / endsWith
+          // handled in contains / startsWith / endsWith / equals
         } else if (op === 'gt') {
           subQuery['$gt'] = opVal;
         } else if (op === 'gte') {
@@ -2265,8 +2273,16 @@ async function resolveRelationFilters(where, modelName) {
           if (val.mode === 'insensitive') {
             subQuery['$options'] = 'i';
           }
+        } else if (op === 'equals') {
+          if (val.mode === 'insensitive') {
+            const escaped = String(opVal).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            subQuery['$regex'] = `^${escaped}$`;
+            subQuery['$options'] = 'i';
+          } else {
+            subQuery['$eq'] = opVal;
+          }
         } else if (op === 'mode') {
-          // Handled in contains
+          // Handled in contains / equals
         } else if (op === 'gt') {
           subQuery['$gt'] = opVal;
         } else if (op === 'gte') {
@@ -2310,6 +2326,11 @@ function translateInclude(include) {
   for (let key in include) {
     if (include[key]) {
       if (key === 'companyStock') continue;
+      if (key === 'category') {
+        populate.push({ path: 'category' });
+        populate.push({ path: 'categoryId' });
+        continue;
+      }
       const opt = { path: key };
       if (typeof include[key] === 'object') {
         if (include[key].select) {
@@ -2442,10 +2463,18 @@ function cleanDoc(obj) {
   }
   if (cleaned.category && typeof cleaned.category === 'object' && (cleaned.category.id || cleaned.category._id)) {
     if (!cleaned.categoryId) cleaned.categoryId = (cleaned.category.id || cleaned.category._id).toString();
+    cleaned.categoryName = cleaned.category.name || '';
+  } else if (cleaned.categoryId && typeof cleaned.categoryId === 'object' && (cleaned.categoryId.id || cleaned.categoryId._id)) {
+    cleaned.category = cleaned.categoryId;
+    cleaned.categoryName = cleaned.category.name || '';
+    cleaned.categoryId = (cleaned.category.id || cleaned.category._id).toString();
   } else if (cleaned.categoryId && !cleaned.category) {
     cleaned.category = cleaned.categoryId;
   } else if (cleaned.category && !cleaned.categoryId) {
     cleaned.categoryId = cleaned.category.toString();
+  }
+  if (!cleaned.categoryName && typeof cleaned.category === 'string' && !mongoose.Types.ObjectId.isValid(cleaned.category)) {
+    cleaned.categoryName = cleaned.category;
   }
   return cleaned;
 }

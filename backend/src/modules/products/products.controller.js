@@ -350,6 +350,19 @@ exports.createProduct = async (req, res, next) => {
       imageUrl = `/uploads/${req.file.filename}`;
     }
 
+    // Generate unique slug
+    let baseSlug = (slug || name || 'product')
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)/g, '');
+    if (!baseSlug) baseSlug = `product-${Date.now()}`;
+    let finalSlug = baseSlug;
+    let slugCount = 1;
+    while (await prisma.product.findFirst({ where: { slug: finalSlug } })) {
+      finalSlug = `${baseSlug}-${slugCount++}`;
+    }
+
     const product = await prisma.$transaction(async (tx) => {
       const p = await tx.product.create({
         data: {
@@ -365,7 +378,7 @@ exports.createProduct = async (req, res, next) => {
           imageUrl,
           unit: unit || 'PCS',
           minOrderQty: minOrderQty ? parseInt(minOrderQty) : 1,
-          slug: slug || name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, ''),
+          slug: finalSlug,
           offerPrice: offerPrice ? parseFloat(offerPrice) : null,
           isFeatured: isFeatured === 'true' || isFeatured === true,
           isNewArrival: isNewArrival === 'true' || isNewArrival === true,

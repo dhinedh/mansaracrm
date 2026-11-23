@@ -695,14 +695,14 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
     try {
       const res = await axios.post('/stores', {
         name: storeForm.name.trim(),
-        ownerName: storeForm.ownerName.trim(),
-        phone: storeForm.phone.trim(),
+        ownerName: storeForm.ownerName.trim() || undefined,
+        phone: storeForm.phone.trim() || undefined,
         address: storeForm.address.trim(),
-        city: storeForm.city.trim(),
+        city: storeForm.city.trim() || undefined,
         state: storeForm.state || 'Tamil Nadu',
-        pincode: storeForm.pincode.trim(),
-        gstNumber: storeForm.gstNumber.trim().toUpperCase(),
-        dealerId: storeForm.dealerId || undefined
+        pincode: storeForm.pincode.trim() || undefined,
+        gstNumber: storeForm.gstNumber.trim().toUpperCase() || undefined,
+        dealerId: (storeForm.dealerId && storeForm.dealerId !== '') ? storeForm.dealerId : undefined
       });
 
       const newStore = res.data?.data || {

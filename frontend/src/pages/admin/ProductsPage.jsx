@@ -239,8 +239,8 @@ export default function ProductsPage() {
 
   const fetchCategories = async () => {
     try {
-      const res = await axios.get('/products/categories');
-      setCategories(res.data.data);
+      const res = await axios.get('/products/categories?limit=5000');
+      setCategories(res.data.data || []);
     } catch (err) {
       console.error(err);
     }
@@ -352,10 +352,16 @@ export default function ProductsPage() {
     setMrp(p.mrp ? String(p.mrp) : '');
     setGstPercent(String(p.gstPercent));
     setHsnCode(p.hsnCode || '');
-    const activeCatId = p.categoryId 
-      || (typeof p.category === 'object' ? (p.category?.id || p.category?._id) : p.category) 
+    const rawCat = p.categoryId 
+      || (typeof p.category === 'object' ? (p.category?.id || p.category?._id || p.category?.name) : p.category) 
+      || p.categoryName
       || '';
-    setCategoryId(String(activeCatId));
+    const matchedCat = categories.find(c => 
+      String(c.id || c._id) === String(rawCat) || 
+      (c.name && rawCat && c.name.trim().toLowerCase() === String(rawCat).trim().toLowerCase())
+    );
+    const resolvedCatId = matchedCat ? String(matchedCat.id || matchedCat._id) : String(rawCat);
+    setCategoryId(resolvedCatId);
     setUnit(p.unit);
     setSlug(p.slug || '');
     setOfferPrice(p.offerPrice ? String(p.offerPrice) : '');
@@ -717,7 +723,7 @@ export default function ProductsPage() {
                 
                 <span className="absolute top-3 left-3 bg-white/95 backdrop-blur-sm border border-slate-200 text-[9px] font-black uppercase px-2.5 py-1 rounded-full text-rose-700 shadow-sm flex items-center gap-1">
                   <Tag className="w-2.5 h-2.5 text-rose-500" />
-                  <span>{product.category?.name || (typeof product.category === 'string' ? product.category : 'General')}</span>
+                  <span>{product.category?.name || product.categoryName || (typeof product.category === 'string' ? product.category : 'General')}</span>
                 </span>
 
                 <span className={`absolute top-3 right-3 backdrop-blur-sm border text-[8px] font-black uppercase px-2 py-0.5 rounded-full shadow-sm flex items-center gap-1 ${
@@ -735,8 +741,8 @@ export default function ProductsPage() {
                 <div className="space-y-1">
                   <div className="flex items-center justify-between gap-1">
                     <span className="block text-[9px] font-black text-rose-600 tracking-wider">SKU: {product.sku}</span>
-                    <span className="text-[9px] font-bold text-slate-600 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-md truncate max-w-[120px]" title={product.category?.name || 'General'}>
-                      {product.category?.name || (typeof product.category === 'string' ? product.category : 'General')}
+                    <span className="text-[9px] font-bold text-slate-600 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-md truncate max-w-[120px]" title={product.category?.name || product.categoryName || 'General'}>
+                      {product.category?.name || product.categoryName || (typeof product.category === 'string' ? product.category : 'General')}
                     </span>
                   </div>
                   <h3 className="font-bold text-slate-800 text-xs truncate">{product.name}</h3>
@@ -923,13 +929,18 @@ export default function ProductsPage() {
                         {categories.map(c => (
                           <option key={c.id || c._id} value={c.id || c._id}>{c.name}</option>
                         ))}
+                        {Boolean(categoryId && !categories.some(c => String(c.id || c._id) === String(categoryId))) && (
+                          <option value={categoryId}>
+                            {categories.find(c => c.name?.toLowerCase() === String(categoryId).toLowerCase())?.name || currentProduct?.category?.name || currentProduct?.categoryName || categoryId}
+                          </option>
+                        )}
                         <option value="__NEW__" className="text-rose-600 font-bold">+ Add New Category...</option>
                       </select>
-                      {categoryId && (
+                      {Boolean(categoryId || currentProduct?.category?.name || currentProduct?.categoryName) && (
                         <div className="mt-1 flex items-center gap-1.5 text-[11px] text-slate-500">
                           <span>Current Category:</span>
                           <span className="font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded-md border border-rose-200">
-                            {categories.find(c => String(c.id || c._id) === String(categoryId))?.name || currentProduct?.category?.name || 'Assigned'}
+                            {categories.find(c => String(c.id || c._id) === String(categoryId) || c.name?.toLowerCase() === String(categoryId).toLowerCase())?.name || currentProduct?.category?.name || currentProduct?.categoryName || categoryId}
                           </span>
                         </div>
                       )}
@@ -1136,13 +1147,18 @@ export default function ProductsPage() {
                         {categories.map(c => (
                           <option key={c.id || c._id} value={c.id || c._id}>{c.name}</option>
                         ))}
+                        {Boolean(categoryId && !categories.some(c => String(c.id || c._id) === String(categoryId))) && (
+                          <option value={categoryId}>
+                            {categories.find(c => c.name?.toLowerCase() === String(categoryId).toLowerCase())?.name || currentProduct?.category?.name || currentProduct?.categoryName || categoryId}
+                          </option>
+                        )}
                         <option value="__NEW__" className="text-rose-600 font-bold">+ Add New Category...</option>
                       </select>
-                      {categoryId && (
+                      {Boolean(categoryId || currentProduct?.category?.name || currentProduct?.categoryName) && (
                         <div className="mt-1 flex items-center gap-1.5 text-[11px] text-slate-500">
                           <span>Current Category:</span>
                           <span className="font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded-md border border-rose-200">
-                            {categories.find(c => String(c.id || c._id) === String(categoryId))?.name || currentProduct?.category?.name || 'Assigned'}
+                            {categories.find(c => String(c.id || c._id) === String(categoryId) || c.name?.toLowerCase() === String(categoryId).toLowerCase())?.name || currentProduct?.category?.name || currentProduct?.categoryName || categoryId}
                           </span>
                         </div>
                       )}
