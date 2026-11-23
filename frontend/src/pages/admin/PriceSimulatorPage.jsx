@@ -460,6 +460,37 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
       })
     );
   };
+  // ─── FILTER OUT ALREADY SELECTED PRODUCTS FROM CATALOG DROPDOWN ────────────
+  const availableProducts = useMemo(() => {
+    const selectedIds = new Set(
+      simulationItems
+        .map(i => i.productId)
+        .filter(Boolean)
+        .map(id => String(id))
+    );
+    const selectedNames = new Set(
+      simulationItems
+        .map(i => (i.name || '').trim().toLowerCase())
+        .filter(Boolean)
+    );
+    return products.filter(p => {
+      const pId = String(p.id || p._id || '');
+      const pName = (p.name || '').trim().toLowerCase();
+      if (selectedIds.has(pId)) return false;
+      if (pName && selectedNames.has(pName)) return false;
+      return true;
+    });
+  }, [products, simulationItems]);
+
+  useEffect(() => {
+    if (selectedProductIdToAdd) {
+      const isAvailable = availableProducts.some(p => String(p.id || p._id) === String(selectedProductIdToAdd));
+      if (!isAvailable) {
+        setSelectedProductIdToAdd('');
+      }
+    }
+  }, [availableProducts, selectedProductIdToAdd]);
+
   // ─── FILTERED CUSTOMERS (DEALERS, STORES, PERSON) ───────────────────────────
   const filteredCustomers = useMemo(() => {
     const q = customerSearchQuery.trim().toLowerCase();
@@ -1665,7 +1696,7 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
             <div className="md:col-span-5 space-y-1">
               <div className="flex items-center justify-between gap-1 flex-wrap">
                 <label className="block text-[10px] uppercase font-black text-slate-500 tracking-wider">
-                  1. Select Product Name ({products.length} Products)
+                  1. Select Product Name ({availableProducts.length} Available)
                 </label>
                 <div className="flex items-center gap-1">
                   <button
@@ -1692,10 +1723,15 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
               <select
                 value={selectedProductIdToAdd}
                 onChange={(e) => setSelectedProductIdToAdd(e.target.value)}
-                className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 sm:py-2 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-rose-500 shadow-xs"
+                disabled={availableProducts.length === 0}
+                className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 sm:py-2 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-rose-500 shadow-xs disabled:bg-slate-100 disabled:text-slate-400"
               >
-                <option value="">-- Choose a Catalog Product --</option>
-                {products.map(p => (
+                <option value="">
+                  {availableProducts.length === 0
+                    ? '-- All Catalog Products Already Added --'
+                    : '-- Choose a Catalog Product --'}
+                </option>
+                {availableProducts.map(p => (
                   <option key={p.id || p._id} value={p.id || p._id}>
                     {p.name} (MRP: ₹{p.originalPrice || p.mrp || p.price || 0}) • {p.cartonSize || 24} pcs/ctn
                   </option>
