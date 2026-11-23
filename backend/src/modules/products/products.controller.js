@@ -124,7 +124,9 @@ exports.getProducts = async (req, res, next) => {
   try {
     const { categoryId, search, minStock, status } = req.query;
     const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 25;
+    const limit = req.query.limit === 'all' || req.query.all === 'true' 
+      ? 5000 
+      : (parseInt(req.query.limit) || 25);
     const skip = (page - 1) * limit;
 
     const where = {};
@@ -133,7 +135,7 @@ exports.getProducts = async (req, res, next) => {
     } else if (status === 'all') {
       // no isActive constraint
     } else {
-      where.isActive = true;
+      where.isActive = { not: false };
     }
 
     if (categoryId && categoryId !== 'all' && categoryId !== 'undefined' && categoryId !== 'null' && String(categoryId).trim() !== '') {
@@ -287,10 +289,11 @@ exports.createProduct = async (req, res, next) => {
 
     let resolvedCategoryId = categoryId;
     if (!resolvedCategoryId || resolvedCategoryId === 'undefined' || resolvedCategoryId === 'null') {
-      const firstCat = await prisma.category.findFirst({});
-      if (firstCat) {
-        resolvedCategoryId = firstCat.id || firstCat._id;
+      let firstCat = await prisma.category.findFirst({});
+      if (!firstCat) {
+        firstCat = await prisma.category.create({ data: { name: 'General', isActive: true } });
       }
+      resolvedCategoryId = firstCat.id || firstCat._id;
     }
 
     // Set image path if uploaded

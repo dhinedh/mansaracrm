@@ -144,6 +144,12 @@ export default function BulkUploadPage() {
           text: `Successfully imported ${res.data.data.successCount} record(s) into ${activeModule}!`,
           type: 'success'
         });
+        if (activeModule.toUpperCase() === 'PRODUCTS' || activeModule.toUpperCase() === 'STOCK') {
+          try {
+            localStorage.setItem('crm_products_updated', Date.now().toString());
+            window.dispatchEvent(new Event('crm_products_updated'));
+          } catch (e) {}
+        }
         setSelectedFile(null);
         setValidationResult(null);
         fetchHistory();

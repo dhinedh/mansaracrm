@@ -65,6 +65,13 @@ export default function ProductsPage() {
     document.body.removeChild(link);
   };
 
+  const notifyProductsUpdated = () => {
+    try {
+      localStorage.setItem('crm_products_updated', Date.now().toString());
+      window.dispatchEvent(new Event('crm_products_updated'));
+    } catch (e) {}
+  };
+
   const handleBulkUpload = async (e) => {
     e.preventDefault();
     if (!bulkFile) {
@@ -84,6 +91,7 @@ export default function ProductsPage() {
       });
       setBulkResult(res.data);
       fetchProducts(); // Refresh list
+      notifyProductsUpdated();
     } catch (err) {
       console.error(err);
       setBulkError(err.response?.data?.message || "Failed to upload bulk file.");
@@ -219,6 +227,7 @@ export default function ProductsPage() {
       });
       fetchProducts();
       fetchDeactivatedReport();
+      notifyProductsUpdated();
     } catch (err) {
       console.error(err);
       setMessage({
@@ -272,6 +281,7 @@ export default function ProductsPage() {
       });
       setMessage({ text: 'Product added successfully!', type: 'success' });
       fetchProducts();
+      notifyProductsUpdated();
       setShowAddModal(false);
       resetForm();
     } catch (err) {
@@ -313,6 +323,7 @@ export default function ProductsPage() {
       });
       setMessage({ text: 'Product updated successfully!', type: 'success' });
       fetchProducts();
+      notifyProductsUpdated();
       setShowEditModal(false);
       resetForm();
     } catch (err) {
@@ -325,6 +336,7 @@ export default function ProductsPage() {
     try {
       await axios.delete(`/products/${id}`);
       fetchProducts();
+      notifyProductsUpdated();
       setMessage({ text: 'Product deleted successfully!', type: 'success' });
     } catch (err) {
       console.error(err);

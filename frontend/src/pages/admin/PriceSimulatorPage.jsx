@@ -120,6 +120,17 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
   const [quantityToAdd, setQuantityToAdd] = useState(0);
   const [quantityUnitToAdd, setQuantityUnitToAdd] = useState('PCS');
   const [marginPctToAdd, setMarginPctToAdd] = useState(20); // Default 20% margin from MRP
+  const [refreshingProducts, setRefreshingProducts] = useState(false);
+  const [showQuickAddModal, setShowQuickAddModal] = useState(false);
+  const [quickAddForm, setQuickAddForm] = useState({
+    name: '',
+    sku: '',
+    mrp: '',
+    cartonSize: 24,
+    gstPercent: 5,
+    weight: 100
+  });
+  const [savingQuickProduct, setSavingQuickProduct] = useState(false);
 
   // ─── QUOTATION MODAL ────────────────────────────────────────────────────────
   const [showQuotationModal, setShowQuotationModal] = useState(false);
@@ -229,15 +240,16 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
     setLoading(true);
     try {
       const [prodRes, dealerRes, storeRes, settingsRes] = await Promise.all([
-        axios.get('/products?limit=100').catch(() => ({ data: { data: [] } })),
+        axios.get('/products?limit=5000&status=all').catch(() => ({ data: { data: [] } })),
         axios.get('/dealers').catch(() => ({ data: { data: [] } })),
         axios.get('/stores').catch(() => ({ data: { data: [] } })),
         axios.get('/billing/settings').catch(() => ({ data: { data: null } }))
       ]);
 
-      setProducts(prodRes.data.data || []);
-      setDealers(dealerRes.data.data || []);
-      setStores(storeRes.data.data || []);
+      const activeProds = (prodRes.data?.data || []).filter(p => p.isActive !== false);
+      setProducts(activeProds);
+      setDealers(dealerRes.data?.data || []);
+      setStores(storeRes.data?.data || []);
       if (settingsRes.data?.success && settingsRes.data.data) {
         const s = { ...settingsRes.data.data };
         if (!s.gstNumber || s.gstNumber === '27AABCM1234F1Z5' || s.gstNumber === '33AABCM1234F1Z5') {
@@ -256,6 +268,119 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
       setToastMessage({ text: 'Failed to load catalog products', type: 'error' });
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Dedicated product catalog sync (preserves active simulation items and customer choices)
+  const fetchProductsOnly = async (silent = false) => {
+    if (!silent) setRefreshingProducts(true);
+    try {
+      const res = await axios.get('/products?limit=5000&status=all');
+      if (res.data?.success && Array.isArray(res.data.data)) {
+        const activeProds = res.data.data.filter(p => p.isActive !== false);
+        setProducts(activeProds);
+        if (!silent) {
+          setToastMessage({ text: `Product catalog synced! (${activeProds.length} products available)`, type: 'success' });
+        }
+      }
+    } catch (e) {
+      if (!silent) setToastMessage({ text: 'Failed to sync product catalog', type: 'error' });
+    } finally {
+      if (!silent) setRefreshingProducts(false);
+    }
+  };
+
+  // Real-time catalog sync: auto-refreshes when tab gains focus, window becomes visible, or storage event fires
+  useEffect(() => {
+    const handleFocus = () => fetchProductsOnly(true);
+    const handleStorage = (e) => {
+      if (!e || e.key === 'crm_products_updated') {
+        fetchProductsOnly(true);
+      }
+    };
+    const handleCustomEvent = () => fetchProductsOnly(true);
+
+    window.addEventListener('focus', handleFocus);
+    window.addEventListener('storage', handleStorage);
+    window.addEventListener('crm_products_updated', handleCustomEvent);
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') fetchProductsOnly(true);
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('storage', handleStorage);
+      window.removeEventListener('crm_products_updated', handleCustomEvent);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, []);
+
+  // Sync products whenever user navigates back to Price Simulator route
+  useEffect(() => {
+    fetchProductsOnly(true);
+  }, [location.key]);
+
+  // Quick Add Product Handler
+  const handleQuickAddProduct = async (e) => {
+    e.preventDefault();
+    if (!quickAddForm.name.trim()) {
+      setToastMessage({ text: 'Product name is required', type: 'error' });
+      return;
+    }
+    const cleanMrp = parseFloat(quickAddForm.mrp) || 0;
+    if (cleanMrp <= 0) {
+      setToastMessage({ text: 'Please enter a valid MRP greater than 0', type: 'error' });
+      return;
+    }
+    const cleanSku = quickAddForm.sku.trim() || ('MF-' + quickAddForm.name.trim().substring(0, 4).toUpperCase().replace(/[^A-Z]/g, 'X') + '-' + Date.now().toString().slice(-4));
+
+    setSavingQuickProduct(true);
+    try {
+      const formData = new FormData();
+      formData.append('name', quickAddForm.name.trim());
+      formData.append('sku', cleanSku);
+      formData.append('price', cleanMrp);
+      formData.append('mrp', cleanMrp);
+      formData.append('cartonSize', quickAddForm.cartonSize || 24);
+      formData.append('pacQuantity', quickAddForm.cartonSize || 24);
+      formData.append('gstPercent', quickAddForm.gstPercent !== undefined ? quickAddForm.gstPercent : 5);
+      formData.append('weight', String(quickAddForm.weight || 100));
+      formData.append('unit', 'PCS');
+
+      const res = await axios.post('/products', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+
+      if (res.data?.success && res.data.data) {
+        const created = res.data.data;
+        const newId = created.id || created._id;
+
+        try {
+          localStorage.setItem('crm_products_updated', Date.now().toString());
+          window.dispatchEvent(new Event('crm_products_updated'));
+        } catch (_) {}
+
+        await fetchProductsOnly(true);
+        setSelectedProductIdToAdd(newId);
+        setShowQuickAddModal(false);
+        setQuickAddForm({
+          name: '',
+          sku: '',
+          mrp: '',
+          cartonSize: 24,
+          gstPercent: 5,
+          weight: 100
+        });
+        setToastMessage({ text: `Product "${created.name}" created and selected!`, type: 'success' });
+      } else {
+        setToastMessage({ text: res.data?.message || 'Failed to create product', type: 'error' });
+      }
+    } catch (err) {
+      console.error('Error creating product from Price Simulator:', err);
+      setToastMessage({ text: err.response?.data?.message || 'Failed to add product to catalog', type: 'error' });
+    } finally {
+      setSavingQuickProduct(false);
     }
   };
 
@@ -1497,9 +1622,32 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
           <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
             {/* Input 1: Product Name */}
             <div className="md:col-span-5 space-y-1">
-              <label className="block text-[10px] uppercase font-black text-slate-500 tracking-wider">
-                1. Select Product Name
-              </label>
+              <div className="flex items-center justify-between gap-1 flex-wrap">
+                <label className="block text-[10px] uppercase font-black text-slate-500 tracking-wider">
+                  1. Select Product Name ({products.length} Products)
+                </label>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => fetchProductsOnly(false)}
+                    disabled={refreshingProducts}
+                    title="Sync / refresh product list from database"
+                    className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-600 hover:text-rose-700 bg-white hover:bg-rose-50 px-2 py-0.5 rounded-lg border border-slate-200 transition cursor-pointer disabled:opacity-50 shadow-2xs"
+                  >
+                    <RefreshCw className={`w-2.5 h-2.5 ${refreshingProducts ? 'animate-spin text-rose-600' : ''}`} />
+                    <span>{refreshingProducts ? 'Syncing...' : 'Sync'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowQuickAddModal(true)}
+                    title="Quickly add a new product to catalog"
+                    className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-700 hover:text-rose-800 bg-rose-50 hover:bg-rose-100 px-2 py-0.5 rounded-lg border border-rose-200 transition cursor-pointer shadow-2xs"
+                  >
+                    <Plus className="w-2.5 h-2.5" />
+                    <span>New Product</span>
+                  </button>
+                </div>
+              </div>
               <select
                 value={selectedProductIdToAdd}
                 onChange={(e) => setSelectedProductIdToAdd(e.target.value)}
@@ -3108,6 +3256,147 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
                 >
                   {submittingReg ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
                   <span>Save & Select Dealer</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ─── QUICK ADD PRODUCT MODAL ─── */}
+      {showQuickAddModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center font-bold">
+                  <Package className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-black text-sm text-slate-900">Add New Catalog Product</h3>
+                  <p className="text-[11px] text-slate-500">Instantly creates product and selects it in simulator</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowQuickAddModal(false)}
+                className="w-7 h-7 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 flex items-center justify-center cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleQuickAddProduct} className="space-y-3.5 mt-4">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  Product Name <span className="text-rose-600">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Mansara Idly Podi 100g"
+                  value={quickAddForm.name}
+                  onChange={(e) => setQuickAddForm(prev => ({ ...prev, name: e.target.value }))}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-rose-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    SKU Code
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Auto-generated if blank"
+                    value={quickAddForm.sku}
+                    onChange={(e) => setQuickAddForm(prev => ({ ...prev, sku: e.target.value }))}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono font-bold focus:outline-none focus:ring-2 focus:ring-rose-500 uppercase"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    MRP (₹) <span className="text-rose-600">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    required
+                    placeholder="100.00"
+                    value={quickAddForm.mrp}
+                    onChange={(e) => setQuickAddForm(prev => ({ ...prev, mrp: e.target.value }))}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-rose-700 focus:outline-none focus:ring-2 focus:ring-rose-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2.5">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-600 mb-1">
+                    Carton Pack
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={quickAddForm.cartonSize}
+                    onChange={(e) => setQuickAddForm(prev => ({ ...prev, cartonSize: e.target.value }))}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-1.5 text-xs font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-600 mb-1">
+                    Net Wt (g)
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={quickAddForm.weight}
+                    onChange={(e) => setQuickAddForm(prev => ({ ...prev, weight: e.target.value }))}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-1.5 text-xs font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-600 mb-1">
+                    GST Rate
+                  </label>
+                  <select
+                    value={quickAddForm.gstPercent}
+                    onChange={(e) => setQuickAddForm(prev => ({ ...prev, gstPercent: e.target.value }))}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-2 py-1.5 text-xs font-bold"
+                  >
+                    <option value="0">0%</option>
+                    <option value="5">5%</option>
+                    <option value="12">12%</option>
+                    <option value="18">18%</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowQuickAddModal(false)}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingQuickProduct}
+                  className="px-5 py-2 text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white rounded-xl shadow-xs transition cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  {savingQuickProduct ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Saving...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Save & Select</span>
+                    </>
+                  )}
                 </button>
               </div>
             </form>

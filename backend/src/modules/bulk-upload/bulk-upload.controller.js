@@ -381,17 +381,58 @@ exports.commitUpload = async (req, res, next) => {
           createdIds.push(newStore._id);
           successCount++;
         } else if (mod.toUpperCase() === 'PRODUCTS' || mod.toUpperCase() === 'STOCK') {
+          const CategoryModel = mongoose.model('Category');
+          const CompanyInventoryModel = mongoose.model('CompanyInventory');
+          const StockMovementModel = mongoose.model('StockMovement');
+
+          let catDoc = null;
+          if (item.category && mongoose.Types.ObjectId.isValid(item.category)) {
+            catDoc = await CategoryModel.findById(item.category);
+          }
+          if (!catDoc && item.category) {
+            const catName = String(item.category).trim();
+            catDoc = await CategoryModel.findOne({ name: new RegExp('^' + catName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$', 'i') });
+            if (!catDoc) {
+              catDoc = await CategoryModel.create({ name: catName, isActive: true });
+            }
+          }
+          if (!catDoc) {
+            catDoc = await CategoryModel.findOne({ isActive: true });
+            if (!catDoc) {
+              catDoc = await CategoryModel.create({ name: 'General', isActive: true });
+            }
+          }
+
           const newProd = await ProductModel.create({
             name: item.name,
             sku: item.sku,
-            category: item.category,
+            category: catDoc._id,
             mrp: item.mrp,
-            price: item.mrp,
+            originalPrice: item.mrp,
+            price: item.price || item.mrp,
             cartonSize: item.cartonSize || 24,
             netWeightG: item.netWeightG || 100,
-            gstPercent: item.gstPercent || 5,
+            gstPercent: item.gstPercent !== undefined ? item.gstPercent : 5,
+            stock: item.currentStock || 0,
             isActive: true
           });
+
+          await CompanyInventoryModel.create({
+            productId: newProd._id,
+            itemName: newProd.name,
+            quantity: item.currentStock || 0,
+            minQuantity: 10,
+            category: catDoc.name || 'Finished Goods'
+          });
+
+          if (item.currentStock && item.currentStock > 0) {
+            await StockMovementModel.create({
+              productId: newProd._id,
+              type: 'IN',
+              quantity: item.currentStock,
+              notes: 'Bulk Upload Initial Stock'
+            });
+          }
 
           createdIds.push(newProd._id);
           successCount++;

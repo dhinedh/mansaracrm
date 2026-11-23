@@ -2421,7 +2421,7 @@ class PrismaCollectionWrapper {
   }
 
   async findMany(args = {}) {
-    const take = args.take ? Math.min(args.take, 200) : 50;
+    const take = args.take ? Math.min(args.take, 5000) : 100;
     const skip = args.skip || 0;
 
     const query = await resolveRelationFilters(args.where, this.modelName);

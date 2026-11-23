@@ -83,6 +83,10 @@ export default function EcomProductsPage() {
         )
       );
       setMessage({ text: `Product ${newStatus ? 'activated' : 'deactivated'}`, type: 'success' });
+      try {
+        localStorage.setItem('crm_products_updated', Date.now().toString());
+        window.dispatchEvent(new Event('crm_products_updated'));
+      } catch (_) {}
     } catch {
       setMessage({ text: 'Failed to update product status', type: 'error' });
     }
