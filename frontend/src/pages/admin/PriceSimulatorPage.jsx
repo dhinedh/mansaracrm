@@ -1084,8 +1084,11 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
     const payload = getQuotationPayload();
     const htmlContent = buildQuotationHtml(payload);
     triggerPrintQuotation(htmlContent);
+    try {
+      await submitQuotationForAdminApproval('Print Quotation');
+    } catch (e) {}
     const nextNum = await advanceSequence();
-    setToastMessage({ text: `Price quotation ${currentQuoteRef} sent to print!`, type: 'success' });
+    setToastMessage({ text: `Price quotation ${currentQuoteRef} sent to print & submitted to Admin for approval!`, type: 'success' });
   };
 
   const handleCopyQuotationText = () => {
@@ -1119,8 +1122,11 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
     ].filter(Boolean).join('\n');
 
     navigator.clipboard.writeText(textLines).then(async () => {
+      try {
+        await submitQuotationForAdminApproval('Copy Text');
+      } catch (e) {}
       const nextNum = await advanceSequence();
-      setToastMessage({ text: `Quotation text copied to clipboard!`, type: 'success' });
+      setToastMessage({ text: `Quotation text copied to clipboard & submitted to Admin for approval!`, type: 'success' });
     });
   };
 
@@ -1139,6 +1145,63 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
     };
   };
 
+  const submitQuotationForAdminApproval = async (actionSource = 'Save and Draft') => {
+    if (!calculationSummary.items || calculationSummary.items.length === 0) {
+      return null;
+    }
+    const activeCustomerName = selectedCustomer?.companyName || selectedCustomer?.name || customClientName || 'Valued Trade Partner';
+    const rawPrefix = companySettings.invoicePrefix || 'MF/INV/25-26';
+    const seq = companySettings.nextSequenceNumber || 14;
+    const quoteNo = ensureQuotationRef(quotationRefNumber || getStandardQuotationRef(rawPrefix, seq), rawPrefix, seq);
+    setQuotationRefNumber(quoteNo);
+
+    const payload = {
+      quotationNo: quoteNo,
+      customerId: selectedCustomer?.type === 'STORE' ? (selectedCustomer.id || selectedCustomer._id) : undefined,
+      dealerId: selectedCustomer?.type === 'DEALER' ? (selectedCustomer.id || selectedCustomer._id) : undefined,
+      customerName: activeCustomerName,
+      customerPhone: selectedCustomer?.phone || '',
+      customerAddress: selectedCustomer?.address || '',
+      customerType: selectedCustomer?.type || 'PROSPECT',
+      rateMode: calculationSummary.rateMode,
+      items: calculationSummary.items.map(it => ({
+        productId: it.productId,
+        productName: it.name,
+        quantity: it.pieces,
+        pieces: it.pieces,
+        cartons: it.cartons,
+        mrp: it.mrp,
+        marginPct: it.marginPct,
+        finalSellingPrice: it.finalSellingPrice,
+        rateExcludeTax: it.rateExcludeTax,
+        unitGstAmount: it.unitGstAmount,
+        displayedRate: it.displayedRate,
+        unitPrice: it.displayedRate,
+        discountPercent: it.marginPct,
+        taxPercent: it.gstPercent || calculationSummary.gstRate,
+        taxAmount: it.lineGstTotal,
+        totalPrice: it.lineFinalSellingTotal
+      })),
+      rawItems: calculationSummary.items,
+      subtotal: calculationSummary.subtotalWithoutGst,
+      discountTotal: calculationSummary.totalMarginDiscount,
+      taxTotal: calculationSummary.totalGstAmount,
+      shippingCharges: calculationSummary.shippingCharges,
+      grandTotal: calculationSummary.grandTotal,
+      isWithGst: calculationSummary.isWithGst,
+      status: 'PENDING_APPROVAL',
+      specialTerms: quotationNotes ? `${quotationNotes}\n[Action: ${actionSource}]` : `[Action: ${actionSource}]`
+    };
+
+    const res = await axios.post('/field-sales/quotations', payload);
+    if (res.data?.success) {
+      const saved = res.data.data;
+      setSubmittedQuotation(saved);
+      return saved;
+    }
+    return null;
+  };
+
   const handleSaveQuotationDraft = async () => {
     if (!calculationSummary.items || calculationSummary.items.length === 0) {
       setToastMessage({ text: 'Please add at least one product before saving quotation', type: 'error' });
@@ -1147,64 +1210,18 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
 
     setSavingDraft(true);
     try {
-      const activeCustomerName = selectedCustomer?.companyName || selectedCustomer?.name || customClientName || 'Valued Trade Partner';
-      const rawPrefix = companySettings.invoicePrefix || 'MF/INV/25-26';
-      const seq = companySettings.nextSequenceNumber || 14;
-      const quoteNo = ensureQuotationRef(quotationRefNumber || getStandardQuotationRef(rawPrefix, seq), rawPrefix, seq);
-      setQuotationRefNumber(quoteNo);
-
-      const payload = {
-        quotationNo: quoteNo,
-        customerId: selectedCustomer?.type === 'STORE' ? (selectedCustomer.id || selectedCustomer._id) : undefined,
-        dealerId: selectedCustomer?.type === 'DEALER' ? (selectedCustomer.id || selectedCustomer._id) : undefined,
-        customerName: activeCustomerName,
-        customerPhone: selectedCustomer?.phone || '',
-        customerAddress: selectedCustomer?.address || '',
-        customerType: selectedCustomer?.type || 'PROSPECT',
-        rateMode: calculationSummary.rateMode,
-        items: calculationSummary.items.map(it => ({
-          productId: it.productId,
-          productName: it.name,
-          quantity: it.pieces,
-          pieces: it.pieces,
-          cartons: it.cartons,
-          mrp: it.mrp,
-          marginPct: it.marginPct,
-          finalSellingPrice: it.finalSellingPrice,
-          rateExcludeTax: it.rateExcludeTax,
-          unitGstAmount: it.unitGstAmount,
-          displayedRate: it.displayedRate,
-          unitPrice: it.displayedRate,
-          discountPercent: it.marginPct,
-          taxPercent: it.gstPercent || calculationSummary.gstRate,
-          taxAmount: it.lineGstTotal,
-          totalPrice: it.lineFinalSellingTotal
-        })),
-        rawItems: calculationSummary.items,
-        subtotal: calculationSummary.subtotalWithoutGst,
-        discountTotal: calculationSummary.totalMarginDiscount,
-        taxTotal: calculationSummary.totalGstAmount,
-        shippingCharges: calculationSummary.shippingCharges,
-        grandTotal: calculationSummary.grandTotal,
-        isWithGst: calculationSummary.isWithGst,
-        status: 'PENDING_APPROVAL',
-        specialTerms: quotationNotes
-      };
-
-      const res = await axios.post('/field-sales/quotations', payload);
-      if (res.data?.success) {
-        const saved = res.data.data;
+      const saved = await submitQuotationForAdminApproval('Save and Draft');
+      if (saved) {
         setShowQuotationModal(false);
-        setSubmittedQuotation(saved);
         const nextNum = await advanceSequence();
         setToastMessage({
-          text: `Quotation "${saved.quotationNo}" saved as draft! Next Quotation # is ${nextNum || 'updated'}.`,
+          text: `Quotation "${saved.quotationNo}" saved & submitted to Admin for approval! Next Quotation # is ${nextNum || 'updated'}.`,
           type: 'success'
         });
       }
     } catch (err) {
-      console.error('Failed to save quotation draft:', err);
-      const errMsg = err.response?.data?.message || 'Failed to save quotation draft';
+      console.error('Failed to submit quotation for approval:', err);
+      const errMsg = err.response?.data?.message || 'Failed to submit quotation for approval';
       setToastMessage({ text: errMsg, type: 'error' });
     } finally {
       setSavingDraft(false);
@@ -1220,23 +1237,24 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
     const currentQuoteRef = ensureQuotationRef(quotationRefNumber || getStandardQuotationRef(companySettings.invoicePrefix, seq), companySettings.invoicePrefix, seq);
     const payload = getQuotationPayload();
     setDownloadingPdf(true);
-    setToastMessage({ text: `Generating & downloading PDF for Quotation ${currentQuoteRef}...`, type: 'info' });
+    setToastMessage({ text: `Downloading PDF & submitting Quotation ${currentQuoteRef} to Admin for approval...`, type: 'info' });
     try {
+      await submitQuotationForAdminApproval('Download Quotation');
       await downloadQuotationPdf(payload);
       const nextNum = await advanceSequence();
-      setToastMessage({ text: `Official Quotation ${currentQuoteRef} downloaded successfully!`, type: 'success' });
+      setToastMessage({ text: `Quotation ${currentQuoteRef} downloaded & submitted to Admin for approval!`, type: 'success' });
     } catch (err) {
       console.error('Error downloading quotation PDF, falling back to print dialog:', err);
       const htmlContent = buildQuotationHtml(payload);
       triggerPrintQuotation(htmlContent);
       const nextNum = await advanceSequence();
-      setToastMessage({ text: `Quotation sent to print!`, type: 'info' });
+      setToastMessage({ text: `Quotation sent to print & submitted to Admin for approval!`, type: 'info' });
     } finally {
       setDownloadingPdf(false);
     }
   };
 
-  const handleOpenWhatsAppShare = () => {
+  const handleOpenWhatsAppShare = async () => {
     if (!calculationSummary.items || calculationSummary.items.length === 0) {
       setToastMessage({ text: 'Please add at least one product before sharing', type: 'error' });
       return;
@@ -1248,6 +1266,18 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
     setWhatsAppPhone(phone);
     setWhatsAppMessage(text);
     setShowWhatsAppModal(true);
+
+    try {
+      const saved = await submitQuotationForAdminApproval('Share via WhatsApp');
+      if (saved) {
+        setToastMessage({
+          text: `Quotation "${saved.quotationNo}" submitted to Admin for approval & opened for WhatsApp!`,
+          type: 'success'
+        });
+      }
+    } catch (err) {
+      console.warn('Could not auto-submit quotation for approval on WhatsApp open:', err);
+    }
   };
 
   const selectedDealer = useMemo(() => {
@@ -1285,11 +1315,11 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
             </div>
             <div>
               <p className="font-black text-sm text-emerald-950 flex items-center gap-2">
-                <span>Quotation Draft Saved:</span>
+                <span>Quotation Submitted for Admin Approval:</span>
                 <span className="font-mono bg-emerald-200/70 text-emerald-900 px-2 py-0.5 rounded-md">{submittedQuotation.quotationNo}</span>
               </p>
               <p className="text-xs text-emerald-700 mt-0.5">
-                Successfully submitted to Admin Invoice Requests. Before approval, this remains strictly as a Quotation; upon approval, official Invoice number will be generated.
+                Successfully submitted to Admin Approvals. Before approval, this remains strictly as a Quotation; upon approval by Admin, official Tax Invoice will be generated.
               </p>
             </div>
           </div>
@@ -1299,7 +1329,7 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
               onClick={() => navigate('/admin/approvals')}
               className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold rounded-xl shadow-sm cursor-pointer flex items-center gap-1.5 transition active:scale-95"
             >
-              <span>Go to Admin Invoice Requests</span>
+              <span>Go to Admin Approvals</span>
               <ArrowRight className="w-4 h-4" />
             </button>
             <button
@@ -2398,7 +2428,7 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
             </div>
           </div>
           <div className="text-[11px] font-semibold text-slate-500 bg-white/80 border border-slate-200/60 px-3 py-1 rounded-xl">
-            Auto-increments upon <span className="font-bold text-slate-800">Download</span>, <span className="font-bold text-slate-800">Share</span>, or <span className="font-bold text-slate-800">Save</span>
+            Auto-increments &amp; sends for <span className="font-bold text-rose-700">Admin Approval</span> upon <span className="font-bold text-slate-800">Download</span>, <span className="font-bold text-slate-800">Share</span>, or <span className="font-bold text-slate-800">Save</span>
           </div>
         </div>
 
@@ -2409,7 +2439,7 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
             disabled={calculationSummary.items.length === 0 || savingDraft}
             onClick={handleSaveQuotationDraft}
             className="flex items-center gap-3 p-4 rounded-2xl border-2 border-slate-800 bg-slate-900 hover:bg-slate-800 disabled:opacity-40 text-white transition-all cursor-pointer group shadow-md active:scale-[0.99]"
-            title="Save as Draft & Submit to Admin Invoice Requests"
+            title="Save as Draft & Submit to Admin for Approval"
           >
             <div className="w-10 h-10 rounded-xl bg-white/10 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
               <FileText className="w-5 h-5 text-rose-400" />
@@ -2418,7 +2448,7 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
               <h3 className="font-black text-xs sm:text-sm text-white">
                 {savingDraft ? 'Saving Draft...' : 'Save and Draft'}
               </h3>
-              <p className="text-[10px] text-slate-300">Save &amp; submit to Invoice Requests</p>
+              <p className="text-[10px] text-slate-300">Save &amp; submit for Admin Approval</p>
             </div>
           </button>
 
@@ -2428,6 +2458,7 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
             disabled={calculationSummary.items.length === 0 || downloadingPdf}
             onClick={handleDownloadQuotation}
             className="flex items-center gap-3 p-4 rounded-2xl border-2 border-rose-200 bg-rose-50 hover:bg-rose-100/80 disabled:opacity-40 text-rose-900 transition-all cursor-pointer group shadow-xs active:scale-[0.99]"
+            title="Download PDF & Submit to Admin for Approval"
           >
             <div className="w-10 h-10 rounded-xl bg-rose-600 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-xs">
               {downloadingPdf ? (
@@ -2440,7 +2471,7 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
               <h3 className="font-black text-xs sm:text-sm text-rose-950">
                 {downloadingPdf ? 'Downloading PDF...' : 'Download Quotation'}
               </h3>
-              <p className="text-[10px] text-rose-700/80">Save offline file &amp; print PDF</p>
+              <p className="text-[10px] text-rose-700/80">Save PDF &amp; send for Admin Approval</p>
             </div>
           </button>
 
@@ -2450,6 +2481,7 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
             disabled={calculationSummary.items.length === 0}
             onClick={handleOpenWhatsAppShare}
             className="flex items-center gap-3 p-4 rounded-2xl border-2 border-emerald-200 bg-emerald-50 hover:bg-emerald-100/80 disabled:opacity-40 text-emerald-900 transition-all cursor-pointer group shadow-xs active:scale-[0.99]"
+            title="Share on WhatsApp & Submit to Admin for Approval"
           >
             <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-xs">
               <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
@@ -2458,7 +2490,7 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
             </div>
             <div className="min-w-0 text-left">
               <h3 className="font-black text-xs sm:text-sm text-emerald-950">Share via WhatsApp</h3>
-              <p className="text-[10px] text-emerald-700/80">Send directly to client / chat</p>
+              <p className="text-[10px] text-emerald-700/80">Send to chat &amp; send for Admin Approval</p>
             </div>
           </button>
         </div>
@@ -3423,7 +3455,12 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
         defaultPhone={whatsAppPhone}
         defaultMessage={whatsAppMessage}
         quotationData={activeQuotationData}
-        onActionCompleted={advanceSequence}
+        onActionCompleted={async () => {
+          try {
+            await submitQuotationForAdminApproval('WhatsApp Shared');
+          } catch (e) {}
+          await advanceSequence();
+        }}
       />
     </div>
   );

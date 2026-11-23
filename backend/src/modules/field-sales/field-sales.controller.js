@@ -2146,9 +2146,34 @@ exports.createQuotation = async (req, res, next) => {
             await advanceSequenceNumber({ minTarget: assignedNum }).catch(() => null);
           }
 
+          // Notify Admin of Quotation Approval Request
+          try {
+            notifyAdminOfSalesAction({
+              actionType: 'QUOTATION_APPROVAL',
+              title: `Quotation Approval Request: ${finalQuotationNo}`,
+              message: `${req.user?.name || 'Sales Officer'} submitted quotation ${finalQuotationNo} for ${resolvedCustomerName} (₹${calcGrandTotal.toLocaleString('en-IN')}) requiring admin approval.`,
+              salesperson: req.user ? { id: req.user.id || req.user._id, name: req.user.name, phone: req.user.phone } : undefined,
+              store: { id: customerId, name: resolvedCustomerName, phone: resolvedCustomerPhone, address: resolvedCustomerAddress },
+              details:
+`• *Quotation #:* ${finalQuotationNo}
+• *Customer:* ${resolvedCustomerName} (${resolvedCustomerPhone || 'N/A'})
+• *Total Payable:* ₹${calcGrandTotal.toLocaleString('en-IN')}
+• *Total Items:* ${quoteItems.length} products
+• *Status:* PENDING ADMIN APPROVAL`,
+              metadata: {
+                quotationId: existingQuote._id,
+                quotationNo: finalQuotationNo,
+                grandTotal: calcGrandTotal,
+                customerName: resolvedCustomerName,
+                status: 'PENDING_APPROVAL'
+              },
+              targetUrl: 'https://crm.mansarafoods.com/admin/approvals'
+            }).catch(err => console.warn('Quotation notification failed:', err.message));
+          } catch (notifErr) {}
+
           return res.json({ 
             success: true, 
-            message: 'Quotation draft updated successfully', 
+            message: 'Quotation submitted to Admin for approval', 
             data: existingQuote 
           });
         } else {
@@ -2199,9 +2224,34 @@ exports.createQuotation = async (req, res, next) => {
       status: status || 'PENDING_APPROVAL'
     });
 
+    // Notify Admin of Quotation Approval Request
+    try {
+      notifyAdminOfSalesAction({
+        actionType: 'QUOTATION_APPROVAL',
+        title: `Quotation Approval Request: ${finalQuotationNo}`,
+        message: `${req.user?.name || 'Sales Officer'} submitted quotation ${finalQuotationNo} for ${resolvedCustomerName} (₹${calcGrandTotal.toLocaleString('en-IN')}) requiring admin approval.`,
+        salesperson: req.user ? { id: req.user.id || req.user._id, name: req.user.name, phone: req.user.phone } : undefined,
+        store: { id: customerId, name: resolvedCustomerName, phone: resolvedCustomerPhone, address: resolvedCustomerAddress },
+        details:
+`• *Quotation #:* ${finalQuotationNo}
+• *Customer:* ${resolvedCustomerName} (${resolvedCustomerPhone || 'N/A'})
+• *Total Payable:* ₹${calcGrandTotal.toLocaleString('en-IN')}
+• *Total Items:* ${quoteItems.length} products
+• *Status:* PENDING ADMIN APPROVAL`,
+        metadata: {
+          quotationId: newQuote._id,
+          quotationNo: finalQuotationNo,
+          grandTotal: calcGrandTotal,
+          customerName: resolvedCustomerName,
+          status: 'PENDING_APPROVAL'
+        },
+        targetUrl: 'https://crm.mansarafoods.com/admin/approvals'
+      }).catch(err => console.warn('Quotation notification failed:', err.message));
+    } catch (notifErr) {}
+
     res.status(201).json({ 
       success: true, 
-      message: 'Quotation created and saved as draft', 
+      message: 'Quotation submitted to Admin for approval', 
       data: newQuote 
     });
   } catch (error) {
