@@ -2083,16 +2083,34 @@ async function runDatabaseMigrations() {
       }
 
       // Synchronize and verify invoice sequence pointer so next invoice starts fresh and continuous
-      const allInvs = await InvoiceModel.find({}).select('invoiceNo').lean();
-      let maxNum = 0;
+      const allInvs = await InvoiceModel.find({}).select('invoiceNo sequenceNumber').lean();
+      const allQuotes = await QuotationModel.find({}).select('quotationNo quotationRefNumber invoiceNo').lean();
+      const existingSeq = await InvoiceSequence.findOne({ _id: 'singleton' }).lean();
+
+      let maxNum = 13; // Sequences up to 13 have been issued (MF/INV/25-26/00013)
+      if (existingSeq?.lastNumber && existingSeq.lastNumber > maxNum) {
+        maxNum = existingSeq.lastNumber;
+      }
       for (const inv of allInvs) {
+        if (inv.sequenceNumber && inv.sequenceNumber > maxNum && inv.sequenceNumber < 1000000) {
+          maxNum = inv.sequenceNumber;
+        }
         const m = (inv.invoiceNo || '').replace(/-R\d+$/i, '').match(/(\d+)$/);
         if (m) {
           const num = parseInt(m[1], 10);
           if (!isNaN(num) && num > maxNum && num < 1000000) maxNum = num;
         }
       }
-      const nextAvailable = Math.max(maxNum + 1, 10);
+      for (const q of (allQuotes || [])) {
+        for (const f of [q.quotationNo, q.quotationRefNumber, q.invoiceNo]) {
+          const m = (f || '').replace(/-R\d+$/i, '').match(/(\d+)$/);
+          if (m) {
+            const num = parseInt(m[1], 10);
+            if (!isNaN(num) && num > maxNum && num < 1000000) maxNum = num;
+          }
+        }
+      }
+      const nextAvailable = Math.max(maxNum + 1, 14);
       await InvoiceSequence.findOneAndUpdate(
         { _id: 'singleton' },
         { $set: { lastNumber: nextAvailable - 1, prefix: 'MF/INV/25-26' } },
@@ -2102,7 +2120,7 @@ async function runDatabaseMigrations() {
         { key: 'invoice_settings' },
         { $set: { nextSequenceNumber: nextAvailable } }
       );
-      console.log(`[Migration] Invoice sequence synchronized. Next continuous invoice will be #${nextAvailable}.`);
+      console.log(`[Migration] Invoice sequence synchronized. Next continuous invoice/quotation will be #${nextAvailable}.`);
     } catch (cleanupErr) {
       console.warn('[Migration] Non-fatal quotation cleanup notice:', cleanupErr.message);
     }

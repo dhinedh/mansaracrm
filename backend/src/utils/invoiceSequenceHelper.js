@@ -35,7 +35,7 @@ async function getNextInvoiceNumber({ commit = true, customPrefix = null } = {})
   const defaultPrefix = (customPrefix || seq?.prefix || settings?.invoicePrefix || 'MF/INV/25-26').trim();
   const configuredNext = settings?.nextSequenceNumber !== undefined 
     ? parseInt(settings.nextSequenceNumber, 10) 
-    : 10;
+    : 14;
   const seqLastNumber = seq?.lastNumber !== undefined ? parseInt(seq.lastNumber, 10) : (configuredNext - 1);
 
   // 2. Scan all existing invoices to find the true highest assigned number
@@ -47,8 +47,8 @@ async function getNextInvoiceNumber({ commit = true, customPrefix = null } = {})
     }
   }
 
-  // Next number must be greater than highest existing invoice and sequence pointer, starting at min 10
-  let nextNumber = Math.max(seqLastNumber + 1, highestExistingNumber + 1, configuredNext, 10);
+  // Next number must be greater than highest existing invoice and sequence pointer, starting at min 14
+  let nextNumber = Math.max(seqLastNumber + 1, highestExistingNumber + 1, configuredNext, 14);
 
   // 3. Format invoice number (e.g. MF/INV/25-26/0010)
   const formatInvNo = (num) => {
@@ -112,7 +112,7 @@ async function getNextQuotationNumber({ commit = true, customPrefix = null } = {
   const quotePrefix = rawPrefix.replace(/INV/i, 'QN');
   const configuredNext = settings?.nextSequenceNumber !== undefined 
     ? parseInt(settings.nextSequenceNumber, 10) 
-    : 10;
+    : 14;
   const seqLastNumber = seq?.lastNumber !== undefined ? parseInt(seq.lastNumber, 10) : (configuredNext - 1);
 
   let highestExistingQuote = 0;
@@ -123,7 +123,7 @@ async function getNextQuotationNumber({ commit = true, customPrefix = null } = {
     }
   }
 
-  let nextNumber = Math.max(seqLastNumber + 1, highestExistingQuote + 1, configuredNext, 10);
+  let nextNumber = Math.max(seqLastNumber + 1, highestExistingQuote + 1, configuredNext, 14);
 
   const formatQuoteNo = (num) => {
     const numStr = String(num).padStart(4, '0');
@@ -178,7 +178,7 @@ async function advanceSequenceNumber({ minTarget = null, prefix = null } = {}) {
   const defaultPrefix = (prefix || seq?.prefix || settings?.invoicePrefix || 'MF/INV/25-26').trim();
   const configuredNext = settings?.nextSequenceNumber !== undefined 
     ? parseInt(settings.nextSequenceNumber, 10) 
-    : 10;
+    : 14;
   const seqLastNumber = seq?.lastNumber !== undefined 
     ? parseInt(seq.lastNumber, 10) 
     : (configuredNext - 1);
