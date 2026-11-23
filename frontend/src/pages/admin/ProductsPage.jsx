@@ -352,7 +352,10 @@ export default function ProductsPage() {
     setMrp(p.mrp ? String(p.mrp) : '');
     setGstPercent(String(p.gstPercent));
     setHsnCode(p.hsnCode || '');
-    setCategoryId(p.categoryId);
+    const activeCatId = p.categoryId 
+      || (typeof p.category === 'object' ? (p.category?.id || p.category?._id) : p.category) 
+      || '';
+    setCategoryId(String(activeCatId));
     setUnit(p.unit);
     setSlug(p.slug || '');
     setOfferPrice(p.offerPrice ? String(p.offerPrice) : '');
@@ -712,8 +715,9 @@ export default function ProductsPage() {
                   );
                 })()}
                 
-                <span className="absolute top-3 left-3 bg-white/90 backdrop-blur-sm border border-slate-100 text-[8px] font-black uppercase px-2 py-0.5 rounded-full text-slate-600 shadow-sm">
-                  {product.category?.name}
+                <span className="absolute top-3 left-3 bg-white/95 backdrop-blur-sm border border-slate-200 text-[9px] font-black uppercase px-2.5 py-1 rounded-full text-rose-700 shadow-sm flex items-center gap-1">
+                  <Tag className="w-2.5 h-2.5 text-rose-500" />
+                  <span>{product.category?.name || (typeof product.category === 'string' ? product.category : 'General')}</span>
                 </span>
 
                 <span className={`absolute top-3 right-3 backdrop-blur-sm border text-[8px] font-black uppercase px-2 py-0.5 rounded-full shadow-sm flex items-center gap-1 ${
@@ -729,7 +733,12 @@ export default function ProductsPage() {
               {/* Product details */}
               <div className="p-3 sm:p-5 flex-1 flex flex-col justify-between space-y-3">
                 <div className="space-y-1">
-                  <span className="block text-[9px] font-black text-rose-600 tracking-wider">SKU: {product.sku}</span>
+                  <div className="flex items-center justify-between gap-1">
+                    <span className="block text-[9px] font-black text-rose-600 tracking-wider">SKU: {product.sku}</span>
+                    <span className="text-[9px] font-bold text-slate-600 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-md truncate max-w-[120px]" title={product.category?.name || 'General'}>
+                      {product.category?.name || (typeof product.category === 'string' ? product.category : 'General')}
+                    </span>
+                  </div>
                   <h3 className="font-bold text-slate-800 text-xs truncate">{product.name}</h3>
                   <p className="text-[10px] text-slate-400 line-clamp-2 h-7">{product.description || 'No description provided.'}</p>
                 </div>
@@ -897,24 +906,34 @@ export default function ProductsPage() {
                       <p className="text-[10px] text-slate-400">Press Enter to save or Escape to cancel</p>
                     </div>
                   ) : (
-                    <select
-                      required
-                      value={categoryId}
-                      onChange={e => {
-                        if (e.target.value === '__NEW__') {
-                          setIsAddingCategory(true);
-                        } else {
-                          setCategoryId(e.target.value);
-                        }
-                      }}
-                      className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 rounded-xl focus:outline-none cursor-pointer"
-                    >
-                      <option value="">Select Category</option>
-                      {categories.map(c => (
-                        <option key={c.id} value={c.id}>{c.name}</option>
-                      ))}
-                      <option value="__NEW__" className="text-rose-600 font-bold">+ Add New Category...</option>
-                    </select>
+                    <>
+                      <select
+                        required
+                        value={categoryId}
+                        onChange={e => {
+                          if (e.target.value === '__NEW__') {
+                            setIsAddingCategory(true);
+                          } else {
+                            setCategoryId(e.target.value);
+                          }
+                        }}
+                        className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 rounded-xl focus:outline-none cursor-pointer font-semibold text-slate-800"
+                      >
+                        <option value="">Select Category</option>
+                        {categories.map(c => (
+                          <option key={c.id || c._id} value={c.id || c._id}>{c.name}</option>
+                        ))}
+                        <option value="__NEW__" className="text-rose-600 font-bold">+ Add New Category...</option>
+                      </select>
+                      {categoryId && (
+                        <div className="mt-1 flex items-center gap-1.5 text-[11px] text-slate-500">
+                          <span>Current Category:</span>
+                          <span className="font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded-md border border-rose-200">
+                            {categories.find(c => String(c.id || c._id) === String(categoryId))?.name || currentProduct?.category?.name || 'Assigned'}
+                          </span>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
                 <div>
@@ -1100,24 +1119,34 @@ export default function ProductsPage() {
                       <p className="text-[10px] text-slate-400">Press Enter to save or Escape to cancel</p>
                     </div>
                   ) : (
-                    <select
-                      required
-                      value={categoryId}
-                      onChange={e => {
-                        if (e.target.value === '__NEW__') {
-                          setIsAddingCategory(true);
-                        } else {
-                          setCategoryId(e.target.value);
-                        }
-                      }}
-                      className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 rounded-xl focus:outline-none cursor-pointer"
-                    >
-                      <option value="">Select Category</option>
-                      {categories.map(c => (
-                        <option key={c.id} value={c.id}>{c.name}</option>
-                      ))}
-                      <option value="__NEW__" className="text-rose-600 font-bold">+ Add New Category...</option>
-                    </select>
+                    <>
+                      <select
+                        required
+                        value={categoryId}
+                        onChange={e => {
+                          if (e.target.value === '__NEW__') {
+                            setIsAddingCategory(true);
+                          } else {
+                            setCategoryId(e.target.value);
+                          }
+                        }}
+                        className="w-full p-2.5 bg-slate-50 border border-slate-200 focus:border-rose-500 rounded-xl focus:outline-none cursor-pointer font-semibold text-slate-800"
+                      >
+                        <option value="">Select Category</option>
+                        {categories.map(c => (
+                          <option key={c.id || c._id} value={c.id || c._id}>{c.name}</option>
+                        ))}
+                        <option value="__NEW__" className="text-rose-600 font-bold">+ Add New Category...</option>
+                      </select>
+                      {categoryId && (
+                        <div className="mt-1 flex items-center gap-1.5 text-[11px] text-slate-500">
+                          <span>Current Category:</span>
+                          <span className="font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded-md border border-rose-200">
+                            {categories.find(c => String(c.id || c._id) === String(categoryId))?.name || currentProduct?.category?.name || 'Assigned'}
+                          </span>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
                 <div>

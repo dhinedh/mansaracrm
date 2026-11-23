@@ -194,7 +194,8 @@ const ProductSchema = new Schema({
   originalPrice: { type: Number, alias: 'mrp' },
   gstPercent: { type: Number, default: 5 },
   hsnCode: { type: String, default: '1901' },
-  category: { type: Schema.Types.ObjectId, ref: 'Category', required: true, alias: 'categoryId' },
+  categoryId: { type: Schema.Types.ObjectId, ref: 'Category', required: true },
+  category: { type: Schema.Types.ObjectId, ref: 'Category' },
   image: { type: String, alias: 'imageUrl' },
   unit: { type: String, default: 'PCS' },
   cartonSize: { type: Number, default: 24, alias: 'pacQuantity' },
@@ -2106,6 +2107,35 @@ async function runDatabaseMigrations() {
       console.warn('[Migration] Non-fatal quotation cleanup notice:', cleanupErr.message);
     }
 
+    // Ensure all products have both category and categoryId synchronized with valid Category
+    try {
+      const ProductModel = mongoose.model('Product');
+      const CategoryModel = mongoose.model('Category');
+      const defaultCategory = await CategoryModel.findOne();
+      const defaultCatId = defaultCategory ? defaultCategory._id : null;
+
+      const allProducts = await ProductModel.find({});
+      for (const prod of allProducts) {
+        let catId = prod.categoryId || prod.category;
+        if (!catId && defaultCatId) {
+          catId = defaultCatId;
+        }
+        if (catId) {
+          const catIdStr = catId.toString();
+          const prodCatIdStr = prod.categoryId ? prod.categoryId.toString() : '';
+          const prodCatStr = prod.category ? prod.category.toString() : '';
+          if (prodCatIdStr !== catIdStr || prodCatStr !== catIdStr) {
+            await ProductModel.updateOne(
+              { _id: prod._id },
+              { $set: { categoryId: catId, category: catId } }
+            );
+          }
+        }
+      }
+    } catch (catErr) {
+      console.warn('[Migration] Product category sync warning:', catErr.message);
+    }
+
     console.log('[Migration] Database migrations completed successfully.');
   } catch (err) {
     console.error('[Migration] Database migration error:', err);
@@ -2317,6 +2347,11 @@ function translateCreateData(data) {
   if (cleaned.pacQuantity !== undefined) {
     cleaned.cartonSize = cleaned.pacQuantity ? parseInt(cleaned.pacQuantity) : 24;
   }
+  if (cleaned.categoryId && !cleaned.category) {
+    cleaned.category = cleaned.categoryId;
+  } else if (cleaned.category && !cleaned.categoryId) {
+    cleaned.categoryId = cleaned.category;
+  }
   return cleaned;
 }
 
@@ -2344,6 +2379,11 @@ function translateUpdateData(data) {
   }
   if (cleaned.pacQuantity !== undefined) {
     cleaned.cartonSize = cleaned.pacQuantity ? parseInt(cleaned.pacQuantity) : 24;
+  }
+  if (cleaned.categoryId && !cleaned.category) {
+    cleaned.category = cleaned.categoryId;
+  } else if (cleaned.category && !cleaned.categoryId) {
+    cleaned.categoryId = cleaned.category;
   }
   return cleaned;
 }
@@ -2384,6 +2424,13 @@ function cleanDoc(obj) {
   if (obj._id) {
     if (!cleaned.id) cleaned.id = obj._id.toString();
     if (!cleaned._id) cleaned._id = obj._id.toString();
+  }
+  if (cleaned.category && typeof cleaned.category === 'object' && (cleaned.category.id || cleaned.category._id)) {
+    if (!cleaned.categoryId) cleaned.categoryId = (cleaned.category.id || cleaned.category._id).toString();
+  } else if (cleaned.categoryId && !cleaned.category) {
+    cleaned.category = cleaned.categoryId;
+  } else if (cleaned.category && !cleaned.categoryId) {
+    cleaned.categoryId = cleaned.category.toString();
   }
   return cleaned;
 }

@@ -172,6 +172,19 @@ exports.getProducts = async (req, res, next) => {
       : (Array.isArray(productsResult?.data) ? productsResult.data : []);
     const total = productsResult?.total !== undefined ? productsResult.total : products.length;
 
+    // Fetch all categories to guarantee complete category object and ID resolution
+    let categoriesList = [];
+    try {
+      categoriesList = await prisma.category.findMany({});
+    } catch (_) {
+      categoriesList = [];
+    }
+    const catMap = new Map();
+    categoriesList.forEach(c => {
+      const cid = String(c.id || c._id);
+      catMap.set(cid, { id: cid, _id: cid, name: c.name });
+    });
+
     let allInventory = [];
     try {
       const invResult = await prisma.companyInventory.findMany({});
@@ -194,8 +207,15 @@ exports.getProducts = async (req, res, next) => {
 
       const totalQty = matchingInventory.reduce((sum, inv) => sum + (Number(inv.quantity) || 0), 0);
 
+      const rawCatId = String(p.categoryId || p.category?.id || p.category?._id || p.category || '');
+      const matchedCat = catMap.get(rawCatId) || (p.category?.name ? p.category : null);
+      const catName = matchedCat?.name || (typeof p.category === 'string' && !mongoose.Types.ObjectId.isValid(p.category) ? p.category : 'General');
+      const resolvedCatObj = matchedCat || { id: rawCatId, _id: rawCatId, name: catName };
+
       return {
         ...p,
+        categoryId: rawCatId || resolvedCatObj.id,
+        category: resolvedCatObj,
         companyStock: {
           id: pIdStr,
           productId: pIdStr,
@@ -239,8 +259,20 @@ exports.getProductById = async (req, res, next) => {
 
     const totalQty = matchingInventory.reduce((sum, inv) => sum + (Number(inv.quantity) || 0), 0);
 
+    const rawCatId = String(product.categoryId || product.category?.id || product.category?._id || product.category || '');
+    let resolvedCatObj = null;
+    if (rawCatId) {
+      try {
+        const cat = await prisma.category.findUnique({ where: { id: rawCatId } });
+        if (cat) resolvedCatObj = { id: String(cat.id || cat._id), _id: String(cat.id || cat._id), name: cat.name };
+      } catch (_) {}
+    }
+    if (!resolvedCatObj) resolvedCatObj = { id: rawCatId, _id: rawCatId, name: 'General' };
+
     const syncedProduct = {
       ...product,
+      categoryId: rawCatId || resolvedCatObj.id,
+      category: resolvedCatObj,
       companyStock: {
         id: pIdStr,
         productId: pIdStr,
@@ -324,6 +356,7 @@ exports.createProduct = async (req, res, next) => {
           gstPercent: (gstPercent !== undefined && gstPercent !== null && !isNaN(parseFloat(gstPercent))) ? parseFloat(gstPercent) : 5,
           hsnCode,
           categoryId: resolvedCategoryId,
+          category: resolvedCategoryId,
           imageUrl,
           unit: unit || 'PCS',
           minOrderQty: minOrderQty ? parseInt(minOrderQty) : 1,
@@ -439,6 +472,15 @@ exports.updateProduct = async (req, res, next) => {
       imageUrl = `/uploads/${req.file.filename}`;
     }
 
+    const mongoose = require('mongoose');
+    let resolvedCatId = categoryId || existing.categoryId || existing.category;
+    if (resolvedCatId && !mongoose.Types.ObjectId.isValid(resolvedCatId)) {
+      let catByName = await prisma.category.findFirst({
+        where: { name: { equals: resolvedCatId, mode: 'insensitive' } }
+      });
+      if (catByName) resolvedCatId = catByName.id || catByName._id;
+    }
+
     const updated = await prisma.$transaction(async (tx) => {
       const p = await tx.product.update({
         where: { id },
@@ -450,7 +492,8 @@ exports.updateProduct = async (req, res, next) => {
           mrp: mrp ? parseFloat(mrp) : existing.mrp,
           gstPercent: gstPercent ? parseFloat(gstPercent) : existing.gstPercent,
           hsnCode: hsnCode !== undefined ? hsnCode : existing.hsnCode,
-          categoryId: categoryId || existing.categoryId,
+          categoryId: resolvedCatId,
+          category: resolvedCatId,
           imageUrl,
           unit: unit || existing.unit,
           minOrderQty: minOrderQty ? parseInt(minOrderQty) : existing.minOrderQty,
