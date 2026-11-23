@@ -120,14 +120,18 @@ export default function NotificationsPage() {
     const { transferId, invoiceId, dealerId, requestId, returnId, ticketId } = m;
 
     if (role === 'ADMIN') {
+      const isQuotation = m.actionType === 'QUOTATION_APPROVAL' || !!m.quotationId || !!m.quotationNo || (n.title && n.title.toLowerCase().includes('quotation approval'));
       if (n.type === 'ORDER_REQUEST' || m.actionType === 'ORDER_REQUEST' || m.fieldOrderId) {
         navigate('/admin/field-orders', { state: { orderId: m.fieldOrderId, orderNumber: m.orderNumber } });
       } else if (m.actionType === 'STORE_VISIT' || m.actionType === 'VISIT_CHECKOUT' || m.actionType === 'BEAT_VISIT' || m.visitId) {
         navigate('/admin/store-visits', { state: { visitId: m.visitId } });
       } else if (m.actionType === 'NEW_STORE_LEAD' || m.actionType === 'STOCK_AUDIT' || m.actionType === 'STOCK_ADJUSTMENT' || m.storeId) {
         navigate('/admin/retail-stores', { state: { storeId: m.storeId } });
+      } else if (isQuotation) {
+        const quoteNo = m.quotationNo || (n.title?.match(/MF\/(?:QN|INV)\/[^\s\)\:]+/i)?.[0]) || (n.message?.match(/MF\/(?:QN|INV)\/[^\s\)\:]+/i)?.[0]);
+        navigate('/admin/approvals', { state: { quotationId: m.quotationId, quotationNo: quoteNo, activeTab: 'quotations' } });
       } else if (m.actionType === 'MARGIN_REQUEST' || m.marginRequestId) {
-        navigate('/admin/approvals', { state: { marginRequestId: m.marginRequestId } });
+        navigate('/admin/approvals', { state: { marginRequestId: m.marginRequestId, activeTab: 'margins' } });
       } else if (m.actionType === 'PAYMENT_COLLECTION') {
         navigate('/admin/collections');
       } else if (n.type === 'STOCK_TRANSFER' || n.type === 'DELIVERY_UPDATE') {
@@ -141,7 +145,22 @@ export default function NotificationsPage() {
         if (requestId)  navigate('/admin/requests',  { state: { requestId } });
         else if (returnId)  navigate('/admin/returns',   { state: { returnId } });
         else if (ticketId)  navigate('/admin/services',  { state: { ticketId } });
+        else if (m.targetUrl) {
+          try {
+            const urlObj = new URL(m.targetUrl, window.location.origin);
+            navigate(urlObj.pathname + urlObj.search);
+          } catch (e) {
+            navigate(m.targetUrl.startsWith('/') ? m.targetUrl : '/admin/notifications');
+          }
+        }
         else navigate('/admin/notifications');
+      } else if (m.targetUrl) {
+        try {
+          const urlObj = new URL(m.targetUrl, window.location.origin);
+          navigate(urlObj.pathname + urlObj.search);
+        } catch (e) {
+          navigate(m.targetUrl.startsWith('/') ? m.targetUrl : '/admin/notifications');
+        }
       } else {
         navigate('/admin/notifications');
       }
@@ -169,25 +188,27 @@ export default function NotificationsPage() {
     return notifications.filter(n => {
       const unread = !n.isRead;
       const m = n.metadata || {};
+      const isQuotation = m.actionType === 'QUOTATION_APPROVAL' || !!m.quotationId || !!m.quotationNo || (n.title && n.title.toLowerCase().includes('quotation approval'));
       if (tabId === 'ALL')      return unread;
-      if (tabId === 'BILLING')  return unread && (n.type === 'INVOICE_GENERATED' || m.actionType === 'FIELD_INVOICE' || m.actionType === 'PAYMENT_COLLECTION');
+      if (tabId === 'BILLING')  return unread && (n.type === 'INVOICE_GENERATED' || m.actionType === 'FIELD_INVOICE' || m.actionType === 'PAYMENT_COLLECTION' || isQuotation);
       if (tabId === 'STOCK')    return unread && (n.type === 'STOCK_TRANSFER' || n.type === 'DELIVERY_UPDATE' || m.actionType === 'STOCK_AUDIT' || m.actionType === 'STOCK_ADJUSTMENT');
       if (tabId === 'ACCOUNT')  return unread && (n.type === 'ACCOUNT_UPDATE' || m.actionType === 'NEW_STORE_LEAD');
-      if (tabId === 'REQUESTS') return unread && (n.type === 'ORDER_REQUEST' || m.actionType === 'ORDER_REQUEST' || m.actionType === 'MARGIN_REQUEST' || (n.type === 'SYSTEM' && !!(m.requestId || m.returnId || m.ticketId)));
-      if (tabId === 'SYSTEM')   return unread && (n.type === 'SYSTEM' || n.type === 'FIELD_SALES') && !(m.requestId || m.returnId || m.ticketId || m.actionType === 'ORDER_REQUEST' || m.actionType === 'STOCK_AUDIT');
+      if (tabId === 'REQUESTS') return unread && (n.type === 'ORDER_REQUEST' || m.actionType === 'ORDER_REQUEST' || m.actionType === 'MARGIN_REQUEST' || isQuotation || (n.type === 'SYSTEM' && !!(m.requestId || m.returnId || m.ticketId)));
+      if (tabId === 'SYSTEM')   return unread && (n.type === 'SYSTEM' || n.type === 'FIELD_SALES') && !(m.requestId || m.returnId || m.ticketId || m.actionType === 'ORDER_REQUEST' || m.actionType === 'STOCK_AUDIT' || isQuotation);
       return false;
     }).length;
   };
 
   const filtered = notifications.filter(n => {
     const m = n.metadata || {};
+    const isQuotation = m.actionType === 'QUOTATION_APPROVAL' || !!m.quotationId || !!m.quotationNo || (n.title && n.title.toLowerCase().includes('quotation approval'));
     if (showUnreadOnly && n.isRead) return false;
     if (activeTab === 'ALL')      return true;
-    if (activeTab === 'BILLING')  return n.type === 'INVOICE_GENERATED' || m.actionType === 'FIELD_INVOICE' || m.actionType === 'PAYMENT_COLLECTION';
+    if (activeTab === 'BILLING')  return n.type === 'INVOICE_GENERATED' || m.actionType === 'FIELD_INVOICE' || m.actionType === 'PAYMENT_COLLECTION' || isQuotation;
     if (activeTab === 'STOCK')    return n.type === 'STOCK_TRANSFER' || n.type === 'DELIVERY_UPDATE' || m.actionType === 'STOCK_AUDIT' || m.actionType === 'STOCK_ADJUSTMENT';
     if (activeTab === 'ACCOUNT')  return n.type === 'ACCOUNT_UPDATE' || m.actionType === 'NEW_STORE_LEAD';
-    if (activeTab === 'REQUESTS') return n.type === 'ORDER_REQUEST' || m.actionType === 'ORDER_REQUEST' || m.actionType === 'MARGIN_REQUEST' || (n.type === 'SYSTEM' && !!(m.requestId || m.returnId || m.ticketId));
-    if (activeTab === 'SYSTEM')   return (n.type === 'SYSTEM' || n.type === 'FIELD_SALES') && !(m.requestId || m.returnId || m.ticketId || m.actionType === 'ORDER_REQUEST' || m.actionType === 'STOCK_AUDIT');
+    if (activeTab === 'REQUESTS') return n.type === 'ORDER_REQUEST' || m.actionType === 'ORDER_REQUEST' || m.actionType === 'MARGIN_REQUEST' || isQuotation || (n.type === 'SYSTEM' && !!(m.requestId || m.returnId || m.ticketId));
+    if (activeTab === 'SYSTEM')   return (n.type === 'SYSTEM' || n.type === 'FIELD_SALES') && !(m.requestId || m.returnId || m.ticketId || m.actionType === 'ORDER_REQUEST' || m.actionType === 'STOCK_AUDIT' || isQuotation);
     return true;
   });
 
@@ -326,12 +347,15 @@ export default function NotificationsPage() {
                   const m = n.metadata || {};
                   const { requestId, returnId, ticketId, transferId, invoiceId } = m;
                   let destLabel = null;
+                  const isQuotation = m.actionType === 'QUOTATION_APPROVAL' || !!m.quotationId || !!m.quotationNo || (n.title && n.title.toLowerCase().includes('quotation approval'));
                   if (n.type === 'ORDER_REQUEST' || m.actionType === 'ORDER_REQUEST' || m.fieldOrderId) {
                     destLabel = '→ Field Orders';
                   } else if (m.actionType === 'STORE_VISIT' || m.actionType === 'VISIT_CHECKOUT' || m.actionType === 'BEAT_VISIT' || m.visitId) {
                     destLabel = '→ Store Visits';
                   } else if (m.actionType === 'NEW_STORE_LEAD' || m.actionType === 'STOCK_AUDIT' || m.actionType === 'STOCK_ADJUSTMENT') {
                     destLabel = '→ Stores & Stock';
+                  } else if (isQuotation) {
+                    destLabel = '→ Approvals';
                   } else if (m.actionType === 'MARGIN_REQUEST') {
                     destLabel = '→ Approvals';
                   } else if (m.actionType === 'PAYMENT_COLLECTION') {

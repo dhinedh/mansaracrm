@@ -1,5 +1,6 @@
 // src/pages/admin/AdminApprovalsPage.jsx
 import React, { useState, useEffect, useMemo } from 'react';
+import { useLocation } from 'react-router-dom';
 import axios from 'axios';
 import { 
   CheckCircle2, XCircle, Clock, AlertCircle, 
@@ -17,6 +18,7 @@ import {
 } from '../../utils/quotationHelper';
 
 export default function AdminApprovalsPage() {
+  const location = useLocation();
   const [activeTab, setActiveTab] = useState('quotations'); // Default to requested quotations / invoice requests tab
   const [approvalsData, setApprovalsData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -31,6 +33,26 @@ export default function AdminApprovalsPage() {
   // Search and filter for quotations
   const [quoteSearch, setQuoteSearch] = useState('');
   const [quoteStatusFilter, setQuoteStatusFilter] = useState('ALL'); // 'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED'
+
+  // Handle incoming route navigation state (from Notifications or direct links)
+  useEffect(() => {
+    if (location.state?.activeTab) {
+      setActiveTab(location.state.activeTab);
+    }
+    if (location.state?.quotationNo) {
+      setQuoteSearch(location.state.quotationNo);
+      setQuoteStatusFilter('ALL');
+    } else if (location.state?.search) {
+      setQuoteSearch(location.state.search);
+      setQuoteStatusFilter('ALL');
+    } else if (location.state?.quotationId) {
+      setQuoteSearch(location.state.quotationId);
+      setQuoteStatusFilter('ALL');
+    }
+    if (location.state?.marginRequestId) {
+      setActiveTab('margins');
+    }
+  }, [location.state]);
 
   // Action Modals State
   const [approvalModal, setApprovalModal] = useState({
@@ -452,6 +474,7 @@ export default function AdminApprovalsPage() {
       // Text search
       if (!quoteSearch.trim()) return true;
       const query = quoteSearch.toLowerCase();
+      const qId = (q._id || q.id || '').toString().toLowerCase();
       const qNo = (q.quotationNo || '').toLowerCase();
       const invNo = (q.invoiceNo || '').toLowerCase();
       const custName = (q.customerName || '').toLowerCase();
@@ -460,6 +483,7 @@ export default function AdminApprovalsPage() {
       const remarks = (q.adminRemarks || '').toLowerCase();
 
       return (
+        qId.includes(query) ||
         qNo.includes(query) ||
         invNo.includes(query) ||
         custName.includes(query) ||
