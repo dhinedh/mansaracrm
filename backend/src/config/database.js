@@ -677,7 +677,10 @@ const InvoiceSchema = new Schema({
   resultStatus: { type: String, enum: ['COLLECTED', 'PENDING_PAYMENT', 'PARTIALLY_COLLECTED', 'CANCELLED'], default: 'PENDING_PAYMENT' },
   totalCost: { type: Number, default: 0 },
   totalProfit: { type: Number, default: 0 },
-  profitMarginPct: { type: Number, default: 0 }
+  profitMarginPct: { type: Number, default: 0 },
+  quotationId: { type: Schema.Types.ObjectId, ref: 'Quotation', index: true },
+  quotationNo: { type: String },
+  rawItems: [Schema.Types.Mixed]
 }, {
   timestamps: true,
   toJSON: { virtuals: true },
@@ -707,7 +710,9 @@ InvoiceSchema.virtual('items', {
 // InvoiceItem
 const InvoiceItemSchema = new Schema({
   invoiceId: { type: Schema.Types.ObjectId, ref: 'Invoice', required: true, index: true },
-  productId: { type: Schema.Types.ObjectId, ref: 'Product', required: true, index: true },
+  productId: { type: Schema.Types.ObjectId, ref: 'Product', required: false, index: true },
+  productName: { type: String },
+  name: { type: String },
   quantity: { type: Number, required: true },
   oldStockTaken: { type: Number, default: 0 },
   latestStockTaken: { type: Number, default: 0 },
@@ -908,7 +913,9 @@ StoreStockSchema.virtual('product', {
 // InvoiceSequence
 const InvoiceSequenceSchema = new Schema({
   _id: { type: String, required: true },
-  lastNumber: { type: Number, default: 9 },
+  lastNumber: { type: Number, default: 14 },
+  lastInvoiceNumber: { type: Number, default: 14 },
+  lastQuotationNumber: { type: Number, default: 14 },
   prefix: { type: String, default: 'MF/INV/25-26' }
 }, {
   timestamps: { createdAt: false, updatedAt: true },
@@ -2082,45 +2089,35 @@ async function runDatabaseMigrations() {
         }
       }
 
-      // Synchronize and verify invoice sequence pointer so next invoice starts fresh and continuous
+      // Synchronize and verify official invoice sequence pointer (consecutive 15, 16, 17...)
       const allInvs = await InvoiceModel.find({}).select('invoiceNo sequenceNumber').lean();
-      const allQuotes = await QuotationModel.find({}).select('quotationNo quotationRefNumber invoiceNo').lean();
-      const existingSeq = await InvoiceSequence.findOne({ _id: 'singleton' }).lean();
-
-      let maxNum = 13; // Sequences up to 13 have been issued (MF/INV/25-26/00013)
-      if (existingSeq?.lastNumber && existingSeq.lastNumber > maxNum) {
-        maxNum = existingSeq.lastNumber;
-      }
+      let maxInvNum = 14; // Baseline is 14, next invoice starts at 15
       for (const inv of allInvs) {
-        if (inv.sequenceNumber && inv.sequenceNumber > maxNum && inv.sequenceNumber < 1000000) {
-          maxNum = inv.sequenceNumber;
+        if (inv.sequenceNumber && inv.sequenceNumber > maxInvNum && inv.sequenceNumber < 100000) {
+          maxInvNum = inv.sequenceNumber;
         }
         const m = (inv.invoiceNo || '').replace(/-R\d+$/i, '').match(/(\d+)$/);
         if (m) {
           const num = parseInt(m[1], 10);
-          if (!isNaN(num) && num > maxNum && num < 1000000) maxNum = num;
+          if (!isNaN(num) && num > maxInvNum && num < 100000) maxInvNum = num;
         }
       }
-      for (const q of (allQuotes || [])) {
-        for (const f of [q.quotationNo, q.quotationRefNumber, q.invoiceNo]) {
-          const m = (f || '').replace(/-R\d+$/i, '').match(/(\d+)$/);
-          if (m) {
-            const num = parseInt(m[1], 10);
-            if (!isNaN(num) && num > maxNum && num < 1000000) maxNum = num;
-          }
-        }
-      }
-      const nextAvailable = Math.max(maxNum + 1, 14);
+      const nextInvAvailable = Math.max(maxInvNum + 1, 15);
       await InvoiceSequence.findOneAndUpdate(
         { _id: 'singleton' },
-        { $set: { lastNumber: nextAvailable - 1, prefix: 'MF/INV/25-26' } },
+        { 
+          $set: { 
+            lastInvoiceNumber: nextInvAvailable - 1, 
+            prefix: 'MF/INV/25-26' 
+          } 
+        },
         { upsert: true }
       );
       await Setting.updateMany(
         { key: 'invoice_settings' },
-        { $set: { nextSequenceNumber: nextAvailable } }
+        { $set: { nextSequenceNumber: nextInvAvailable } }
       );
-      console.log(`[Migration] Invoice sequence synchronized. Next continuous invoice/quotation will be #${nextAvailable}.`);
+      console.log(`[Migration] Official invoice sequence synchronized. Next invoice will be #${nextInvAvailable}.`);
     } catch (cleanupErr) {
       console.warn('[Migration] Non-fatal quotation cleanup notice:', cleanupErr.message);
     }

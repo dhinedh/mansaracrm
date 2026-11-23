@@ -3409,12 +3409,16 @@ exports.getAdminApprovals = async (req, res, next) => {
       .populate('storeId', 'name address phone')
       .sort({ createdAt: -1 });
 
+    const nextInvInfo = await getNextInvoiceNumber({ commit: false });
+
     res.json({
       success: true,
       data: {
         margins,
         quotations,
-        amendments
+        amendments,
+        nextInvoiceNo: nextInvInfo.invoiceNo,
+        nextInvoiceNumber: nextInvInfo.number
       }
     });
   } catch (error) {
@@ -3463,56 +3467,89 @@ exports.reviewQuotationApproval = async (req, res, next) => {
       const custPhone = cleanVal(quotation.customerPhone) || cleanVal(quotation.customerId?.phone) || cleanVal(quotation.dealerId?.phone) || '';
       const custAddress = cleanVal(quotation.customerAddress) || cleanVal(quotation.customerId?.address) || cleanVal(quotation.dealerId?.address) || '';
 
-      // 1. Generate next continuous sequential Invoice Number (Official GST Invoice Sequence)
+      // 1. Generate next continuous sequential Invoice Number (15, 16, 17...)
       const InvoiceModel = mongoose.model('Invoice');
-      let finalInvoiceNo = quotation.invoiceNo;
-      if (!finalInvoiceNo || finalInvoiceNo.startsWith('INV-') || await InvoiceModel.findOne({ invoiceNo: finalInvoiceNo })) {
-        const nextInvInfo = await getNextInvoiceNumber({ commit: true });
-        finalInvoiceNo = nextInvInfo.invoiceNo;
-      }
+      const nextInvInfo = await getNextInvoiceNumber({ commit: true });
+      const finalInvoiceNo = nextInvInfo.invoiceNo;
 
-      // 2. Create official Invoice document
+      // 2. Create official Invoice document with exact quotation data
       const invoiceDoc = await InvoiceModel.create({
         invoiceNo: finalInvoiceNo,
+        quotationId: quotation._id,
+        quotationNo: quotation.quotationNo,
         dealerId: quotation.dealerId?._id || quotation.dealerId || undefined,
         storeId: quotation.customerId?._id || quotation.customerId || undefined,
         customerName: custName,
         customerPhone: custPhone,
         customerAddress: custAddress,
-        channel: 'B2B',
+        channel: quotation.customerType === 'DEALER' ? 'B2B' : 'B2B',
         subtotal: quotation.subtotal,
         totalDiscount: quotation.discountTotal || 0,
         totalGst: quotation.taxTotal || 0,
-        cgst: quotation.isWithGst ? (quotation.taxTotal / 2) : 0,
-        sgst: quotation.isWithGst ? (quotation.taxTotal / 2) : 0,
+        cgst: quotation.isWithGst !== false ? ((quotation.taxTotal || 0) / 2) : 0,
+        sgst: quotation.isWithGst !== false ? ((quotation.taxTotal || 0) / 2) : 0,
         isGstEnabled: quotation.isWithGst !== false,
         shippingCharges: quotation.shippingCharges || 0,
         totalAmount: quotation.grandTotal,
         status: 'OPEN',
         notes: quotation.specialTerms ? `${quotation.specialTerms}\nApproval Reason: ${adminRemarks || ''}` : (adminRemarks || ''),
-        salespersonId: quotation.salespersonId || req.user.id
+        salespersonId: quotation.salespersonId?._id || quotation.salespersonId || req.user.id,
+        rawItems: quotation.items || []
       });
 
-      // 3. Create items in InvoiceItem if products are valid
+      // 3. Create items in InvoiceItem for all items in the quotation
       const InvoiceItemModel = mongoose.model('InvoiceItem');
+      const ProductModel = mongoose.model('Product');
       if (quotation.items && quotation.items.length) {
         for (const it of quotation.items) {
-          const isValidOid = it.productId && mongoose.Types.ObjectId.isValid(String(it.productId));
+          let pId = (it.productId && mongoose.Types.ObjectId.isValid(String(it.productId))) ? it.productId : undefined;
+          let productDoc = null;
+          if (pId) {
+            productDoc = await ProductModel.findById(pId).catch(() => null);
+          }
+          if (!productDoc && (it.sku || it.productName || it.name)) {
+            productDoc = await ProductModel.findOne({
+              $or: [
+                { sku: it.sku || '' },
+                { name: it.productName || it.name || '' }
+              ]
+            }).catch(() => null);
+            if (productDoc) pId = productDoc._id;
+          }
+          if (!pId) {
+            const anyProd = await ProductModel.findOne({ isActive: true }).select('_id name costPrice');
+            if (anyProd) {
+              pId = anyProd._id;
+              if (!productDoc) productDoc = anyProd;
+            }
+          }
+
+          const qty = it.quantity || it.pieces || 1;
+          const uPrice = it.unitPrice || it.mrp || 0;
+          const lineTot = it.totalPrice || (qty * uPrice);
+          const taxPct = it.taxPercent !== undefined ? it.taxPercent : 5;
+          const gstAmt = (lineTot * taxPct) / 100;
+
           await InvoiceItemModel.create({
             invoiceId: invoiceDoc._id,
-            productId: isValidOid ? it.productId : undefined,
-            quantity: it.quantity || it.pieces || 1,
-            unitPrice: it.unitPrice || it.mrp || 0,
+            productId: pId,
+            productName: it.productName || it.name || 'Product',
+            quantity: qty,
+            unit: it.unit || 'PCS',
+            unitPrice: it.mrp || uPrice,
             marginPct: it.discountPercent || 0,
-            sellingPrice: it.unitPrice || 0,
-            gstPercent: it.taxPercent || 5,
-            gstAmount: ((it.totalPrice || 0) * (it.taxPercent || 5)) / 100,
-            lineTotal: it.totalPrice || 0
-          }).catch(() => null);
+            sellingPrice: uPrice,
+            gstPercent: taxPct,
+            gstAmount: gstAmt,
+            lineTotal: lineTot,
+            costPrice: productDoc?.costPrice || 0,
+            totalCost: (productDoc?.costPrice || 0) * qty,
+            profit: lineTot - ((productDoc?.costPrice || 0) * qty)
+          }).catch(err => console.warn('Failed to save InvoiceItem:', err.message));
         }
       }
 
-      // 4. Update quotation record with invoice reference & approval reason
+      // 4. Update quotation record with official invoice reference & approval reason
       quotation.status = 'APPROVED';
       quotation.invoiceNo = finalInvoiceNo;
       quotation.invoiceId = invoiceDoc._id;
@@ -3587,6 +3624,24 @@ exports.editQuotationApproval = async (req, res, next) => {
       quotation.adminRemarks = adminRemarks;
     }
     await quotation.save();
+
+    // If already linked to an official invoice, sync updated details to invoice as well
+    if (quotation.invoiceId) {
+      const InvoiceModel = mongoose.model('Invoice');
+      await InvoiceModel.findByIdAndUpdate(quotation.invoiceId, {
+        $set: {
+          customerName: quotation.customerName,
+          customerPhone: quotation.customerPhone,
+          customerAddress: quotation.customerAddress,
+          subtotal: quotation.subtotal,
+          totalDiscount: quotation.discountTotal || 0,
+          totalGst: quotation.taxTotal || 0,
+          shippingCharges: quotation.shippingCharges || 0,
+          totalAmount: quotation.grandTotal,
+          rawItems: quotation.items || []
+        }
+      }).catch(() => null);
+    }
 
     res.json({ 
       success: true, 

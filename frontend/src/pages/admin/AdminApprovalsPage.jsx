@@ -33,6 +33,7 @@ export default function AdminApprovalsPage() {
   // Search and filter for quotations
   const [quoteSearch, setQuoteSearch] = useState('');
   const [quoteStatusFilter, setQuoteStatusFilter] = useState('ALL'); // 'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED'
+  const [nextInvoiceNo, setNextInvoiceNo] = useState('');
 
   // Handle incoming route navigation state (from Notifications or direct links)
   useEffect(() => {
@@ -94,6 +95,9 @@ export default function AdminApprovalsPage() {
       const res = await axios.get('/field-sales/admin/approvals');
       if (res.data?.success) {
         setApprovalsData(res.data.data);
+        if (res.data.data?.nextInvoiceNo) {
+          setNextInvoiceNo(res.data.data.nextInvoiceNo);
+        }
       }
     } catch (err) {
       console.error('Error fetching approvals:', err);
@@ -109,6 +113,11 @@ export default function AdminApprovalsPage() {
       .then(res => {
         if (res.data?.success && res.data.data) {
           setCompanySettings(res.data.data);
+          if (res.data.data.nextSequenceNumber) {
+            const p = res.data.data.invoicePrefix || 'MF/INV/25-26';
+            const numStr = String(res.data.data.nextSequenceNumber).padStart(4, '0');
+            setNextInvoiceNo(prev => prev || (p.endsWith('/') ? `${p}${numStr}` : `${p}/${numStr}`));
+          }
         }
       })
       .catch(() => null);
@@ -340,7 +349,7 @@ export default function AdminApprovalsPage() {
   // Document & Sharing Handlers
   const handlePrintQuotationDoc = (q) => {
     const isApproved = q.status === 'APPROVED';
-    const invoiceNo = q.invoiceNo || (isApproved ? getDerivedInvoiceNo(q.quotationNo) : undefined);
+    const invoiceNo = q.invoiceNo || (isApproved ? (nextInvoiceNo || getDerivedInvoiceNo(q.quotationNo)) : undefined);
     const enriched = {
       ...q,
       isInvoice: isApproved,
@@ -353,7 +362,7 @@ export default function AdminApprovalsPage() {
 
   const handleDownloadQuotationDoc = async (q) => {
     const isApproved = q.status === 'APPROVED';
-    const invoiceNo = q.invoiceNo || (isApproved ? getDerivedInvoiceNo(q.quotationNo) : undefined);
+    const invoiceNo = q.invoiceNo || (isApproved ? (nextInvoiceNo || getDerivedInvoiceNo(q.quotationNo)) : undefined);
     const enriched = {
       ...q,
       isInvoice: isApproved,
@@ -372,7 +381,7 @@ export default function AdminApprovalsPage() {
 
   const handleShareWhatsApp = (q) => {
     const isApproved = q.status === 'APPROVED';
-    const invoiceNo = q.invoiceNo || (isApproved ? getDerivedInvoiceNo(q.quotationNo) : undefined);
+    const invoiceNo = q.invoiceNo || (isApproved ? (nextInvoiceNo || getDerivedInvoiceNo(q.quotationNo)) : undefined);
     const enriched = {
       ...q,
       isInvoice: isApproved,
@@ -1065,29 +1074,60 @@ export default function AdminApprovalsPage() {
               <div className="flex justify-between items-center pt-1">
                 <span className="text-emerald-900 font-bold flex items-center gap-1">
                   <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>Generated Invoice Number:</span>
+                  <span>Sequential Invoice Number (Continuous):</span>
                 </span>
                 <span className="font-mono font-black text-emerald-800 bg-emerald-200/80 px-2.5 py-1 rounded text-xs shadow-2xs">
-                  {getDerivedInvoiceNo(approvalModal.quotation.quotationNo)}
+                  {nextInvoiceNo || 'MF/INV/25-26/0015'}
                 </span>
               </div>
               <p className="text-[10px] text-emerald-700 italic pt-1">
-                Notice: Before approving, it was strictly identified as a Quotation in all places. Upon confirmation, it is converted into this official Invoice number.
+                Notice: All quotation items, quantities, rates, customer details and totals are preserved exactly and converted into this official sequential invoice.
               </p>
             </div>
 
             <div className="grid grid-cols-2 gap-3 text-xs bg-slate-50 p-3 rounded-xl border border-slate-200">
               <div>
                 <span className="text-[10px] uppercase font-bold text-slate-400 block">Customer</span>
-                <p className="font-bold text-slate-800 truncate">{approvalModal.quotation.customerName}</p>
+                <p className="font-bold text-slate-800 truncate">{approvalModal.quotation.customerName || 'Valued Trade Partner'}</p>
+                {approvalModal.quotation.customerPhone && (
+                  <p className="text-[10px] text-slate-500 font-mono mt-0.5">📞 {approvalModal.quotation.customerPhone}</p>
+                )}
               </div>
               <div className="text-right">
                 <span className="text-[10px] uppercase font-bold text-slate-400 block">Total Payable</span>
                 <p className="font-mono font-black text-emerald-700 text-sm">
                   ₹{(approvalModal.quotation.grandTotal || 0).toLocaleString('en-IN')}
                 </p>
+                <p className="text-[10px] text-slate-400">
+                  GST: ₹{(approvalModal.quotation.taxTotal || 0).toLocaleString('en-IN')}
+                </p>
               </div>
             </div>
+
+            {/* Quotation Items Verification List */}
+            {approvalModal.quotation.items && approvalModal.quotation.items.length > 0 && (
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs space-y-1.5">
+                <span className="text-[10px] uppercase font-bold text-slate-400 block">
+                  Quotation Items ({approvalModal.quotation.items.length})
+                </span>
+                <div className="max-h-32 overflow-y-auto space-y-1 divide-y divide-slate-100 pr-1">
+                  {approvalModal.quotation.items.map((it, idx) => (
+                    <div key={idx} className="flex items-center justify-between pt-1 text-slate-700 text-[11px]">
+                      <div className="truncate max-w-[240px]">
+                        <span className="font-semibold text-slate-900">{it.productName || it.name || 'Product'}</span>
+                        <span className="text-[10px] text-slate-400 block">
+                          {it.pieces || it.quantity || 1} pcs @ ₹{it.unitPrice || it.mrp || 0}
+                          {it.discountPercent ? ` (${it.discountPercent}% margin)` : ''}
+                        </span>
+                      </div>
+                      <span className="font-mono font-bold text-slate-900 shrink-0">
+                        ₹{(it.totalPrice || ((it.pieces || it.quantity || 1) * (it.unitPrice || 0))).toLocaleString('en-IN')}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <form onSubmit={submitApproveModal} className="space-y-4 text-xs">
               <div>
