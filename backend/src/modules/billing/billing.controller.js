@@ -272,6 +272,48 @@ exports.updateInvoiceSettings = async (req, res, next) => {
 };
 
 /**
+ * Sets and synchronizes the active quotation sequence pointer so subsequent quotations
+ * continue continuously from this number onwards.
+ */
+exports.setQuotationSequence = async (req, res, next) => {
+  try {
+    const mongoose = require('mongoose');
+    const { sequenceNumber, prefix } = req.body;
+    const targetSeq = parseInt(sequenceNumber, 10);
+    if (isNaN(targetSeq) || targetSeq < 1) {
+      return res.status(400).json({ success: false, message: 'Valid sequence number is required' });
+    }
+    const SettingModel = mongoose.model('Setting');
+    const InvoiceSequenceModel = mongoose.model('InvoiceSequence');
+    const defaultPrefix = (prefix || 'MF/INV/25-26').trim();
+    const quotePrefix = defaultPrefix.replace(/INV/i, 'QN');
+
+    await InvoiceSequenceModel.findOneAndUpdate(
+      { _id: 'singleton' },
+      { $set: { lastQuotationNumber: targetSeq - 1, prefix: defaultPrefix } },
+      { upsert: true, new: true }
+    );
+    await SettingModel.updateMany(
+      { key: 'invoice_settings' },
+      { $set: { nextQuotationNumber: targetSeq } }
+    );
+
+    const numStr = String(targetSeq).padStart(4, '0');
+    const formatted = quotePrefix.endsWith('/') ? `${quotePrefix}${numStr}` : `${quotePrefix}/${numStr}`;
+
+    return res.json({
+      success: true,
+      message: 'Quotation sequence synchronized successfully',
+      nextQuotationNumber: targetSeq,
+      nextQuotationNo: formatted,
+      formattedNumber: formatted
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
  * Atomically advances invoice/quotation sequence pointer by 1.
  * Called on any quotation action (Download, Share, Save) to ensure continuous sequential numbering.
  */
@@ -287,6 +329,8 @@ exports.advanceInvoiceSequence = async (req, res, next) => {
       message: 'Sequence advanced successfully',
       data: result,
       nextSequenceNumber: result.nextSequenceNumber,
+      nextQuotationNumber: result.nextQuotationNumber,
+      quotationNo: result.quotationNo,
       formattedNumber: result.formattedNumber
     });
   } catch (error) {

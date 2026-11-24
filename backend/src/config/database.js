@@ -2126,27 +2126,34 @@ async function runDatabaseMigrations() {
       }
       const nextQuoteAvailable = Math.max(maxQuoteNum + 1, 15);
 
-      await InvoiceSequence.findOneAndUpdate(
-        { _id: 'singleton' },
-        { 
-          $set: { 
-            lastInvoiceNumber: nextInvAvailable - 1, 
-            lastQuotationNumber: nextQuoteAvailable - 1,
-            prefix: 'MF/INV/25-26' 
-          } 
-        },
-        { upsert: true }
-      );
-      await Setting.updateMany(
-        { key: 'invoice_settings' },
-        { 
-          $set: { 
-            nextSequenceNumber: nextInvAvailable,
-            nextQuotationNumber: nextQuoteAvailable 
-          } 
-        }
-      );
-      console.log(`[Migration] Sequence synchronized: Next official invoice is #${nextInvAvailable}, next quotation is #${nextQuoteAvailable}.`);
+      const existingSeq = await InvoiceSequence.findById('singleton');
+      const existingSetting = await Setting.findOne({ key: 'invoice_settings' });
+
+      if (!existingSeq || !existingSetting || existingSetting.nextQuotationNumber === undefined) {
+        await InvoiceSequence.findOneAndUpdate(
+          { _id: 'singleton' },
+          { 
+            $set: { 
+              lastInvoiceNumber: nextInvAvailable - 1, 
+              lastQuotationNumber: nextQuoteAvailable - 1,
+              prefix: 'MF/INV/25-26' 
+            } 
+          },
+          { upsert: true }
+        );
+        await Setting.updateMany(
+          { key: 'invoice_settings' },
+          { 
+            $set: { 
+              nextSequenceNumber: nextInvAvailable,
+              nextQuotationNumber: nextQuoteAvailable 
+            } 
+          }
+        );
+        console.log(`[Migration] Sequence initialized: Next official invoice is #${nextInvAvailable}, next quotation is #${nextQuoteAvailable}.`);
+      } else {
+        console.log(`[Migration] Existing sequence preserved: Next invoice #${existingSetting.nextSequenceNumber || nextInvAvailable}, next quotation #${existingSetting.nextQuotationNumber || nextQuoteAvailable}.`);
+      }
     } catch (cleanupErr) {
       console.warn('[Migration] Non-fatal quotation cleanup notice:', cleanupErr.message);
     }

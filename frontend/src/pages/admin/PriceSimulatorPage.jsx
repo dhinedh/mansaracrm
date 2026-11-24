@@ -1181,7 +1181,16 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
           nextQuotationNo: formatted
         }));
         try {
-          await axios.put('/billing/settings', { nextQuotationNumber: seqNum });
+          const res = await axios.post('/billing/set-quotation-sequence', { 
+            sequenceNumber: seqNum,
+            prefix: companySettings.invoicePrefix || 'MF/INV/25-26'
+          });
+          if (res.data?.success) {
+            setToastMessage({
+              text: `Quotation sequence set to ${formatted}. Quotations will continue in sequence from this number.`,
+              type: 'info'
+            });
+          }
         } catch (err) {
           console.warn('Failed to sync quotation sequence setting to backend:', err);
         }
