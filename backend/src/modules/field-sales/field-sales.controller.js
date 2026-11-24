@@ -3454,10 +3454,26 @@ exports.reviewQuotationApproval = async (req, res, next) => {
       const custPhone = cleanVal(quotation.customerPhone) || cleanVal(quotation.customerId?.phone) || cleanVal(quotation.dealerId?.phone) || '';
       const custAddress = cleanVal(quotation.customerAddress) || cleanVal(quotation.customerId?.address) || cleanVal(quotation.dealerId?.address) || '';
 
-      // 1. Generate next continuous sequential Invoice Number (15, 16, 17...)
+      // 1. Generate next continuous sequential Invoice Number (15, 16, 17...) or use custom specified invoiceNo
       const InvoiceModel = mongoose.model('Invoice');
-      const nextInvInfo = await getNextInvoiceNumber({ commit: true });
-      const finalInvoiceNo = nextInvInfo.invoiceNo;
+      let finalInvoiceNo = '';
+      if (req.body.invoiceNo && typeof req.body.invoiceNo === 'string' && req.body.invoiceNo.trim()) {
+        finalInvoiceNo = req.body.invoiceNo.trim();
+        const existingInv = await InvoiceModel.findOne({ invoiceNo: finalInvoiceNo });
+        if (existingInv && String(existingInv.quotationId) !== String(quotation._id)) {
+          return res.status(400).json({
+            success: false,
+            message: `Invoice number "${finalInvoiceNo}" is already in use by another invoice. Please choose a different number.`
+          });
+        }
+        const num = extractTrailingNumber(finalInvoiceNo);
+        if (num > 0) {
+          await advanceSequenceNumber({ minTarget: num, isInvoice: true }).catch(() => {});
+        }
+      } else {
+        const nextInvInfo = await getNextInvoiceNumber({ commit: true });
+        finalInvoiceNo = nextInvInfo.invoiceNo;
+      }
 
       // 2. Create official Invoice document with exact quotation data
       const invoiceDoc = await InvoiceModel.create({
@@ -3607,6 +3623,9 @@ exports.editQuotationApproval = async (req, res, next) => {
     if (taxTotal !== undefined) quotation.taxTotal = parseFloat(taxTotal);
     if (shippingCharges !== undefined) quotation.shippingCharges = parseFloat(shippingCharges);
     if (grandTotal !== undefined) quotation.grandTotal = parseFloat(grandTotal);
+    if (req.body.invoiceNo && typeof req.body.invoiceNo === 'string' && req.body.invoiceNo.trim()) {
+      quotation.invoiceNo = req.body.invoiceNo.trim();
+    }
     if (adminRemarks) {
       quotation.adminRemarks = adminRemarks;
     }
@@ -3615,18 +3634,22 @@ exports.editQuotationApproval = async (req, res, next) => {
     // If already linked to an official invoice, sync updated details to invoice as well
     if (quotation.invoiceId) {
       const InvoiceModel = mongoose.model('Invoice');
+      const invoiceUpdate = {
+        customerName: quotation.customerName,
+        customerPhone: quotation.customerPhone,
+        customerAddress: quotation.customerAddress,
+        subtotal: quotation.subtotal,
+        totalDiscount: quotation.discountTotal || 0,
+        totalGst: quotation.taxTotal || 0,
+        shippingCharges: quotation.shippingCharges || 0,
+        totalAmount: quotation.grandTotal,
+        rawItems: quotation.items || []
+      };
+      if (quotation.invoiceNo) {
+        invoiceUpdate.invoiceNo = quotation.invoiceNo;
+      }
       await InvoiceModel.findByIdAndUpdate(quotation.invoiceId, {
-        $set: {
-          customerName: quotation.customerName,
-          customerPhone: quotation.customerPhone,
-          customerAddress: quotation.customerAddress,
-          subtotal: quotation.subtotal,
-          totalDiscount: quotation.discountTotal || 0,
-          totalGst: quotation.taxTotal || 0,
-          shippingCharges: quotation.shippingCharges || 0,
-          totalAmount: quotation.grandTotal,
-          rawItems: quotation.items || []
-        }
+        $set: invoiceUpdate
       }).catch(() => null);
     }
 

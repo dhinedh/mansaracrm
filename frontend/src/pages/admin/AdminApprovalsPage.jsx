@@ -59,6 +59,7 @@ export default function AdminApprovalsPage() {
   const [approvalModal, setApprovalModal] = useState({
     isOpen: false,
     quotation: null,
+    invoiceNo: '',
     reason: '',
     isSubmitting: false
   });
@@ -158,9 +159,11 @@ export default function AdminApprovalsPage() {
 
   // ─── ACTION HANDLERS: APPROVE / REJECT / EDIT ───────────────────────────────
   const openApproveModal = (quote) => {
+    const defaultInv = quote.invoiceNo || nextInvoiceNo || getDerivedInvoiceNo(quote.quotationNo) || 'MF/INV/25-26/0015';
     setApprovalModal({
       isOpen: true,
       quotation: quote,
+      invoiceNo: defaultInv,
       reason: 'Approved commercial wholesale terms. Converted to official invoice.',
       isSubmitting: false
     });
@@ -179,7 +182,8 @@ export default function AdminApprovalsPage() {
       const quoteId = approvalModal.quotation._id || approvalModal.quotation.id;
       const res = await axios.put(`/field-sales/admin/approvals/quotations/${quoteId}`, {
         status: 'APPROVED',
-        adminRemarks: approvalModal.reason.trim()
+        adminRemarks: approvalModal.reason.trim(),
+        invoiceNo: approvalModal.invoiceNo ? approvalModal.invoiceNo.trim() : undefined
       });
 
       if (res.data?.success) {
@@ -187,7 +191,7 @@ export default function AdminApprovalsPage() {
           text: res.data.message || 'Quotation approved and official Invoice generated!',
           type: 'success'
         });
-        setApprovalModal({ isOpen: false, quotation: null, reason: '', isSubmitting: false });
+        setApprovalModal({ isOpen: false, quotation: null, invoiceNo: '', reason: '', isSubmitting: false });
         fetchApprovals();
       }
     } catch (err) {
@@ -1056,7 +1060,7 @@ export default function AdminApprovalsPage() {
               </div>
               <button
                 type="button"
-                onClick={() => setApprovalModal({ isOpen: false, quotation: null, reason: '', isSubmitting: false })}
+                onClick={() => setApprovalModal({ isOpen: false, quotation: null, invoiceNo: '', reason: '', isSubmitting: false })}
                 className="p-1 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
               >
                 <X className="w-5 h-5" />
@@ -1064,24 +1068,49 @@ export default function AdminApprovalsPage() {
             </div>
 
             {/* Invoicing Conversion Info Banner */}
-            <div className="bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-200 rounded-2xl p-4 text-xs space-y-2">
+            <div className="bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-200 rounded-2xl p-4 text-xs space-y-2.5">
               <div className="flex justify-between items-center pb-2 border-b border-emerald-200/60">
                 <span className="text-emerald-800 font-semibold">Current Quotation Ref:</span>
                 <span className="font-mono font-black text-slate-900 bg-white px-2 py-0.5 rounded border border-emerald-300">
                   {approvalModal.quotation.quotationNo}
                 </span>
               </div>
-              <div className="flex justify-between items-center pt-1">
-                <span className="text-emerald-900 font-bold flex items-center gap-1">
-                  <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>Sequential Invoice Number (Continuous):</span>
+
+              {/* Quotation Generated Date */}
+              <div className="flex justify-between items-center pb-2 border-b border-emerald-200/60">
+                <span className="text-emerald-800 font-semibold flex items-center gap-1.5">
+                  <Calendar className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span>Quotation Generated Date:</span>
                 </span>
-                <span className="font-mono font-black text-emerald-800 bg-emerald-200/80 px-2.5 py-1 rounded text-xs shadow-2xs">
-                  {nextInvoiceNo || 'MF/INV/25-26/0015'}
+                <span className="font-semibold text-slate-800 bg-white px-2 py-0.5 rounded border border-emerald-300">
+                  {formatDateTime(approvalModal.quotation.createdAt || approvalModal.quotation.date)}
                 </span>
               </div>
-              <p className="text-[10px] text-emerald-700 italic pt-1">
-                Notice: All quotation items, quantities, rates, customer details and totals are preserved exactly and converted into this official sequential invoice.
+
+              {/* Option to change / edit the invoice number */}
+              <div className="pt-0.5 space-y-1.5">
+                <div className="flex justify-between items-center">
+                  <label className="text-emerald-900 font-bold flex items-center gap-1">
+                    <Sparkles className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <span>Sequential Invoice Number:</span>
+                  </label>
+                  <span className="text-[10px] text-emerald-700 font-bold bg-emerald-100/90 border border-emerald-300/80 px-2 py-0.5 rounded-full">
+                    Change / Edit
+                  </span>
+                </div>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={approvalModal.invoiceNo}
+                    onChange={(e) => setApprovalModal(prev => ({ ...prev, invoiceNo: e.target.value }))}
+                    placeholder="e.g. MF/INV/25-26/0015"
+                    className="w-full px-3 py-2 font-mono font-black text-emerald-900 bg-white border border-emerald-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-xs shadow-2xs"
+                  />
+                </div>
+              </div>
+
+              <p className="text-[10px] text-emerald-700 italic pt-0.5">
+                Notice: All quotation items, quantities, rates, customer details and totals are preserved exactly and converted into this official invoice.
               </p>
             </div>
 
@@ -1147,7 +1176,7 @@ export default function AdminApprovalsPage() {
               <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
                 <button
                   type="button"
-                  onClick={() => setApprovalModal({ isOpen: false, quotation: null, reason: '', isSubmitting: false })}
+                  onClick={() => setApprovalModal({ isOpen: false, quotation: null, invoiceNo: '', reason: '', isSubmitting: false })}
                   className="px-4 py-2 border border-slate-200 rounded-xl text-slate-600 font-bold hover:bg-slate-50 cursor-pointer"
                 >
                   Cancel
