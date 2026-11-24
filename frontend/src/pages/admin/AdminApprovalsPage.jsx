@@ -60,6 +60,7 @@ export default function AdminApprovalsPage() {
     isOpen: false,
     quotation: null,
     invoiceNo: '',
+    invoiceDate: '',
     reason: '',
     isSubmitting: false
   });
@@ -74,6 +75,8 @@ export default function AdminApprovalsPage() {
   const [editModal, setEditModal] = useState({
     isOpen: false,
     quotation: null,
+    invoiceNo: '',
+    invoiceDate: '',
     items: [],
     shippingCharges: 0,
     adminRemarks: '',
@@ -157,13 +160,29 @@ export default function AdminApprovalsPage() {
     );
   };
 
+  // Helper: Format Date to YYYY-MM-DD for HTML date inputs
+  const getLocalDateString = (d) => {
+    if (!d) return new Date().toISOString().split('T')[0];
+    const dateObj = new Date(d);
+    if (isNaN(dateObj.getTime())) return new Date().toISOString().split('T')[0];
+    const year = dateObj.getFullYear();
+    const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+    const day = String(dateObj.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   // ─── ACTION HANDLERS: APPROVE / REJECT / EDIT ───────────────────────────────
   const openApproveModal = (quote) => {
     const defaultInv = quote.invoiceNo || nextInvoiceNo || getDerivedInvoiceNo(quote.quotationNo) || 'MF/INV/25-26/0015';
+    // Default invoice date is exactly the quotation date
+    const quoteDate = quote.invoiceDate || quote.createdAt || quote.date;
+    const defaultDateStr = getLocalDateString(quoteDate);
+
     setApprovalModal({
       isOpen: true,
       quotation: quote,
       invoiceNo: defaultInv,
+      invoiceDate: defaultDateStr,
       reason: 'Approved commercial wholesale terms. Converted to official invoice.',
       isSubmitting: false
     });
@@ -183,7 +202,8 @@ export default function AdminApprovalsPage() {
       const res = await axios.put(`/field-sales/admin/approvals/quotations/${quoteId}`, {
         status: 'APPROVED',
         adminRemarks: approvalModal.reason.trim(),
-        invoiceNo: approvalModal.invoiceNo ? approvalModal.invoiceNo.trim() : undefined
+        invoiceNo: approvalModal.invoiceNo ? approvalModal.invoiceNo.trim() : undefined,
+        invoiceDate: approvalModal.invoiceDate ? approvalModal.invoiceDate : undefined
       });
 
       if (res.data?.success) {
@@ -191,7 +211,7 @@ export default function AdminApprovalsPage() {
           text: res.data.message || 'Quotation approved and official Invoice generated!',
           type: 'success'
         });
-        setApprovalModal({ isOpen: false, quotation: null, invoiceNo: '', reason: '', isSubmitting: false });
+        setApprovalModal({ isOpen: false, quotation: null, invoiceNo: '', invoiceDate: '', reason: '', isSubmitting: false });
         fetchApprovals();
       }
     } catch (err) {
@@ -260,9 +280,12 @@ export default function AdminApprovalsPage() {
     const initialCustPhone = clean(quote.customerPhone) || clean(quote.customerId?.phone) || clean(quote.dealerId?.phone) || '';
     const initialCustAddr = clean(quote.customerAddress) || clean(quote.customerId?.address) || clean(quote.dealerId?.address) || '';
 
+    const quoteInvDate = quote.invoiceDate || quote.approvedAt || quote.createdAt;
     setEditModal({
       isOpen: true,
       quotation: quote,
+      invoiceNo: quote.invoiceNo || '',
+      invoiceDate: getLocalDateString(quoteInvDate),
       customerName: initialCustName,
       customerPhone: initialCustPhone,
       customerAddress: initialCustAddr,
@@ -331,7 +354,9 @@ export default function AdminApprovalsPage() {
         taxTotal: calcTax,
         shippingCharges: editModal.shippingCharges,
         grandTotal: calcGrand,
-        adminRemarks: editModal.adminRemarks.trim()
+        adminRemarks: editModal.adminRemarks.trim(),
+        invoiceNo: editModal.invoiceNo ? editModal.invoiceNo.trim() : undefined,
+        invoiceDate: editModal.invoiceDate ? editModal.invoiceDate : undefined
       });
 
       if (res.data?.success) {
@@ -339,7 +364,7 @@ export default function AdminApprovalsPage() {
           text: 'Quotation updated and edit reason recorded successfully!',
           type: 'success'
         });
-        setEditModal({ isOpen: false, quotation: null, customerName: '', customerPhone: '', customerAddress: '', items: [], shippingCharges: 0, adminRemarks: '', isSubmitting: false });
+        setEditModal({ isOpen: false, quotation: null, invoiceNo: '', invoiceDate: '', customerName: '', customerPhone: '', customerAddress: '', items: [], shippingCharges: 0, adminRemarks: '', isSubmitting: false });
         fetchApprovals();
       }
     } catch (err) {
@@ -354,10 +379,13 @@ export default function AdminApprovalsPage() {
   const handlePrintQuotationDoc = (q) => {
     const isApproved = q.status === 'APPROVED';
     const invoiceNo = q.invoiceNo || (isApproved ? (nextInvoiceNo || getDerivedInvoiceNo(q.quotationNo)) : undefined);
+    const resolvedDate = isApproved ? (q.invoiceDate || q.approvedAt || q.createdAt) : (q.date || q.createdAt);
     const enriched = {
       ...q,
       isInvoice: isApproved,
       invoiceNo,
+      date: resolvedDate,
+      invoiceDate: resolvedDate,
       companySettings: companySettings || q.companySettings
     };
     const htmlContent = buildQuotationHtml(enriched);
@@ -367,10 +395,13 @@ export default function AdminApprovalsPage() {
   const handleDownloadQuotationDoc = async (q) => {
     const isApproved = q.status === 'APPROVED';
     const invoiceNo = q.invoiceNo || (isApproved ? (nextInvoiceNo || getDerivedInvoiceNo(q.quotationNo)) : undefined);
+    const resolvedDate = isApproved ? (q.invoiceDate || q.approvedAt || q.createdAt) : (q.date || q.createdAt);
     const enriched = {
       ...q,
       isInvoice: isApproved,
       invoiceNo,
+      date: resolvedDate,
+      invoiceDate: resolvedDate,
       companySettings: companySettings || q.companySettings
     };
     setToastMessage({ text: 'Generating PDF download...', type: 'info' });
@@ -386,10 +417,13 @@ export default function AdminApprovalsPage() {
   const handleShareWhatsApp = (q) => {
     const isApproved = q.status === 'APPROVED';
     const invoiceNo = q.invoiceNo || (isApproved ? (nextInvoiceNo || getDerivedInvoiceNo(q.quotationNo)) : undefined);
+    const resolvedDate = isApproved ? (q.invoiceDate || q.approvedAt || q.createdAt) : (q.date || q.createdAt);
     const enriched = {
       ...q,
       isInvoice: isApproved,
       invoiceNo,
+      date: resolvedDate,
+      invoiceDate: resolvedDate,
       companySettings: companySettings || q.companySettings
     };
     setActiveQuotationData(enriched);
@@ -747,7 +781,7 @@ export default function AdminApprovalsPage() {
                             </div>
                             {q.approvedAt && (
                               <p className="text-[10px] text-emerald-700 mt-0.5 font-medium">
-                                Approved: {formatDateTime(q.approvedAt)}
+                                Invoice Date: {formatDateTime(q.invoiceDate || q.approvedAt)}
                               </p>
                             )}
                             {q.rejectedAt && (
@@ -1060,7 +1094,7 @@ export default function AdminApprovalsPage() {
               </div>
               <button
                 type="button"
-                onClick={() => setApprovalModal({ isOpen: false, quotation: null, invoiceNo: '', reason: '', isSubmitting: false })}
+                onClick={() => setApprovalModal({ isOpen: false, quotation: null, invoiceNo: '', invoiceDate: '', reason: '', isSubmitting: false })}
                 className="p-1 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
               >
                 <X className="w-5 h-5" />
@@ -1109,7 +1143,31 @@ export default function AdminApprovalsPage() {
                 </div>
               </div>
 
-              <p className="text-[10px] text-emerald-700 italic pt-0.5">
+              {/* Option to change / edit the invoice date */}
+              <div className="pt-1.5 space-y-1.5 border-t border-emerald-200/60">
+                <div className="flex justify-between items-center">
+                  <label className="text-emerald-900 font-bold flex items-center gap-1">
+                    <Calendar className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <span>Official Invoice Date:</span>
+                  </label>
+                  <span className="text-[10px] text-emerald-700 font-bold bg-emerald-100/90 border border-emerald-300/80 px-2 py-0.5 rounded-full">
+                    Same as Quote Date by default
+                  </span>
+                </div>
+                <div className="relative">
+                  <input
+                    type="date"
+                    value={approvalModal.invoiceDate}
+                    onChange={(e) => setApprovalModal(prev => ({ ...prev, invoiceDate: e.target.value }))}
+                    className="w-full px-3 py-2 font-mono font-bold text-emerald-900 bg-white border border-emerald-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-xs shadow-2xs cursor-pointer"
+                  />
+                </div>
+                <p className="text-[10px] text-emerald-700 italic">
+                  Notice: By default this date matches the Quotation Generated Date ({formatDateTime(approvalModal.quotation.createdAt || approvalModal.quotation.date)}). You can select a different invoice date if needed.
+                </p>
+              </div>
+
+              <p className="text-[10px] text-emerald-700 italic pt-0.5 border-t border-emerald-200/60">
                 Notice: All quotation items, quantities, rates, customer details and totals are preserved exactly and converted into this official invoice.
               </p>
             </div>
@@ -1176,7 +1234,7 @@ export default function AdminApprovalsPage() {
               <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
                 <button
                   type="button"
-                  onClick={() => setApprovalModal({ isOpen: false, quotation: null, invoiceNo: '', reason: '', isSubmitting: false })}
+                  onClick={() => setApprovalModal({ isOpen: false, quotation: null, invoiceNo: '', invoiceDate: '', reason: '', isSubmitting: false })}
                   className="px-4 py-2 border border-slate-200 rounded-xl text-slate-600 font-bold hover:bg-slate-50 cursor-pointer"
                 >
                   Cancel
@@ -1279,7 +1337,7 @@ export default function AdminApprovalsPage() {
               </div>
               <button
                 type="button"
-                onClick={() => setEditModal({ isOpen: false, quotation: null, items: [], shippingCharges: 0, adminRemarks: '', isSubmitting: false })}
+                onClick={() => setEditModal({ isOpen: false, quotation: null, invoiceNo: '', invoiceDate: '', items: [], shippingCharges: 0, adminRemarks: '', isSubmitting: false })}
                 className="p-1 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
               >
                 <X className="w-5 h-5" />
@@ -1325,6 +1383,35 @@ export default function AdminApprovalsPage() {
                 />
               </div>
             </div>
+
+            {/* Official Invoice Number & Date for Approved Quotations */}
+            {(editModal.quotation.status === 'APPROVED' || editModal.quotation.invoiceNo) && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-emerald-50/70 rounded-2xl border border-emerald-200 text-xs">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-emerald-800 mb-1">
+                    Official Invoice Number
+                  </label>
+                  <input
+                    type="text"
+                    value={editModal.invoiceNo || ''}
+                    onChange={(e) => setEditModal(prev => ({ ...prev, invoiceNo: e.target.value }))}
+                    placeholder="e.g. MF/INV/25-26/0015"
+                    className="w-full p-2 border border-emerald-300 rounded-xl focus:ring-1 focus:ring-emerald-500 focus:outline-none bg-white text-xs font-mono font-black text-slate-800"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-emerald-800 mb-1">
+                    Official Invoice Date
+                  </label>
+                  <input
+                    type="date"
+                    value={editModal.invoiceDate || ''}
+                    onChange={(e) => setEditModal(prev => ({ ...prev, invoiceDate: e.target.value }))}
+                    className="w-full p-2 border border-emerald-300 rounded-xl focus:ring-1 focus:ring-emerald-500 focus:outline-none bg-white text-xs font-mono font-bold text-slate-800"
+                  />
+                </div>
+              </div>
+            )}
 
             {/* Editable Items Table */}
             <div className="space-y-2">
@@ -1430,7 +1517,7 @@ export default function AdminApprovalsPage() {
               <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
                 <button
                   type="button"
-                  onClick={() => setEditModal({ isOpen: false, quotation: null, items: [], shippingCharges: 0, adminRemarks: '', isSubmitting: false })}
+                  onClick={() => setEditModal({ isOpen: false, quotation: null, invoiceNo: '', invoiceDate: '', customerName: '', customerPhone: '', customerAddress: '', items: [], shippingCharges: 0, adminRemarks: '', isSubmitting: false })}
                   className="px-4 py-2 border border-slate-200 rounded-xl text-slate-600 font-bold hover:bg-slate-50 cursor-pointer"
                 >
                   Cancel

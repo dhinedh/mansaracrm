@@ -94,10 +94,11 @@ const buildInvoiceHtml = (company, invoice) => {
   }
 
   // Invoice dates
-  const invDate = new Date(invoice.createdAt).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'2-digit' });
+  const rawDate = invoice.invoiceDate || invoice.createdAt;
+  const invDate = new Date(rawDate).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'2-digit' });
   const dueDate = invoice.dueDate
     ? new Date(invoice.dueDate).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'2-digit' })
-    : new Date(new Date(invoice.createdAt).setDate(new Date(invoice.createdAt).getDate() + 15))
+    : new Date(new Date(rawDate).setDate(new Date(rawDate).getDate() + 15))
         .toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'2-digit' });
 
   // Build rows — Mansara format: S.No | HSN | Item | NET WT(G) | Rate(Rs.) | PAC | WT/CTN(Kg) | CTNS | TOT.QTY | TOTAL NT WT(Kg) | PRICE
@@ -456,10 +457,11 @@ const buildSimpleRetailInvoiceHtml = (company, invoice) => {
   const shipToPhone = store.phone   || '';
   const shipToGst   = store.gstNumber || '';
 
-  const invDate = new Date(invoice.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' });
+  const rawDate = invoice.invoiceDate || invoice.createdAt;
+  const invDate = new Date(rawDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' });
   const dueDate = invoice.dueDate
     ? new Date(invoice.dueDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' })
-    : new Date(new Date(invoice.createdAt).setDate(new Date(invoice.createdAt).getDate() + 15))
+    : new Date(new Date(rawDate).setDate(new Date(rawDate).getDate() + 15))
         .toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' });
 
   // Build rows: S.No | Item (SKU) | Net Wt (G) | Qty | Rate | Amount

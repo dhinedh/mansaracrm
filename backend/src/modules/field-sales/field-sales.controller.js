@@ -3454,7 +3454,23 @@ exports.reviewQuotationApproval = async (req, res, next) => {
       const custPhone = cleanVal(quotation.customerPhone) || cleanVal(quotation.customerId?.phone) || cleanVal(quotation.dealerId?.phone) || '';
       const custAddress = cleanVal(quotation.customerAddress) || cleanVal(quotation.customerId?.address) || cleanVal(quotation.dealerId?.address) || '';
 
-      // 1. Generate next continuous sequential Invoice Number (15, 16, 17...) or use custom specified invoiceNo
+      // 1. Resolve invoice date: by default exactly matches quotation generated date
+      let finalInvoiceDate = quotation.createdAt || new Date();
+      if (req.body.invoiceDate) {
+        const parsedDate = new Date(req.body.invoiceDate);
+        if (!isNaN(parsedDate.getTime())) {
+          const quoteDayStr = quotation.createdAt ? new Date(quotation.createdAt).toISOString().split('T')[0] : '';
+          const reqDayStr = new Date(req.body.invoiceDate).toISOString().split('T')[0];
+          if (quoteDayStr === reqDayStr && quotation.createdAt) {
+            finalInvoiceDate = quotation.createdAt;
+          } else {
+            parsedDate.setHours(12, 0, 0, 0);
+            finalInvoiceDate = parsedDate;
+          }
+        }
+      }
+
+      // 2. Generate next continuous sequential Invoice Number (15, 16, 17...) or use custom specified invoiceNo
       const InvoiceModel = mongoose.model('Invoice');
       let finalInvoiceNo = '';
       if (req.body.invoiceNo && typeof req.body.invoiceNo === 'string' && req.body.invoiceNo.trim()) {
@@ -3475,9 +3491,12 @@ exports.reviewQuotationApproval = async (req, res, next) => {
         finalInvoiceNo = nextInvInfo.invoiceNo;
       }
 
-      // 2. Create official Invoice document with exact quotation data
+      // 3. Create official Invoice document with exact quotation data and invoice date
       const invoiceDoc = await InvoiceModel.create({
         invoiceNo: finalInvoiceNo,
+        invoiceDate: finalInvoiceDate,
+        createdAt: finalInvoiceDate,
+        dueDate: new Date(finalInvoiceDate.getTime() + 15 * 86400000),
         quotationId: quotation._id,
         quotationNo: quotation.quotationNo,
         dealerId: quotation.dealerId?._id || quotation.dealerId || undefined,
@@ -3499,6 +3518,13 @@ exports.reviewQuotationApproval = async (req, res, next) => {
         salespersonId: quotation.salespersonId?._id || quotation.salespersonId || req.user.id,
         rawItems: quotation.items || []
       });
+
+      // Guarantee createdAt and invoiceDate persist without Mongoose override
+      await InvoiceModel.updateOne(
+        { _id: invoiceDoc._id },
+        { $set: { createdAt: finalInvoiceDate, invoiceDate: finalInvoiceDate, dueDate: new Date(finalInvoiceDate.getTime() + 15 * 86400000) } },
+        { timestamps: false }
+      ).catch(() => null);
 
       // 3. Create items in InvoiceItem for all items in the quotation
       const InvoiceItemModel = mongoose.model('InvoiceItem');
@@ -3556,11 +3582,12 @@ exports.reviewQuotationApproval = async (req, res, next) => {
       quotation.status = 'APPROVED';
       quotation.invoiceNo = finalInvoiceNo;
       quotation.invoiceId = invoiceDoc._id;
+      quotation.invoiceDate = finalInvoiceDate;
       quotation.customerName = custName;
       quotation.customerPhone = custPhone;
       quotation.customerAddress = custAddress;
       quotation.approvedBy = req.user.id;
-      quotation.approvedAt = new Date();
+      quotation.approvedAt = finalInvoiceDate;
       quotation.adminRemarks = adminRemarks || '';
       await quotation.save();
 
@@ -3626,6 +3653,13 @@ exports.editQuotationApproval = async (req, res, next) => {
     if (req.body.invoiceNo && typeof req.body.invoiceNo === 'string' && req.body.invoiceNo.trim()) {
       quotation.invoiceNo = req.body.invoiceNo.trim();
     }
+    if (req.body.invoiceDate) {
+      const parsed = new Date(req.body.invoiceDate);
+      if (!isNaN(parsed.getTime())) {
+        parsed.setHours(12, 0, 0, 0);
+        quotation.invoiceDate = parsed;
+      }
+    }
     if (adminRemarks) {
       quotation.adminRemarks = adminRemarks;
     }
@@ -3648,9 +3682,16 @@ exports.editQuotationApproval = async (req, res, next) => {
       if (quotation.invoiceNo) {
         invoiceUpdate.invoiceNo = quotation.invoiceNo;
       }
-      await InvoiceModel.findByIdAndUpdate(quotation.invoiceId, {
-        $set: invoiceUpdate
-      }).catch(() => null);
+      if (quotation.invoiceDate) {
+        invoiceUpdate.invoiceDate = quotation.invoiceDate;
+        invoiceUpdate.createdAt = quotation.invoiceDate;
+        invoiceUpdate.dueDate = new Date(quotation.invoiceDate.getTime() + 15 * 86400000);
+      }
+      await InvoiceModel.updateOne(
+        { _id: quotation.invoiceId },
+        { $set: invoiceUpdate },
+        { timestamps: false }
+      ).catch(() => null);
     }
 
     res.json({ 

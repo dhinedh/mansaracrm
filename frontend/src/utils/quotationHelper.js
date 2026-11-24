@@ -227,8 +227,15 @@ export const normalizeQuotationData = (raw = {}) => {
   const refNo = isApprovedInvoice
     ? ensure4DigitInvoiceNo(rawRefCandidate, company.invoicePrefix || 'MF/INV/25-26', company.nextSequenceNumber || 10)
     : ensureQuotationRef(rawRefCandidate, company.invoicePrefix || 'MF/INV/25-26', company.nextSequenceNumber || 14);
-  const dateStr = raw.date || new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-  const dueDateStr = raw.dueDate || new Date(Date.now() + 15 * 86400000).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  const dateCandidate = isApprovedInvoice 
+    ? (raw.invoiceDate || raw.date || raw.approvedAt || raw.createdAt) 
+    : (raw.date || raw.createdAt);
+  const dateStr = dateCandidate 
+    ? (typeof dateCandidate === 'string' && /^\d{1,2}\s+[A-Za-z]+\s+\d{4}/.test(dateCandidate) ? dateCandidate : new Date(dateCandidate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }))
+    : new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  const dueDateStr = raw.dueDate 
+    ? (typeof raw.dueDate === 'string' && /^\d{1,2}\s+[A-Za-z]+\s+\d{4}/.test(raw.dueDate) ? raw.dueDate : new Date(raw.dueDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }))
+    : (dateCandidate ? new Date(new Date(dateCandidate).getTime() + 15 * 86400000).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : new Date(Date.now() + 15 * 86400000).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }));
 
   // Customer resolution (checking selectedCustomer, customerId object, dealerId object, store object, dealer object, and direct fields)
   const rawCust = (raw.selectedCustomer && typeof raw.selectedCustomer === 'object') 

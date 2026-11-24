@@ -651,6 +651,7 @@ MarginSchema.virtual('salesperson', {
 // Invoice
 const InvoiceSchema = new Schema({
   invoiceNo: { type: String, unique: true, required: true, index: true },
+  invoiceDate: { type: Date },
   dealerId: { type: Schema.Types.ObjectId, ref: 'Dealer', index: true },
   storeId: { type: Schema.Types.ObjectId, ref: 'Store', index: true },
   customerName: { type: String },
@@ -1100,6 +1101,7 @@ const QuotationSchema = new Schema({
   status: { type: String, enum: ['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'REJECTED', 'CONVERTED'], default: 'DRAFT' },
   invoiceNo: { type: String },
   invoiceId: { type: Schema.Types.Mixed, ref: 'Invoice' },
+  invoiceDate: { type: Date },
   approvedBy: { type: Schema.Types.Mixed, ref: 'User' },
   approvedAt: { type: Date },
   rejectedBy: { type: Schema.Types.Mixed, ref: 'User' },
