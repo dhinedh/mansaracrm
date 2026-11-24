@@ -46,10 +46,18 @@ export const cleanPhoneNumber = (phone) => {
 
 /**
  * Generates the standard quotation reference using prefix 'QN' and continuous 4-digit sequence number.
+ * Ensures the prefix is strictly 'QN' (never 'ON', 'INV', 'IN', 'QTN', or 'QT').
  * e.g. "MF/INV/25-26", 14 -> "MF/QN/25-26/0014"
+ * e.g. "MF/ON/25-26", 12 -> "MF/QN/25-26/0012"
  */
 export const getStandardQuotationRef = (invoicePrefix = 'MF/INV/25-26', nextSeq = 14) => {
-  const p = (invoicePrefix || 'MF/INV/25-26').trim().replace(/INV/gi, 'QN');
+  let p = (invoicePrefix || 'MF/INV/25-26').trim();
+  p = p
+    .replace(/\/(ON|INV|IN|QTN|QT)\//gi, '/QN/')
+    .replace(/\/ON\//gi, '/QN/')
+    .replace(/\/INV\//gi, '/QN/')
+    .replace(/INV/gi, 'QN')
+    .replace(/\bON\b/gi, 'QN');
   const seqNum = typeof nextSeq === 'number' && !isNaN(nextSeq)
     ? nextSeq
     : (parseInt(nextSeq, 10) || 14);
@@ -61,7 +69,8 @@ export const getStandardQuotationRef = (invoicePrefix = 'MF/INV/25-26', nextSeq 
 
 /**
  * Ensures a quotation reference always uses 'QN' prefix and a valid 4-digit sequence format.
- * Replaces 'INV' with 'QN' and replaces 'xxxx' with the actual sequence number.
+ * Replaces 'ON', 'INV', 'IN', 'QTN', 'QT' with 'QN' and replaces 'xxxx' with the actual sequence number.
+ * e.g. "MF/ON/25-26/0012" -> "MF/QN/25-26/0012"
  * e.g. "MF/INV/25-26/0014" -> "MF/QN/25-26/0014"
  * e.g. "MF/QN/25-26/xxxx", seq 14 -> "MF/QN/25-26/0014"
  */
@@ -70,7 +79,12 @@ export const ensureQuotationRef = (val, defaultPrefix = 'MF/INV/25-26', defaultS
   if (!val || typeof val !== 'string') return std;
   let clean = val.trim();
   if (!clean) return std;
-  clean = clean.replace(/INV/gi, 'QN');
+  clean = clean
+    .replace(/\/(ON|INV|IN|QTN|QT)\//gi, '/QN/')
+    .replace(/\/ON\//gi, '/QN/')
+    .replace(/\/INV\//gi, '/QN/')
+    .replace(/INV/gi, 'QN')
+    .replace(/\bON\b/gi, 'QN');
 
   if (/^\d+$/.test(clean)) {
     const num = parseInt(clean, 10);
@@ -84,7 +98,13 @@ export const ensureQuotationRef = (val, defaultPrefix = 'MF/INV/25-26', defaultS
 
   const match = clean.match(/^(.*?)([\/-]?)(\d+)$/);
   if (match) {
-    const p = (match[1] || defaultPrefix).replace(/INV/gi, 'QN').replace(/[\/-]$/, '');
+    let p = (match[1] || defaultPrefix)
+      .replace(/\/(ON|INV|IN|QTN|QT)\//gi, '/QN/')
+      .replace(/\/ON\//gi, '/QN/')
+      .replace(/\/INV\//gi, '/QN/')
+      .replace(/INV/gi, 'QN')
+      .replace(/\bON\b/gi, 'QN')
+      .replace(/[\/-]$/, '');
     const sep = match[2] || (p.includes('/') ? '/' : '-');
     const num = parseInt(match[3], 10);
     const numStr = String(num).padStart(4, '0');
@@ -95,29 +115,34 @@ export const ensureQuotationRef = (val, defaultPrefix = 'MF/INV/25-26', defaultS
 };
 
 /**
- * Formats official invoice numbers with 4-digit sequence (e.g. MF/INV/25-26/0014)
+ * Formats official invoice numbers with 4-digit sequence (e.g. MF/INV/25-26/0014).
+ * Strictly normalizes any quotation or legacy prefix (/ON/, /QN/, /QTN/, /QT/) to /INV/.
  */
 export const ensure4DigitInvoiceNo = (val, defaultPrefix = 'MF/INV/25-26', defaultSeq = 10) => {
+  const cleanDefault = (defaultPrefix || 'MF/INV/25-26').trim()
+    .replace(/\/(ON|QN|QTN|QT)\//gi, '/INV/')
+    .replace(/\/ON\//gi, '/INV/');
   if (!val || typeof val !== 'string') {
-    const p = (defaultPrefix || 'MF/INV/25-26').trim();
     const numStr = String(defaultSeq || 1).padStart(4, '0');
-    return (p.endsWith('/') || p.endsWith('-')) ? `${p}${numStr}` : `${p}/${numStr}`;
+    return (cleanDefault.endsWith('/') || cleanDefault.endsWith('-')) ? `${cleanDefault}${numStr}` : `${cleanDefault}/${numStr}`;
   }
-  const clean = val.trim();
+  let clean = val.trim()
+    .replace(/\/(ON|QN|QTN|QT)\//gi, '/INV/')
+    .replace(/\/ON\//gi, '/INV/');
   if (!clean) {
-    const p = (defaultPrefix || 'MF/INV/25-26').trim();
     const numStr = String(defaultSeq || 1).padStart(4, '0');
-    return (p.endsWith('/') || p.endsWith('-')) ? `${p}${numStr}` : `${p}/${numStr}`;
+    return (cleanDefault.endsWith('/') || cleanDefault.endsWith('-')) ? `${cleanDefault}${numStr}` : `${cleanDefault}/${numStr}`;
   }
   if (/^\d+$/.test(clean)) {
-    const p = (defaultPrefix || 'MF/INV/25-26').trim();
     const num = parseInt(clean, 10);
     const numStr = String(num).padStart(4, '0');
-    return (p.endsWith('/') || p.endsWith('-')) ? `${p}${numStr}` : `${p}/${numStr}`;
+    return (cleanDefault.endsWith('/') || cleanDefault.endsWith('-')) ? `${cleanDefault}${numStr}` : `${cleanDefault}/${numStr}`;
   }
   const match = clean.match(/^(.*?)([\/-]?)(\d+)$/);
   if (match) {
-    const p = match[1];
+    const p = match[1]
+      .replace(/\/(ON|QN|QTN|QT)\//gi, '/INV/')
+      .replace(/\/ON\//gi, '/INV/');
     const sep = match[2] || (p.endsWith('/') || p.endsWith('-') ? '' : '/');
     const num = parseInt(match[3], 10);
     const numStr = String(num).padStart(4, '0');
@@ -211,10 +236,13 @@ export const normalizeQuotationData = (raw = {}) => {
 
   const getDerivedInvoiceNo = (quotationNo = '') => {
     if (!quotationNo) return 'INV-' + Date.now().toString().slice(-6);
+    if (quotationNo.includes('/ON/')) return quotationNo.replace(/\/ON\//g, '/INV/');
+    if (quotationNo.includes('/on/')) return quotationNo.replace(/\/on\//g, '/inv/');
     if (quotationNo.includes('QN')) return quotationNo.replace(/QN/g, 'INV');
     if (quotationNo.includes('qn')) return quotationNo.replace(/qn/g, 'inv');
     if (quotationNo.includes('QTN')) return quotationNo.replace(/QTN/g, 'INV');
     if (quotationNo.includes('qtn')) return quotationNo.replace(/qtn/g, 'inv');
+    if (quotationNo.startsWith('ON-')) return quotationNo.replace('ON-', 'INV-');
     if (quotationNo.startsWith('QN-')) return quotationNo.replace('QN-', 'INV-');
     if (quotationNo.startsWith('QTN-')) return quotationNo.replace('QTN-', 'INV-');
     if (quotationNo.startsWith('QT-')) return quotationNo.replace('QT-', 'INV-');

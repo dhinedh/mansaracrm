@@ -521,7 +521,7 @@ export default function AdminInvoiceTemplatePage() {
                     <div className="flex items-center justify-between bg-white px-2.5 py-1 rounded border border-slate-200">
                       <span className="text-slate-500">Next Quotation Will Be:</span>
                       <span className="font-mono font-black text-emerald-700">
-                        {formatInvoiceNumber(invoicePrefix.replace(/INV/gi, 'QN'), nextQuotationNumber)}
+                        {formatInvoiceNumber(invoicePrefix.replace(/\/(ON|INV|IN)\//gi, '/QN/').replace(/INV/gi, 'QN').replace(/\bON\b/gi, 'QN'), nextQuotationNumber)}
                       </span>
                     </div>
                   </div>

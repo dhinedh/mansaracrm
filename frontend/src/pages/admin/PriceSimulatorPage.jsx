@@ -258,11 +258,16 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
         }
         setCompanySettings(prev => ({ ...prev, ...s }));
 
-        const prefix = s.invoicePrefix || 'MF/INV/25-26';
-        const nextQuote = s.nextQuotationNo || getStandardQuotationRef(s.quotationPrefix || prefix, s.nextQuotationNumber || 14);
+        const prefix = (s.invoicePrefix || 'MF/INV/25-26').replace(/\/(ON|QN)\//gi, '/INV/');
+        const quotePrefix = (s.quotationPrefix || prefix).replace(/\/(ON|INV|IN)\//gi, '/QN/');
+        const nextQuote = ensureQuotationRef(
+          s.nextQuotationNo || getStandardQuotationRef(quotePrefix, s.nextQuotationNumber || 14),
+          quotePrefix,
+          s.nextQuotationNumber || 14
+        );
         setQuotationRefNumber(nextQuote);
       } else {
-        setQuotationRefNumber(getStandardQuotationRef('MF/INV/25-26', 14));
+        setQuotationRefNumber(getStandardQuotationRef('MF/QN/25-26', 14));
       }
       setSimulationItems([]); // Clean slate: Zero mock data
     } catch (err) {
@@ -1065,9 +1070,14 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
       console.warn('Could not refresh billing settings:', e);
     }
 
-    const rawPrefix = currentSettings.invoicePrefix || 'MF/INV/25-26';
+    const rawPrefix = (currentSettings.invoicePrefix || 'MF/INV/25-26').replace(/\/(ON|QN)\//gi, '/INV/');
+    const quotePrefix = (currentSettings.quotationPrefix || rawPrefix).replace(/\/(ON|INV|IN)\//gi, '/QN/');
     const nextSeq = currentSettings.nextQuotationNumber || currentSettings.nextSequenceNumber || 14;
-    const standardRef = quotationRefNumber || currentSettings.nextQuotationNo || getStandardQuotationRef(currentSettings.quotationPrefix || rawPrefix, nextSeq);
+    const standardRef = ensureQuotationRef(
+      quotationRefNumber || currentSettings.nextQuotationNo || getStandardQuotationRef(quotePrefix, nextSeq),
+      quotePrefix,
+      nextSeq
+    );
     setQuotationRefNumber(standardRef);
     setShowQuotationModal(true);
   };
@@ -1075,7 +1085,8 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
   // ─── STEP 8B: AUTOMATIC CONTINUOUS SEQUENCE ADVANCE (ON DOWNLOAD, SHARE, SAVE) ────
   const advanceSequence = async () => {
     try {
-      const currentPrefix = (companySettings.invoicePrefix || 'MF/INV/25-26').trim();
+      const currentPrefix = (companySettings.invoicePrefix || 'MF/INV/25-26').replace(/\/(ON|QN)\//gi, '/INV/').trim();
+      const quotePrefix = (companySettings.quotationPrefix || currentPrefix).replace(/\/(ON|INV|IN)\//gi, '/QN/');
       const match = quotationRefNumber?.match(/(\d+)(?!.*\d)/);
       const currentSeq = match 
         ? parseInt(match[1], 10) 
@@ -1088,23 +1099,25 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
 
       if (res.data?.success) {
         const nextSeq = res.data.nextQuotationNumber || res.data.nextSequenceNumber;
+        const rawNextNo = res.data.quotationNo || res.data.formattedNumber;
+        const quoteRef = ensureQuotationRef(rawNextNo || getStandardQuotationRef(quotePrefix, nextSeq), quotePrefix, nextSeq);
         setCompanySettings(prev => ({
           ...prev,
           nextQuotationNumber: nextSeq,
-          nextQuotationNo: res.data.quotationNo || res.data.formattedNumber
+          nextQuotationNo: quoteRef
         }));
-        const quoteRef = res.data.quotationNo || res.data.formattedNumber || getStandardQuotationRef(currentPrefix, nextSeq);
         setQuotationRefNumber(quoteRef);
         return quoteRef;
       }
     } catch (e) {
       console.warn('Failed to advance sequence on backend, advancing locally:', e);
-      const currentPrefix = (companySettings.invoicePrefix || 'MF/INV/25-26').trim();
+      const currentPrefix = (companySettings.invoicePrefix || 'MF/INV/25-26').replace(/\/(ON|QN)\//gi, '/INV/').trim();
+      const quotePrefix = (companySettings.quotationPrefix || currentPrefix).replace(/\/(ON|INV|IN)\//gi, '/QN/');
       const match = quotationRefNumber?.match(/(\d+)(?!.*\d)/);
       const currentSeq = match ? parseInt(match[1], 10) : (companySettings.nextQuotationNumber || 14);
       const nextSeq = currentSeq + 1;
       setCompanySettings(prev => ({ ...prev, nextQuotationNumber: nextSeq }));
-      const quoteRef = getStandardQuotationRef(currentPrefix, nextSeq);
+      const quoteRef = ensureQuotationRef(getStandardQuotationRef(quotePrefix, nextSeq), quotePrefix, nextSeq);
       setQuotationRefNumber(quoteRef);
       return quoteRef;
     }
@@ -1165,9 +1178,11 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
   };
 
   const handleQuotationRefChange = async (val) => {
+    const rawPrefix = (companySettings.invoicePrefix || 'MF/INV/25-26').replace(/\/(ON|QN)\//gi, '/INV/');
+    const quotePrefix = (companySettings.quotationPrefix || rawPrefix).replace(/\/(ON|INV|IN)\//gi, '/QN/');
     const formatted = ensureQuotationRef(
       val,
-      companySettings.quotationPrefix || companySettings.invoicePrefix || 'MF/INV/25-26',
+      quotePrefix,
       companySettings.nextQuotationNumber || 14
     );
     setQuotationRefNumber(formatted);
@@ -1183,7 +1198,7 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
         try {
           const res = await axios.post('/billing/set-quotation-sequence', { 
             sequenceNumber: seqNum,
-            prefix: companySettings.invoicePrefix || 'MF/INV/25-26'
+            prefix: rawPrefix
           });
           if (res.data?.success) {
             setToastMessage({

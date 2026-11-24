@@ -134,12 +134,19 @@ exports.getInvoiceSettings = async (req, res, next) => {
         bankDetails: effectiveBankDetails,
         nextSequenceNumber: nextSeq,
         currentLastNumber: currentLast,
-        invoicePrefix: nextInvInfo.prefix || settings.invoicePrefix || 'MF/INV/25-26',
+        invoicePrefix: (nextInvInfo.prefix || settings.invoicePrefix || 'MF/INV/25-26')
+          .replace(/\/(ON|QN|QTN|QT)\//gi, '/INV/')
+          .replace(/\/ON\//gi, '/INV/'),
         nextInvoiceNumber: nextInvInfo.number,
         nextInvoiceNo: nextInvInfo.invoiceNo,
         nextQuotationNumber: nextQuoteInfo.number,
         nextQuotationNo: nextQuoteInfo.quotationNo,
-        quotationPrefix: nextQuoteInfo.prefix || 'MF/QN/25-26'
+        quotationPrefix: (nextQuoteInfo.prefix || 'MF/QN/25-26')
+          .replace(/\/(ON|INV|IN|QTN|QT)\//gi, '/QN/')
+          .replace(/\/ON\//gi, '/QN/')
+          .replace(/\/INV\//gi, '/QN/')
+          .replace(/INV/gi, 'QN')
+          .replace(/\bON\b/gi, 'QN')
       }
     });
   } catch (error) {
@@ -285,8 +292,16 @@ exports.setQuotationSequence = async (req, res, next) => {
     }
     const SettingModel = mongoose.model('Setting');
     const InvoiceSequenceModel = mongoose.model('InvoiceSequence');
-    const defaultPrefix = (prefix || 'MF/INV/25-26').trim();
-    const quotePrefix = defaultPrefix.replace(/INV/i, 'QN');
+    const rawPrefix = (prefix || 'MF/INV/25-26').trim();
+    const defaultPrefix = rawPrefix
+      .replace(/\/(ON|QN|QTN|QT)\//gi, '/INV/')
+      .replace(/\/ON\//gi, '/INV/');
+    const quotePrefix = rawPrefix
+      .replace(/\/(ON|INV|IN|QTN|QT)\//gi, '/QN/')
+      .replace(/\/ON\//gi, '/QN/')
+      .replace(/\/INV\//gi, '/QN/')
+      .replace(/INV/gi, 'QN')
+      .replace(/\bON\b/gi, 'QN');
 
     await InvoiceSequenceModel.findOneAndUpdate(
       { _id: 'singleton' },

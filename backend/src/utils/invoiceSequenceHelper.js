@@ -32,7 +32,10 @@ async function getNextInvoiceNumber({ commit = true, customPrefix = null } = {})
     InvoiceModel.find({}).select('invoiceNo sequenceNumber').lean()
   ]);
 
-  const defaultPrefix = (customPrefix || seq?.prefix || settings?.invoicePrefix || 'MF/INV/25-26').trim();
+  const rawPrefix = (customPrefix || seq?.prefix || settings?.invoicePrefix || 'MF/INV/25-26').trim();
+  const defaultPrefix = rawPrefix
+    .replace(/\/(ON|QN|QTN|QT)\//gi, '/INV/')
+    .replace(/\/ON\//gi, '/INV/');
 
   // 2. Scan all existing invoices to find the true highest assigned invoice number
   // Baseline is 14 (issued previously), so first next invoice must be 15, then 16, 17...
@@ -111,7 +114,15 @@ async function getNextQuotationNumber({ commit = true, customPrefix = null } = {
   ]);
 
   const rawPrefix = (customPrefix || seq?.prefix || settings?.invoicePrefix || 'MF/INV/25-26').trim();
-  const quotePrefix = rawPrefix.replace(/INV/i, 'QN');
+  const quotePrefix = rawPrefix
+    .replace(/\/(ON|INV|IN|QTN|QT)\//gi, '/QN/')
+    .replace(/\/ON\//gi, '/QN/')
+    .replace(/\/INV\//gi, '/QN/')
+    .replace(/INV/gi, 'QN')
+    .replace(/\bON\b/gi, 'QN');
+  const cleanInvPrefix = rawPrefix
+    .replace(/\/(ON|QN|QTN|QT)\//gi, '/INV/')
+    .replace(/\/ON\//gi, '/INV/');
   const configuredNext = settings?.nextQuotationNumber !== undefined 
     ? parseInt(settings.nextQuotationNumber, 10) 
     : 14;
@@ -138,7 +149,7 @@ async function getNextQuotationNumber({ commit = true, customPrefix = null } = {
   if (commit) {
     await InvoiceSequenceModel.findOneAndUpdate(
       { _id: 'singleton' },
-      { $set: { lastQuotationNumber: nextNumber, prefix: rawPrefix } },
+      { $set: { lastQuotationNumber: nextNumber, prefix: cleanInvPrefix } },
       { upsert: true, new: true }
     );
     await SettingModel.updateMany(
@@ -170,8 +181,16 @@ async function advanceSequenceNumber({ minTarget = null, prefix = null, isInvoic
     InvoiceSequenceModel.findById('singleton')
   ]);
 
-  const defaultPrefix = (prefix || seq?.prefix || settings?.invoicePrefix || 'MF/INV/25-26').trim();
-  const quotePrefix = defaultPrefix.replace(/INV/i, 'QN');
+  const rawDefaultPrefix = (prefix || seq?.prefix || settings?.invoicePrefix || 'MF/INV/25-26').trim();
+  const defaultPrefix = rawDefaultPrefix
+    .replace(/\/(ON|QN|QTN|QT)\//gi, '/INV/')
+    .replace(/\/ON\//gi, '/INV/');
+  const quotePrefix = rawDefaultPrefix
+    .replace(/\/(ON|INV|IN|QTN|QT)\//gi, '/QN/')
+    .replace(/\/ON\//gi, '/QN/')
+    .replace(/\/INV\//gi, '/QN/')
+    .replace(/INV/gi, 'QN')
+    .replace(/\bON\b/gi, 'QN');
 
   if (isInvoice) {
     const allInvoices = await InvoiceModel.find({}).select('invoiceNo').lean();

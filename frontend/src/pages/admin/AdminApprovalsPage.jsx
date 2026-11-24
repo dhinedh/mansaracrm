@@ -130,10 +130,13 @@ export default function AdminApprovalsPage() {
   // Format Helper: Converts Quotation No to expected Invoice No
   const getDerivedInvoiceNo = (quotationNo = '') => {
     if (!quotationNo) return 'INV-' + Date.now().toString().slice(-6);
+    if (quotationNo.includes('/ON/')) return quotationNo.replace(/\/ON\//g, '/INV/');
+    if (quotationNo.includes('/on/')) return quotationNo.replace(/\/on\//g, '/inv/');
     if (quotationNo.includes('QN')) return quotationNo.replace(/QN/g, 'INV');
     if (quotationNo.includes('qn')) return quotationNo.replace(/qn/g, 'inv');
     if (quotationNo.includes('QTN')) return quotationNo.replace(/QTN/g, 'INV');
     if (quotationNo.includes('qtn')) return quotationNo.replace(/qtn/g, 'inv');
+    if (quotationNo.startsWith('ON-')) return quotationNo.replace('ON-', 'INV-');
     if (quotationNo.startsWith('QN-')) return quotationNo.replace('QN-', 'INV-');
     if (quotationNo.startsWith('QTN-')) return quotationNo.replace('QTN-', 'INV-');
     if (quotationNo.startsWith('QT-')) return quotationNo.replace('QT-', 'INV-');

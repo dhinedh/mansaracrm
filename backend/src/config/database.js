@@ -2091,6 +2091,48 @@ async function runDatabaseMigrations() {
         }
       }
 
+      // Sanitize any legacy ON prefixes in InvoiceSequence and Setting models
+      await InvoiceSequence.updateMany(
+        { prefix: /ON/i },
+        { $set: { prefix: 'MF/INV/25-26' } }
+      ).catch(() => null);
+
+      await Setting.updateMany(
+        { key: 'invoice_settings', invoicePrefix: /ON/i },
+        { $set: { invoicePrefix: 'MF/INV/25-26' } }
+      ).catch(() => null);
+
+      // Clean up legacy quotations with /ON/ in quotationNo or quotationRefNumber -> normalize strictly to /QN/
+      const onQuotes = await QuotationModel.find({
+        $or: [
+          { quotationNo: /\/ON\//i },
+          { quotationRefNumber: /\/ON\//i }
+        ]
+      });
+      for (const q of onQuotes) {
+        let changed = false;
+        if (q.quotationNo && /\/ON\//i.test(q.quotationNo)) {
+          q.quotationNo = q.quotationNo.replace(/\/ON\//gi, '/QN/');
+          changed = true;
+        }
+        if (q.quotationRefNumber && /\/ON\//i.test(q.quotationRefNumber)) {
+          q.quotationRefNumber = q.quotationRefNumber.replace(/\/ON\//gi, '/QN/');
+          changed = true;
+        }
+        if (changed) {
+          await q.save().catch(() => null);
+          console.log(`[Migration] Sanitized quotation ${q._id} from /ON/ to /QN/: ${q.quotationNo}`);
+        }
+      }
+
+      // Clean up any invoices that accidentally received /ON/ -> normalize strictly to /INV/
+      const onInvoices = await InvoiceModel.find({ invoiceNo: /\/ON\//i });
+      for (const inv of onInvoices) {
+        inv.invoiceNo = inv.invoiceNo.replace(/\/ON\//gi, '/INV/');
+        await inv.save().catch(() => null);
+        console.log(`[Migration] Sanitized invoice ${inv._id} from /ON/ to /INV/: ${inv.invoiceNo}`);
+      }
+
       // Re-align any invoice that jumped to 0032 to 0014 so sequence continues smoothly from 15
       const jumped32 = await InvoiceModel.findOne({ invoiceNo: 'MF/INV/25-26/0032' });
       if (jumped32) {
