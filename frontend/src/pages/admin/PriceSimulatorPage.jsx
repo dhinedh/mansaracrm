@@ -1371,7 +1371,7 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
           <div className="flex items-center gap-2 w-full sm:w-auto justify-end shrink-0">
             <button
               type="button"
-              onClick={() => navigate('/admin/approvals')}
+              onClick={() => navigate('/admin/sales-approvals', { state: { quotationNo: submittedQuotation.quotationNo, activeTab: 'quotations' } })}
               className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold rounded-xl shadow-sm cursor-pointer flex items-center gap-1.5 transition active:scale-95"
             >
               <span>Go to Admin Approvals</span>

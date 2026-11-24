@@ -121,17 +121,19 @@ export default function NotificationsPage() {
 
     if (role === 'ADMIN') {
       const isQuotation = m.actionType === 'QUOTATION_APPROVAL' || !!m.quotationId || !!m.quotationNo || (n.title && n.title.toLowerCase().includes('quotation approval'));
-      if (n.type === 'ORDER_REQUEST' || m.actionType === 'ORDER_REQUEST' || m.fieldOrderId) {
+      const isMargin = m.actionType === 'MARGIN_REQUEST' || !!m.marginRequestId;
+
+      if (isQuotation) {
+        const quoteNo = m.quotationNo || (n.title?.match(/MF\/(?:QN|INV)\/[^\s\)\:]+/i)?.[0]) || (n.message?.match(/MF\/(?:QN|INV)\/[^\s\)\:]+/i)?.[0]);
+        navigate('/admin/sales-approvals', { state: { quotationId: m.quotationId, quotationNo: quoteNo, activeTab: 'quotations' } });
+      } else if (isMargin) {
+        navigate('/admin/sales-approvals', { state: { marginRequestId: m.marginRequestId, activeTab: 'margins' } });
+      } else if (n.type === 'ORDER_REQUEST' || m.actionType === 'ORDER_REQUEST' || m.fieldOrderId) {
         navigate('/admin/field-orders', { state: { orderId: m.fieldOrderId, orderNumber: m.orderNumber } });
       } else if (m.actionType === 'STORE_VISIT' || m.actionType === 'VISIT_CHECKOUT' || m.actionType === 'BEAT_VISIT' || m.visitId) {
         navigate('/admin/store-visits', { state: { visitId: m.visitId } });
-      } else if (m.actionType === 'NEW_STORE_LEAD' || m.actionType === 'STOCK_AUDIT' || m.actionType === 'STOCK_ADJUSTMENT' || m.storeId) {
+      } else if (m.actionType === 'NEW_STORE_LEAD' || m.actionType === 'STOCK_AUDIT' || m.actionType === 'STOCK_ADJUSTMENT') {
         navigate('/admin/retail-stores', { state: { storeId: m.storeId } });
-      } else if (isQuotation) {
-        const quoteNo = m.quotationNo || (n.title?.match(/MF\/(?:QN|INV)\/[^\s\)\:]+/i)?.[0]) || (n.message?.match(/MF\/(?:QN|INV)\/[^\s\)\:]+/i)?.[0]);
-        navigate('/admin/approvals', { state: { quotationId: m.quotationId, quotationNo: quoteNo, activeTab: 'quotations' } });
-      } else if (m.actionType === 'MARGIN_REQUEST' || m.marginRequestId) {
-        navigate('/admin/approvals', { state: { marginRequestId: m.marginRequestId, activeTab: 'margins' } });
       } else if (m.actionType === 'PAYMENT_COLLECTION') {
         navigate('/admin/collections');
       } else if (n.type === 'STOCK_TRANSFER' || n.type === 'DELIVERY_UPDATE') {
@@ -140,6 +142,8 @@ export default function NotificationsPage() {
         navigate('/admin/invoice-ledger', { state: { invoiceId } });
       } else if (n.type === 'ACCOUNT_UPDATE') {
         navigate('/admin/dealers', { state: { dealerId } });
+      } else if (m.storeId) {
+        navigate('/admin/retail-stores', { state: { storeId: m.storeId } });
       } else if (n.type === 'SYSTEM') {
         // Differentiate SYSTEM sub-types by metadata key
         if (requestId)  navigate('/admin/requests',  { state: { requestId } });
@@ -348,16 +352,17 @@ export default function NotificationsPage() {
                   const { requestId, returnId, ticketId, transferId, invoiceId } = m;
                   let destLabel = null;
                   const isQuotation = m.actionType === 'QUOTATION_APPROVAL' || !!m.quotationId || !!m.quotationNo || (n.title && n.title.toLowerCase().includes('quotation approval'));
-                  if (n.type === 'ORDER_REQUEST' || m.actionType === 'ORDER_REQUEST' || m.fieldOrderId) {
+                  const isMargin = m.actionType === 'MARGIN_REQUEST' || !!m.marginRequestId;
+                  if (isQuotation) {
+                    destLabel = '→ Approvals';
+                  } else if (isMargin) {
+                    destLabel = '→ Approvals';
+                  } else if (n.type === 'ORDER_REQUEST' || m.actionType === 'ORDER_REQUEST' || m.fieldOrderId) {
                     destLabel = '→ Field Orders';
                   } else if (m.actionType === 'STORE_VISIT' || m.actionType === 'VISIT_CHECKOUT' || m.actionType === 'BEAT_VISIT' || m.visitId) {
                     destLabel = '→ Store Visits';
                   } else if (m.actionType === 'NEW_STORE_LEAD' || m.actionType === 'STOCK_AUDIT' || m.actionType === 'STOCK_ADJUSTMENT') {
                     destLabel = '→ Stores & Stock';
-                  } else if (isQuotation) {
-                    destLabel = '→ Approvals';
-                  } else if (m.actionType === 'MARGIN_REQUEST') {
-                    destLabel = '→ Approvals';
                   } else if (m.actionType === 'PAYMENT_COLLECTION') {
                     destLabel = '→ Collections';
                   } else if (n.type === 'STOCK_TRANSFER' || n.type === 'DELIVERY_UPDATE') {
@@ -366,6 +371,8 @@ export default function NotificationsPage() {
                     destLabel = role === 'ADMIN' ? '→ Invoice Ledger' : '→ Ledger / Invoices';
                   } else if (n.type === 'ACCOUNT_UPDATE') {
                     destLabel = role === 'ADMIN' ? '→ Dealers' : '→ My Profile';
+                  } else if (m.storeId) {
+                    destLabel = '→ Stores & Stock';
                   } else if (n.type === 'SYSTEM') {
                     if (requestId) destLabel = role === 'ADMIN' ? '→ Purchase Orders' : '→ My Requests';
                     else if (returnId) destLabel = '→ Returns';

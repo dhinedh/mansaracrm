@@ -384,6 +384,11 @@ export default function App() {
               <AdminApprovalsPage />
             </ProtectedRoute>
           } />
+          <Route path="approvals" element={
+            <ProtectedRoute allowedStaffRoles={['ADMIN', 'B2B_MANAGER', 'FINANCE_OFFICER']}>
+              <AdminApprovalsPage />
+            </ProtectedRoute>
+          } />
           <Route path="sales-dar" element={
             <ProtectedRoute allowedStaffRoles={['ADMIN', 'B2B_MANAGER']}>
               <AdminDarAuditPage />
