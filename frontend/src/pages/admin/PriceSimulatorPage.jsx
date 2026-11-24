@@ -39,7 +39,8 @@ import {
   Download,
   Share2,
   Loader2,
-  Receipt
+  Receipt,
+  PenLine
 } from 'lucide-react';
 import WhatsAppShareModal from '../../components/WhatsAppShareModal';
 import {
@@ -1066,7 +1067,7 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
 
     const rawPrefix = currentSettings.invoicePrefix || 'MF/INV/25-26';
     const nextSeq = currentSettings.nextQuotationNumber || currentSettings.nextSequenceNumber || 14;
-    const standardRef = currentSettings.nextQuotationNo || getStandardQuotationRef(currentSettings.quotationPrefix || rawPrefix, nextSeq);
+    const standardRef = quotationRefNumber || currentSettings.nextQuotationNo || getStandardQuotationRef(currentSettings.quotationPrefix || rawPrefix, nextSeq);
     setQuotationRefNumber(standardRef);
     setShowQuotationModal(true);
   };
@@ -2470,10 +2471,30 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
               #
             </span>
             <div>
-              <span className="text-[10px] font-extrabold uppercase tracking-wider text-rose-800 block">Current Quotation Ref</span>
-              <span className="font-mono font-black text-rose-900 text-sm tracking-tight">
-                {quotationRefNumber || companySettings.nextQuotationNo || getStandardQuotationRef(companySettings.quotationPrefix || companySettings.invoicePrefix, companySettings.nextQuotationNumber || 14)}
-              </span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-rose-800 block">Current Quotation Ref</span>
+                <span className="text-[9px] font-bold text-rose-600 bg-rose-100/90 border border-rose-200 px-1.5 py-0.5 rounded flex items-center gap-0.5">
+                  <PenLine className="w-2.5 h-2.5" /> Edit Sequence #
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <input
+                  type="text"
+                  value={quotationRefNumber || ''}
+                  onChange={(e) => setQuotationRefNumber(e.target.value)}
+                  onBlur={(e) => {
+                    const formatted = ensureQuotationRef(
+                      e.target.value,
+                      companySettings.quotationPrefix || companySettings.invoicePrefix || 'MF/INV/25-26',
+                      companySettings.nextQuotationNumber || 14
+                    );
+                    setQuotationRefNumber(formatted);
+                  }}
+                  placeholder="MF/QN/25-26/0014"
+                  className="font-mono font-black text-rose-900 text-sm tracking-tight bg-white border border-rose-300 rounded-lg px-2.5 py-1 focus:outline-none focus:ring-2 focus:ring-rose-500 shadow-2xs w-48 sm:w-56"
+                  title="Click to edit sequence or quotation number"
+                />
+              </div>
             </div>
           </div>
           <div className="text-[11px] font-semibold text-slate-500 bg-white/80 border border-slate-200/60 px-3 py-1 rounded-xl">

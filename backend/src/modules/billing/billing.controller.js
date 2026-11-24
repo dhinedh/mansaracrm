@@ -209,6 +209,13 @@ exports.updateInvoiceSettings = async (req, res, next) => {
       ...(signatoryName !== undefined && { signatoryName })
     };
 
+    if (req.body.nextQuotationNumber !== undefined) {
+      const parsedQuoteSeq = parseInt(req.body.nextQuotationNumber, 10);
+      if (!isNaN(parsedQuoteSeq)) {
+        updateData.nextQuotationNumber = parsedQuoteSeq;
+      }
+    }
+
     if (settings) {
       settings = await prisma.setting.update({
         where: { id: settings.id || settings._id },
@@ -224,21 +231,31 @@ exports.updateInvoiceSettings = async (req, res, next) => {
     }
 
     // Sync sequence number & prefix if updated
-    if (nextSequenceNumber !== undefined || invoicePrefix !== undefined) {
+    if (nextSequenceNumber !== undefined || req.body.nextQuotationNumber !== undefined || invoicePrefix !== undefined) {
       const seqId = 'singleton';
       const parsedSeq = parseInt(nextSequenceNumber, 10);
       const newLast = !isNaN(parsedSeq) ? Math.max(0, parsedSeq - 1) : undefined;
       const prefixToUse = invoicePrefix || settings.invoicePrefix || 'MF/INV/25-26';
 
+      const updateSeq = {
+        ...(newLast !== undefined && { lastNumber: newLast, lastInvoiceNumber: newLast }),
+        ...(prefixToUse && { prefix: prefixToUse })
+      };
+      if (req.body.nextQuotationNumber !== undefined) {
+        const parsedQuoteSeq = parseInt(req.body.nextQuotationNumber, 10);
+        if (!isNaN(parsedQuoteSeq)) {
+          updateSeq.lastQuotationNumber = Math.max(0, parsedQuoteSeq - 1);
+        }
+      }
+
       await prisma.invoiceSequence.upsert({
         where: { id: seqId },
-        update: {
-          ...(newLast !== undefined && { lastNumber: newLast }),
-          ...(prefixToUse && { prefix: prefixToUse })
-        },
+        update: updateSeq,
         create: {
           id: seqId,
-          lastNumber: newLast !== undefined ? newLast : 9,
+          lastNumber: newLast !== undefined ? newLast : 14,
+          lastInvoiceNumber: newLast !== undefined ? newLast : 14,
+          lastQuotationNumber: req.body.nextQuotationNumber ? Math.max(0, parseInt(req.body.nextQuotationNumber, 10) - 1) : 14,
           prefix: prefixToUse
         }
       });

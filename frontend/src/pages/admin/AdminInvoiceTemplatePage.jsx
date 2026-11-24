@@ -74,6 +74,7 @@ export default function AdminInvoiceTemplatePage() {
   const [email, setEmail] = useState(OFFICIAL_DEFAULTS.email);
   const [invoicePrefix, setInvoicePrefix] = useState(OFFICIAL_DEFAULTS.invoicePrefix);
   const [nextSequenceNumber, setNextSequenceNumber] = useState(OFFICIAL_DEFAULTS.nextSequenceNumber);
+  const [nextQuotationNumber, setNextQuotationNumber] = useState(14);
   const [placeOfSupply, setPlaceOfSupply] = useState(OFFICIAL_DEFAULTS.placeOfSupply);
   const [invoiceTerms, setInvoiceTerms] = useState(OFFICIAL_DEFAULTS.invoiceTerms);
   const [bankName, setBankName] = useState('');
@@ -106,6 +107,7 @@ export default function AdminInvoiceTemplatePage() {
         if (s.email) setEmail(s.email);
         if (s.invoicePrefix) setInvoicePrefix(s.invoicePrefix);
         if (s.nextSequenceNumber !== undefined) setNextSequenceNumber(s.nextSequenceNumber);
+        if (s.nextQuotationNumber !== undefined) setNextQuotationNumber(s.nextQuotationNumber);
         if (s.placeOfSupply) setPlaceOfSupply(s.placeOfSupply);
         if (s.invoiceTerms) setInvoiceTerms(s.invoiceTerms);
         if (s.bankDetails) {
@@ -172,6 +174,7 @@ export default function AdminInvoiceTemplatePage() {
         email,
         invoicePrefix,
         nextSequenceNumber: parseInt(nextSequenceNumber, 10) || 1,
+        nextQuotationNumber: parseInt(nextQuotationNumber, 10) || 1,
         placeOfSupply,
         invoiceTerms,
         bankDetails: {
@@ -474,7 +477,7 @@ export default function AdminInvoiceTemplatePage() {
                       Sequential
                     </span>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div>
                       <label className="block text-[11px] font-bold text-slate-600 mb-1">Series Prefix</label>
                       <input
@@ -486,22 +489,41 @@ export default function AdminInvoiceTemplatePage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-[11px] font-bold text-slate-600 mb-1">Next Sequence Counter</label>
+                      <label className="block text-[11px] font-bold text-slate-600 mb-1">Next Invoice Counter</label>
                       <input
                         type="number"
                         min="1"
                         value={nextSequenceNumber}
                         onChange={(e) => setNextSequenceNumber(e.target.value)}
-                        placeholder="e.g. 11"
+                        placeholder="e.g. 15"
+                        className="w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-rose-500 font-semibold font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-600 mb-1">Next Quotation Counter</label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={nextQuotationNumber}
+                        onChange={(e) => setNextQuotationNumber(e.target.value)}
+                        placeholder="e.g. 36"
                         className="w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-rose-500 font-semibold font-mono"
                       />
                     </div>
                   </div>
-                  <div className="flex items-center justify-between text-[11px] pt-1 border-t border-slate-200/80">
-                    <span className="text-slate-500">Next Generated Invoice Will Be:</span>
-                    <span className="font-mono font-black text-rose-700 bg-white px-2 py-0.5 rounded border border-slate-250">
-                      {formattedInvoiceNoPreview}
-                    </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] pt-1 border-t border-slate-200/80">
+                    <div className="flex items-center justify-between bg-white px-2.5 py-1 rounded border border-slate-200">
+                      <span className="text-slate-500">Next Invoice Will Be:</span>
+                      <span className="font-mono font-black text-rose-700">
+                        {formattedInvoiceNoPreview}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between bg-white px-2.5 py-1 rounded border border-slate-200">
+                      <span className="text-slate-500">Next Quotation Will Be:</span>
+                      <span className="font-mono font-black text-emerald-700">
+                        {formatInvoiceNumber(invoicePrefix.replace(/INV/gi, 'QN'), nextQuotationNumber)}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
