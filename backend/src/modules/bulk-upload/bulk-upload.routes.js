@@ -39,8 +39,8 @@ const upload = multer({
 router.use(verifyToken);
 
 router.get('/template/:module', bulkUploadController.downloadTemplate);
-router.get('/history', requireRole(['ADMIN', 'B2B_MANAGER']), bulkUploadController.getUploadHistory);
+router.get('/history', requireRole('ADMIN', 'B2B_MANAGER'), bulkUploadController.getUploadHistory);
 router.post('/validate', upload.single('file'), bulkUploadController.validateUpload);
-router.post('/commit', requireRole(['ADMIN', 'B2B_MANAGER']), bulkUploadController.commitUpload);
+router.post('/commit', requireRole('ADMIN', 'B2B_MANAGER'), bulkUploadController.commitUpload);
 
 module.exports = router;

@@ -92,9 +92,10 @@ exports.getDealerStores = async (req, res, next) => {
 exports.createStore = async (req, res, next) => {
   try {
     let dealerId = null;
+    const allowedRoles = ['ADMIN', 'SALES', 'SALESPERSON', 'B2B_MANAGER'];
     if (req.user.role === 'DEALER') {
       dealerId = req.user.dealer?.id || null;
-    } else if (req.user.role === 'ADMIN' || req.user.role === 'SALES' || req.user.role === 'B2B_MANAGER') {
+    } else if (allowedRoles.includes(req.user.role) || allowedRoles.includes(req.user.staffRole)) {
       // Optional explicit dealerId assignment; do NOT force arbitrary default dealer
       if (req.body.dealerId && mongoose.Types.ObjectId.isValid(req.body.dealerId)) {
         dealerId = req.body.dealerId;
@@ -127,11 +128,13 @@ exports.createStore = async (req, res, next) => {
       }
     }
 
+    const escapeRegex = (str) => String(str || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
     // Check for exact name + city duplicate
     if (city) {
       const existingName = await StoreModel.findOne({
-        name: new RegExp(`^${name.trim()}$`, 'i'),
-        city: new RegExp(`^${city.trim()}$`, 'i'),
+        name: new RegExp(`^${escapeRegex(name.trim())}$`, 'i'),
+        city: new RegExp(`^${escapeRegex(city.trim())}$`, 'i'),
         isActive: true
       });
       if (existingName) {

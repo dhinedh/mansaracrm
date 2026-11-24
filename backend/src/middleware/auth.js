@@ -34,7 +34,8 @@ const verifyToken = async (req, res, next) => {
 const requireRole = (...roles) => (req, res, next) => {
   const userRole = (req.user?.role || '').toUpperCase();
   const staffRole = (req.user?.staffRole || '').toUpperCase();
-  const normalizedRoles = roles.map(r => r.toUpperCase());
+  const flatRoles = roles.flat(Infinity);
+  const normalizedRoles = flatRoles.map(r => String(r || '').toUpperCase());
   if (!normalizedRoles.includes(userRole) && !normalizedRoles.includes(staffRole)) {
     return res.status(403).json({ success: false, message: 'Insufficient permissions' });
   }
@@ -51,7 +52,8 @@ const requireStaffRole = (...staffRoles) => (req, res, next) => {
   if (!req.user?.staffRole || staffRole === 'ADMIN') {
     return next();
   }
-  const normalizedStaffRoles = staffRoles.map(s => s.toUpperCase());
+  const flatStaffRoles = staffRoles.flat(Infinity);
+  const normalizedStaffRoles = flatStaffRoles.map(s => String(s || '').toUpperCase());
   if (!normalizedStaffRoles.includes(staffRole)) {
     return res.status(403).json({ success: false, message: 'You do not have privilege access for this module' });
   }

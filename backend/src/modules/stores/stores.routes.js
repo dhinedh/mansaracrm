@@ -14,13 +14,13 @@ router.get('/', storesController.getDealerStores);
 // Shop-wise Order Tracking & Stock Tracking (accessible without active check-in)
 router.get('/:id/orders', storesController.getStoreOrders);
 router.get('/:id/stock', storesController.getStoreStock);
-router.put('/:id/stock', requireRole(['ADMIN', 'B2B_MANAGER', 'DEALER']), storesController.updateStoreStock);
+router.put('/:id/stock', requireRole('ADMIN', 'B2B_MANAGER', 'DEALER'), storesController.updateStoreStock);
 
 // Location Matching & Verification
 router.put('/:id/match-location', storesController.matchStoreLocation);
-router.put('/:id/verify-location', requireRole(['ADMIN', 'B2B_MANAGER']), storesController.verifyStoreLocation);
+router.put('/:id/verify-location', requireRole('ADMIN', 'B2B_MANAGER'), storesController.verifyStoreLocation);
 
-router.post('/', requireRole(['DEALER', 'ADMIN', 'SALES', 'SALESPERSON', 'B2B_MANAGER']), validate([
+router.post('/', requireRole('DEALER', 'ADMIN', 'SALES', 'SALESPERSON', 'B2B_MANAGER'), validate([
   body('name').notEmpty().withMessage('Store name is required'),
   body('address').notEmpty().withMessage('Address is required')
 ]), storesController.createStore);
