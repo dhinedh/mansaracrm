@@ -1,5 +1,5 @@
 // src/pages/admin/ExpensesPage.jsx
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   Plus, 
   Receipt, 
@@ -23,7 +23,9 @@ import {
   PieChart,
   Grid,
   CheckCircle,
-  Briefcase
+  Briefcase,
+  Check,
+  ChevronDown
 } from 'lucide-react';
 import { useAuthStore, BACKEND_URL } from '../../store/authStore';
 import axiosInstance from 'axios';
@@ -36,6 +38,20 @@ const CATEGORY_MAP = {
   MARKETING:  { label: 'Marketing & Promo',  color: 'rose',    bg: 'bg-rose-50 text-rose-700 border-rose-100',       barBg: 'bg-rose-500' },
   RENT:       { label: 'Rent & Utilities',   color: 'violet',  bg: 'bg-violet-50 text-violet-700 border-violet-100',   barBg: 'bg-violet-500' },
   OTHERS:     { label: 'Miscellaneous',      color: 'slate',   bg: 'bg-slate-50 text-slate-700 border-slate-100',     barBg: 'bg-slate-500' },
+};
+
+const DEFAULT_CATEGORIES = ['TRAVEL', 'FOOD', 'STATIONERY', 'MARKETING', 'RENT', 'OTHERS'];
+
+const getCategoryStyle = (cat) => {
+  if (!cat) return CATEGORY_MAP.OTHERS;
+  const upper = String(cat).toUpperCase();
+  if (CATEGORY_MAP[upper]) return CATEGORY_MAP[upper];
+  return {
+    label: cat,
+    color: 'teal',
+    bg: 'bg-teal-50 text-teal-700 border-teal-100',
+    barBg: 'bg-teal-500'
+  };
 };
 
 function StatCard({ title, value, sub, icon: Icon, color = 'emerald' }) {
@@ -92,6 +108,70 @@ export default function ExpensesPage() {
   const [notes, setNotes] = useState('');
   const [uploadingBill, setUploadingBill] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  // Category search & select combobox states
+  const [customCategories, setCustomCategories] = useState([]);
+  const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
+  const [categorySearch, setCategorySearch] = useState('');
+  const categoryDropdownRef = useRef(null);
+
+  // Close category dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (categoryDropdownRef.current && !categoryDropdownRef.current.contains(e.target)) {
+        setIsCategoryDropdownOpen(false);
+      }
+    };
+    if (isCategoryDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isCategoryDropdownOpen]);
+
+  // Combine default, custom, and already recorded expense categories
+  const allAvailableCategories = useMemo(() => {
+    const fromExpenses = expenses.map(e => e.category?.toUpperCase()).filter(Boolean);
+    return Array.from(new Set([
+      ...DEFAULT_CATEGORIES,
+      ...customCategories,
+      ...fromExpenses
+    ]));
+  }, [expenses, customCategories]);
+
+  // Filtered categories based on search input
+  const filteredCategoryOptions = useMemo(() => {
+    if (!categorySearch.trim()) return allAvailableCategories;
+    const q = categorySearch.trim().toLowerCase();
+    return allAvailableCategories.filter(c => {
+      const label = CATEGORY_MAP[c]?.label || '';
+      return c.toLowerCase().includes(q) || label.toLowerCase().includes(q);
+    });
+  }, [allAvailableCategories, categorySearch]);
+
+  const canAddNewCategory = useMemo(() => {
+    const q = categorySearch.trim().toUpperCase();
+    if (!q) return false;
+    return !allAvailableCategories.some(c => c.toUpperCase() === q);
+  }, [allAvailableCategories, categorySearch]);
+
+  const handleSelectCategory = (catName) => {
+    setCategory(catName);
+    setIsCategoryDropdownOpen(false);
+    setCategorySearch('');
+  };
+
+  const handleAddNewCategory = (catName) => {
+    const formatted = catName.trim().toUpperCase();
+    if (!formatted) return;
+    if (!customCategories.includes(formatted) && !DEFAULT_CATEGORIES.includes(formatted)) {
+      setCustomCategories(prev => [...prev, formatted]);
+    }
+    setCategory(formatted);
+    setIsCategoryDropdownOpen(false);
+    setCategorySearch('');
+  };
 
   // Detail View and Image View Modal
   const [selectedExpense, setSelectedExpense] = useState(null);
@@ -156,7 +236,7 @@ export default function ExpensesPage() {
         title,
         amount: parseFloat(amount),
         date,
-        category,
+        category: (category || 'TRAVEL').trim().toUpperCase(),
         storeId: storeId || null,
         stallSessionId: stallSessionId || null,
         billUrl,
@@ -165,6 +245,8 @@ export default function ExpensesPage() {
       setTitle('');
       setAmount('');
       setCategory('TRAVEL');
+      setIsCategoryDropdownOpen(false);
+      setCategorySearch('');
       setStoreId('');
       setStallSessionId('');
       setBillUrl('');
@@ -252,11 +334,18 @@ export default function ExpensesPage() {
       catMap[exp.category] = (catMap[exp.category] || 0) + amt;
     });
 
-    const categorySummary = Object.entries(CATEGORY_MAP).map(([key, cfg]) => {
+    const allCatKeys = Array.from(new Set([
+      ...DEFAULT_CATEGORIES,
+      ...filteredExpenses.map(e => e.category?.toUpperCase()).filter(Boolean)
+    ]));
+
+    const categorySummary = allCatKeys.map(key => {
+      const cfg = getCategoryStyle(key);
       const val = catMap[key] || 0;
       const pct = total > 0 ? (val / total) * 100 : 0;
-      return { key, label: cfg.label, val, pct, barBg: cfg.barBg, textClass: cfg.bg.split(' ')[1] };
-    }).sort((a, b) => b.val - a.val);
+      return { key, label: cfg.label || key, val, pct, barBg: cfg.barBg, textClass: cfg.bg.split(' ')[1] };
+    }).filter(c => c.val > 0 || DEFAULT_CATEGORIES.includes(c.key))
+      .sort((a, b) => b.val - a.val);
 
     return {
       total,
@@ -350,8 +439,10 @@ export default function ExpensesPage() {
             >
               All Categories ({expenses.length})
             </button>
-            {Object.entries(CATEGORY_MAP).map(([key, cfg]) => {
+            {allAvailableCategories.map(key => {
+              const cfg = getCategoryStyle(key);
               const count = expenses.filter(e => e.category === key).length;
+              if (count === 0 && !DEFAULT_CATEGORIES.includes(key)) return null;
               return (
                 <button
                   key={key}
@@ -362,7 +453,7 @@ export default function ExpensesPage() {
                       : 'bg-slate-50 hover:bg-slate-100 text-slate-650 border-slate-200'
                   }`}
                 >
-                  {cfg.label.split(' ')[0]} ({count})
+                  {(cfg.label || key).split(' ')[0]} ({count})
                 </button>
               );
             })}
@@ -461,7 +552,7 @@ export default function ExpensesPage() {
                   </thead>
                   <tbody>
                     {filteredExpenses.map((exp) => {
-                      const cfg = CATEGORY_MAP[exp.category] || CATEGORY_MAP.OTHERS;
+                      const cfg = getCategoryStyle(exp.category);
                       const statusVal = exp.status || 'SUBMITTED';
                       const statusBadge = {
                         SUBMITTED: 'bg-blue-50 text-blue-700 border-blue-100',
@@ -483,7 +574,7 @@ export default function ExpensesPage() {
                           </td>
                           <td className="p-4">
                             <span className={`inline-flex px-2 py-0.5 rounded-full font-black text-[9px] uppercase border ${cfg.bg}`}>
-                              {cfg.label.split(' ')[0]}
+                              {exp.category || cfg.label.split(' ')[0]}
                             </span>
                           </td>
                           <td className="p-4 text-center text-slate-500 font-semibold">{new Date(exp.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
@@ -537,7 +628,7 @@ export default function ExpensesPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <span className="text-slate-400 font-bold block uppercase text-[9px]">Category</span>
-                  <span className={`inline-flex px-2 py-0.5 rounded-full font-black text-[9px] uppercase border mt-1 ${CATEGORY_MAP[selectedExpense.category]?.bg}`}>
+                  <span className={`inline-flex px-2 py-0.5 rounded-full font-black text-[9px] uppercase border mt-1 ${getCategoryStyle(selectedExpense.category).bg}`}>
                     {selectedExpense.category}
                   </span>
                 </div>
@@ -648,7 +739,7 @@ export default function ExpensesPage() {
                 <Receipt className="w-5.5 h-5.5 text-emerald-600" />
                 Add Expense Entry
               </h2>
-              <button onClick={() => setShowAddModal(false)} className="text-slate-400 hover:text-slate-650 cursor-pointer">
+              <button onClick={() => { setShowAddModal(false); setIsCategoryDropdownOpen(false); setCategorySearch(''); }} className="text-slate-400 hover:text-slate-650 cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -691,21 +782,122 @@ export default function ExpensesPage() {
                   />
                 </div>
 
-                <div>
-                  <label className="block uppercase tracking-wider mb-1">Category</label>
-                  <select
-                    value={category}
-                    onChange={(e) => setCategory(e.target.value)}
-                    required
-                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl font-semibold text-sm bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500 text-slate-700"
+                <div className="relative" ref={categoryDropdownRef}>
+                  <label className="block uppercase tracking-wider mb-1 flex items-center justify-between">
+                    <span>Category</span>
+                    <span className="text-[10px] text-slate-400 font-normal">Search or Add New</span>
+                  </label>
+
+                  {/* Trigger Button displaying current category */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsCategoryDropdownOpen(prev => !prev);
+                      setCategorySearch('');
+                    }}
+                    className="w-full px-3 py-2.5 bg-slate-50 hover:bg-slate-100/70 border border-slate-200 rounded-2xl font-semibold text-sm bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500 text-slate-700 flex items-center justify-between cursor-pointer transition text-left"
                   >
-                    <option value="TRAVEL">TRAVEL</option>
-                    <option value="FOOD">FOOD</option>
-                    <option value="STATIONERY">STATIONERY</option>
-                    <option value="MARKETING">MARKETING</option>
-                    <option value="RENT">RENT</option>
-                    <option value="OTHERS">OTHERS</option>
-                  </select>
+                    <div className="flex items-center gap-2 truncate">
+                      <span className={`w-2 h-2 rounded-full ${getCategoryStyle(category).barBg}`} />
+                      <span className="font-bold text-slate-800">{category}</span>
+                      {CATEGORY_MAP[category]?.label && (
+                        <span className="text-slate-400 text-xs font-normal truncate">
+                          ({CATEGORY_MAP[category].label})
+                        </span>
+                      )}
+                    </div>
+                    <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-200 shrink-0 ${isCategoryDropdownOpen ? 'rotate-180 text-emerald-600' : ''}`} />
+                  </button>
+
+                  {/* Dropdown Menu with Search input & Option list */}
+                  {isCategoryDropdownOpen && (
+                    <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-2xl shadow-2xl z-30 p-2.5 space-y-2 animate-in fade-in zoom-in-95 duration-150">
+                      {/* Search Input Box */}
+                      <div className="relative">
+                        <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
+                        <input
+                          type="text"
+                          autoFocus
+                          value={categorySearch}
+                          onChange={(e) => setCategorySearch(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              if (canAddNewCategory) {
+                                handleAddNewCategory(categorySearch);
+                              } else if (filteredCategoryOptions.length > 0) {
+                                handleSelectCategory(filteredCategoryOptions[0]);
+                              }
+                            } else if (e.key === 'Escape') {
+                              setIsCategoryDropdownOpen(false);
+                            }
+                          }}
+                          placeholder="Search or type new category..."
+                          className="w-full pl-8 pr-7 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:bg-white text-slate-800"
+                        />
+                        {categorySearch && (
+                          <button
+                            type="button"
+                            onClick={() => setCategorySearch('')}
+                            className="absolute right-2 top-2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Filtered Category Options */}
+                      <div className="max-h-48 overflow-y-auto space-y-0.5 pr-0.5 text-xs">
+                        {filteredCategoryOptions.map(catKey => {
+                          const isSelected = category === catKey;
+                          const cfg = getCategoryStyle(catKey);
+                          return (
+                            <button
+                              key={catKey}
+                              type="button"
+                              onClick={() => handleSelectCategory(catKey)}
+                              className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition text-left cursor-pointer ${
+                                isSelected 
+                                  ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' 
+                                  : 'hover:bg-slate-50 text-slate-700'
+                              }`}
+                            >
+                              <span className="flex items-center gap-2 truncate">
+                                <span className={`w-2 h-2 rounded-full ${cfg.barBg}`} />
+                                <span>{catKey}</span>
+                                {CATEGORY_MAP[catKey]?.label && (
+                                  <span className="text-[10px] text-slate-400 font-normal truncate">({CATEGORY_MAP[catKey].label})</span>
+                                )}
+                              </span>
+                              {isSelected && <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />}
+                            </button>
+                          );
+                        })}
+
+                        {filteredCategoryOptions.length === 0 && !canAddNewCategory && (
+                          <div className="py-3 px-2 text-center text-slate-400 text-xs italic">
+                            No categories found
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Add as New Category Action */}
+                      {canAddNewCategory && (
+                        <div className="pt-1.5 border-t border-slate-100">
+                          <button
+                            type="button"
+                            onClick={() => handleAddNewCategory(categorySearch)}
+                            className="w-full flex items-center gap-2 px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-dashed border-emerald-300 rounded-xl text-xs font-bold transition cursor-pointer text-left"
+                          >
+                            <Plus className="w-4 h-4 shrink-0 text-emerald-600" />
+                            <span className="truncate">
+                              Add <strong className="underline underline-offset-2">"{categorySearch.trim().toUpperCase()}"</strong> as new category
+                            </span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <div>
@@ -774,7 +966,7 @@ export default function ExpensesPage() {
               <div className="flex gap-3 justify-end pt-4 border-t border-slate-100">
                 <button
                   type="button"
-                  onClick={() => setShowAddModal(false)}
+                  onClick={() => { setShowAddModal(false); setIsCategoryDropdownOpen(false); setCategorySearch(''); }}
                   className="px-4 py-2.5 rounded-2xl font-semibold text-sm border border-slate-200 hover:bg-slate-50 transition cursor-pointer"
                 >
                   Cancel
