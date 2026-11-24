@@ -223,10 +223,10 @@ export const normalizeQuotationData = (raw = {}) => {
 
   const rawRefCandidate = isApprovedInvoice 
     ? (raw.invoiceNo || raw.invoiceNumber || getDerivedInvoiceNo(raw.quotationRefNumber || raw.quotationNo)) 
-    : (raw.quotationRefNumber || raw.quotationNo || getStandardQuotationRef(company.invoicePrefix || 'MF/INV/25-26', company.nextSequenceNumber || 14));
+    : (raw.quotationRefNumber || raw.quotationNo || getStandardQuotationRef(company.quotationPrefix || company.invoicePrefix || 'MF/INV/25-26', company.nextQuotationNumber || company.nextSequenceNumber || 14));
   const refNo = isApprovedInvoice
     ? ensure4DigitInvoiceNo(rawRefCandidate, company.invoicePrefix || 'MF/INV/25-26', company.nextSequenceNumber || 10)
-    : ensureQuotationRef(rawRefCandidate, company.invoicePrefix || 'MF/INV/25-26', company.nextSequenceNumber || 14);
+    : ensureQuotationRef(rawRefCandidate, company.quotationPrefix || company.invoicePrefix || 'MF/INV/25-26', company.nextQuotationNumber || company.nextSequenceNumber || 14);
   const dateCandidate = isApprovedInvoice 
     ? (raw.invoiceDate || raw.date || raw.approvedAt || raw.createdAt) 
     : (raw.date || raw.createdAt);

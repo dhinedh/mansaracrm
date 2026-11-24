@@ -2160,7 +2160,43 @@ exports.createQuotation = async (req, res, next) => {
     let isCollision = false;
     if (finalQuotationNo) {
       const collision = await QuotationModel.findOne({ quotationNo: finalQuotationNo });
-      if (collision) isCollision = true;
+      if (collision) {
+        if (collision.status === 'PENDING_APPROVAL') {
+          // If a quotation with this requested number exists and is pending approval, update it directly
+          collision.customerName = resolvedCustomerName;
+          collision.customerPhone = resolvedCustomerPhone;
+          collision.customerAddress = resolvedCustomerAddress;
+          if (customerType) collision.customerType = customerType;
+          if (customerId) collision.customerId = customerId;
+          if (dealerId) collision.dealerId = dealerId;
+          collision.items = quoteItems;
+          if (rawItems) collision.rawItems = rawItems;
+          collision.subtotal = calcSubtotal;
+          collision.discountTotal = calcDiscountTotal;
+          collision.taxTotal = calcTaxTotal;
+          collision.shippingCharges = parsedShipping;
+          collision.grandTotal = calcGrandTotal;
+          collision.isWithGst = isWithGst;
+          collision.specialTerms = specialTerms || collision.specialTerms;
+          await collision.save();
+
+          const assignedNum = extractTrailingNumber(finalQuotationNo);
+          if (assignedNum > 0) {
+            await advanceSequenceNumber({ minTarget: assignedNum, isInvoice: false }).catch(() => null);
+          }
+          const nextQInfo = await getNextQuotationNumber({ commit: false });
+
+          return res.json({ 
+            success: true, 
+            message: 'Quotation updated and submitted to Admin for approval', 
+            data: collision,
+            nextQuotationNo: nextQInfo.quotationNo,
+            nextQuotationNumber: nextQInfo.number
+          });
+        } else {
+          isCollision = true;
+        }
+      }
     }
 
     if (!finalQuotationNo || finalQuotationNo.toLowerCase().includes('xxxx') || isCollision) {
@@ -2178,7 +2214,7 @@ exports.createQuotation = async (req, res, next) => {
     // Guard against any race condition duplicate
     let candidate = finalQuotationNo;
     let counter = 1;
-    while (await QuotationModel.findOne({ quotationNo: candidate })) {
+    while (await QuotationModel.findOne({ quotationNo: candidate, status: 'APPROVED' })) {
       const nextQ = await getNextQuotationNumber({ commit: true });
       candidate = nextQ.quotationNo;
       if (counter++ > 5) break;

@@ -1164,6 +1164,31 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
     });
   };
 
+  const handleQuotationRefChange = async (val) => {
+    const formatted = ensureQuotationRef(
+      val,
+      companySettings.quotationPrefix || companySettings.invoicePrefix || 'MF/INV/25-26',
+      companySettings.nextQuotationNumber || 14
+    );
+    setQuotationRefNumber(formatted);
+    const match = formatted.match(/(\d+)(?!.*\d)/);
+    if (match) {
+      const seqNum = parseInt(match[1], 10);
+      if (!isNaN(seqNum) && seqNum > 0) {
+        setCompanySettings(prev => ({
+          ...prev,
+          nextQuotationNumber: seqNum,
+          nextQuotationNo: formatted
+        }));
+        try {
+          await axios.put('/billing/settings', { nextQuotationNumber: seqNum });
+        } catch (err) {
+          console.warn('Failed to sync quotation sequence setting to backend:', err);
+        }
+      }
+    }
+  };
+
   const getQuotationPayload = () => {
     const prefix = companySettings.invoicePrefix || 'MF/INV/25-26';
     const seq = companySettings.nextQuotationNumber || 14;
@@ -1189,6 +1214,7 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
     const quoteNo = ensureQuotationRef(quotationRefNumber || companySettings.nextQuotationNo || getStandardQuotationRef(rawPrefix, seq), rawPrefix, seq);
 
     const payload = {
+      ...(submittedQuotation?._id && { id: submittedQuotation._id, quotationId: submittedQuotation._id }),
       quotationNo: quoteNo,
       customerId: selectedCustomer?.type === 'STORE' ? (selectedCustomer.id || selectedCustomer._id) : undefined,
       dealerId: selectedCustomer?.type === 'DEALER' ? (selectedCustomer.id || selectedCustomer._id) : undefined,
@@ -2482,14 +2508,8 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
                   type="text"
                   value={quotationRefNumber || ''}
                   onChange={(e) => setQuotationRefNumber(e.target.value)}
-                  onBlur={(e) => {
-                    const formatted = ensureQuotationRef(
-                      e.target.value,
-                      companySettings.quotationPrefix || companySettings.invoicePrefix || 'MF/INV/25-26',
-                      companySettings.nextQuotationNumber || 14
-                    );
-                    setQuotationRefNumber(formatted);
-                  }}
+                  onBlur={(e) => handleQuotationRefChange(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') e.target.blur(); }}
                   placeholder="MF/QN/25-26/0014"
                   className="font-mono font-black text-rose-900 text-sm tracking-tight bg-white border border-rose-300 rounded-lg px-2.5 py-1 focus:outline-none focus:ring-2 focus:ring-rose-500 shadow-2xs w-48 sm:w-56"
                   title="Click to edit sequence or quotation number"
@@ -2702,14 +2722,8 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
                       type="text"
                       value={quotationRefNumber}
                       onChange={(e) => setQuotationRefNumber(e.target.value)}
-                      onBlur={(e) => {
-                        const formatted = ensureQuotationRef(
-                          e.target.value,
-                          companySettings.invoicePrefix || 'MF/INV/25-26',
-                          companySettings.nextSequenceNumber || 14
-                        );
-                        setQuotationRefNumber(formatted);
-                      }}
+                      onBlur={(e) => handleQuotationRefChange(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') e.target.blur(); }}
                       className="font-mono font-black text-rose-700 text-xs sm:text-sm text-left sm:text-right bg-slate-50 border border-slate-200 rounded-lg px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-rose-500 w-full sm:w-auto"
                       placeholder="e.g. MF/QN/25-26/0014"
                     />

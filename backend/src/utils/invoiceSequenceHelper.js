@@ -119,15 +119,7 @@ async function getNextQuotationNumber({ commit = true, customPrefix = null } = {
     ? parseInt(seq.lastQuotationNumber, 10)
     : (configuredNext - 1);
 
-  let highestExistingQuote = 13;
-  for (const q of (allQuotes || [])) {
-    const num = extractTrailingNumber(q.quotationNo);
-    if (num > 0 && num < 100000 && num > highestExistingQuote) {
-      highestExistingQuote = num;
-    }
-  }
-
-  let nextNumber = Math.max(seqLastQuoteNumber + 1, highestExistingQuote + 1, configuredNext, 14);
+  let nextNumber = Math.max(seqLastQuoteNumber + 1, configuredNext, 14);
 
   const formatQuoteNo = (num) => {
     const numStr = String(num).padStart(4, '0');
@@ -138,7 +130,7 @@ async function getNextQuotationNumber({ commit = true, customPrefix = null } = {
 
   let candidateQuoteNo = formatQuoteNo(nextNumber);
 
-  while (await QuotationModel.findOne({ quotationNo: candidateQuoteNo })) {
+  while (await QuotationModel.findOne({ quotationNo: candidateQuoteNo, status: 'APPROVED' })) {
     nextNumber++;
     candidateQuoteNo = formatQuoteNo(nextNumber);
   }
@@ -190,7 +182,7 @@ async function advanceSequenceNumber({ minTarget = null, prefix = null, isInvoic
     }
     const seqLast = (seq?.lastInvoiceNumber !== undefined && seq.lastInvoiceNumber < 100000) ? parseInt(seq.lastInvoiceNumber, 10) : 14;
     let nextNum = Math.max(highest + 1, seqLast + 1, 15);
-    if (minTarget !== null && !isNaN(minTarget) && minTarget >= nextNum) {
+    if (minTarget !== null && !isNaN(minTarget) && minTarget > 0) {
       nextNum = minTarget + 1;
     }
     await InvoiceSequenceModel.findOneAndUpdate(
@@ -217,7 +209,7 @@ async function advanceSequenceNumber({ minTarget = null, prefix = null, isInvoic
     }
     const seqLast = (seq?.lastQuotationNumber !== undefined && seq.lastQuotationNumber < 100000) ? parseInt(seq.lastQuotationNumber, 10) : 13;
     let nextNum = Math.max(highest + 1, seqLast + 1, 14);
-    if (minTarget !== null && !isNaN(minTarget) && minTarget >= nextNum) {
+    if (minTarget !== null && !isNaN(minTarget) && minTarget > 0) {
       nextNum = minTarget + 1;
     }
     await InvoiceSequenceModel.findOneAndUpdate(
