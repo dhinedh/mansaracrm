@@ -109,7 +109,10 @@ exports.getInvoiceSettings = async (req, res, next) => {
       }
     }
 
-    const nextInvInfo = await getNextInvoiceNumber({ commit: false });
+    const [nextInvInfo, nextQuoteInfo] = await Promise.all([
+      getNextInvoiceNumber({ commit: false }),
+      getNextQuotationNumber({ commit: false })
+    ]);
     const nextSeq = nextInvInfo.number;
     const currentLast = nextSeq - 1;
 
@@ -131,8 +134,29 @@ exports.getInvoiceSettings = async (req, res, next) => {
         bankDetails: effectiveBankDetails,
         nextSequenceNumber: nextSeq,
         currentLastNumber: currentLast,
-        invoicePrefix: nextInvInfo.prefix || settings.invoicePrefix || 'MF/INV/25-26'
+        invoicePrefix: nextInvInfo.prefix || settings.invoicePrefix || 'MF/INV/25-26',
+        nextInvoiceNumber: nextInvInfo.number,
+        nextInvoiceNo: nextInvInfo.invoiceNo,
+        nextQuotationNumber: nextQuoteInfo.number,
+        nextQuotationNo: nextQuoteInfo.quotationNo,
+        quotationPrefix: nextQuoteInfo.prefix || 'MF/QN/25-26'
       }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * GET /api/billing/next-quotation-number
+ * Retrieve next guaranteed sequential quotation number without committing
+ */
+exports.getNextQuotationNumberRoute = async (req, res, next) => {
+  try {
+    const quoteInfo = await getNextQuotationNumber({ commit: false });
+    res.json({
+      success: true,
+      data: quoteInfo
     });
   } catch (error) {
     next(error);

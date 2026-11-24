@@ -258,8 +258,8 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
         setCompanySettings(prev => ({ ...prev, ...s }));
 
         const prefix = s.invoicePrefix || 'MF/INV/25-26';
-        const nextSeq = s.nextSequenceNumber || 14;
-        setQuotationRefNumber(getStandardQuotationRef(prefix, nextSeq));
+        const nextQuote = s.nextQuotationNo || getStandardQuotationRef(s.quotationPrefix || prefix, s.nextQuotationNumber || 14);
+        setQuotationRefNumber(nextQuote);
       } else {
         setQuotationRefNumber(getStandardQuotationRef('MF/INV/25-26', 14));
       }
@@ -1065,8 +1065,9 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
     }
 
     const rawPrefix = currentSettings.invoicePrefix || 'MF/INV/25-26';
-    const nextSeq = currentSettings.nextSequenceNumber || 14;
-    setQuotationRefNumber(ensureQuotationRef(quotationRefNumber || getStandardQuotationRef(rawPrefix, nextSeq), rawPrefix, nextSeq));
+    const nextSeq = currentSettings.nextQuotationNumber || currentSettings.nextSequenceNumber || 14;
+    const standardRef = currentSettings.nextQuotationNo || getStandardQuotationRef(currentSettings.quotationPrefix || rawPrefix, nextSeq);
+    setQuotationRefNumber(standardRef);
     setShowQuotationModal(true);
   };
 
@@ -1077,7 +1078,7 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
       const match = quotationRefNumber?.match(/(\d+)(?!.*\d)/);
       const currentSeq = match 
         ? parseInt(match[1], 10) 
-        : (companySettings.nextSequenceNumber !== undefined ? parseInt(companySettings.nextSequenceNumber, 10) : 14);
+        : (companySettings.nextQuotationNumber !== undefined ? parseInt(companySettings.nextQuotationNumber, 10) : 14);
 
       const res = await axios.post('/billing/advance-sequence', {
         currentSequenceNumber: currentSeq,
@@ -1085,12 +1086,13 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
       });
 
       if (res.data?.success) {
-        const nextSeq = res.data.nextSequenceNumber;
+        const nextSeq = res.data.nextQuotationNumber || res.data.nextSequenceNumber;
         setCompanySettings(prev => ({
           ...prev,
-          nextSequenceNumber: nextSeq
+          nextQuotationNumber: nextSeq,
+          nextQuotationNo: res.data.quotationNo || res.data.formattedNumber
         }));
-        const quoteRef = getStandardQuotationRef(currentPrefix, nextSeq);
+        const quoteRef = res.data.quotationNo || res.data.formattedNumber || getStandardQuotationRef(currentPrefix, nextSeq);
         setQuotationRefNumber(quoteRef);
         return quoteRef;
       }
@@ -1098,9 +1100,9 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
       console.warn('Failed to advance sequence on backend, advancing locally:', e);
       const currentPrefix = (companySettings.invoicePrefix || 'MF/INV/25-26').trim();
       const match = quotationRefNumber?.match(/(\d+)(?!.*\d)/);
-      const currentSeq = match ? parseInt(match[1], 10) : (companySettings.nextSequenceNumber || 14);
+      const currentSeq = match ? parseInt(match[1], 10) : (companySettings.nextQuotationNumber || 14);
       const nextSeq = currentSeq + 1;
-      setCompanySettings(prev => ({ ...prev, nextSequenceNumber: nextSeq }));
+      setCompanySettings(prev => ({ ...prev, nextQuotationNumber: nextSeq }));
       const quoteRef = getStandardQuotationRef(currentPrefix, nextSeq);
       setQuotationRefNumber(quoteRef);
       return quoteRef;
@@ -1110,24 +1112,25 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
   const handleGenerateQuotation = async () => {
     // Dismiss quotation modal so parent UI remains unlocked and fully interactive
     setShowQuotationModal(false);
-    const seq = companySettings.nextSequenceNumber || 14;
-    const currentQuoteRef = ensureQuotationRef(quotationRefNumber || getStandardQuotationRef(companySettings.invoicePrefix, seq), companySettings.invoicePrefix, seq);
     const payload = getQuotationPayload();
-    const htmlContent = buildQuotationHtml(payload);
-    triggerPrintQuotation(htmlContent);
     try {
-      await submitQuotationForAdminApproval('Print Quotation');
-    } catch (e) {}
-    const nextNum = await advanceSequence();
-    setToastMessage({ text: `Price quotation ${currentQuoteRef} sent to print & submitted to Admin for approval!`, type: 'success' });
+      const saved = await submitQuotationForAdminApproval('Print Quotation');
+      const finalPayload = saved ? { ...payload, quotationRefNumber: saved.quotationNo } : payload;
+      const htmlContent = buildQuotationHtml(finalPayload);
+      triggerPrintQuotation(htmlContent);
+      setToastMessage({ text: `Price quotation ${saved?.quotationNo || finalPayload.quotationRefNumber} sent to print & submitted to Admin for approval!`, type: 'success' });
+    } catch (e) {
+      const htmlContent = buildQuotationHtml(payload);
+      triggerPrintQuotation(htmlContent);
+    }
   };
 
   const handleCopyQuotationText = () => {
     const activeCustomerName = selectedCustomer?.companyName || selectedCustomer?.name || customClientName || 'Valued Trade Partner';
     const rateModeLabel = rateMode === 'EXCLUDE_TAX' ? 'Rate Exclude Tax' : 'Rate Include Tax';
 
-    const seq = companySettings.nextSequenceNumber || 14;
-    const currentQuoteRef = ensureQuotationRef(quotationRefNumber || getStandardQuotationRef(companySettings.invoicePrefix, seq), companySettings.invoicePrefix, seq);
+    const seq = companySettings.nextQuotationNumber || 14;
+    const currentQuoteRef = ensureQuotationRef(quotationRefNumber || companySettings.nextQuotationNo || getStandardQuotationRef(companySettings.invoicePrefix, seq), companySettings.invoicePrefix, seq);
 
     const textLines = [
       '====================================================',
@@ -1156,15 +1159,14 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
       try {
         await submitQuotationForAdminApproval('Copy Text');
       } catch (e) {}
-      const nextNum = await advanceSequence();
       setToastMessage({ text: `Quotation text copied to clipboard & submitted to Admin for approval!`, type: 'success' });
     });
   };
 
   const getQuotationPayload = () => {
     const prefix = companySettings.invoicePrefix || 'MF/INV/25-26';
-    const seq = companySettings.nextSequenceNumber || 14;
-    const resolvedRef = ensureQuotationRef(quotationRefNumber || getStandardQuotationRef(prefix, seq), prefix, seq);
+    const seq = companySettings.nextQuotationNumber || 14;
+    const resolvedRef = ensureQuotationRef(quotationRefNumber || companySettings.nextQuotationNo || getStandardQuotationRef(prefix, seq), prefix, seq);
     return {
       calculationSummary,
       rateMode,
@@ -1182,9 +1184,8 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
     }
     const activeCustomerName = selectedCustomer?.companyName || selectedCustomer?.name || customClientName || 'Valued Trade Partner';
     const rawPrefix = companySettings.invoicePrefix || 'MF/INV/25-26';
-    const seq = companySettings.nextSequenceNumber || 14;
-    const quoteNo = ensureQuotationRef(quotationRefNumber || getStandardQuotationRef(rawPrefix, seq), rawPrefix, seq);
-    setQuotationRefNumber(quoteNo);
+    const seq = companySettings.nextQuotationNumber || 14;
+    const quoteNo = ensureQuotationRef(quotationRefNumber || companySettings.nextQuotationNo || getStandardQuotationRef(rawPrefix, seq), rawPrefix, seq);
 
     const payload = {
       quotationNo: quoteNo,
@@ -1228,6 +1229,16 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
     if (res.data?.success) {
       const saved = res.data.data;
       setSubmittedQuotation(saved);
+      if (res.data.nextQuotationNo) {
+        setQuotationRefNumber(res.data.nextQuotationNo);
+      }
+      if (res.data.nextQuotationNumber) {
+        setCompanySettings(prev => ({
+          ...prev,
+          nextQuotationNumber: res.data.nextQuotationNumber,
+          nextQuotationNo: res.data.nextQuotationNo
+        }));
+      }
       return saved;
     }
     return null;
@@ -1244,9 +1255,8 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
       const saved = await submitQuotationForAdminApproval('Save and Draft');
       if (saved) {
         setShowQuotationModal(false);
-        const nextNum = await advanceSequence();
         setToastMessage({
-          text: `Quotation "${saved.quotationNo}" saved & submitted to Admin for approval! Next Quotation # is ${nextNum || 'updated'}.`,
+          text: `Quotation "${saved.quotationNo}" saved & submitted to Admin for approval!`,
           type: 'success'
         });
       }
@@ -1264,21 +1274,18 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
       setToastMessage({ text: 'Please add at least one product before downloading quotation', type: 'error' });
       return;
     }
-    const seq = companySettings.nextSequenceNumber || 14;
-    const currentQuoteRef = ensureQuotationRef(quotationRefNumber || getStandardQuotationRef(companySettings.invoicePrefix, seq), companySettings.invoicePrefix, seq);
     const payload = getQuotationPayload();
     setDownloadingPdf(true);
-    setToastMessage({ text: `Downloading PDF & submitting Quotation ${currentQuoteRef} to Admin for approval...`, type: 'info' });
+    setToastMessage({ text: `Submitting Quotation & generating PDF...`, type: 'info' });
     try {
-      await submitQuotationForAdminApproval('Download Quotation');
-      await downloadQuotationPdf(payload);
-      const nextNum = await advanceSequence();
-      setToastMessage({ text: `Quotation ${currentQuoteRef} downloaded & submitted to Admin for approval!`, type: 'success' });
+      const saved = await submitQuotationForAdminApproval('Download Quotation');
+      const finalPayload = saved ? { ...payload, quotationRefNumber: saved.quotationNo } : payload;
+      await downloadQuotationPdf(finalPayload);
+      setToastMessage({ text: `Quotation ${saved?.quotationNo || finalPayload.quotationRefNumber} downloaded & submitted to Admin for approval!`, type: 'success' });
     } catch (err) {
       console.error('Error downloading quotation PDF, falling back to print dialog:', err);
       const htmlContent = buildQuotationHtml(payload);
       triggerPrintQuotation(htmlContent);
-      const nextNum = await advanceSequence();
       setToastMessage({ text: `Quotation sent to print & submitted to Admin for approval!`, type: 'info' });
     } finally {
       setDownloadingPdf(false);
@@ -1291,15 +1298,15 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
       return;
     }
     const payload = getQuotationPayload();
-    setActiveQuotationData(payload);
-    const text = formatQuotationWhatsAppText(payload);
-    const phone = selectedCustomer?.phone || '';
-    setWhatsAppPhone(phone);
-    setWhatsAppMessage(text);
-    setShowWhatsAppModal(true);
-
     try {
       const saved = await submitQuotationForAdminApproval('Share via WhatsApp');
+      const finalPayload = saved ? { ...payload, quotationRefNumber: saved.quotationNo } : payload;
+      setActiveQuotationData(finalPayload);
+      const text = formatQuotationWhatsAppText(finalPayload);
+      const phone = selectedCustomer?.phone || '';
+      setWhatsAppPhone(phone);
+      setWhatsAppMessage(text);
+      setShowWhatsAppModal(true);
       if (saved) {
         setToastMessage({
           text: `Quotation "${saved.quotationNo}" submitted to Admin for approval & opened for WhatsApp!`,
@@ -1308,6 +1315,12 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
       }
     } catch (err) {
       console.warn('Could not auto-submit quotation for approval on WhatsApp open:', err);
+      setActiveQuotationData(payload);
+      const text = formatQuotationWhatsAppText(payload);
+      const phone = selectedCustomer?.phone || '';
+      setWhatsAppPhone(phone);
+      setWhatsAppMessage(text);
+      setShowWhatsAppModal(true);
     }
   };
 
@@ -2459,7 +2472,7 @@ export default function PriceSimulatorPage({ isSalesPerson: isSalesPersonProp } 
             <div>
               <span className="text-[10px] font-extrabold uppercase tracking-wider text-rose-800 block">Current Quotation Ref</span>
               <span className="font-mono font-black text-rose-900 text-sm tracking-tight">
-                {ensureQuotationRef(quotationRefNumber || getStandardQuotationRef(companySettings.invoicePrefix, companySettings.nextSequenceNumber || 14), companySettings.invoicePrefix, companySettings.nextSequenceNumber || 14)}
+                {quotationRefNumber || companySettings.nextQuotationNo || getStandardQuotationRef(companySettings.quotationPrefix || companySettings.invoicePrefix, companySettings.nextQuotationNumber || 14)}
               </span>
             </div>
           </div>

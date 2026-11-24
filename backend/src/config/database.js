@@ -2089,6 +2089,14 @@ async function runDatabaseMigrations() {
         }
       }
 
+      // Re-align any invoice that jumped to 0032 to 0014 so sequence continues smoothly from 15
+      const jumped32 = await InvoiceModel.findOne({ invoiceNo: 'MF/INV/25-26/0032' });
+      if (jumped32) {
+        jumped32.invoiceNo = 'MF/INV/25-26/0014';
+        await jumped32.save();
+        console.log('[Migration] Re-aligned jumped invoice 0032 to MF/INV/25-26/0014');
+      }
+
       // Synchronize and verify official invoice sequence pointer (consecutive 15, 16, 17...)
       const allInvs = await InvoiceModel.find({}).select('invoiceNo sequenceNumber').lean();
       let maxInvNum = 14; // Baseline is 14, next invoice starts at 15
@@ -2103,11 +2111,25 @@ async function runDatabaseMigrations() {
         }
       }
       const nextInvAvailable = Math.max(maxInvNum + 1, 15);
+
+      // Synchronize quotation sequence pointer
+      const allQuotes = await QuotationModel.find({}).select('quotationNo').lean();
+      let maxQuoteNum = 14;
+      for (const q of allQuotes) {
+        const m = (q.quotationNo || '').replace(/-R\d+$/i, '').match(/(\d+)$/);
+        if (m) {
+          const num = parseInt(m[1], 10);
+          if (!isNaN(num) && num > maxQuoteNum && num < 100000) maxQuoteNum = num;
+        }
+      }
+      const nextQuoteAvailable = Math.max(maxQuoteNum + 1, 15);
+
       await InvoiceSequence.findOneAndUpdate(
         { _id: 'singleton' },
         { 
           $set: { 
             lastInvoiceNumber: nextInvAvailable - 1, 
+            lastQuotationNumber: nextQuoteAvailable - 1,
             prefix: 'MF/INV/25-26' 
           } 
         },
@@ -2115,9 +2137,14 @@ async function runDatabaseMigrations() {
       );
       await Setting.updateMany(
         { key: 'invoice_settings' },
-        { $set: { nextSequenceNumber: nextInvAvailable } }
+        { 
+          $set: { 
+            nextSequenceNumber: nextInvAvailable,
+            nextQuotationNumber: nextQuoteAvailable 
+          } 
+        }
       );
-      console.log(`[Migration] Official invoice sequence synchronized. Next invoice will be #${nextInvAvailable}.`);
+      console.log(`[Migration] Sequence synchronized: Next official invoice is #${nextInvAvailable}, next quotation is #${nextQuoteAvailable}.`);
     } catch (cleanupErr) {
       console.warn('[Migration] Non-fatal quotation cleanup notice:', cleanupErr.message);
     }

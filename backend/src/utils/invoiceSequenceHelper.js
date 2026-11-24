@@ -97,7 +97,7 @@ async function getNextInvoiceNumber({ commit = true, customPrefix = null } = {})
 
 /**
  * Calculates and optionally commits the next continuous Quotation Number.
- * e.g. "MF/QN/25-26/00010", "MF/QN/25-26/00011", ...
+ * e.g. "MF/QN/25-26/00014", "MF/QN/25-26/00015", ...
  */
 async function getNextQuotationNumber({ commit = true, customPrefix = null } = {}) {
   const SettingModel = mongoose.model('Setting');
@@ -112,14 +112,14 @@ async function getNextQuotationNumber({ commit = true, customPrefix = null } = {
 
   const rawPrefix = (customPrefix || seq?.prefix || settings?.invoicePrefix || 'MF/INV/25-26').trim();
   const quotePrefix = rawPrefix.replace(/INV/i, 'QN');
-  const configuredNext = settings?.nextSequenceNumber !== undefined 
-    ? parseInt(settings.nextSequenceNumber, 10) 
+  const configuredNext = settings?.nextQuotationNumber !== undefined 
+    ? parseInt(settings.nextQuotationNumber, 10) 
     : 14;
   const seqLastQuoteNumber = (seq?.lastQuotationNumber !== undefined && seq.lastQuotationNumber < 100000)
     ? parseInt(seq.lastQuotationNumber, 10)
     : (configuredNext - 1);
 
-  let highestExistingQuote = 0;
+  let highestExistingQuote = 13;
   for (const q of (allQuotes || [])) {
     const num = extractTrailingNumber(q.quotationNo);
     if (num > 0 && num < 100000 && num > highestExistingQuote) {
@@ -149,12 +149,16 @@ async function getNextQuotationNumber({ commit = true, customPrefix = null } = {
       { $set: { lastQuotationNumber: nextNumber, prefix: rawPrefix } },
       { upsert: true, new: true }
     );
+    await SettingModel.updateMany(
+      { key: 'invoice_settings' },
+      { $set: { nextQuotationNumber: nextNumber + 1 } }
+    );
   }
 
   return {
     number: nextNumber,
     quotationNo: candidateQuoteNo,
-    nextSequenceNumber: nextNumber + 1,
+    nextQuotationNumber: nextNumber + 1,
     prefix: quotePrefix
   };
 }
@@ -162,11 +166,12 @@ async function getNextQuotationNumber({ commit = true, customPrefix = null } = {
 /**
  * Explicitly advances the sequence number pointer by 1 (or to at least minTarget + 1)
  * and guarantees persistence across both InvoiceSequence and Setting models.
- * Sequence number format is always 5-digit padded (xxxxx).
  */
 async function advanceSequenceNumber({ minTarget = null, prefix = null, isInvoice = false } = {}) {
   const SettingModel = mongoose.model('Setting');
   const InvoiceSequenceModel = mongoose.model('InvoiceSequence');
+  const QuotationModel = mongoose.model('Quotation');
+  const InvoiceModel = mongoose.model('Invoice');
 
   const [settings, seq] = await Promise.all([
     SettingModel.findOne({ key: 'invoice_settings' }),
@@ -174,39 +179,66 @@ async function advanceSequenceNumber({ minTarget = null, prefix = null, isInvoic
   ]);
 
   const defaultPrefix = (prefix || seq?.prefix || settings?.invoicePrefix || 'MF/INV/25-26').trim();
-  const configuredNext = settings?.nextSequenceNumber !== undefined 
-    ? parseInt(settings.nextSequenceNumber, 10) 
-    : 14;
-  const seqLastNumber = isInvoice
-    ? (seq?.lastInvoiceNumber !== undefined ? parseInt(seq.lastInvoiceNumber, 10) : 14)
-    : (seq?.lastQuotationNumber !== undefined ? parseInt(seq.lastQuotationNumber, 10) : (configuredNext - 1));
+  const quotePrefix = defaultPrefix.replace(/INV/i, 'QN');
 
-  let current = Math.max(configuredNext, seqLastNumber + 1);
-  if (minTarget !== null && !isNaN(minTarget)) {
-    current = Math.max(current, parseInt(minTarget, 10));
+  if (isInvoice) {
+    const allInvoices = await InvoiceModel.find({}).select('invoiceNo').lean();
+    let highest = 14;
+    for (const inv of (allInvoices || [])) {
+      const num = extractTrailingNumber(inv.invoiceNo);
+      if (num > highest && num < 100000) highest = num;
+    }
+    const seqLast = (seq?.lastInvoiceNumber !== undefined && seq.lastInvoiceNumber < 100000) ? parseInt(seq.lastInvoiceNumber, 10) : 14;
+    let nextNum = Math.max(highest + 1, seqLast + 1, 15);
+    if (minTarget !== null && !isNaN(minTarget) && minTarget >= nextNum) {
+      nextNum = minTarget + 1;
+    }
+    await InvoiceSequenceModel.findOneAndUpdate(
+      { _id: 'singleton' },
+      { $set: { lastInvoiceNumber: nextNum - 1, prefix: defaultPrefix } },
+      { upsert: true, new: true }
+    );
+    await SettingModel.updateMany(
+      { key: 'invoice_settings' },
+      { $set: { nextSequenceNumber: nextNum } }
+    );
+    const numStr = String(nextNum).padStart(4, '0');
+    return {
+      nextSequenceNumber: nextNum,
+      formattedNumber: defaultPrefix.endsWith('/') ? `${defaultPrefix}${numStr}` : `${defaultPrefix}/${numStr}`,
+      prefix: defaultPrefix
+    };
+  } else {
+    const allQuotes = await QuotationModel.find({}).select('quotationNo').lean();
+    let highest = 13;
+    for (const q of (allQuotes || [])) {
+      const num = extractTrailingNumber(q.quotationNo);
+      if (num > highest && num < 100000) highest = num;
+    }
+    const seqLast = (seq?.lastQuotationNumber !== undefined && seq.lastQuotationNumber < 100000) ? parseInt(seq.lastQuotationNumber, 10) : 13;
+    let nextNum = Math.max(highest + 1, seqLast + 1, 14);
+    if (minTarget !== null && !isNaN(minTarget) && minTarget >= nextNum) {
+      nextNum = minTarget + 1;
+    }
+    await InvoiceSequenceModel.findOneAndUpdate(
+      { _id: 'singleton' },
+      { $set: { lastQuotationNumber: nextNum - 1, prefix: defaultPrefix } },
+      { upsert: true, new: true }
+    );
+    await SettingModel.updateMany(
+      { key: 'invoice_settings' },
+      { $set: { nextQuotationNumber: nextNum } }
+    );
+    const numStr = String(nextNum).padStart(4, '0');
+    const formatted = quotePrefix.endsWith('/') ? `${quotePrefix}${numStr}` : `${quotePrefix}/${numStr}`;
+    return {
+      nextSequenceNumber: nextNum,
+      nextQuotationNumber: nextNum,
+      formattedNumber: formatted,
+      quotationNo: formatted,
+      prefix: quotePrefix
+    };
   }
-
-  const nextNumber = current + 1;
-  const numStr = String(nextNumber).padStart(4, '0');
-  const formattedNumber = (defaultPrefix.endsWith('/') || defaultPrefix.endsWith('-'))
-    ? `${defaultPrefix}${numStr}`
-    : `${defaultPrefix}/${numStr}`;
-
-  const updateFields = isInvoice
-    ? { lastInvoiceNumber: nextNumber - 1, prefix: defaultPrefix }
-    : { lastQuotationNumber: nextNumber - 1, prefix: defaultPrefix };
-
-  await InvoiceSequenceModel.findOneAndUpdate(
-    { _id: 'singleton' },
-    { $set: updateFields },
-    { upsert: true, new: true }
-  );
-
-  return {
-    nextSequenceNumber: nextNumber,
-    formattedNumber,
-    prefix: defaultPrefix
-  };
 }
 
 module.exports = {

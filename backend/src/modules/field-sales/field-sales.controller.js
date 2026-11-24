@@ -2116,89 +2116,72 @@ exports.createQuotation = async (req, res, next) => {
 
     const QuotationModel = mongoose.model('Quotation');
 
-    let finalQuotationNo = requestedQuotationNo ? requestedQuotationNo.trim() : '';
-
-    if (finalQuotationNo) {
-      let existingQuote = await QuotationModel.findOne({ quotationNo: finalQuotationNo });
-      if (existingQuote) {
-        if (existingQuote.status !== 'APPROVED') {
-          // If draft or pending approval, update in place
-          existingQuote.customerName = resolvedCustomerName;
-          existingQuote.customerPhone = resolvedCustomerPhone;
-          existingQuote.customerAddress = resolvedCustomerAddress;
-          if (customerType) existingQuote.customerType = customerType;
-          if (customerId) existingQuote.customerId = customerId;
-          if (dealerId) existingQuote.dealerId = dealerId;
-          existingQuote.items = quoteItems;
-          if (rawItems) existingQuote.rawItems = rawItems;
-          existingQuote.subtotal = calcSubtotal;
-          existingQuote.discountTotal = calcDiscountTotal;
-          existingQuote.taxTotal = calcTaxTotal;
-          existingQuote.shippingCharges = parsedShipping;
-          existingQuote.grandTotal = calcGrandTotal;
-          existingQuote.isWithGst = isWithGst;
-          existingQuote.specialTerms = specialTerms || existingQuote.specialTerms;
-          existingQuote.status = status;
-          await existingQuote.save();
-
-          const assignedNum = extractTrailingNumber(finalQuotationNo);
-          if (assignedNum > 0) {
-            await advanceSequenceNumber({ minTarget: assignedNum }).catch(() => null);
-          }
-
-          // Notify Admin of Quotation Approval Request
-          try {
-            notifyAdminOfSalesAction({
-              actionType: 'QUOTATION_APPROVAL',
-              title: `Quotation Approval Request: ${finalQuotationNo}`,
-              message: `${req.user?.name || 'Sales Officer'} submitted quotation ${finalQuotationNo} for ${resolvedCustomerName} (₹${calcGrandTotal.toLocaleString('en-IN')}) requiring admin approval.`,
-              salesperson: req.user ? { id: req.user.id || req.user._id, name: req.user.name, phone: req.user.phone } : undefined,
-              store: { id: customerId, name: resolvedCustomerName, phone: resolvedCustomerPhone, address: resolvedCustomerAddress },
-              details:
-`• *Quotation #:* ${finalQuotationNo}
-• *Customer:* ${resolvedCustomerName} (${resolvedCustomerPhone || 'N/A'})
-• *Total Payable:* ₹${calcGrandTotal.toLocaleString('en-IN')}
-• *Total Items:* ${quoteItems.length} products
-• *Status:* PENDING ADMIN APPROVAL`,
-              metadata: {
-                quotationId: existingQuote._id,
-                quotationNo: finalQuotationNo,
-                grandTotal: calcGrandTotal,
-                customerName: resolvedCustomerName,
-                status: 'PENDING_APPROVAL'
-              },
-              targetUrl: 'https://crm.mansarafoods.com/admin/approvals'
-            }).catch(err => console.warn('Quotation notification failed:', err.message));
-          } catch (notifErr) {}
-
-          return res.json({ 
-            success: true, 
-            message: 'Quotation submitted to Admin for approval', 
-            data: existingQuote 
-          });
-        } else {
-          // The previous quotation with this number was ALREADY APPROVED!
-          // Allocate the next sequential continuous quotation number
-          const nextQ = await getNextQuotationNumber({ commit: true });
-          finalQuotationNo = nextQ.quotationNo;
-        }
-      }
-    } else {
-      const nextQ = await getNextQuotationNumber({ commit: true });
-      finalQuotationNo = nextQ.quotationNo;
+    // Explicit edit only when quotation ID is explicitly supplied
+    const explicitEditId = req.body.id || req.body.quotationId;
+    let existingQuote = null;
+    if (explicitEditId && mongoose.Types.ObjectId.isValid(explicitEditId)) {
+      existingQuote = await QuotationModel.findById(explicitEditId);
     }
 
-    // Ensure sequence pointer is always kept in sync with the assigned number and advanced
-    const assignedNum = extractTrailingNumber(finalQuotationNo);
-    if (assignedNum > 0) {
-      await advanceSequenceNumber({ minTarget: assignedNum }).catch(() => null);
+    if (existingQuote && existingQuote.status !== 'APPROVED') {
+      existingQuote.customerName = resolvedCustomerName;
+      existingQuote.customerPhone = resolvedCustomerPhone;
+      existingQuote.customerAddress = resolvedCustomerAddress;
+      if (customerType) existingQuote.customerType = customerType;
+      if (customerId) existingQuote.customerId = customerId;
+      if (dealerId) existingQuote.dealerId = dealerId;
+      existingQuote.items = quoteItems;
+      if (rawItems) existingQuote.rawItems = rawItems;
+      existingQuote.subtotal = calcSubtotal;
+      existingQuote.discountTotal = calcDiscountTotal;
+      existingQuote.taxTotal = calcTaxTotal;
+      existingQuote.shippingCharges = parsedShipping;
+      existingQuote.grandTotal = calcGrandTotal;
+      existingQuote.isWithGst = isWithGst;
+      existingQuote.specialTerms = specialTerms || existingQuote.specialTerms;
+      existingQuote.status = status;
+      await existingQuote.save();
+
+      const nextQ = await getNextQuotationNumber({ commit: false });
+
+      return res.json({ 
+        success: true, 
+        message: 'Quotation updated and submitted to Admin for approval', 
+        data: existingQuote,
+        nextQuotationNo: nextQ.quotationNo,
+        nextQuotationNumber: nextQ.number
+      });
+    }
+
+    // Creating a NEW Quotation:
+    // Determine quotation number and guarantee uniqueness without ever overwriting another quotation
+    let finalQuotationNo = requestedQuotationNo ? requestedQuotationNo.trim() : '';
+
+    let isCollision = false;
+    if (finalQuotationNo) {
+      const collision = await QuotationModel.findOne({ quotationNo: finalQuotationNo });
+      if (collision) isCollision = true;
+    }
+
+    if (!finalQuotationNo || finalQuotationNo.toLowerCase().includes('xxxx') || isCollision) {
+      // Allocate the next sequential continuous quotation number
+      const nextQ = await getNextQuotationNumber({ commit: true });
+      finalQuotationNo = nextQ.quotationNo;
+    } else {
+      // requestedQuotationNo is valid and unused; advance sequence pointer
+      const assignedNum = extractTrailingNumber(finalQuotationNo);
+      if (assignedNum > 0) {
+        await advanceSequenceNumber({ minTarget: assignedNum, isInvoice: false }).catch(() => null);
+      }
     }
 
     // Guard against any race condition duplicate
     let candidate = finalQuotationNo;
     let counter = 1;
     while (await QuotationModel.findOne({ quotationNo: candidate })) {
-      candidate = `${finalQuotationNo}-${Date.now().toString().slice(-4)}${counter++}`;
+      const nextQ = await getNextQuotationNumber({ commit: true });
+      candidate = nextQ.quotationNo;
+      if (counter++ > 5) break;
     }
     finalQuotationNo = candidate;
 
@@ -2223,6 +2206,8 @@ exports.createQuotation = async (req, res, next) => {
       specialTerms,
       status: status || 'PENDING_APPROVAL'
     });
+
+    const nextQInfo = await getNextQuotationNumber({ commit: false });
 
     // Notify Admin of Quotation Approval Request
     try {
@@ -2252,7 +2237,9 @@ exports.createQuotation = async (req, res, next) => {
     res.status(201).json({ 
       success: true, 
       message: 'Quotation submitted to Admin for approval', 
-      data: newQuote 
+      data: newQuote,
+      nextQuotationNo: nextQInfo.quotationNo,
+      nextQuotationNumber: nextQInfo.number
     });
   } catch (error) {
     console.error('Error creating quotation:', error);
