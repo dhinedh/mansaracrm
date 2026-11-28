@@ -32,7 +32,8 @@ import {
   CreditCard,
   Hash,
   Save,
-  Pencil
+  Pencil,
+  User
 } from 'lucide-react';
 
 // ── Sub-components defined OUTSIDE main component to prevent Vite TDZ issues ─
@@ -51,15 +52,22 @@ function StatusBadge({ inv, onClose }) {
   return <span className={`${base} bg-slate-50 text-slate-700`}>{inv.status}</span>;
 }
 
-function ChannelBadge({ channel }) {
-  if (channel === 'B2B') return (
-    <span className="text-[8px] font-black text-violet-700 bg-violet-50 border border-violet-100 px-1.5 py-0.5 rounded uppercase tracking-wide">B2B</span>
+function ChannelBadge({ channel, invoiceNo }) {
+  const invNo = invoiceNo || '';
+  if (invNo.includes('/DL/') || channel === 'B2B') return (
+    <span className="text-[8px] font-black text-violet-700 bg-violet-50 border border-violet-100 px-1.5 py-0.5 rounded uppercase tracking-wide inline-flex items-center gap-1">
+      <Building2 className="w-2.5 h-2.5" /> Dealer
+    </span>
   );
-  if (channel === 'WEBSITE' || channel === 'E_COMMERCE') return (
-    <span className="text-[8px] font-black text-sky-700 bg-sky-50 border border-sky-100 px-1.5 py-0.5 rounded uppercase tracking-wide">{channel}</span>
+  if (invNo.includes('/RT/') || invNo.includes('/RET/') || channel === 'RETAIL' || channel === 'STORE') return (
+    <span className="text-[8px] font-black text-rose-700 bg-rose-50 border border-rose-100 px-1.5 py-0.5 rounded uppercase tracking-wide inline-flex items-center gap-1">
+      <Store className="w-2.5 h-2.5" /> Retailer
+    </span>
   );
   return (
-    <span className="text-[8px] font-black text-rose-700 bg-rose-50 border border-rose-100 px-1.5 py-0.5 rounded uppercase tracking-wide">RETAIL</span>
+    <span className="text-[8px] font-black text-sky-700 bg-sky-50 border border-sky-100 px-1.5 py-0.5 rounded uppercase tracking-wide inline-flex items-center gap-1">
+      <User className="w-2.5 h-2.5" /> Customer
+    </span>
   );
 }
 
@@ -922,6 +930,7 @@ export default function AdminInvoiceLedger() {
   const [selectedDealer, setSelectedDealer] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('');
   const [selectedChannel, setSelectedChannel] = useState('');
+  const [selectedType, setSelectedType] = useState('ALL'); // 'ALL' | 'DEALER' | 'RETAILER' | 'CUSTOMER'
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
@@ -952,7 +961,7 @@ export default function AdminInvoiceLedger() {
   const fetchInvoices = async () => {
     setInvoicesLoading(true);
     try {
-      const res = await axios.get('/billing');
+      const res = await axios.get('/billing?limit=1000');
       setInvoices(res.data.data || []);
     } catch (err) { console.error(err); } finally { setInvoicesLoading(false); }
   };
@@ -1025,20 +1034,42 @@ export default function AdminInvoiceLedger() {
     } finally { setTxStatusLoading(null); }
   };
 
+  // ── Helper to resolve invoice category ─────────────────────────────────────
+  const getInvoiceCategory = (inv) => {
+    const invNo = inv.invoiceNo || '';
+    if (invNo.includes('/DL/')) return 'DEALER';
+    if (invNo.includes('/RT/') || invNo.includes('/RET/')) return 'RETAILER';
+    if (invNo.includes('/DC/')) return 'CUSTOMER';
+    if (inv.channel === 'RETAIL') return 'RETAILER';
+    if (inv.channel === 'WEBSITE' || inv.channel === 'E_COMMERCE' || inv.channel === 'CUSTOMER') return 'CUSTOMER';
+    if (inv.dealerId || inv.dealer) return 'DEALER';
+    return 'DEALER';
+  };
+
+  const categoryCounts = {
+    all: invoices.length,
+    dealer: invoices.filter(i => getInvoiceCategory(i) === 'DEALER').length,
+    retailer: invoices.filter(i => getInvoiceCategory(i) === 'RETAILER').length,
+    customer: invoices.filter(i => getInvoiceCategory(i) === 'CUSTOMER').length
+  };
+
   // ── Filter Logic ──────────────────────────────────────────────────────────
   const filteredInvoices = invoices.filter(inv => {
+    const cat = getInvoiceCategory(inv);
+    const matchesCategory = selectedType === 'ALL' || cat === selectedType;
     const term = searchTerm.toLowerCase();
     const matchesSearch =
       inv.invoiceNo.toLowerCase().includes(term) ||
       (inv.dealer?.companyName || '').toLowerCase().includes(term) ||
+      (inv.customerName || '').toLowerCase().includes(term) ||
       (inv.store?.name || '').toLowerCase().includes(term);
     const matchesDealer = !selectedDealer || inv.dealerId === selectedDealer;
     const matchesStatus = !selectedStatus || inv.status === selectedStatus;
-    const matchesChannel = !selectedChannel || (inv.channel || 'B2B') === selectedChannel;
+    const matchesChannel = !selectedChannel || selectedChannel === 'ALL' || cat === selectedChannel || (inv.channel || 'B2B') === selectedChannel;
     const invDate = new Date(inv.createdAt);
     const matchesStart = !startDate || invDate >= new Date(startDate + 'T00:00:00');
     const matchesEnd = !endDate || invDate <= new Date(endDate + 'T23:59:59');
-    return matchesSearch && matchesDealer && matchesStatus && matchesChannel && matchesStart && matchesEnd;
+    return matchesCategory && matchesSearch && matchesDealer && matchesStatus && matchesChannel && matchesStart && matchesEnd;
   });
 
   const filteredTransfers = transfers.filter(tx => {
@@ -1144,10 +1175,87 @@ export default function AdminInvoiceLedger() {
 
           {/* Filters */}
           <div className="bg-white border border-slate-150 rounded-2xl p-4 shadow-sm space-y-4">
-            <div className="flex items-center space-x-2 text-slate-800 border-b border-slate-100 pb-2">
-              <Filter className="w-4 h-4 text-rose-600" />
-              <span className="text-xs font-bold uppercase tracking-wider">Search & Filter Invoices</span>
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 border-b border-slate-100 pb-3">
+              <div className="flex items-center space-x-2 text-slate-800">
+                <Filter className="w-4 h-4 text-rose-600" />
+                <span className="text-xs font-bold uppercase tracking-wider">Search & Filter Invoices</span>
+              </div>
+
+              {/* Segmented Category Filter Pills */}
+              <div className="flex flex-wrap items-center gap-1.5 bg-slate-100/80 p-1 rounded-xl border border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => { setSelectedType('ALL'); setSelectedChannel(''); }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center space-x-1.5 cursor-pointer ${
+                    selectedType === 'ALL'
+                      ? 'bg-slate-900 text-white shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                  }`}
+                >
+                  <span>All Invoices</span>
+                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
+                    selectedType === 'ALL' ? 'bg-slate-800 text-rose-300' : 'bg-slate-200 text-slate-600'
+                  }`}>
+                    {categoryCounts.all}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => { setSelectedType('DEALER'); setSelectedChannel(''); }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center space-x-1.5 cursor-pointer ${
+                    selectedType === 'DEALER'
+                      ? 'bg-violet-700 text-white shadow-sm'
+                      : 'text-violet-700 hover:bg-violet-50'
+                  }`}
+                >
+                  <Building2 className="w-3 h-3" />
+                  <span>Dealer (B2B)</span>
+                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
+                    selectedType === 'DEALER' ? 'bg-violet-800 text-violet-200' : 'bg-violet-100 text-violet-700'
+                  }`}>
+                    {categoryCounts.dealer}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => { setSelectedType('RETAILER'); setSelectedChannel(''); }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center space-x-1.5 cursor-pointer ${
+                    selectedType === 'RETAILER'
+                      ? 'bg-rose-600 text-white shadow-sm'
+                      : 'text-rose-700 hover:bg-rose-50'
+                  }`}
+                >
+                  <Store className="w-3 h-3" />
+                  <span>Retailer (Store)</span>
+                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
+                    selectedType === 'RETAILER' ? 'bg-rose-700 text-rose-200' : 'bg-rose-100 text-rose-700'
+                  }`}>
+                    {categoryCounts.retailer}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => { setSelectedType('CUSTOMER'); setSelectedChannel(''); }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center space-x-1.5 cursor-pointer ${
+                    selectedType === 'CUSTOMER'
+                      ? 'bg-sky-700 text-white shadow-sm'
+                      : 'text-sky-700 hover:bg-sky-50'
+                  }`}
+                >
+                  <User className="w-3 h-3" />
+                  <span>Direct Customer</span>
+                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
+                    selectedType === 'CUSTOMER' ? 'bg-sky-800 text-sky-200' : 'bg-sky-100 text-sky-700'
+                  }`}>
+                    {categoryCounts.customer}
+                  </span>
+                </button>
+              </div>
             </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-3">
               <div className="relative md:col-span-2">
                 <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -1164,12 +1272,23 @@ export default function AdminInvoiceLedger() {
                 <option value="">All Dealers</option>
                 {dealers.map(d => <option key={d.id} value={d.id}>{d.companyName}</option>)}
               </select>
-              <select value={selectedChannel} onChange={e => setSelectedChannel(e.target.value)}
-                className="px-3 py-2 text-xs bg-slate-50 border border-slate-200 focus:border-rose-500 rounded-xl focus:outline-none font-semibold text-slate-600 cursor-pointer">
-                <option value="">All Channels</option>
-                <option value="B2B">B2B</option>
-                <option value="WEBSITE">Website</option>
-                <option value="E_COMMERCE">E-Commerce</option>
+              <select 
+                value={selectedType !== 'ALL' ? selectedType : (selectedChannel || '')} 
+                onChange={e => {
+                  const val = e.target.value;
+                  if (val === 'ALL' || val === 'DEALER' || val === 'RETAILER' || val === 'CUSTOMER') {
+                    setSelectedType(val);
+                    setSelectedChannel('');
+                  } else {
+                    setSelectedChannel(val);
+                  }
+                }}
+                className="px-3 py-2 text-xs bg-slate-50 border border-slate-200 focus:border-rose-500 rounded-xl focus:outline-none font-semibold text-slate-600 cursor-pointer"
+              >
+                <option value="ALL">All Categories / Channels</option>
+                <option value="DEALER">Dealer / Wholesale (B2B)</option>
+                <option value="RETAILER">Retailer / Store (RT)</option>
+                <option value="CUSTOMER">Direct Customer (DC)</option>
               </select>
               <select value={selectedStatus} onChange={e => setSelectedStatus(e.target.value)}
                 className="px-3 py-2 text-xs bg-slate-50 border border-slate-200 focus:border-rose-500 rounded-xl focus:outline-none font-semibold text-slate-600 cursor-pointer">
@@ -1217,10 +1336,10 @@ export default function AdminInvoiceLedger() {
                   <tbody>
                     {filteredInvoices.map(inv => (
                       <tr key={inv.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50 transition-colors">
-                        <td className="p-4">
+                        <td className="p-4 whitespace-nowrap">
                           <div>
                             <div className="flex items-center flex-wrap gap-1">
-                              <span className="font-black text-slate-800 text-xs font-mono">{inv.invoiceNo}</span>
+                              <span className="font-black text-slate-800 text-xs font-mono whitespace-nowrap">{inv.invoiceNo}</span>
                               {inv.invoiceType === 'ADVANCE' && (
                                 <span className="text-[8px] font-black text-rose-700 bg-rose-50 border border-rose-100 px-1.5 py-0.5 rounded uppercase">Advance</span>
                               )}
@@ -1234,18 +1353,22 @@ export default function AdminInvoiceLedger() {
                           </div>
                         </td>
                         <td className="p-4">
-                          <ChannelBadge channel={inv.channel || 'B2B'} />
+                          <ChannelBadge channel={inv.channel || 'B2B'} invoiceNo={inv.invoiceNo} />
                         </td>
                         <td className="p-4">
                           <div className="flex items-center space-x-2">
                             <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                            <span className="font-bold text-slate-800">{inv.dealer?.companyName || 'Unknown Dealer'}</span>
+                            <span className="font-bold text-slate-800 uppercase">
+                              {inv.dealer?.companyName || '—'}
+                            </span>
                           </div>
                         </td>
                         <td className="p-4">
                           <div className="flex items-center space-x-2">
                             <Store className="w-3.5 h-3.5 text-rose-600 shrink-0" />
-                            <span className="font-bold text-slate-700">{inv.store?.name || '—'}</span>
+                            <span className="font-bold text-slate-700">
+                              {inv.store?.name || (inv.channel === 'RETAIL' ? (inv.customerName || '—') : '—')}
+                            </span>
                           </div>
                         </td>
                         <td className="p-4 text-center">
@@ -1399,7 +1522,7 @@ export default function AdminInvoiceLedger() {
                       <div className="flex flex-wrap items-center gap-3 text-[10px] text-slate-400 font-semibold">
                         <span className="flex items-center space-x-1">
                           <Building2 className="w-3 h-3" />
-                          <span>{tx.dealer?.companyName || 'Unknown Dealer'}</span>
+                          <span>{tx.dealer?.companyName || tx.invoice?.dealer?.companyName || '—'}</span>
                         </span>
                         <span className="flex items-center space-x-1">
                           <Package className="w-3 h-3" />
@@ -1515,7 +1638,7 @@ export default function AdminInvoiceLedger() {
                 </h3>
                 <span className="text-[10px] text-slate-400 block font-mono mt-0.5">{selectedInvoice.invoiceNo}</span>
                 <div className="flex items-center gap-2 mt-1.5">
-                  <ChannelBadge channel={selectedInvoice.channel || 'B2B'} />
+                  <ChannelBadge channel={selectedInvoice.channel || 'B2B'} invoiceNo={selectedInvoice.invoiceNo} />
                   {selectedInvoice.invoiceType === 'ADVANCE' && (
                     <span className="text-[8px] font-black text-rose-700 bg-rose-50 border border-rose-100 px-1.5 py-0.5 rounded uppercase">Advance</span>
                   )}
@@ -1532,8 +1655,8 @@ export default function AdminInvoiceLedger() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 bg-slate-50 p-4 border border-slate-100 rounded-xl">
                 <div className="space-y-1.5">
                   <span className="block text-[9px] font-black uppercase text-slate-400 tracking-wider">Dealer & Outlet Info</span>
-                  <p className="font-bold text-slate-800">Distributor: {selectedInvoice.dealer?.companyName}</p>
-                  <p className="text-slate-500 font-medium">Billed To: {selectedInvoice.store ? selectedInvoice.store.name : 'B2B Warehouse Direct'}</p>
+                  <p className="font-bold text-slate-800">Distributor: {selectedInvoice.dealer?.companyName || selectedInvoice.customerName || '—'}</p>
+                  <p className="text-slate-500 font-medium">Billed To: {selectedInvoice.store?.name && selectedInvoice.store.name !== (selectedInvoice.dealer?.companyName || selectedInvoice.customerName) ? selectedInvoice.store.name : 'B2B Trade Partner Direct'}</p>
                   {selectedInvoice.store && <p className="text-slate-400">Store GST: {selectedInvoice.store.gstNumber || 'N/A'}</p>}
                 </div>
                 <div className="space-y-1.5">

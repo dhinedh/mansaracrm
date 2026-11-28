@@ -109,11 +109,13 @@ exports.getInvoiceSettings = async (req, res, next) => {
       }
     }
 
-    const [nextInvInfo, nextQuoteInfo] = await Promise.all([
-      getNextInvoiceNumber({ commit: false }),
+    const [nextDealerInfo, nextRetailerInfo, nextCustomerInfo, nextQuoteInfo] = await Promise.all([
+      getNextInvoiceNumber({ commit: false, category: 'DL' }),
+      getNextInvoiceNumber({ commit: false, category: 'RT' }),
+      getNextInvoiceNumber({ commit: false, category: 'DC' }),
       getNextQuotationNumber({ commit: false })
     ]);
-    const nextSeq = nextInvInfo.number;
+    const nextSeq = nextDealerInfo.number;
     const currentLast = nextSeq - 1;
 
     const settingsData = settings.toJSON ? settings.toJSON() : settings;
@@ -134,19 +136,21 @@ exports.getInvoiceSettings = async (req, res, next) => {
         bankDetails: effectiveBankDetails,
         nextSequenceNumber: nextSeq,
         currentLastNumber: currentLast,
-        invoicePrefix: (nextInvInfo.prefix || settings.invoicePrefix || 'MF/INV/25-26')
-          .replace(/\/(ON|QN|QTN|QT)\//gi, '/INV/')
-          .replace(/\/ON\//gi, '/INV/'),
-        nextInvoiceNumber: nextInvInfo.number,
-        nextInvoiceNo: nextInvInfo.invoiceNo,
+        invoicePrefix: nextDealerInfo.prefix,
+        nextInvoiceNumber: nextDealerInfo.number,
+        nextInvoiceNo: nextDealerInfo.invoiceNo,
+        dealerPrefix: nextDealerInfo.prefix,
+        nextDealerInvoiceNo: nextDealerInfo.invoiceNo,
+        nextDealerInvoiceNumber: nextDealerInfo.number,
+        retailerPrefix: nextRetailerInfo.prefix,
+        nextRetailerInvoiceNo: nextRetailerInfo.invoiceNo,
+        nextRetailerInvoiceNumber: nextRetailerInfo.number,
+        customerPrefix: nextCustomerInfo.prefix,
+        nextCustomerInvoiceNo: nextCustomerInfo.invoiceNo,
+        nextCustomerInvoiceNumber: nextCustomerInfo.number,
         nextQuotationNumber: nextQuoteInfo.number,
         nextQuotationNo: nextQuoteInfo.quotationNo,
-        quotationPrefix: (nextQuoteInfo.prefix || 'MF/QN/25-26')
-          .replace(/\/(ON|INV|IN|QTN|QT)\//gi, '/QN/')
-          .replace(/\/ON\//gi, '/QN/')
-          .replace(/\/INV\//gi, '/QN/')
-          .replace(/INV/gi, 'QN')
-          .replace(/\bON\b/gi, 'QN')
+        quotationPrefix: nextQuoteInfo.prefix
       }
     });
   } catch (error) {
@@ -282,6 +286,7 @@ exports.updateInvoiceSettings = async (req, res, next) => {
  * Sets and synchronizes the active quotation sequence pointer so subsequent quotations
  * continue continuously from this number onwards.
  */
+
 exports.setQuotationSequence = async (req, res, next) => {
   try {
     const mongoose = require('mongoose');
@@ -297,12 +302,11 @@ exports.setQuotationSequence = async (req, res, next) => {
       .replace(/\/(ON|QN|QTN|QT)\//gi, '/INV/')
       .replace(/\/ON\//gi, '/INV/');
     const quotePrefix = rawPrefix
-      .replace(/\/(ON|INV|IN|QTN|QT)\//gi, '/QN/')
+      .replace(/\/(ON|INV|IN|QTN| QT)\//gi, '/QN/')
       .replace(/\/ON\//gi, '/QN/')
       .replace(/\/INV\//gi, '/QN/')
       .replace(/INV/gi, 'QN')
       .replace(/\bON\b/gi, 'QN');
-
     await InvoiceSequenceModel.findOneAndUpdate(
       { _id: 'singleton' },
       { $set: { lastQuotationNumber: targetSeq - 1, prefix: defaultPrefix } },
@@ -327,7 +331,6 @@ exports.setQuotationSequence = async (req, res, next) => {
     next(error);
   }
 };
-
 /**
  * Atomically advances invoice/quotation sequence pointer by 1.
  * Called on any quotation action (Download, Share, Save) to ensure continuous sequential numbering.
@@ -547,47 +550,22 @@ exports.createInvoice = async (req, res, next) => {
     // 3. Execute invoice generation in single secure Transaction
     const invoice = await prisma.$transaction(async (tx) => {
       // A. Get & increment invoice sequence
-      const seqId = dealer.invoicePrefix ? `dealer_${dealerId}` : 'singleton';
-      let defaultPrefix = dealer.invoicePrefix || 'MF/INV/25-26';
-      let startNumber = 10;
-
-      if (!dealer.invoicePrefix) {
-        const invSettings = await tx.setting.findFirst({
-          where: { key: 'invoice_settings' }
-        });
-        if (invSettings) {
-          if (invSettings.invoicePrefix) defaultPrefix = invSettings.invoicePrefix;
-          if (invSettings.nextSequenceNumber) startNumber = invSettings.nextSequenceNumber;
-        }
-      }
-
-      const seq = await tx.invoiceSequence.upsert({
-        where: { id: seqId },
-        update: { lastNumber: { increment: 1 } },
-        create: { id: seqId, lastNumber: startNumber, prefix: defaultPrefix }
-      });
-
-      // Ensure the sequence prefix is up to date with configured prefix
-      if (defaultPrefix && seq.prefix !== defaultPrefix) {
-        await tx.invoiceSequence.update({
+      let invoiceNo;
+      if (dealer.invoicePrefix) {
+        const seqId = `dealer_${dealerId}`;
+        const defaultPrefix = dealer.invoicePrefix.trim();
+        const seq = await tx.invoiceSequence.upsert({
           where: { id: seqId },
-          data: { prefix: defaultPrefix }
+          update: { lastNumber: { increment: 1 } },
+          create: { id: seqId, lastNumber: 1, prefix: defaultPrefix }
         });
-        seq.prefix = defaultPrefix;
-      }
-
-      const p = (seq.prefix || 'MF/INV/25-26').trim();
-      const numStr = String(seq.lastNumber || 10).padStart(4, '0');
-      const invoiceNo = (p.endsWith('/') || p.endsWith('-'))
-        ? `${p}${numStr}`
-        : `${p}${p.includes('/') ? '/' : '-'}${numStr}`;
-
-      // Keep invoice_settings synced with nextSequenceNumber if company singleton
-      if (seqId === 'singleton') {
-        await tx.setting.updateMany({
-          where: { key: 'invoice_settings' },
-          data: { nextSequenceNumber: seq.lastNumber + 1 }
-        });
+        const numStr = String(seq.lastNumber || 1).padStart(5, '0');
+        invoiceNo = (defaultPrefix.endsWith('/') || defaultPrefix.endsWith('-'))
+          ? `${defaultPrefix}${numStr}`
+          : `${defaultPrefix}/${numStr}`;
+      } else {
+        const nextInvInfo = await getNextInvoiceNumber({ commit: true, category: 'RT' });
+        invoiceNo = nextInvInfo.invoiceNo;
       }
 
       let dueDate = null;
@@ -600,6 +578,7 @@ exports.createInvoice = async (req, res, next) => {
       const inv = await tx.invoice.create({
         data: {
           invoiceNo,
+          channel: 'RETAIL',
           dealerId,
           storeId: store.id,
           subtotal: calculatedSubtotal,
@@ -977,8 +956,9 @@ exports.downloadPdf = async (req, res, next) => {
     }
 
     const company = await getCompanyDetails(invoice.store ? invoice.dealer : null);
-    // Use simple retail template for dealer→store invoices; full B2B template for warehouse→dealer invoices
-    const html = invoice.store
+    // Use full B2B tax invoice layout for B2B invoices and company direct sales; simple retail template only for dealer retail slips
+    const isDealerRetailSlip = !!(invoice.dealerId && invoice.channel === 'RETAIL');
+    const html = isDealerRetailSlip
       ? buildSimpleRetailInvoiceHtml(company, invoice)
       : buildInvoiceHtml(company, invoice);
 

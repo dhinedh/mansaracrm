@@ -916,8 +916,14 @@ const InvoiceSequenceSchema = new Schema({
   _id: { type: String, required: true },
   lastNumber: { type: Number, default: 14 },
   lastInvoiceNumber: { type: Number, default: 14 },
+  lastDealerInvoiceNumber: { type: Number, default: 14 },
+  lastRetailerInvoiceNumber: { type: Number, default: 3 },
+  lastCustomerInvoiceNumber: { type: Number, default: 0 },
   lastQuotationNumber: { type: Number, default: 14 },
-  prefix: { type: String, default: 'MF/INV/25-26' }
+  prefix: { type: String, default: 'MF/INV/DL/25-26' },
+  dealerPrefix: { type: String, default: 'MF/INV/DL/25-26' },
+  retailerPrefix: { type: String, default: 'MF/INV/RT/25-26' },
+  customerPrefix: { type: String, default: 'MF/INV/DC/25-26' }
 }, {
   timestamps: { createdAt: false, updatedAt: true },
   toJSON: { virtuals: true },
@@ -1621,8 +1627,14 @@ const SettingSchema = new Schema({
   pincode: { type: String, default: '600077' },
   phone: { type: String, default: '+91 98765 43210' },
   email: { type: String, default: 'info@mansarafoods.com' },
-  invoicePrefix: { type: String, default: 'MF/INV/25-26' },
-  nextSequenceNumber: { type: Number, default: 10 },
+  invoicePrefix: { type: String, default: 'MF/INV/DL/25-26' },
+  dealerInvoicePrefix: { type: String, default: 'MF/INV/DL/25-26' },
+  retailerInvoicePrefix: { type: String, default: 'MF/INV/RT/25-26' },
+  customerInvoicePrefix: { type: String, default: 'MF/INV/DC/25-26' },
+  nextSequenceNumber: { type: Number, default: 15 },
+  nextDealerInvoiceNumber: { type: Number, default: 15 },
+  nextRetailerInvoiceNumber: { type: Number, default: 4 },
+  nextCustomerInvoiceNumber: { type: Number, default: 1 },
   placeOfSupply: { type: String, default: 'Tamil Nadu (33)' },
   invoiceTerms: { type: String, default: '1. Payment within 15 days.\n2. Interest @ 2% per month on delay.\n3. Claims if any must be reported at delivery.' },
   bankDetails: {
@@ -2133,12 +2145,41 @@ async function runDatabaseMigrations() {
         console.log(`[Migration] Sanitized invoice ${inv._id} from /ON/ to /INV/: ${inv.invoiceNo}`);
       }
 
-      // Re-align any invoice that jumped to 0032 to 0014 so sequence continues smoothly from 15
-      const jumped32 = await InvoiceModel.findOne({ invoiceNo: 'MF/INV/25-26/0032' });
-      if (jumped32) {
-        jumped32.invoiceNo = 'MF/INV/25-26/0014';
-        await jumped32.save();
-        console.log('[Migration] Re-aligned jumped invoice 0032 to MF/INV/25-26/0014');
+      // Standardize invoices to 3-tier prefix nomenclature:
+      // - Retailer: MF/INV/RT/25-26/00001
+      // - Dealer:   MF/INV/DL/25-26/00001
+      // - Customer: MF/INV/DC/25-26/00001
+      const allExistingInvoices = await InvoiceModel.find({});
+      for (const inv of allExistingInvoices) {
+        let updated = false;
+        // Skip special XXX-prefixed historic invoices (e.g. MF/INV/RT/25-26/XXX1)
+        if (/\/XXX\d+$/.test(inv.invoiceNo)) continue;
+        if (inv.invoiceNo.startsWith('MF/RET/') || inv.invoiceNo.startsWith('MF/0') || inv.invoiceNo.startsWith('MF/INV/RT/')) {
+          const m = inv.invoiceNo.match(/(\d+)$/);
+          if (m) {
+            const numStr = String(parseInt(m[1], 10)).padStart(5, '0');
+            const targetNo = `MF/INV/RT/25-26/${numStr}`;
+            if (inv.invoiceNo !== targetNo) {
+              inv.invoiceNo = targetNo;
+              updated = true;
+            }
+          }
+        } else if (inv.invoiceNo.startsWith('MF/INV/25-26/') || inv.invoiceNo.startsWith('MF/INV/DL/') || inv.invoiceNo.startsWith('MF/INV/0')) {
+          const clean = inv.invoiceNo.replace(/\/(2[4-9]-\d{2}|20\d{2}-20\d{2}|20\d{2})$/i, '').trim();
+          const m = clean.match(/(\d+)$/);
+          if (m) {
+            const numStr = String(parseInt(m[1], 10)).padStart(5, '0');
+            const targetNo = `MF/INV/DL/25-26/${numStr}`;
+            if (inv.invoiceNo !== targetNo) {
+              inv.invoiceNo = targetNo;
+              updated = true;
+            }
+          }
+        }
+        if (updated) {
+          await inv.save().catch(() => null);
+          console.log(`[Migration] Standardized invoice format to: ${inv.invoiceNo}`);
+        }
       }
 
       // Synchronize and verify official invoice sequence pointer (consecutive 15, 16, 17...)
@@ -2148,7 +2189,8 @@ async function runDatabaseMigrations() {
         if (inv.sequenceNumber && inv.sequenceNumber > maxInvNum && inv.sequenceNumber < 100000) {
           maxInvNum = inv.sequenceNumber;
         }
-        const m = (inv.invoiceNo || '').replace(/-R\d+$/i, '').match(/(\d+)$/);
+        const cleanInvNo = (inv.invoiceNo || '').replace(/-R\d+$/i, '').replace(/\/(2[4-9]-\d{2}|20\d{2}-20\d{2}|20\d{2})$/i, '').trim();
+        const m = cleanInvNo.match(/(\d+)$/);
         if (m) {
           const num = parseInt(m[1], 10);
           if (!isNaN(num) && num > maxInvNum && num < 100000) maxInvNum = num;

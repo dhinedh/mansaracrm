@@ -52,7 +52,7 @@ const buildInvoiceHtml = (company, invoice) => {
   const billerCity    = isRetail ? (invoice.dealer?.city || company.city || '') : (company.city || '');
   const billerState   = isRetail ? (invoice.dealer?.state || company.state || 'Tamil Nadu') : (company.state || 'Tamil Nadu');
   const billerPin     = isRetail ? (invoice.dealer?.pincode || company.pincode || '600077') : (company.pincode || '600077');
-  const billerGst     = isRetail ? (invoice.dealer?.gstNumber || 'N/A') : (company.gstNumber || 'N/A');
+  const billerGst     = isRetail ? (invoice.dealer?.gstNumber || company.gstNumber || company.gst || '33AAUCM3644B1ZJ') : (company.gstNumber || company.gst || '33AAUCM3644B1ZJ');
   const billerPhone   = isRetail ? (invoice.dealer?.phone || company.phone) : company.phone;
 
   // Clean address formatting without repeating state or city
@@ -447,15 +447,15 @@ const buildSimpleRetailInvoiceHtml = (company, invoice) => {
     logoHtml = `<div style="font-size:20px;font-weight:900;color:#D6295A;">${dealer.companyName || company.name}</div>`;
   }
 
-  const billerName  = dealer.companyName  || company.name;
+  const billerName  = dealer.companyName  || company.companyName || company.name || 'Mansara Foods Pvt. Ltd.';
   const billerAddr  = dealer.address      || company.address;
   const billerPhone = dealer.phone        || company.phone;
-  const billerGst   = dealer.gstNumber    || 'N/A';
+  const billerGst   = dealer.gstNumber    || company.gstNumber || company.gst || '33AAUCM3644B1ZJ';
 
-  const shipToName  = store.name    || 'Walk-in Customer';
-  const shipToAddr  = store.address || '';
-  const shipToPhone = store.phone   || '';
-  const shipToGst   = store.gstNumber || '';
+  const shipToName  = store.name    || invoice.customerName || 'Valued Customer';
+  const shipToAddr  = store.address || invoice.customerAddress || '';
+  const shipToPhone = store.phone   || invoice.customerPhone || '';
+  const shipToGst   = store.gstNumber || invoice.customerGst || '';
 
   const rawDate = invoice.invoiceDate || invoice.createdAt;
   const invDate = new Date(rawDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' });
@@ -620,13 +620,13 @@ const buildSimpleRetailInvoiceHtml = (company, invoice) => {
   <!-- Bill To / Ship To -->
   <div class="bill-ship-row">
     <div class="bill-cell">
-      <div class="section-hdr">Bill To (From Dealer)</div>
-      <div class="bill-name">${billerName}</div>
-      <div class="bill-addr">${billerAddr}<br>${billerPhone ? 'PH. ' + billerPhone : ''}</div>
-      ${billerGst && billerGst !== 'N/A' ? `<div class="gstin-line">GSTIN: ${billerGst}</div>` : ''}
+      <div class="section-hdr">Bill To</div>
+      <div class="bill-name">${shipToName}</div>
+      <div class="bill-addr">${shipToAddr}${shipToPhone ? '<br>PH. ' + shipToPhone : ''}</div>
+      ${shipToGst ? `<div class="gstin-line">GSTIN: ${shipToGst}</div>` : ''}
     </div>
     <div class="ship-cell">
-      <div class="section-hdr">Ship To (Store / Outlet)</div>
+      <div class="section-hdr">Ship To</div>
       <div class="bill-name">${shipToName}</div>
       <div class="bill-addr">${shipToAddr}${shipToPhone ? '<br>PH. ' + shipToPhone : ''}</div>
       ${shipToGst ? `<div class="gstin-line">GSTIN: ${shipToGst}</div>` : ''}
