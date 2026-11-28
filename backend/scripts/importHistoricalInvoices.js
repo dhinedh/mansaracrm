@@ -361,6 +361,7 @@ async function run() {
     { sheet: '0005',   invNo: 'MF/INV/DL/25-26/00005', channel: 'B2B' },
     { sheet: '0006',   invNo: 'MF/INV/DL/25-26/00006', channel: 'B2B' },
     { sheet: '0007',   invNo: 'MF/INV/DL/25-26/00007', channel: 'B2B' },
+    { sheet: 'Sheet3', invNo: 'MF/INV/DL/25-26/00009', channel: 'B2B' },
     { sheet: '00010',  invNo: 'MF/INV/DL/25-26/00010', channel: 'B2B' },
     { sheet: '00011',  invNo: 'MF/INV/DL/25-26/00011', channel: 'B2B' },
     { sheet: '0012',   invNo: 'MF/INV/DL/25-26/00012', channel: 'B2B' },
