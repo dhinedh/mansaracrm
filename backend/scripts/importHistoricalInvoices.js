@@ -354,12 +354,13 @@ async function run() {
   // - Retailer: MF/INV/RT/25-26/00001 to 00003
   // - Customer: MF/INV/DC/25-26/00001
   const sheetsToImport = [
+    { sheet: 'Sheet2', invNo: 'MF/INV/DL/25-26/00001', channel: 'B2B' },
     { sheet: '0002',   invNo: 'MF/INV/DL/25-26/00002', channel: 'B2B' },
     { sheet: '0003',   invNo: 'MF/INV/DL/25-26/00003', channel: 'B2B' },
     { sheet: '0004',   invNo: 'MF/INV/DL/25-26/00004', channel: 'B2B' },
     { sheet: '0005',   invNo: 'MF/INV/DL/25-26/00005', channel: 'B2B' },
+    { sheet: '0006',   invNo: 'MF/INV/DL/25-26/00006', channel: 'B2B' },
     { sheet: '0007',   invNo: 'MF/INV/DL/25-26/00007', channel: 'B2B' },
-    { sheet: '0006',   invNo: 'MF/INV/DL/25-26/00009', channel: 'B2B' },
     { sheet: '00010',  invNo: 'MF/INV/DL/25-26/00010', channel: 'B2B' },
     { sheet: '00011',  invNo: 'MF/INV/DL/25-26/00011', channel: 'B2B' },
     { sheet: '0012',   invNo: 'MF/INV/DL/25-26/00012', channel: 'B2B' },
