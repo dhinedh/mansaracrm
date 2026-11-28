@@ -1675,19 +1675,17 @@ export default function AdminInvoiceLedger() {
                 <span className="block text-[9px] font-black uppercase text-slate-400 tracking-wider">Items Breakdown</span>
                 <div className="border border-slate-150 rounded-xl overflow-hidden">
                   <div className="grid grid-cols-12 bg-slate-50 border-b border-slate-100 p-3 text-[9px] font-black uppercase tracking-wider text-slate-400">
-                    <div className="col-span-5">Product / SKU</div>
+                    <div className="col-span-7">Product / SKU</div>
                     <div className="col-span-2 text-center">Qty</div>
-                    <div className="col-span-2 text-center">Margin</div>
                     <div className="col-span-3 text-right">Line Total</div>
                   </div>
                   {selectedInvoice.items?.map(item => (
                     <div key={item.id} className="grid grid-cols-12 items-center p-3 border-b border-slate-100 last:border-0">
-                      <div className="col-span-5 font-bold text-slate-800">
+                      <div className="col-span-7 font-bold text-slate-800">
                         {item.product?.name}
                         <span className="block text-[9px] font-black text-rose-600">SKU: {item.product?.sku}</span>
                       </div>
                       <div className="col-span-2 text-center font-bold text-slate-700">{item.quantity} {item.unit || item.product?.unit || 'PCS'}</div>
-                      <div className="col-span-2 text-center font-bold text-slate-700">{parseFloat(item.marginPct)}%</div>
                       <div className="col-span-3 text-right font-bold text-slate-800">₹{parseFloat(item.lineTotal).toFixed(2)}</div>
                     </div>
                   ))}
